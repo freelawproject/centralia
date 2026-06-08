@@ -1,0 +1,267 @@
+<xsd:schema xmlns="http://nrs.harvard.edu/urn-3:HLS.Libr.US_Case_Law.Schema.Case_Body:v1" xmlns:xsd="http://www.w3.org/2001/XMLSchema" targetNamespace="http://nrs.harvard.edu/urn-3:HLS.Libr.US_Case_Law.Schema.Case_Body:v1" elementFormDefault="qualified" attributeFormDefault="unqualified">
+<xsd:element name="casebody">
+<xsd:annotation>
+<xsd:documentation>
+Casebody XML stores structure of a legal case document body.
+</xsd:documentation>
+</xsd:annotation>
+<xsd:complexType>
+<xsd:sequence>
+<xsd:element name="court" type="InlineContentType" minOccurs="0">
+<xsd:annotation>
+<xsd:documentation>Court name as spelled in the text (case header)</xsd:documentation>
+</xsd:annotation>
+</xsd:element>
+<xsd:element name="docketnumber" type="InlineContentType" minOccurs="0" maxOccurs="unbounded">
+<xsd:annotation>
+<xsd:documentation>Docket numbers present in the text (case header)</xsd:documentation>
+</xsd:annotation>
+</xsd:element>
+<xsd:element name="citation" type="InlineContentType" minOccurs="0" maxOccurs="unbounded">
+<xsd:annotation>
+<xsd:documentation>
+Parallel citation(s) as specified in the text (case header)
+</xsd:documentation>
+</xsd:annotation>
+</xsd:element>
+<xsd:element name="seealso" type="InlineContentType" minOccurs="0" maxOccurs="unbounded">
+<xsd:annotation>
+<xsd:documentation>
+Cross-reference citation (often to a past or future similar case). It does NOT identify this case.
+</xsd:documentation>
+</xsd:annotation>
+</xsd:element>
+<xsd:element name="parties" type="InlineContentType" maxOccurs="unbounded">
+<xsd:annotation>
+<xsd:documentation>
+Section of case that contains party names. Case can have multiple parties blocks, e.g.: Harris v Boreham Harris v United States
+</xsd:documentation>
+</xsd:annotation>
+</xsd:element>
+<xsd:element name="decisiondate" type="InlineContentType" minOccurs="0">
+<xsd:annotation>
+<xsd:documentation>
+Decision date as specified in the text (case header)
+</xsd:documentation>
+</xsd:annotation>
+</xsd:element>
+<xsd:element name="otherdate" type="InlineContentType" minOccurs="0" maxOccurs="unbounded">
+<xsd:annotation>
+<xsd:documentation>
+Other date(s) as specified in the text (case header). This may include follow-up dates.
+</xsd:documentation>
+</xsd:annotation>
+</xsd:element>
+<xsd:element name="judges" type="InlineContentType" minOccurs="0" maxOccurs="unbounded">
+<xsd:annotation>
+<xsd:documentation>Name of Judge(s) hearing the case</xsd:documentation>
+</xsd:annotation>
+</xsd:element>
+<xsd:element name="attorneys" type="InlineContentType" minOccurs="0" maxOccurs="unbounded">
+<xsd:annotation>
+<xsd:documentation>
+Names of the attorneys representing the parties to the case.
+</xsd:documentation>
+</xsd:annotation>
+</xsd:element>
+<xsd:element name="summary" type="InlineContentType" minOccurs="0" maxOccurs="unbounded">
+<xsd:annotation>
+<xsd:documentation>
+A summary of what happened in the case. Appears at the beginning of the case just after the title of the case and court information. Not identified as such.
+</xsd:documentation>
+</xsd:annotation>
+</xsd:element>
+<xsd:element name="syllabus" type="InlineContentType" minOccurs="0" maxOccurs="unbounded">
+<xsd:annotation>
+<xsd:documentation>May be present only in Supreme Court opinions</xsd:documentation>
+</xsd:annotation>
+</xsd:element>
+<xsd:element name="disposition" type="InlineContentType" minOccurs="0" maxOccurs="unbounded">
+<xsd:annotation>
+<xsd:documentation>
+Description of the procedural outcome of the case, e.g. Reversed, dismissed etc. Generally a short paragraph that appears just after the summary or synopsis
+</xsd:documentation>
+</xsd:annotation>
+</xsd:element>
+<xsd:element name="history" type="InlineContentType" minOccurs="0" maxOccurs="unbounded">
+<xsd:annotation>
+<xsd:documentation>
+History of the case (similar to the summary, but focused on past events related to this case). Appears at the beginning of the case just after the title of the case and court information.
+</xsd:documentation>
+</xsd:annotation>
+</xsd:element>
+<xsd:element name="headnotes" type="InlineContentType" minOccurs="0" maxOccurs="unbounded">
+<xsd:annotation>
+<xsd:documentation>
+Headnotes are summary descriptions of the legal issues discussed by the court in the particular case. They appear at the beginning of each case just after the summary and disposition. They are short paragraphs with a heading in bold face type. From Wikipedia - A headnote is a brief summary of a particular point of law that is added to the text of a court decision to aid readers in locating discussion of a legal issue in an opinion. As the term implies, headnotes appear at the beginning of the published opinion. Frequently, headnotes are "value-added" components appended to decisions by the publisher who compiles the decisions of a court for resale. As handed down by the court, a decision or written opinion does not contain headnotes. These are added later by an editor not connected to the court, but who instead works for a legal publishing house.
+</xsd:documentation>
+</xsd:annotation>
+</xsd:element>
+<xsd:element name="p" minOccurs="0" maxOccurs="unbounded" type="InlineContentType">
+<xsd:annotation>
+<xsd:documentation>
+Other misc text that belongs to the header (judges panel, argument date, and such)
+</xsd:documentation>
+</xsd:annotation>
+</xsd:element>
+<xsd:element name="footnote" minOccurs="0" maxOccurs="unbounded" type="FootnoteType"/>
+<xsd:element name="opinion" minOccurs="0" maxOccurs="unbounded">
+<xsd:annotation>
+<xsd:documentation>Main body of the opinion.</xsd:documentation>
+</xsd:annotation>
+<xsd:complexType>
+<xsd:choice minOccurs="0" maxOccurs="unbounded">
+<xsd:element name="author" type="InlineContentType" minOccurs="0" maxOccurs="1">
+<xsd:annotation>
+<xsd:documentation>
+Author of the opinion. Can also be PER CURIAM. Example: COOK, Associate Judge
+</xsd:documentation>
+</xsd:annotation>
+</xsd:element>
+<xsd:element name="p" minOccurs="0" maxOccurs="unbounded" type="InlineContentType">
+<xsd:annotation>
+<xsd:documentation>Paragraph of text.</xsd:documentation>
+</xsd:annotation>
+</xsd:element>
+<xsd:element name="blockquote" minOccurs="0" maxOccurs="unbounded" type="InlineContentType">
+<xsd:annotation>
+<xsd:documentation>A blockquote</xsd:documentation>
+</xsd:annotation>
+</xsd:element>
+<xsd:element name="footnote" minOccurs="0" maxOccurs="unbounded" type="FootnoteType"/>
+</xsd:choice>
+<xsd:attribute name="type" type="OpinionType" use="required"/>
+</xsd:complexType>
+</xsd:element>
+<xsd:element name="correction" minOccurs="0" maxOccurs="unbounded" type="InlineContentType">
+<xsd:annotation>
+<xsd:documentation>
+Publisher's correction to the case text. Example: Replace last paragraph on page 476 with this text: blah blah blah. This is basically an unstructured text that can be used to manually correct case content according to publisher's instructions. No footnotes is expected within it.
+</xsd:documentation>
+</xsd:annotation>
+</xsd:element>
+</xsd:sequence>
+<xsd:attribute name="firstpage" type="xsd:string" use="required">
+<xsd:annotation>
+<xsd:documentation>First page of this case in the volume.</xsd:documentation>
+</xsd:annotation>
+</xsd:attribute>
+<xsd:attribute name="lastpage" type="xsd:string" use="required">
+<xsd:annotation>
+<xsd:documentation>Last page of this case in the volume.</xsd:documentation>
+</xsd:annotation>
+</xsd:attribute>
+</xsd:complexType>
+</xsd:element>
+<xsd:complexType name="InlineContentType" mixed="true">
+<xsd:annotation>
+<xsd:documentation>
+Defines structure of the textual content. Particularly, inline tags
+</xsd:documentation>
+</xsd:annotation>
+<xsd:choice minOccurs="0" maxOccurs="unbounded">
+<xsd:element name="bracketnum" minOccurs="0" maxOccurs="unbounded">
+<xsd:annotation>
+<xsd:documentation>
+(that correspond to headnotes): Appear in the text of the case at the beginning of various paragraphs, as illustrated here. [1] These bracketed numbers correspond to the headnotes that appear at the beginning of the individual cases. These headnotes are summary descriptions of the legal issues discussed by the court in the particular case. A number appears at the beginning of each headnote that corresponds to the bracketed number that appears later in the case. This allows a researcher who is only interested in one aspect of the case to read the headnote, and quickly jump to that portion of the case that the headnote describes.
+</xsd:documentation>
+</xsd:annotation>
+</xsd:element>
+<xsd:element name="footnotemark" minOccurs="0" maxOccurs="unbounded" type="xsd:string">
+<xsd:annotation>
+<xsd:documentation>Footnote reference in the text. Example: **</xsd:documentation>
+</xsd:annotation>
+</xsd:element>
+<xsd:element name="pagebreak" minOccurs="0" maxOccurs="unbounded" type="xsd:string">
+<xsd:annotation>
+<xsd:documentation>Marks page breaks on original digitized volume.</xsd:documentation>
+</xsd:annotation>
+</xsd:element>
+<xsd:element name="em" minOccurs="0" maxOccurs="unbounded" type="xsd:string">
+<xsd:annotation>
+<xsd:documentation>
+Indicates text which should be displayed using italics.
+</xsd:documentation>
+</xsd:annotation>
+</xsd:element>
+<xsd:element name="strong" minOccurs="0" maxOccurs="unbounded" type="xsd:string">
+<xsd:annotation>
+<xsd:documentation>Indicates text which should be displayed in bold.</xsd:documentation>
+</xsd:annotation>
+</xsd:element>
+</xsd:choice>
+<xsd:attribute name="id" type="xsd:ID" use="required">
+<xsd:annotation>
+<xsd:documentation>Unique (within this document) ID of this element</xsd:documentation>
+</xsd:annotation>
+</xsd:attribute>
+<xsd:attribute name="pgmap" type="xsd:string" use="required">
+<xsd:annotation>
+<xsd:documentation>
+Page number of this block. Content has two different forms depending on where block comes from. If the entire block comes froma single page (in other words, block content was not split between pages), the attribute value is just a page number. If block comes from two (or more) pages, then the content will have the following form: pageno1(count1) pageno2(count2) ... pagenoN(countN) where 'pagenoX' is the page number, and 'countX' is the number of words that belong to this page. Example: pgmap="5(12) 6(134)" It means that first 12 words belong to page 5 and the rest of this text (next 134 words) belong to page 6. What "words" are? For the purpose of "pgmap" words are defined as chunks of text separated by whitespace: blank, tab, newline, carriage-return or soft hyphen: unicode symbol U00AD When we do string dehyphenation we insert soft hyphen to indicate the place where dehyphenation merged the pieces. This allow one to detect and correctly map to its page strings that span across page boundary.
+</xsd:documentation>
+</xsd:annotation>
+</xsd:attribute>
+</xsd:complexType>
+<xsd:simpleType name="OpinionType">
+<xsd:annotation>
+<xsd:documentation>
+type (e.g. unanimous, majority, plurality, concurrence, dissent)
+</xsd:documentation>
+</xsd:annotation>
+<xsd:restriction base="xsd:string">
+<xsd:enumeration value="majority"/>
+<xsd:enumeration value="unanimous"/>
+<xsd:enumeration value="plurality"/>
+<xsd:enumeration value="concurrence"/>
+<xsd:enumeration value="dissent"/>
+<xsd:enumeration value="remittitur"/>
+<xsd:enumeration value="rehearing"/>
+<xsd:enumeration value="on-the-merits"/>
+<xsd:enumeration value="on-motion-to-strike-cost-bill"/>
+<xsd:enumeration value="concurring-in-part-and-dissenting-in-part"/>
+</xsd:restriction>
+</xsd:simpleType>
+<xsd:complexType name="FootnoteType">
+<xsd:annotation>
+<xsd:documentation>
+A footnote wrapper (footnote in opinion body or case header). Most footnotes will have only one p element inside. But some footnotes have multiple paragraphs, and we also anticipate footnote images and blockquites.
+</xsd:documentation>
+</xsd:annotation>
+<xsd:choice minOccurs="0" maxOccurs="unbounded">
+<xsd:element name="p" minOccurs="0" maxOccurs="unbounded" type="InlineContentType">
+<xsd:annotation>
+<xsd:documentation>
+Paragraph of footnote text. First paragraph typically starts with a footnote label.
+</xsd:documentation>
+</xsd:annotation>
+</xsd:element>
+<xsd:element name="blockquote" minOccurs="0" maxOccurs="unbounded" type="InlineContentType">
+<xsd:annotation>
+<xsd:documentation>A blockquote inside a footnote (rare).</xsd:documentation>
+</xsd:annotation>
+</xsd:element>
+</xsd:choice>
+<xsd:attribute name="orphan" type="xsd:boolean" use="optional">
+<xsd:annotation>
+<xsd:documentation>
+Marks a footnote that does not have any references in the text.
+</xsd:documentation>
+</xsd:annotation>
+</xsd:attribute>
+<xsd:attribute name="redact" type="xsd:boolean" use="optional">
+<xsd:annotation>
+<xsd:documentation>
+Marks a footnote that has to be redacted (publisher's footnote).
+</xsd:documentation>
+</xsd:annotation>
+</xsd:attribute>
+<xsd:attribute name="label" type="xsd:string" use="optional">
+<xsd:annotation>
+<xsd:documentation>
+Contains footnote label. This value is parsed out of the footnote text for convenience of the agents that want to match each footnote reference with its corresponding footnote. Text is not changed - it will still start with the footnote label. This attribute is declared optional solely for the purpose of backward-compatibility with schema version 1.0. Programs that generate XML using schema 1.1 and higher MUST specify this attribute.
+</xsd:documentation>
+</xsd:annotation>
+</xsd:attribute>
+</xsd:complexType>
+</xsd:schema>

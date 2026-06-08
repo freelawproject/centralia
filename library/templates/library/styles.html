@@ -1,0 +1,18 @@
+{% extends "library/base.html" %}{% block title %}Headmatter styles — restatement{% endblock %}
+{% block crumbs %} / <a href="{% url 'library:court_list' %}">courts</a> / styles{% endblock %}
+{% block content %}<h1>Headmatter styles <span class="pill">{{ families|length }}</span></h1>
+<p class="muted">Documents grouped by the extractor family that parses their headmatter and byline.
+Courts in the same group share a headmatter style — the place to spot a court that should behave
+like its siblings but doesn't.</p>
+
+{% for f in families %}
+<div class="stylegrp">
+  <div class="grp">{{ f.name }}
+    <span class="pill">{{ f.n_courts }} courts · {{ f.n_docs }} docs{% if f.suspect %} · <span class="susp">⚠{{ f.suspect }}</span>{% endif %}</span></div>
+  <div class="styletypes">{% for t,n in f.types %}<span class="pill">{{ t }} ×{{ n }}</span> {% endfor %}</div>
+  <div class="courtchips">
+   {% for c in f.courts %}<a class="chip" href="{% url 'library:court_detail' c.id %}">{{ c.id }}
+     <span class="cnt">{{ c.n }}{% if c.suspect %} <span class="susp">⚠{{ c.suspect }}</span>{% endif %}</span></a>{% endfor %}
+  </div>
+</div>
+{% endfor %}{% endblock %}

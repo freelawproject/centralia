@@ -1,0 +1,9 @@
+{% extends "library/base.html" %}{% block title %}Courts — restatement{% endblock %}
+{% block content %}<h1>Courts <span class="pill">{{ courts|length }}</span></h1>
+{% regroup courts by grp.0 as groups %}
+{% for g in groups %}<div class="grp">{{ g.grouper }} ({{ g.list|length }})</div>
+ {% for c in g.list %}<a class="court" href="{% url 'library:court_detail' c.court_id %}">
+   <span class="nm">{% if c.claude_done %}<span class="done">✅</span> {% endif %}{{ c.court_id }}</span>
+   <span class="badge">{{ c.documents.count }}{% if c.suspect_count %} · <span class="susp">⚠{{ c.suspect_count }}</span>{% endif %}{% if c.notes %} 📝{% endif %}</span>
+ </a>{% endfor %}
+{% endfor %}{% endblock %}

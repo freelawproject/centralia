@@ -1,0 +1,25 @@
+{% extends "library/base.html" %}{% block title %}{{ court.court_id }} — restatement{% endblock %}
+{% block crumbs %} / <a href="{% url 'library:court_list' %}">courts</a> / {{ court.court_id }}{% endblock %}
+{% block content %}<h1>{{ court.label|default:court.court_id }}
+ {% if court.claude_done %}<span class="done">✅ done</span>{% endif %}</h1>
+
+<div class="about">
+ {% if family %}<div class="fact"><span class="k">Style family</span>
+   <span class="v">{{ family }}</span></div>{% endif %}
+ <div class="fact"><span class="k">Files</span><span class="v">
+   {{ stats.n_docs }} docs · {{ stats.opinions }} opinions · {{ stats.pages }} pages ·
+   {{ stats.coverage }}% mean coverage{% if stats.suspect %} ·
+   <span class="susp">⚠ {{ stats.suspect }} all-headmatter</span>{% endif %}</span></div>
+ <div class="fact"><span class="k">Doc types</span><span class="v">
+   {% for t,n in stats.types %}<span class="pill">{{ t }} ×{{ n }}</span> {% endfor %}</span></div>
+ {% if similar %}<div class="fact"><span class="k">Similar courts</span><span class="v">
+   {% for s in similar %}<a class="simlink" href="{% url 'library:court_detail' s %}">{{ s }}</a>{% if not forloop.last %} · {% endif %}{% endfor %}</span></div>{% endif %}
+</div>
+
+{% if court.notes %}<h2 class="sec">Review notes</h2><div class="raw" style="white-space:pre-wrap">{{ court.notes }}</div>{% endif %}
+
+<h2 class="sec">Documents ({{ stats.n_docs }})</h2>
+{% for d in documents %}<a class="docrow" href="{% url 'library:document_detail' court.court_id d.stem %}">
+  <span class="nm">{{ d.stem }}</span>
+  <span class="badge">{{ d.doc_type }} · {{ d.n_pages }}pp · {{ d.coverage }}%{% if d.suspect %} <span class="susp">⚠</span>{% endif %}</span>
+</a>{% endfor %}{% endblock %}
