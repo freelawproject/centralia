@@ -19,6 +19,10 @@ from ._appellate import StateAppellate
 from ._statesupreme import _is_byline_name
 
 _NOTICE_CUES = ("not final until time expires", "disposition thereof if timely filed")
+_MONTHS = (
+    "January", "February", "March", "April", "May", "June", "July",
+    "August", "September", "October", "November", "December",
+)
 
 
 def _is_notice(text: str) -> bool:
@@ -26,18 +30,45 @@ def _is_notice(text: str) -> bool:
     return any(cue in low for cue in _NOTICE_CUES)
 
 
+def _is_centered_date(text: str) -> bool:
+    """'May 22, 2026' — a month name, a day, and a 4-digit year."""
+    t = text.strip().rstrip(".")
+    parts = t.replace(",", " ").split()
+    return (
+        len(parts) == 3
+        and parts[0] in _MONTHS
+        and parts[1].isdigit()
+        and len(parts[2]) == 4
+        and parts[2].isdigit()
+    )
+
+
 class FloridaDistrictCourtOfAppeal(StateAppellate):
     def find_authors(self, all_segments) -> list:
-        out = super().find_authors(all_segments)
-        if out:
-            return out
-        # an unsigned order ('ON JOINT STIPULATION FOR DISMISSAL OF
-        # APPEAL' + prose; the panel concurs at the end) — start at the
-        # first body-kind segment
-        for i, (_p, _seg, kind) in enumerate(all_segments):
-            if kind == "body":
-                return [i]
-        return []
+        # The decision DATE is centered on its own line and is the last
+        # headmatter element — every Florida DCA disposition (signed
+        # opinion or per curiam order) begins right after it. Use it as the
+        # headmatter boundary; a real byline (PER CURIAM / NAME, J.) always
+        # sits below the date, so when the base finds one there, trust it
+        # (it also catches later concurrences/dissents).
+        date_i = self._centered_date_index(all_segments)
+        base = super().find_authors(all_segments)
+        if date_i is None:
+            return base
+        if base and base[0] > date_i:
+            return base
+        return [date_i + 1] if date_i + 1 < len(all_segments) else base
+
+    def _centered_date_index(self, all_segments):
+        last = None
+        for i, (pno, seg, _k) in enumerate(all_segments):
+            if pno != 1 or not seg:
+                continue
+            line = seg[0]
+            t = self.line_plain_text(line).strip()
+            if _is_centered_date(t) and self.line_alignment(line, 612) == "C":
+                last = i
+        return last
 
     def split_author_line(self, line):
         if self._byline_split(line) is None and self.parse_author_line(
