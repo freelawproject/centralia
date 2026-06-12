@@ -1,16 +1,16 @@
 """Tennessee Court of Criminal Appeals.
 
-Intermediate appellate court. Author byline at the opinion start ('NAME, Judge.' / 'NAME, J.' / 'PER CURIAM'); the shared appellate base reuses the abbreviated-title parser and drops the trial-judge / panel-roster caption lines.
+Intermediate appellate court; all the layout mechanics — the prose
+'delivered' byline, the OPINION-heading opinion start, caption-footnote
+routing, e-filing stamp drop, page-number folding — live in the shared
+Tennessee appellate base.
 """
 
 from __future__ import annotations
 
-from ._appellate import StateAppellate
+from ._tennessee import TennesseeAppellate
 
 
-class TennesseeCourtOfCriminalAppeals(StateAppellate):
+class TennesseeCourtOfCriminalAppeals(TennesseeAppellate):
     court_id = "tenncrimapp"
     court_label = "Tennessee Court of Criminal Appeals."
-    accept_delivered = (
-        True  # Tennessee prose byline: NAME, J., delivered the opinion ...
-    )

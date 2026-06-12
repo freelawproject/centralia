@@ -27,6 +27,25 @@ def _is_notice(text: str) -> bool:
 
 
 class FloridaDistrictCourtOfAppeal(StateAppellate):
+    def find_authors(self, all_segments) -> list:
+        out = super().find_authors(all_segments)
+        if out:
+            return out
+        # an unsigned order ('ON JOINT STIPULATION FOR DISMISSAL OF
+        # APPEAL' + prose; the panel concurs at the end) — start at the
+        # first body-kind segment
+        for i, (_p, _seg, kind) in enumerate(all_segments):
+            if kind == "body":
+                return [i]
+        return []
+
+    def split_author_line(self, line):
+        if self._byline_split(line) is None and self.parse_author_line(
+            self.line_plain_text(line).strip()
+        ) is None:
+            return "", [line]
+        return super().split_author_line(line)
+
     court_id = "fladistctapp"
     court_label = "Florida District Court of Appeal."
 

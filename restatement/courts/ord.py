@@ -12,4 +12,5 @@ from ._district import DistrictBase
 
 class DistrictOfOregon(DistrictBase):
     court_id = "ord"
+    styled_headmatter = True
     court_label = "United States District Court, District of Oregon."

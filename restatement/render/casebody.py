@@ -14,6 +14,19 @@ from xml.sax.saxutils import escape
 from ..models import ExtractedDocument, Footnote, Opinion
 
 
+def _cb_strip_tags(s: str) -> str:
+    """Drop inline markup tags from a styled headmatter row's html."""
+    out, depth = [], 0
+    for ch in s:
+        if ch == "<":
+            depth += 1
+        elif ch == ">":
+            depth = max(0, depth - 1)
+        elif depth == 0:
+            out.append(ch)
+    return "".join(out).strip()
+
+
 CASEBODY_NS = "http://nrs.harvard.edu/urn-3:HLS.Libr.US_Case_Law.Schema.Case_Body:v1"
 
 
@@ -63,7 +76,11 @@ def _render_headmatter(doc: ExtractedDocument) -> list:
     if doc.disposition:
         out.append(f"  <disposition>{escape(doc.disposition)}</disposition>")
     for s in doc.summary:
-        if isinstance(s, dict) and s.get("__caption__"):
+        if isinstance(s, dict) and s.get("__image__"):
+            continue  # the court-seal logo is a visual element, not casebody text
+        if isinstance(s, dict) and s.get("__hm__"):
+            out.append(f"  <summary>{escape(_cb_strip_tags(str(s.get('html', ''))))}</summary>")
+        elif isinstance(s, dict) and s.get("__caption__"):
             out.append("  <caption-columns>")
             out.append("    <col-left>")
             for ln in s.get("left", []):

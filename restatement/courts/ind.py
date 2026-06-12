@@ -19,13 +19,49 @@ from __future__ import annotations
 
 from typing import Optional
 
-from ._statesupreme import StateSupreme
+from ._abbrevtitle import AbbrevTitleSupreme
 
 
-class IndianaSupreme(StateSupreme):
+class IndianaSupreme(AbbrevTitleSupreme):
     court_id = "ind"
     court_label = "Indiana Supreme Court."
     author_titles = ("Justice", "Chief Justice")
+    # Separate writings sign 'Molter, J., concurring.' / 'Slaughter, J.,
+    # dissenting.' — title-case surnames with the abbreviated title.
+    allow_titlecase_name = True
 
     def find_footnote_separator(self, page) -> Optional[float]:
         return self._footnote_sep_small_text_below(page)
+
+    def extract(self, pdf_path):
+        self._footer_dropped = []
+        doc = super().extract(pdf_path)
+        extra = list(dict.fromkeys(self._footer_dropped))
+        if extra:
+            doc.dropped = list(doc.dropped) + extra
+        return doc
+
+    def page_lines(self, page):
+        lines = super().page_lines(page)
+        if getattr(self, "_footer_dropped", None) is None:
+            self._footer_dropped = []
+        kept = []
+        for ln in lines:
+            t = self.line_plain_text(ln).strip()
+            # Per-page footer ('Indiana Supreme Court | Case No. ... | Page
+            # N of M') sits inside the text margins — furniture.
+            if ln["top"] > 700 and t.startswith("Indiana Supreme Court"):
+                self._footer_dropped.append(t)
+                continue
+            kept.append(ln)
+        return kept
+
+    def parse_author_line(self, text):
+        r = super().parse_author_line(text)
+        if r is not None:
+            return r
+        # Indiana types its per-curiam byline in title case ('Per curiam.'),
+        # which the global ALL-CAPS matcher deliberately ignores.
+        if " ".join(text.strip().rstrip(".").split()).lower() == "per curiam":
+            return ("Per curiam", "per curiam", None)
+        return None

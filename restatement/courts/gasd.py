@@ -12,4 +12,5 @@ from ._district import DistrictBase
 
 class SouthernDistrictOfGeorgia(DistrictBase):
     court_id = "gasd"
+    styled_headmatter = True
     court_label = "United States District Court, Southern District of Georgia."

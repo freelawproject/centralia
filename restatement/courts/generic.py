@@ -161,7 +161,8 @@ def _is_name(name: str) -> bool:
     if not toks or len(toks) > 5:
         return False
     for tok in toks:
-        core = tok.strip(".'-")
-        if not core or not core[0].isupper() or not core.replace("'", "").isalpha():
+        core = tok.strip(".'-").replace("'", "")
+        clean = core.replace(".", "")  # joined initials 'N.R.' -> 'NR'
+        if not clean or not core[0].isupper() or not clean.isalpha():
             return False
     return True

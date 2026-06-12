@@ -732,6 +732,32 @@ En Banc
 """,
     ),
     _S(
+        id="double-box", name="The Double Box",
+        columns="two-column",
+        summary="parties and docket each enclosed in their own drawn box",
+        courts="E.D.N.Y. and other federal districts",
+        tags={"columns": "two-column", "divider": "box edge", "rules": "single-line",
+              "box": "two adjacent boxes", "spacing": "single", "name": "plain",
+              "status": "indent", "banner": "caps centered", "glyphs": "—",
+              "extras": "docket"},
+        desc="The caption is drawn as <b>two adjacent boxes</b> sharing the middle "
+        "rule: parties in the left box, docket and judge initials in the right. "
+        "Verticals at both content edges AND the middle, closed top and bottom.",
+        signal="Three tall verticals (left edge, middle, right edge) joined by top "
+        "and bottom rules = two boxes; the middle vertical is the column split.",
+        ascii=r"""
+                  UNITED STATES DISTRICT COURT
+                 EASTERN DISTRICT OF NEW YORK
+   ┌─────────────────────────────────┬──────────────────┐
+   │ Bank of America, NA.,           │                  │
+   │                  Plaintiffs,    │  2:26-cv-733     │
+   │        -v-                      │  (NJC) (ST)      │
+   │ Henry R. Terry,                 │                  │
+   │                  Defendant.     │                  │
+   └─────────────────────────────────┴──────────────────┘
+""",
+    ),
+    _S(
         id="x-capped-box", name="The X-Capped Pleading Box",
         columns="two-column",
         summary="hyphen rules whose ends are capped with an X, over a colon rail",
@@ -950,6 +976,39 @@ En Banc
 
           OPINION OF THE COURT BY JUSTICE CONLEY
                        AFFIRMING
+""",
+    ),
+    _S(
+        id="open-range", name="The Open Range",
+        columns="two-column",
+        summary="parties left, docket right, held together by whitespace alone",
+        courts="W.D.N.C. (occasional) · scattered districts",
+        tags={"columns": "two-column", "divider": "none", "rules": "none",
+              "spacing": "double", "name": "caps", "status": "indent",
+              "banner": "caps centered", "glyphs": "—",
+              "extras": "docket · centered heading follows"},
+        desc="No line-art, no glyph rail, no flush-right pinning — just party names "
+        "at the left margin, role lines indented beneath them, and the docket number "
+        "floated right of mid-page on the <code>v.</code> line. The opinion usually opens with "
+        "a centered bold ALL-CAPS heading right below.",
+        signal="Two columns with nothing holding them apart but whitespace; the "
+        "docket rides the <code>v.</code> line past mid-page. If status words were pinned at the "
+        "right margin instead, it would be The Flush-Right Status.",
+        ascii=r"""
+            IN THE UNITED STATES DISTRICT COURT
+         FOR THE WESTERN DISTRICT OF NORTH CAROLINA
+
+   NAYJA JOHNSON,
+
+             Plaintiff,
+
+   v.                    CIVIL ACTION NO. 3:24-cv-00334-TEJ
+
+   ERIC TILLMAN, et al.,
+
+             Defendants.
+
+               MEMORANDUM OPINION AND ORDER
 """,
     ),
     _S(

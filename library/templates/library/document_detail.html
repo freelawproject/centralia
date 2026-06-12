@@ -5,6 +5,7 @@
 <div class="badge">{{ doc.doc_type }} · {{ doc.n_pages }} pages · coverage {{ doc.coverage }}%{% if doc.suspect %} · <span class="susp">⚠ suspect</span>{% endif %}</div>
 {% if dropped %}<h2 class="sec">Removed (notices / furniture)</h2><div class="raw">{% for d in dropped %}<div class="rawline">{{ d }}</div>{% endfor %}</div>{% endif %}
 <h2 class="sec">Headmatter</h2><div class="raw">{{ headmatter }}</div>
+{% if headnotes %}<h2 class="sec">Headnotes <span class="pill">not part of the opinion</span></h2><div class="raw">{{ headnotes }}</div>{% endif %}
 {% if syllabus %}<h2 class="sec">Syllabus <span class="pill">not part of the opinion</span></h2><div class="raw">{{ syllabus }}</div>{% endif %}
 <h2 class="sec">Opinions <span class="pill">{{ opinions|length }}</span></h2>
 {% for o in opinions %}<section class="opinion">

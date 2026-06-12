@@ -55,10 +55,27 @@ def reprocess(request, court_id):
         return JsonResponse(
             {"ok": False, "error": f"no assets/{court_id}/ directory"}, status=404
         )
-    cmd = [
-        sys.executable, "-m", "restatement.cli", court_id,
-        f"assets/{court_id}", "--html", "--output", "--index",
-    ]
+    # Optional single-PDF mode (?pdf=<stem> or form field): re-run just one
+    # document — much faster than the whole court when iterating on one file.
+    stem = (request.POST.get("pdf") or request.GET.get("pdf") or "").strip()
+    if stem:
+        if "/" in stem or "\\" in stem or stem.startswith("."):
+            return JsonResponse({"ok": False, "error": "bad pdf name"}, status=400)
+        if not (assets / f"{stem}.pdf").is_file():
+            return JsonResponse(
+                {"ok": False, "error": f"no assets/{court_id}/{stem}.pdf"},
+                status=404,
+            )
+        # no --index: a single-file run must not rewrite the court index
+        cmd = [
+            sys.executable, "-m", "restatement.cli", court_id,
+            f"assets/{court_id}/{stem}.pdf", "--html", "--output",
+        ]
+    else:
+        cmd = [
+            sys.executable, "-m", "restatement.cli", court_id,
+            f"assets/{court_id}", "--html", "--output", "--index",
+        ]
     try:
         proc = subprocess.run(
             cmd, cwd=str(settings.BASE_DIR),
@@ -76,14 +93,19 @@ def reprocess(request, court_id):
     summary = summary[-1] if summary else ""
     # Re-ingest + refresh the manifest so the DB-backed views and sidebar match.
     try:
-        call_command("ingest", court_id, "--no-audit")
+        if stem:
+            call_command("ingest", court_id, "--no-audit", pdf=stem)
+        else:
+            call_command("ingest", court_id, "--no-audit")
         _rebuild_manifest()
     except Exception as exc:  # html is already regenerated; report the rest
         return JsonResponse(
-            {"ok": True, "court": court_id, "summary": summary,
+            {"ok": True, "court": court_id, "summary": summary, "pdf": stem,
              "warn": f"ingest/manifest: {exc}"}
         )
-    return JsonResponse({"ok": True, "court": court_id, "summary": summary})
+    return JsonResponse(
+        {"ok": True, "court": court_id, "summary": summary, "pdf": stem}
+    )
 
 
 def viewer(request):
@@ -106,11 +128,19 @@ _DISTRICTS = set(("akd almd alnd alsd ared arwd azd cacd caed cand casd cod ctd 
     "txsd txwd utd vaed vawd vtd waed wawd wied wiwd wvnd wvsd wyd").split())
 
 
+_MISC = set((
+    "acca afcca armfor asbca bia bap1 bap6 bap8 bap9 bap10 cavc cit guam mspb "
+    "nmariana nmcca olc tax ttab uscfc uscgcoca virginislands "
+    "nyfamct nycivct nysupct nysurct njtaxct vtsuperct pacommwct").split())
+
+
 def _group(cid):
     if cid in _DISTRICTS:
         return ("District courts", 0)
     if cid in _CIRCUITS:
         return ("Federal circuits", 1)
+    if cid in _MISC:
+        return ("Misc / specialized", 3)
     return ("State courts", 2)
 
 
@@ -126,7 +156,8 @@ def court_list(request):
 def review_marks(request):
     """Durable store for the viewer's review marks, served by the same Django
     process as the viewer (no separate notes-server dependency). Persists to
-    output/notes/_marks.json (per-court yay/almost/nay), _filemarks.json (per-PDF),
+    output/notes/_marks.json (per-court 5-tier rating: nay → some → good →
+    almost → yay), _filemarks.json (per-PDF),
     and _done.json (per-court done). GET returns all three; POST replaces whichever
     of {marks, filemarks, done} the body supplies."""
     notes = _OUTPUT_DIR / "notes"
@@ -155,7 +186,7 @@ def review_marks(request):
             body = json.loads(request.body or b"{}")
         except Exception:
             return JsonResponse({"error": "bad json"}, status=400)
-        rating = ("yay", "almost", "nay")
+        rating = ("yay", "almost", "good", "some", "nay")
         if isinstance(body.get("marks"), dict):
             _save("_marks.json", {k: v for k, v in body["marks"].items() if v in rating})
         if isinstance(body.get("filemarks"), dict):
@@ -279,8 +310,12 @@ def _row_html(row):
                     f'font-size:{row.get("rel", 1)}em">'
                     f'{_inline_to_html(str(row.get("html", "")))}</div>')
         if row.get("__caption__"):
-            left = "".join(f'<div>{_inline_to_html(str(x))}</div>' for x in row.get("left", []))
-            right = "".join(f'<div>{_inline_to_html(str(x))}</div>' for x in row.get("right", []))
+            def _cell(x):
+                if isinstance(x, dict):  # faithful cell: {'h': html, 'ind': pt}
+                    return _inline_to_html(str(x.get("h", "")))
+                return _inline_to_html(str(x))
+            left = "".join(f'<div>{_cell(x)}</div>' for x in row.get("left", []))
+            right = "".join(f'<div>{_cell(x)}</div>' for x in row.get("right", []))
             return (f'<div class="caption-cols"><div class="cl">{left}</div>'
                     f'<div class="cdiv"></div>'
                     f'<div class="cr">{right}</div></div>')
@@ -305,6 +340,7 @@ def document_detail(request, court_id, stem):
     doc = get_object_or_404(Document, court__court_id=court_id, stem=stem)
     headmatter = mark_safe("".join(_row_html(r) for r in doc.summary))
     syllabus = mark_safe("".join(_row_html(r) for r in doc.syllabus))
+    headnotes = mark_safe("".join(_row_html(r) for r in doc.headnotes))
     opinions = []
     for op in doc.opinions.all():
         body = mark_safe("".join(_block_html(b) for b in op.blocks.all()))
@@ -314,4 +350,5 @@ def document_detail(request, court_id, stem):
         opinions.append({"op": op, "body": body, "footnotes": fns})
     return render(request, "library/document_detail.html", {
         "doc": doc, "headmatter": headmatter, "syllabus": syllabus,
+        "headnotes": headnotes,
         "opinions": opinions, "dropped": doc.dropped, "trailer": doc.trailer})

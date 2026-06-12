@@ -40,6 +40,9 @@ class Command(BaseCommand):
         parser.add_argument("courts", nargs="*", help="court ids (default: all)")
         parser.add_argument("--no-audit", action="store_true",
                             help="skip coverage computation")
+        parser.add_argument("--pdf", metavar="STEM",
+                            help="refresh only this document (PDF stem) "
+                                 "instead of the whole court")
 
     def handle(self, *args, **opts):
         from library.models import (Block, Court, Document, Footnote, Opinion)
@@ -53,6 +56,10 @@ class Command(BaseCommand):
         n_docs = 0
         for cid in courts:
             files = sorted(glob.glob(f"{ASSETS}/{cid}/*.pdf"))
+            only = opts.get("pdf")
+            if only:
+                files = [f for f in files
+                         if os.path.basename(f)[:-4] == only]
             if not files:
                 continue
             ex = get_extractor(cid)
@@ -62,7 +69,10 @@ class Command(BaseCommand):
                 defaults={"label": label, "notes": notes.get(cid, ""),
                           "claude_done": bool(done.get(cid))})
             with transaction.atomic():
-                court.documents.all().delete()       # full refresh per court
+                if only:
+                    court.documents.filter(stem=only).delete()
+                else:
+                    court.documents.all().delete()   # full refresh per court
                 for f in files:
                     stem = os.path.basename(f)[:-4]
                     try:
@@ -77,7 +87,7 @@ class Command(BaseCommand):
                     cov = 0.0
                     if do_audit:
                         try:
-                            r = audit_coverage(d, f)
+                            r = audit_coverage(d, f, extractor=ex)
                             cov = round(100 * r.covered / r.total, 1) if r.total else 100.0
                         except Exception:
                             cov = 0.0
@@ -88,6 +98,7 @@ class Command(BaseCommand):
                         docket_number=d.docket_number, parties=list(d.parties),
                         judges=d.judges, summary=list(d.summary),
                         syllabus=list(getattr(d, "syllabus", []) or []),
+                        headnotes=list(getattr(d, "headnotes", []) or []),
                         dropped=list(d.dropped), trailer=list(d.trailer),
                         warnings=list(d.warnings),
                         suspect=(not has_body) and d.n_pages > 2, coverage=cov)

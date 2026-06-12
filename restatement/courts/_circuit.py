@@ -132,6 +132,7 @@ class FederalCircuitBase(GenericExtractor):
         # byline with no opinion body before the next one — that is the
         # trial-judge history line ('..., District Judge.') sitting just above
         # the real author, not an opinion.
+        self._pc_starts = set()
         cands = [
             i
             for i, (_p, seg, _k) in enumerate(all_segments)
@@ -142,7 +143,56 @@ class FederalCircuitBase(GenericExtractor):
             end = cands[n + 1] if n + 1 < len(cands) else len(all_segments)
             if self._opinion_has_body(all_segments, i, end):
                 out.append(i)
-        return out
+        if out:
+            return out
+        # No signed byline and no PER CURIAM / BY THE COURT line: an UNSIGNED per
+        # curiam opinion. It opens immediately after the panel roster ('Before:
+        # <judges>, Circuit Judges.'); author is PER CURIAM. Without this the
+        # whole opinion would fall into the headmatter.
+        start = self._percuriam_start(all_segments)
+        if start is not None:
+            self._pc_starts.add(start)
+            return [start]
+        return []
+
+    def _percuriam_start(self, all_segments):
+        """Index of the first opinion-body segment after the panel roster, for an
+        unsigned per curiam opinion, or None. The roster is a single line opening
+        'Before' that names the bench ('Before: WALKER, SULLIVAN, and BIANCO,
+        Circuit Judges.'). The body is the next non-divider, non-empty segment."""
+        panel = None
+        for i, (_p, seg, _k) in enumerate(all_segments):
+            t = self.line_plain_text(seg[0]).strip()
+            low = t.lower()
+            if low.startswith("before") and ("judge" in low):
+                panel = i
+        if panel is None:
+            return None
+        for j in range(panel + 1, len(all_segments)):
+            seg = all_segments[j][1]
+            if not seg or self.is_separator_line(seg[0]):
+                continue
+            if not self.line_plain_text(seg[0]).strip():
+                continue
+            return j
+        return None
+
+    def build_opinion(self, op_start, op_end, **kwargs):
+        # An unsigned per curiam start has no byline line; keep its first line as
+        # body and label the author PER CURIAM (set via the _pc_now flag, which
+        # split_author_line below reads while super() consumes the first line).
+        self._pc_now = op_start in getattr(self, "_pc_starts", set())
+        op = super().build_opinion(op_start, op_end, **kwargs)
+        self._pc_now = False
+        if op_start in getattr(self, "_pc_starts", set()):
+            op.author = "PER CURIAM"
+            op.type = self.normalize_opinion_type(None)
+        return op
+
+    def split_author_line(self, line):
+        if getattr(self, "_pc_now", False):
+            return "PER CURIAM", [line]  # no byline line — keep it as body
+        return super().split_author_line(line)
 
     def _byline_at(self, line) -> bool:
         return self._byline_split(line) is not None
@@ -161,12 +211,13 @@ class FederalCircuitBase(GenericExtractor):
                 if up.startswith("PER CURIAM"):
                     break
                 return None
-        if up.startswith("PER CURIAM"):
+        if up.startswith("PER CURIAM") or up.startswith("BY THE COURT"):
             i = text.find(".")
             return (text, "") if i == -1 else (text[: i + 1], text[i + 1 :].strip())
         if "," not in text:
             return None
-        name = text.split(",", 1)[0].strip()
+        comma = text.index(",")
+        name = text[:comma].strip()
         if not _is_name(name):
             return None
         for kw in _BENCH:
@@ -179,6 +230,13 @@ class FederalCircuitBase(GenericExtractor):
                 if end < len(text) and text[end] == "s":  # 'Judges' = panel
                     start = end
                     continue
+                # Everything from the name's comma to the title keyword must be
+                # title qualifiers (and a name suffix), not sentence text — else
+                # this 'Judge' is incidental to a body line ('Moreover, ... must
+                # be considered. Judge ...'), not a byline.
+                if not self._is_title_run(text[comma + 1 : idx]):
+                    start = end
+                    continue
                 j = end
                 while j < len(text) and text[j] == " ":
                     j += 1
@@ -188,6 +246,28 @@ class FederalCircuitBase(GenericExtractor):
                     return text[: j + 1], text[j + 1 :].strip()
                 start = end
         return None
+
+    # Words that may sit between a judge's name and the bench title ('Senior
+    # Circuit Judge', 'United States District Judge'), plus name suffixes
+    # ('JAMES E. GRAVES, JR., Circuit Judge'). Anything else there means the
+    # 'Judge' belongs to a sentence, not a byline.
+    _TITLE_RUN_WORDS = frozenset(
+        {
+            "circuit", "senior", "chief", "district", "united", "states",
+            "associate", "presiding", "acting", "supreme", "magistrate",
+            "bankruptcy", "jr", "sr", "ii", "iii", "iv", "us",
+        }
+    )
+
+    def _is_title_run(self, span: str) -> bool:
+        for t in span.replace(",", " ").split():
+            tl = t.strip(".").lower()
+            if tl in self._TITLE_RUN_WORDS:
+                continue
+            if len(tl) == 1 and tl.isalpha():  # a 'J.' judicial / name initial
+                continue
+            return False
+        return True
 
     def parse_author_line(self, text):
         """Parse a federal byline into (name, title, kind). Handles the period
@@ -201,6 +281,8 @@ class FederalCircuitBase(GenericExtractor):
         t = text.strip().rstrip(".:").strip()
         if t.upper().startswith("PER CURIAM"):
             return ("PER CURIAM", "per curiam", None)
+        if t.upper().startswith("BY THE COURT"):
+            return ("By the Court", "per curiam", None)
         if "," not in t:
             return None
         name, rest = t.split(",", 1)

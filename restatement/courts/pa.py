@@ -71,7 +71,14 @@ class PennsylvaniaSupreme(ReversedJusticeSupreme):
 
         def flush():
             if left or right:
-                out.append({"__caption__": True, "left": list(left), "right": list(right)})
+                out.append(
+                    {
+                        "__caption__": True,
+                        "left": list(left),
+                        "right": list(right),
+                        "rail": ":",
+                    }
+                )
                 left.clear()
                 right.clear()
 

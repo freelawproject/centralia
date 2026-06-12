@@ -154,6 +154,12 @@ class BaseExtractor:
             if pdf.pages:
                 page1_rules = self._page1_rules(pdf.pages[0])
                 self._hm_caption_box = self._page1_caption_box(pdf.pages[0])
+                try:
+                    from .captionfp import classify_page
+
+                    self._caption_fp = classify_page(pdf.pages[0])
+                except Exception:
+                    self._caption_fp = (None, None, None)
             for page in pdf.pages:
                 pw = page.width
                 sep_y = self.find_footnote_separator(page)
@@ -283,6 +289,10 @@ class BaseExtractor:
 
         if not layout_ok:
             doc.warnings.append("layout does not match expected court format")
+        fp = getattr(self, "_caption_fp", (None, None, None))
+        if fp and fp[2]:
+            doc.caption_box = dict(doc.caption_box or {})
+            doc.caption_box["fp_id"], doc.caption_box["fp_style"] = fp[1], fp[2]
         return doc
 
     def _apply_headmatter(self, doc: ExtractedDocument, hm: dict) -> None:
@@ -455,11 +465,19 @@ class BaseExtractor:
         """Geometry of a ruled caption box on page 1: the vertical divider
         rule and the horizontal rules, for a faithful headmatter facsimile.
         Returns None if there are no such rules."""
-        vx = vtop = vbottom = None
+        verts = []
         for r in page.rects:
             if (r["x1"] - r["x0"]) < 2 and (r["bottom"] - r["top"]) > 30:
-                vx, vtop, vbottom = r["x0"], r["top"], r["bottom"]
-                break
+                verts.append(
+                    (round(r["x0"], 1), round(r["top"], 1), round(r["bottom"], 1))
+                )
+        vx = vtop = vbottom = None
+        if verts:
+            # The COLUMN divider is the vertical nearest mid-page — a boxed
+            # caption also has edge verticals, which must not win.
+            mid = page.width / 2
+            best = min(verts, key=lambda v: abs(v[0] - mid))
+            vx, vtop, vbottom = best
         hrules = []
         for r in page.rects:
             if (r["bottom"] - r["top"]) < 2 and (r["x1"] - r["x0"]) > 20:
@@ -468,7 +486,13 @@ class BaseExtractor:
                 )
         if vx is None and not hrules:
             return None
-        return {"vx": vx, "vtop": vtop, "vbottom": vbottom, "hrules": hrules}
+        return {
+            "vx": vx,
+            "vtop": vtop,
+            "vbottom": vbottom,
+            "hrules": hrules,
+            "verts": verts,
+        }
 
     def find_caption_divider(self, page):
         """Return (x, top, bottom) of a vertical caption-column divider, or
@@ -486,13 +510,78 @@ class BaseExtractor:
                 return x0, ln["top"], ln["bottom"]
         return None
 
+    @staticmethod
+    def _text_lines(source) -> list:
+        """``extract_text_lines`` that keeps the real space characters in each
+        line's char list (``keep_blank_chars=True``).
+
+        pdfplumber otherwise consumes spaces as word separators and drops them
+        from ``line['chars']``, leaving the body rebuild (``line_inline_text`` /
+        ``line_plain_text``) to re-infer word breaks from x-gaps. That fails on
+        tightly tracked fonts — Connecticut's Century Schoolbook sets the
+        inter-word gap at ~1.4pt, just under the 1.5pt space threshold, so
+        'and that, because' rebuilt as 'andthat,because'. Keeping the real
+        spaces lets the rebuild emit them directly; the gap heuristic still
+        covers lines that genuinely lack space glyphs."""
+        return source.extract_text_lines(keep_blank_chars=True)
+
+    @staticmethod
+    def _merge_interleaved(lines):
+        """An italic span set on a slightly offset baseline becomes its own
+        line object ('Bell Atl. Corp. v. Twombly' floating 4.8pt above its
+        roman host line) and would sort mid-sentence. Two lines whose
+        vertical extents overlap strongly and whose glyphs interleave
+        without colliding are ONE visual row — merge them in x order."""
+        if len(lines) < 2:
+            return lines
+        lines = sorted(lines, key=lambda l: (l["top"], l["x0"]))
+        out = [lines[0]]
+        for ln in lines[1:]:
+            prev = out[-1]
+            v_overlap = min(prev["bottom"], ln["bottom"]) - max(
+                prev["top"], ln["top"]
+            )
+            min_h = max(
+                min(prev["bottom"] - prev["top"], ln["bottom"] - ln["top"]), 1.0
+            )
+            merged_chars = sorted(
+                list(prev.get("chars") or []) + list(ln.get("chars") or []),
+                key=lambda c: c["x0"],
+            )
+            if merged_chars and v_overlap > 0.45 * min_h:
+                union = max(c["x1"] for c in merged_chars) - min(
+                    c["x0"] for c in merged_chars
+                )
+                glyphs = sum(c["x1"] - c["x0"] for c in merged_chars)
+                if glyphs <= union * 1.05:  # interleaved, not colliding
+                    m = dict(prev)
+                    m["chars"] = merged_chars
+                    m["x0"] = min(prev["x0"], ln["x0"])
+                    m["x1"] = max(prev["x1"], ln["x1"])
+                    m["top"] = min(prev["top"], ln["top"])
+                    m["bottom"] = max(prev["bottom"], ln["bottom"])
+                    m["text"] = "".join(c["text"] for c in merged_chars)
+                    out[-1] = m
+                    continue
+            out.append(ln)
+        return out
+
+    def correct_page_geometry(self, page) -> None:
+        """Hook: adjust raw char geometry on ``page`` (in place) before any line
+        clustering. Default no-op. A court whose font declares a broken glyph
+        bounding box overrides this to snap chars back to their true row (see
+        Maine); the completeness audit calls it too, so it reads the same
+        corrected text the extractor does."""
+
     def page_lines(self, page) -> list:
         """Return text lines after filtering header/footer margins. If the
         page has a vertical caption-column divider, split chars into
         left/right columns BEFORE clustering so the columns don't merge."""
+        self.correct_page_geometry(page)
         divider = self.find_caption_divider(page)
         if divider is None:
-            lines = page.filter(self.filter_margins).extract_text_lines()
+            lines = self._text_lines(page.filter(self.filter_margins))
+            lines = self._merge_interleaved(lines)
             self._tag_underlined_chars(page, lines)
             return self._maybe_drop_running_header(page, lines)
 
@@ -518,13 +607,13 @@ class BaseExtractor:
                 and obj["x0"] >= div_x
             )
 
-        out_lines = page.filter(outside_caption).extract_text_lines()
+        out_lines = self._text_lines(page.filter(outside_caption))
         for l in out_lines:
             l["_caption_col"] = None
-        left_lines = page.filter(left_of_divider).extract_text_lines()
+        left_lines = self._text_lines(page.filter(left_of_divider))
         for l in left_lines:
             l["_caption_col"] = "L"
-        right_lines = page.filter(right_of_divider).extract_text_lines()
+        right_lines = self._text_lines(page.filter(right_of_divider))
         for l in right_lines:
             l["_caption_col"] = "R"
         lines = out_lines + left_lines + right_lines
@@ -810,7 +899,7 @@ class BaseExtractor:
             r"^(?P<name>(?:Mc|Mac)?[A-Z][A-Za-z]+"
             r"(?:[\s-](?:[A-Z]\.|[A-Z][A-Za-z]+)){0,4})"
             rf",\s+(?P<title>"
-            r"(?:Chief\s+|Presiding\s+|Associate\s+|Senior\s+)?"
+            r"(?:Chief\s+|Presiding\s+|Associate\s+|Senior\s+|Retired\s+|Acting\s+)?"
             rf"(?:{titles}))"
             r"(?:"
             r"\s*\((?P<kind1>[^)]+)\)"
@@ -1297,7 +1386,12 @@ class BaseExtractor:
                         events.append((page_no, p[0]["top"], "blockquote", p))
             elif skind == "single":
                 if seg:
-                    events.append((page_no, seg[0]["top"], "p", seg))
+                    # classify_paragraph defaults to 'p'; courts whose
+                    # blockquotes are geometry-identified (Tennessee) can tag a
+                    # stranded single quote line correctly.
+                    events.append(
+                        (page_no, seg[0]["top"], self.classify_paragraph(seg), seg)
+                    )
             elif skind in ("notice", "spaced"):
                 # A kept tight/loose segment (single-spaced body on courts with
                 # drop_notice_in_body=False) — return it as body paragraphs so

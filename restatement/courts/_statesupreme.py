@@ -50,11 +50,106 @@ class StateSupreme(GenericExtractor):
     # actually HAS such a notice (don't assume one). None = remove nothing.
     notice_max_size: float | None = None
 
+    # Opt-in: display the headmatter as an exact-position facsimile (x/y,
+    # size, weight preserved — the '__facsimile__' summary sentinel), with
+    # each line split into separately-positioned runs at column gaps so a
+    # caption rail (Delaware's '§' column, the California AG ':' table)
+    # keeps its true x. The plain rows still follow for the audit and DB.
+    facsimile_headmatter = False
+
+    @staticmethod
+    def _fold_rail_caption(rows: list, rail: str) -> list:
+        """Collapse a run of rail-glyph caption rows ('PARTY § No. 62, 2026' /
+        'PARTY )') into one two-column ``__caption__`` block — parties left of
+        the rail, docket/court-below right. ``rows`` is a styled summary list;
+        non-caption rows pass through untouched."""
+        from re import sub as _sub
+
+        out, left, right = [], [], []
+
+        def flush():
+            if left or right:
+                out.append(
+                    {
+                        "__caption__": True,
+                        "left": list(left),
+                        "right": list(right),
+                        "rail": rail,
+                    }
+                )
+                left.clear()
+                right.clear()
+
+        for r in rows:
+            if not (isinstance(r, dict) and r.get("__hm__")):
+                flush()
+                out.append(r)
+                continue
+            text = _sub("<[^>]+>", "", str(r.get("html", "")))
+            toks = text.split()
+            # The rail must stand alone as its own token — a ')' inside
+            # '(302) 255-0634' or a '§' in a statute cite never does.
+            if rail in toks:
+                idx = toks.index(rail)
+                lpart = " ".join(toks[:idx]).strip()
+                rpart = " ".join(t for t in toks[idx + 1 :] if t != rail).strip()
+                if lpart:
+                    left.append(lpart)
+                if rpart:
+                    right.append(rpart)
+            else:
+                flush()
+                out.append(r)
+        flush()
+        return out
+
+    def _split_line_runs(self, line) -> list:
+        """Split a line into separately-positioned runs at column gaps
+        ('GREGORY GRIFFIN, ... §' is two runs, not one string at the line's
+        left edge). Word spacing is ~3-4pt; a gap past 8pt is a column."""
+        chars = line.get("chars") or []
+        if not chars:
+            return [line]
+        runs, cur = [], [chars[0]]
+        for a, b in zip(chars, chars[1:]):
+            if b["x0"] - a["x1"] > 8:
+                runs.append(cur)
+                cur = [b]
+            else:
+                cur.append(b)
+        runs.append(cur)
+        if len(runs) == 1:
+            return [line]
+        return [
+            {
+                "text": self.line_plain_text({"chars": r}),
+                "chars": r,
+                "x0": min(c["x0"] for c in r),
+                "x1": max(c["x1"] for c in r),
+                "top": line["top"],
+                "bottom": line.get("bottom"),
+            }
+            for r in runs
+        ]
+
+    # Styled headmatter is the corpus-wide default: centered/bold rows at
+    # relative size with the page's vertical gaps preserved. A court can
+    # opt out back to the monospace layout dump, or up to the facsimile.
+    styled_headmatter = True
+
     def extract_headmatter(self, headmatter_segs, page1_rules=None) -> dict:
         """Establish the headmatter as one section. Return ALL of it verbatim
-        (layout-preserved ``summary`` + positioned ``headmatter_lines``),
-        except a small-print publication notice — identified by font size on
-        courts that have one — which is removed into ``dropped`` complete."""
+        (styled rows by default; layout-preserved ``summary`` + positioned
+        ``headmatter_lines`` for the facsimile / opt-out paths), except a
+        small-print publication notice — identified by font size on courts
+        that have one — which is removed into ``dropped`` complete."""
+        if self.styled_headmatter and not self.facsimile_headmatter:
+            return self._styled_headmatter(headmatter_segs, page1_rules)
+        if self.facsimile_headmatter:
+            headmatter_segs = [
+                [r for line in seg for r in self._split_line_runs(line)]
+                for seg in headmatter_segs
+            ]
         lines, notice = [], []
         for seg in headmatter_segs:
             for line in seg:
@@ -65,6 +160,10 @@ class StateSupreme(GenericExtractor):
                 if self.notice_max_size is not None and size <= self.notice_max_size:
                     notice.append(t)
                     continue
+                chars = line.get("chars") or []
+                pno = (
+                    chars[0].get("page_number") if chars else line.get("page_number")
+                ) or 1
                 lines.append(
                     {
                         "text": t,
@@ -72,12 +171,19 @@ class StateSupreme(GenericExtractor):
                         "top": round(line["top"], 1),
                         "size": size,
                         "bold": bold,
+                        "page": pno,
                     }
                 )
-        items = [(l["top"], l["x0"], l["text"]) for l in lines]
+        # Keyed by (page, top, x0): headmatter that runs past page 1 (a long
+        # counsel block, a syllabus) must never interleave with page-1 content
+        # that happens to sit lower on its own page.
+        items = [(l["page"], l["top"], l["x0"], l["text"]) for l in lines]
+        summary = self._paged_layout_rows(items)
+        if self.facsimile_headmatter:
+            summary = [{"__facsimile__": True}] + summary
         return {
             "court": self.court_label or self.court_id,
-            "summary": self._layout_rows(items),
+            "summary": summary,
             "headmatter_lines": lines,
             "caption_box": getattr(self, "_hm_caption_box", None),
             "dropped": [" ".join(notice)] if notice else [],
@@ -126,7 +232,16 @@ class StateSupreme(GenericExtractor):
         sizes = [p["size"] for _, _, _, p in rows if "size" in p]
         base = _Counter(round(s) for s in sizes).most_common(1)[0][0] if sizes else 12
         summary = []
-        for _pno, _top, _x0, p in rows:
+        prev_pno = prev_top = prev_size = None
+        for pno, top, _x0, p in rows:
+            # Preserve the page's vertical rhythm: a gap wider than ~1.8
+            # lines (or a page break) becomes a blank row.
+            if prev_top is not None and (
+                pno != prev_pno or (top - prev_top) > 1.8 * max(prev_size or 12, 9)
+            ):
+                if summary and summary[-1] != "":
+                    summary.append("")
+            prev_pno, prev_top, prev_size = pno, top, p.get("size", prev_size)
             if p.get("divider"):
                 summary.append("__DIVIDER__")
             else:
@@ -209,6 +324,51 @@ class StateSupreme(GenericExtractor):
     def _byline_at(self, line) -> bool:
         return self._byline_split(line) is not None or super()._byline_at(line)
 
+    # Opt-in: move a footnote whose superscript reference sits in the
+    # headmatter (a caption footnote, 'TASHA MILLMAN,¹') out of the first
+    # opinion into ``headmatter_footnotes`` — page ownership alone would hand
+    # it to the opinion that owns the rest of page 1.
+    hm_caption_footnotes = False
+
+    def extract(self, pdf_path):
+        self._hm_super_labels = set()
+        doc = super().extract(pdf_path)
+        labels = getattr(self, "_hm_super_labels", set())
+        if self.hm_caption_footnotes and labels and doc.opinions:
+            op = doc.opinions[0]
+            moved = [f for f in op.footnotes if f.label in labels]
+            if moved:
+                op.footnotes = [f for f in op.footnotes if f.label not in labels]
+                doc.headmatter_footnotes = list(doc.headmatter_footnotes) + moved
+        return doc
+
+    def _superscript_labels(self, segs) -> set:
+        """Labels of superscript digit references in the given segments — a
+        digit run set well below the line's dominant font size."""
+        labels = set()
+        for seg in segs:
+            for line in seg:
+                chars = line.get("chars") or []
+                sizes = [
+                    round(c.get("size", 0), 1)
+                    for c in chars
+                    if (c.get("text") or "").strip()
+                ]
+                if not sizes:
+                    continue
+                dom = max(set(sizes), key=sizes.count)
+                run = ""
+                for c in chars:
+                    t = c.get("text") or ""
+                    if t.isdigit() and c.get("size", 0) < dom * 0.8:
+                        run += t
+                    elif run:
+                        labels.add(run)
+                        run = ""
+                if run:
+                    labels.add(run)
+        return labels
+
     def find_authors(self, all_segments) -> list:
         """Opinion starts: a bold all-caps author byline (possibly inline with
         the opinion text), or a byline the base parser recognizes. Lines that
@@ -252,6 +412,10 @@ class StateSupreme(GenericExtractor):
                 # opinion start.
                 continue
             out.append(i)
+        if self.hm_caption_footnotes and out:
+            self._hm_super_labels = self._superscript_labels(
+                seg for _, seg, _ in all_segments[: out[0]]
+            )
         return out
 
     @staticmethod
@@ -489,7 +653,9 @@ def _is_byline_name(name: str) -> bool:
     if not toks or len(toks) > 4:
         return False
     for tok in toks:
-        core = _strip_name_prefix(tok.rstrip(".").replace("'", "").replace("’", ""))
+        core = _strip_name_prefix(
+            tok.rstrip(".").replace("'", "").replace("’", "").replace("-", "")
+        )
         if not (core.isalpha() and core.isupper()):
             return False
     return True

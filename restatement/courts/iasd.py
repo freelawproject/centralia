@@ -12,4 +12,5 @@ from ._district import DistrictBase
 
 class SouthernDistrictOfIowa(DistrictBase):
     court_id = "iasd"
+    styled_headmatter = True
     court_label = "United States District Court, Southern District of Iowa."

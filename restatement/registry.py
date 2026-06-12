@@ -24,7 +24,21 @@ from .courts.ca11 import EleventhCircuit
 from .courts.cadc import DCCircuit
 from .courts.cafc import FederalCircuit
 from .courts.cal import CaliforniaSupreme
+from .courts.calag import CaliforniaAttorneyGeneral
 from .courts.calctapp import CaliforniaCourtOfAppeal
+from .courts.delch import DelawareChancery
+from .courts.scotus import SupremeCourtUS
+from .courts.texbizct import TexasBusinessCourt
+from .courts.mdag import MarylandAttorneyGeneral
+from .courts.acca import ArmyCCA
+from .courts.afcca import AirForceCCA
+from .courts.nmcca import NavyMarineCCA
+from .courts.uscgcoca import CoastGuardCCA
+from .courts.armfor import ArmedForcesCourt
+from .courts.indtc import IndianaTaxCourt
+from .courts.minnag import MinnesotaAttorneyGeneral
+from .courts.texag import TexasAttorneyGeneral
+from .courts.delctcompl import DelawareCommonPleas
 from .courts.conn import ConnecticutSupreme
 from .courts.dc import DCCourtOfAppeals
 from .courts.delaware import DelawareSupreme
@@ -58,6 +72,24 @@ from .courts.oregon import OregonSupreme
 from .courts.pa import PennsylvaniaSupreme
 from .courts.ri import RhodeIslandSupreme
 from .courts.sc import SouthCarolinaSupreme
+from .courts.sd import SouthDakotaSupreme
+from .courts.prsupreme import PuertoRicoSupreme
+from .courts.asbca import ArmedServicesBCA
+from .courts.bia import BoardOfImmigrationAppeals
+from .courts.mspb import MeritSystemsProtectionBoard
+from .courts.ttab import TrademarkBoard
+from .courts.olc import OfficeOfLegalCounsel
+from .courts.ohioctcl import OhioCourtOfClaims
+from .courts.ortc import OregonTaxMagistrate
+from .courts.tax import USTaxCourt
+from .courts.cit import CourtOfInternationalTrade
+from .courts.uscfc import CourtOfFederalClaims
+from .courts.cavc import VeteransClaimsCourt
+from .courts.bap6 import SixthCircuitBAP
+from .courts.guam import GuamSupreme
+from .courts.nmariana import NorthernMarianaSupreme
+from .courts.njtaxct import NewJerseyTaxCourt
+from .courts.pacommwct import PennsylvaniaCommonwealthCourt
 from .courts.tenn import TennesseeSupreme
 from .courts.tex import TexasSupreme
 from .courts.utah import UtahSupreme
@@ -232,10 +264,13 @@ EXTRACTORS: dict[str, type[BaseExtractor]] = {
     "cadc": DCCircuit,
     "cafc": FederalCircuit,
     "cal": CaliforniaSupreme,
+    "calag": CaliforniaAttorneyGeneral,
     "calctapp": CaliforniaCourtOfAppeal,
     "conn": ConnecticutSupreme,
     "dc": DCCourtOfAppeals,
     "del": DelawareSupreme,
+    "delch": DelawareChancery,
+    "delctcompl": DelawareCommonPleas,
     "fla": FloridaSupreme,
     "ga": GeorgiaSupreme,
     "haw": HawaiiSupreme,
@@ -265,6 +300,35 @@ EXTRACTORS: dict[str, type[BaseExtractor]] = {
     "pa": PennsylvaniaSupreme,
     "ri": RhodeIslandSupreme,
     "sc": SouthCarolinaSupreme,
+    "prsupreme": PuertoRicoSupreme,
+    "asbca": ArmedServicesBCA,
+    "bia": BoardOfImmigrationAppeals,
+    "mspb": MeritSystemsProtectionBoard,
+    "ttab": TrademarkBoard,
+    "olc": OfficeOfLegalCounsel,
+    "ohioctcl": OhioCourtOfClaims,
+    "ortc": OregonTaxMagistrate,
+    "tax": USTaxCourt,
+    "cit": CourtOfInternationalTrade,
+    "uscfc": CourtOfFederalClaims,
+    "cavc": VeteransClaimsCourt,
+    "bap6": SixthCircuitBAP,
+    "guam": GuamSupreme,
+    "nmariana": NorthernMarianaSupreme,
+    "njtaxct": NewJerseyTaxCourt,
+    "pacommwct": PennsylvaniaCommonwealthCourt,
+    "sd": SouthDakotaSupreme,
+    "scotus": SupremeCourtUS,
+    "texbizct": TexasBusinessCourt,
+    "mdag": MarylandAttorneyGeneral,
+    "acca": ArmyCCA,
+    "afcca": AirForceCCA,
+    "nmcca": NavyMarineCCA,
+    "uscgcoca": CoastGuardCCA,
+    "armfor": ArmedForcesCourt,
+    "indtc": IndianaTaxCourt,
+    "minnag": MinnesotaAttorneyGeneral,
+    "texag": TexasAttorneyGeneral,
     "tenn": TennesseeSupreme,
     "tex": TexasSupreme,
     "utah": UtahSupreme,

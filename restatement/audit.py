@@ -15,7 +15,6 @@ returned text.
 from __future__ import annotations
 
 from dataclasses import dataclass
-from html import unescape
 
 import pdfplumber
 
@@ -33,24 +32,56 @@ class AuditResult:
         return not self.missing
 
 
+_KNOWN_TAGS = frozenset(
+    ("em", "strong", "u", "footnotemark", "pagenumber", "sup", "sub")
+)
+
+
 def _strip_tags(s: str) -> str:
-    """Remove <...> inline markup."""
-    out = []
-    depth = 0
-    for ch in s:
-        if ch == "<":
-            depth += 1
-        elif ch == ">":
-            if depth:
-                depth -= 1
-        elif depth == 0:
-            out.append(ch)
+    """Remove the extractor's inline markup tags ONLY. Literal angle-bracket
+    source text ('<the insurer will indemnify ...>' in a quoted policy) is
+    content, not markup, and must survive on both sides of the match."""
+    out, i = [], 0
+    while True:
+        j = s.find("<", i)
+        if j == -1:
+            out.append(s[i:])
+            break
+        k = s.find(">", j)
+        name = ""
+        if k != -1:
+            name = s[j + 1 : k].strip("/").split()[0].split("=")[0].lower()
+        if k != -1 and name in _KNOWN_TAGS:
+            out.append(s[i:j])
+            i = k + 1
+        else:
+            out.append(s[i : j + 1])
+            i = j + 1
     return "".join(out)
 
 
+def _unescape_xml(s: str) -> str:
+    """Reverse only the XML escapes the renderer produces. ``html.unescape``
+    would also fire on legacy no-semicolon entities inside real source text
+    ('TENN.COMP.R.&REGS.' → 'TENN.COMP.R.®S.'), breaking coverage matching.
+    '&amp;' is reversed last so escaped-escape sequences don't double-decode."""
+    for ent, ch in (("&lt;", "<"), ("&gt;", ">"), ("&quot;", '"'),
+                    ("&#39;", "'"), ("&amp;", "&")):
+        s = s.replace(ent, ch)
+    return s
+
+
+_LIGATURES = (("ﬀ", "ff"), ("ﬁ", "fi"), ("ﬂ", "fl"), ("ﬃ", "ffi"), ("ﬄ", "ffl"))
+
+
 def _norm(s: str) -> str:
-    """Whitespace-removed, tag-stripped, unescaped, lowercased."""
-    s = unescape(_strip_tags(s))
+    """Whitespace-removed, tag-stripped, unescaped, ligature-expanded,
+    lowercased — one extractor keeps 'Plaintiﬀ' where extract_text says
+    'Plaintiff', so both sides expand."""
+    s = _unescape_xml(_strip_tags(s))
+    for lig, exp in _LIGATURES:
+        if lig in s:
+            s = s.replace(lig, exp)
     return "".join(s.split()).lower()
 
 
@@ -62,7 +93,14 @@ def _chunk(x):
             yield _strip_tags(str(x["html"]))
         for key in ("left", "right"):
             for line in x.get(key, []) or []:
-                yield str(line)
+                if isinstance(line, dict):  # faithful cell: {'h': html, ...}
+                    yield _strip_tags(str(line.get("h", "")))
+                elif line:
+                    yield _strip_tags(str(line))
+        if x.get("__hmrow__"):  # three-zone flush-right row
+            for key in ("l", "c", "r"):
+                if x.get(key):
+                    yield _strip_tags(str(x[key]))
     elif x:
         yield str(x)
 
@@ -72,7 +110,13 @@ def _doc_chunks(doc: ExtractedDocument):
         yield from _chunk(s)
     yield from doc.dropped
     yield from doc.trailer
-    yield from getattr(doc, "syllabus", []) or []
+    for s in getattr(doc, "signature", []) or []:
+        if not isinstance(s, dict):  # image rows carry no text
+            yield _strip_tags(str(s))
+    for s in getattr(doc, "syllabus", []) or []:
+        yield from _chunk(s)
+    for s in getattr(doc, "headnotes", []) or []:
+        yield from _chunk(s)
     yield from doc.parties
     for v in (
         doc.court_label,
@@ -122,6 +166,64 @@ def _is_filing_stamp(raw: str) -> bool:
     # 'Nebraska Supreme Court Online Library' / 'www.nebraska.gov/...' /
     # '04/21/2026 08:08 AM CDT'.
     if "online library" in low or low.startswith("www."):
+        return True
+    # NY Slip Op bracketed page markers ('[* 1]').
+    t0 = low.replace(" ", "")
+    if t0.startswith("[*") and t0.endswith("]") and t0[2:-1].isdigit():
+        return True
+    # NY Slip Op cover artifacts and NYSCEF e-filing stamps.
+    if low.startswith("file:///") or low.startswith("nyscef") or "received nyscef" in low:
+        return True
+    if low.startswith("filed:") and ("court" in low or "clerk" in low):
+        return True
+    if low.startswith("index no") and len(low) < 60:
+        return True
+    # A pleading-paper firm footer ('HOLLISTER LLP - 2 -'): a short prefix
+    # ending in the '- N -' page marker.
+    pf = low.split()
+    if (
+        len(pf) >= 3
+        and pf[-1] == "-"
+        and pf[-2].isdigit()
+        and pf[-3] == "-"
+        and len(low) < 45
+    ):
+        return True
+    # Letterhead mottos and bare page-number footers.
+    if low.startswith(("an equal opportunity employer", "printed on 30%")):
+        return True
+    toks0 = low.split()
+    if len(toks0) == 2 and toks0[0] == "page" and toks0[1].isdigit():
+        return True
+    # E-filing stamp box fragments (Texas Business Court etc.).
+    if low in ("filed in", "entered") or (low.endswith(", clerk") and len(low) < 35):
+        return True
+    # A footnote cross-page continuation marker.
+    if low.strip("(). ") in ("continued", "continued . . .", "footnote continued"):
+        return True
+    # Washington's overprinted filing stamp / the Tax Court's service stamp.
+    if "this opinion was filed" in low and len(low) < 60:
+        return True
+    if low.startswith("served ") and len(low) < 25:
+        return True
+    # The clerk's received stamp box in the page-1 corner ('CLERKS OFFICE US
+    # DISTRICT COURT / AT ROANOKE, VA / FILED / <date> / <name>, CLERK').
+    if "clerk" in low and "office" in low and len(low) < 45:
+        return True
+    if low.startswith("at ") and low.rstrip(".").endswith(", va") and len(low) < 35:
+        return True
+    # An e-filing date stamped in perfect overprint doubles every glyph
+    # ('0055//1155//22002266' for '05/15/2026'); collapse the doubling and
+    # accept a bare date (the single-printed form passes the same check).
+    s = low.replace(" ", "")
+    if (
+        len(s) >= 8
+        and len(s) % 2 == 0
+        and all(s[i] == s[i + 1] for i in range(0, len(s), 2))
+    ):
+        s = s[::2]
+    parts = s.split("/")
+    if len(parts) == 3 and all(p.isdigit() for p in parts):
         return True
     toks = low.replace(",", " ").split()
     _TZ = {"cdt", "cst", "edt", "est", "mdt", "mst", "pdt", "pst", "akdt", "hst"}
@@ -182,14 +284,95 @@ def _covered(raw: str, haystack: str) -> bool:
     # A horizontal rule drawn as text ('______' / '------' / '******'): layout
     # furniture, not content.
     stripped = raw.strip()
-    if len(stripped) >= 4 and all(c in "_-—–=*" for c in stripped):
+    if len(stripped) >= 3 and all(c in "_-—–=* " for c in stripped):
+        return True
+    # A line that is nothing but caption-rail glyphs ('§' / ') )') is the
+    # drawn rail of a two-column caption, not content.
+    if stripped and all(c in ")]§|* " for c in stripped):
+        return True
+    # A date typed over an underscore fill-in rule interleaves '_' with the
+    # glyphs ('Atlanta,__0_5_/2_2_/2_0_2_6___'); the extractor strips the
+    # underscores, so match without them.
+    if "_" in raw and _norm(raw.replace("_", "")) and _norm(
+        raw.replace("_", "")
+    ) in haystack:
         return True
     if _is_filing_stamp(raw):
         return True
+    # ROTATED margin text (the court name printed sideways up a pleading
+    # margin) extracts REVERSED per line ('truoC' / 'tcirtsiD') while the
+    # output records it in reading order — match the reversed needle.
+    if (
+        len(stripped) >= 4
+        and stripped.replace(" ", "").isalpha()
+        and _norm(stripped[::-1])
+        and _norm(stripped[::-1]) in haystack
+    ):
+        return True
+    # Ground-truth interleave artifacts: pdfplumber renders an italic set on
+    # an offset baseline as its own broken row ('Complaint and assumed to be
+    # true. ,' / 'Id. see'); the extractor merges the row correctly, so the
+    # broken fragment no longer matches. Strip the stray trailing comma, or
+    # accept a very short fragment whose every token is present.
+    if raw.rstrip().endswith(",") and _norm(raw.rstrip().rstrip(",")) in haystack:
+        return True
+    nshort = _norm(raw)
+    toks_s = [t for t in raw.split() if _norm(t)]
+    if (
+        0 < len(nshort) <= 14
+        and len(toks_s) >= 2
+        and all(_norm(t) in haystack for t in toks_s)
+    ):
+        return True
+    # Glyphs the PDF maps to no unicode point come through as '(cid:NN)'
+    # tokens — the source itself carries no text there, so the line is
+    # unauditable (the extractor drops such lines as identified junk).
+    if "(cid:" in raw:
+        return True
+    # A doubled leading slash ('//s/ Robert S. Ballou' — the overlap dedup
+    # keeps one): collapse and retry.
+    if "//s" in raw.lower() and _norm(raw.replace("//s", "/s", 1)) in haystack:
+        return True
+    # An '/s/' signature whose first capital overprints ('s/ SSteven W.
+    # Sword'): collapse the doubled capital and retry. Gated to signature
+    # lines so a genuinely dropped line can't slip through.
+    toks = raw.split()
+    if toks and toks[0].lower() in ("s/", "/s/"):
+        fixed = [
+            t[1:] if len(t) > 2 and t[0] == t[1] and t[0].isupper() else t
+            for t in toks
+        ]
+        if _norm(" ".join(fixed)) in haystack:
+            return True
+    # Caption rail gutter: a 'PARTY ) DOCKET' / 'PARTY )' / ') DOCKET' row split
+    # by a rail glyph ( ) / ] / § / | ) into party + docket columns the extractor
+    # emits separately. The glyph must stand alone as its own whitespace-token —
+    # a true column rail does, a ')' inside '(2021)' never does — so this can't
+    # mask an ordinary dropped line. Counted covered when every non-empty side
+    # appears in the output.
+    for rail in ")]§|*":
+        toks = raw.split()
+        if rail not in toks:
+            continue
+        # Partition tokens at the standalone rail token(s) into column groups, so
+        # a ')' inside a party name ('(DECEASED),') stays intact while the rail
+        # separates party from docket.
+        groups, cur = [], []
+        for t in toks:
+            if t == rail:
+                groups.append(cur)
+                cur = []
+            else:
+                cur.append(t)
+        groups.append(cur)
+        sides = [_norm(" ".join(g)) for g in groups if g]
+        if sides and all(len(p) >= 2 and p in haystack for p in sides):
+            return True
     parts = raw.strip().split(None, 1)
     if len(parts) == 2 and parts[0].isdigit() and len(parts[0]) <= 3:
-        rest = _norm(parts[1])
-        if rest and rest in haystack:
+        # Recurse so the gutter-stripped rest gets every fallback too (a
+        # pleading caption row needs the two-column split after the strip).
+        if _covered(parts[1], haystack):
             return True
     # Two-column caption row: pdfplumber merges 'LEFT-COLUMN  RIGHT-COLUMN'
     # (parties + docket) into one source line, but the extractor emits the
@@ -201,7 +384,15 @@ def _covered(raw: str, haystack: str) -> bool:
         # Strip a column-gutter colon that attaches to either side of the split.
         a = _norm(" ".join(words[:k])).strip(":")
         b = _norm(" ".join(words[k:])).strip(":")
-        if len(a) >= 6 and len(b) >= 6 and a in haystack and b in haystack:
+        # One side may be short ('vs.' / 'ORDER' in a folded caption row) as
+        # long as the other side is substantial.
+        if (
+            len(a) >= 2
+            and len(b) >= 2
+            and max(len(a), len(b)) >= 5
+            and a in haystack
+            and b in haystack
+        ):
             return True
     return False
 
@@ -212,6 +403,10 @@ def _furniture_key(line: str) -> str:
     Page 3 of 11', or a per-page case/date stamp) collapses to one key and is
     recognized as repeated."""
     n = _norm(line)
+    # Unicode hyphen variants (U+2010/2011) key the same as '-' — a footer
+    # re-typeset for a separate writing must collapse with the main one's.
+    for h in ("‐", "‑", "‒", "–"):
+        n = n.replace(h, "-")
     out, prev_digit = [], False
     for ch in n:
         if ch.isdigit():
@@ -221,6 +416,10 @@ def _furniture_key(line: str) -> str:
         else:
             out.append(ch)
             prev_digit = False
+    # A pleading gutter number fused onto the footer ('28 HOLLISTER LLP - 2 -')
+    # must key the same as the bare footer.
+    while out and out[0] == "#":
+        out.pop(0)
     return "".join(out)
 
 
@@ -241,19 +440,48 @@ def _running_furniture(pages_lines) -> set:
             n = _furniture_key(l)
             if n and len(n) <= 80:
                 margin_pages[n].add(pno)
-    return {n for n, pgs in margin_pages.items() if len(pgs) >= 3}
+    # On a 2-page document the footer can only repeat twice.
+    thresh = 3 if len(pages_lines) >= 3 else 2
+    return {n for n, pgs in margin_pages.items() if len(pgs) >= thresh}
 
 
-def audit_coverage(doc: ExtractedDocument, pdf_path: str) -> AuditResult:
+def audit_coverage(
+    doc: ExtractedDocument, pdf_path: str, extractor=None
+) -> AuditResult:
     haystack = _norm(" ".join(c for c in _doc_chunks(doc) if c))
+
+    # Pages where the output carries a table block: a multi-line table row
+    # reads row-major in the source ('02CR176 Greene County, Delivery of
+    # 9/9/2002') but cell-major in the output ('02CR176' / 'Greene County,
+    # Tennessee' / 'Delivery of Schedule II...'), so substring matching can't
+    # line them up. On such pages a line counts as covered when every one of
+    # its tokens appears in the output.
+    table_pages = {
+        b.page
+        for op in doc.opinions
+        for b in op.blocks
+        if b.kind == "table" and b.page
+    }
 
     total = 0
     missing = []
     with pdfplumber.open(pdf_path) as pdf:
-        pages_lines = [
-            (page.page_number, (page.extract_text() or "").splitlines())
-            for page in pdf.pages
-        ]
+        pages_lines = []
+        for page in pdf.pages:
+            # Read the ground truth through the same per-court geometry fix the
+            # extractor uses, so a court that corrects a broken font box (Maine)
+            # is audited against corrected text, not pdfplumber's jumbled raw.
+            if extractor is not None:
+                extractor.correct_page_geometry(page)
+            # ROTATED chars (a court name printed sideways up a pleading
+            # margin) can never be flowed body text — pdfplumber merges
+            # them into the GT lines ('u o r o 13 After more than…'),
+            # poisoning the match. Audit against upright text only; the
+            # extractors surface the rotated marginalia separately.
+            gt = page.filter(lambda o: o.get("upright", True) is not False)
+            pages_lines.append(
+                (page.page_number, (gt.extract_text() or "").splitlines())
+            )
     furniture = _running_furniture(pages_lines)
     for pno, lines in pages_lines:
         for raw in lines:
@@ -261,6 +489,10 @@ def audit_coverage(doc: ExtractedDocument, pdf_path: str) -> AuditResult:
                 continue
             total += 1
             if _furniture_key(raw) in furniture or _covered(raw, haystack):
+                continue
+            if pno in table_pages and all(
+                _norm(t) in haystack for t in raw.split() if _norm(t)
+            ):
                 continue
             missing.append((pno, raw.strip()))
     return AuditResult(total=total, covered=total - len(missing), missing=missing)

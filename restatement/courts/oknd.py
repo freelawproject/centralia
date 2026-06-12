@@ -12,4 +12,5 @@ from ._district import DistrictBase
 
 class NorthernDistrictOfOklahoma(DistrictBase):
     court_id = "oknd"
+    styled_headmatter = True
     court_label = "United States District Court, Northern District of Oklahoma."

@@ -36,7 +36,7 @@ _CSS = """
   body.single .review-pane.doc { padding: 2rem 1.25rem; }
   body.single .doc-inner { max-width: 46rem; }
 
-  .fingerprint { border: 1px solid var(--rule); border-left: 4px solid var(--muted);
+  .fingerprint { border: 1px solid var(--rule); border-left: 10px solid var(--muted);
                  border-radius: .3rem; padding: .8rem 1rem; margin-bottom: 1.5rem;
                  background: #fafafa; }
   .fingerprint.fp-full-opinion { border-left-color: #2f5d3a; }
@@ -64,13 +64,16 @@ _CSS = """
   h2.sec .raw-tag, h2.sec .count { float: right; font-weight: normal;
            letter-spacing: .04em; text-transform: none; }
   h2.sec .raw-tag { color: var(--accent); }
-  .headmatter .raw { background: #faf8f4; border: 1px solid var(--rule);
+  .headmatter .raw, .syllabus .raw, .headnotes .raw { background: #faf8f4;
+                     border: 1px solid var(--rule);
                      border-radius: .3rem; padding: .9rem 1.1rem; }
   .rawline { font-family: ui-monospace, monospace; font-size: .8rem;
              line-height: 1.5; color: #333; white-space: pre-wrap;
              word-break: break-word; }
   .rawline .centered { display: block; text-align: center; }  /* keep centering */
   .hmline { line-height: 1.45; color: #222; }
+  .hm-logo { display: block; margin: 0 auto .9rem; max-height: 90px;
+             width: auto; }
   hr.divider { border: 0; border-top: 1px solid #999; margin: .55rem auto;
                width: 40%; }
   .rawgap { height: .8rem; }
@@ -175,8 +178,10 @@ def _render_content(doc: ExtractedDocument) -> list:
     out.extend(_render_fingerprint(doc))
     out.extend(_render_dropped(doc))
     out.extend(_render_headmatter(doc))
+    out.extend(_render_headnotes(doc))
     out.extend(_render_syllabus(doc))
     out.extend(_render_opinions(doc))
+    out.extend(_render_signature(doc))
     out.extend(_render_trailer(doc))
 
     if doc.source_path:
@@ -301,9 +306,59 @@ def _fingerprint(doc: ExtractedDocument) -> str:
     return "Full opinion"
 
 
+def _caption_style(doc: ExtractedDocument):
+    """Best-effort caption style name from the /captions catalog, derived
+    from the structural signals extraction already found (rail glyph, drawn
+    rules, corner close, divider rows). Exact names only where the signal is
+    decisive; a descriptive label otherwise; None when there is no caption."""
+    cap = next(
+        (s for s in doc.summary if isinstance(s, dict) and s.get("__caption__")),
+        None,
+    )
+    summary_text = [str(s) for s in doc.summary if not isinstance(s, dict)]
+    has_divider = any(s == "__DIVIDER__" for s in summary_text)
+    star_rows = any(
+        isinstance(s, dict)
+        and s.get("__hm__")
+        and set(str(s.get("html", "")).replace("<", "").replace(">", "")) <= set("* ")
+        for s in doc.summary
+    )
+    fp = (doc.caption_box or {}).get("fp_style")
+    if fp:
+        return fp
+    if cap is None:
+        if has_divider:
+            return "one-column, ruled"
+        return None
+    rail = cap.get("rail", "__legacy__")
+    if cap.get("boxes"):
+        return "The Double Box"
+    if rail == "|" or (rail == "__legacy__" and (doc.caption_box or {}).get("vx")):
+        return "Old Faithful" if cap.get("corner") else "Old Faithful (open)"
+    names = {
+        ")": "The Banded Bracket" if has_divider else "The Parenthetical Box",
+        "§": "The Section-Sign Rail",
+        ":": "The Colon Rail",
+        "]": "The Square-Bracket Rail",
+        "*": "The Asterisk Rail",
+        "}": "The Gathering Brace",
+    }
+    if isinstance(rail, str) and rail in names:
+        return names[rail]
+    if rail is None:
+        if star_rows:
+            return "The Starbreak"
+        if has_divider:
+            return "The Rule Sandwich"
+        return "two-column (whitespace)"
+    return None
+
+
 def _render_fingerprint(doc: ExtractedDocument) -> list:
     fp = _fingerprint(doc)
-    n_fn = sum(len(op.footnotes) for op in doc.opinions)
+    n_fn = sum(len(op.footnotes) for op in doc.opinions) + len(
+        doc.headmatter_footnotes
+    )
     types = " · ".join(op.type for op in doc.opinions) or "—"
     signals = [
         f"type: {escape(doc.doc_type)}",
@@ -311,6 +366,9 @@ def _render_fingerprint(doc: ExtractedDocument) -> list:
         f"{n_fn} footnote(s)",
         f"{doc.n_pages} pp.",
     ]
+    cap_style = _caption_style(doc)
+    if cap_style:
+        signals.append(f"caption: {escape(cap_style)}")
     chips = "".join(f"<span>{s}</span>" for s in signals)
     slug = fp.lower().replace(" ", "-")
     return [
@@ -338,6 +396,35 @@ def _render_dropped(doc: ExtractedDocument) -> list:
     return out
 
 
+def _render_headnotes(doc: ExtractedDocument) -> list:
+    """Reporter headnotes preceding the opinion (Maryland) — bold topical
+    headings and their summary prose, their own section, not opinion body."""
+    if not getattr(doc, "headnotes", None):
+        return []
+    out = [
+        '<section class="block headnotes">',
+        '<h2 class="sec">Headnotes '
+        '<span class="raw-tag">not part of the opinion</span></h2>',
+        '<div class="raw">',
+    ]
+    for line in doc.headnotes:
+        if isinstance(line, dict) and line.get("__hm__"):
+            al = {"C": "center", "L": "left", "R": "right"}.get(
+                line.get("align"), "left"
+            )
+            out.append(
+                f'<div class="hmline" style="text-align:{al};'
+                f'font-size:{line.get("rel", 1)}em">'
+                f'{_inline_to_html(str(line.get("html", "")))}</div>'
+            )
+        elif str(line).strip() == "":
+            out.append('<div class="rawgap"></div>')
+        else:
+            out.append(f'<div class="rawline">{_inline_to_html(str(line))}</div>')
+    out.append("</div></section>")
+    return out
+
+
 def _render_syllabus(doc: ExtractedDocument) -> list:
     """Official syllabus / case summary that precedes the opinion (Colorado's
     SUMMARY page, Connecticut's Syllabus) — its own block, not opinion body."""
@@ -350,7 +437,74 @@ def _render_syllabus(doc: ExtractedDocument) -> list:
         '<div class="raw">',
     ]
     for line in doc.syllabus:
-        out.append(f'<div class="rawline">{_inline_to_html(str(line))}</div>')
+        if isinstance(line, dict) and line.get("__hm__"):
+            # A styled syllabus paragraph (SCOTUS): real flowing text with
+            # inline bold/italic, same row treatment as styled headmatter.
+            al = {"C": "center", "L": "left", "R": "right"}.get(
+                line.get("align"), "left"
+            )
+            out.append(
+                f'<div class="hmline" style="text-align:{al};'
+                f'font-size:{line.get("rel", 1)}em">'
+                f'{_inline_to_html(str(line.get("html", "")))}</div>'
+            )
+        elif str(line).strip() == "":
+            out.append('<div class="rawgap"></div>')
+        else:
+            out.append(f'<div class="rawline">{_inline_to_html(str(line))}</div>')
+    out.append("</div></section>")
+    return out
+
+
+def _caption_cell_lines(entries) -> list:
+    """Caption cell lines, faithful to the page: inline bold/italic kept,
+    per-line indents preserved (a role line indented under its party), and
+    blank spacer rows where the caption is double-spaced. Plain strings
+    (older stored summaries) still render as before."""
+    out = []
+    for ln in entries:
+        if isinstance(ln, dict):
+            ind = ln.get("ind") or 0
+            style = (
+                f' style="padding-left:{min(round(ind * 0.9), 160)}px"'
+                if ind > 14
+                else ""
+            )
+            out.append(
+                f'<div class="rawline"{style}>'
+                f'{_inline_to_html(str(ln.get("h", "")))}</div>'
+            )
+        elif str(ln).strip() == "":
+            out.append('<div style="height:.55rem"></div>')
+        else:
+            out.append(
+                f'<div class="rawline">{_inline_to_html(str(ln))}</div>'
+            )
+    return out
+
+
+def _render_signature(doc: ExtractedDocument) -> list:
+    """The signature block lifted off the end of the last opinion — the
+    '/s/' conformed signature or signature rule, the printed name, and the
+    signer's title — in its own box so it isn't read as opinion body."""
+    if not doc.signature:
+        return []
+    out = [
+        '<section class="block signature">',
+        '<h2 class="sec">Signature</h2>',
+        '<div class="raw">',
+    ]
+    for line in doc.signature:
+        if isinstance(line, dict) and line.get("__image__"):
+            h = line.get("height") or 54
+            out.append(
+                f'<img src="{escape(str(line.get("src", "")))}" '
+                f'alt="signature" style="display:block;max-height:{round(h)}px">'
+            )
+        else:
+            out.append(
+                f'<div class="rawline">{_inline_to_html(str(line))}</div>'
+            )
     out.append("</div></section>")
     return out
 
@@ -372,11 +526,30 @@ def _render_trailer(doc: ExtractedDocument) -> list:
     return out
 
 
+def _stack_headmatter_pages(lines: list) -> list:
+    """Headmatter that spans pages carries each line's own page-local y, so
+    absolute positioning would overlay page 2's top on page 1's top. Shift
+    every page after the first to start just below the previous page's last
+    line, preserving page-local geometry. Page-1 coordinates are untouched, so
+    the caption-box rules (page-1 geometry) stay aligned."""
+    pages = sorted({l.get("page", 1) for l in lines})
+    if len(pages) <= 1:
+        return lines
+    out, cursor = [], None
+    for pno in pages:
+        pls = [l for l in lines if l.get("page", 1) == pno]
+        top0 = min(l["top"] for l in pls)
+        off = 0.0 if cursor is None else cursor - top0
+        out += [{**l, "top": l["top"] + off} for l in pls]
+        cursor = max(l["top"] + off + l["size"] * 1.3 for l in pls) + 14
+    return out
+
+
 def _render_headmatter_facsimile(doc: ExtractedDocument) -> list:
     """Faithful headmatter: each line placed at its real x/y, at its real font
     size and weight, with the caption box drawn from the rule geometry. 1px per
     PDF point."""
-    lines = doc.headmatter_lines
+    lines = _stack_headmatter_pages(doc.headmatter_lines)
     box = doc.caption_box or {}
     xs = [l["x0"] for l in lines]
     if box.get("vx") is not None:
@@ -423,29 +596,115 @@ def _render_headmatter(doc: ExtractedDocument) -> list:
         '<section class="block headmatter">',
         '<h2 class="sec">Headmatter <span class="raw-tag">raw</span></h2>',
     ]
-    if not doc.summary:
+    if (
+        doc.summary
+        and isinstance(doc.summary[0], dict)
+        and doc.summary[0].get("__facsimile__")
+        and doc.headmatter_lines
+    ):
+        # Style/whitespace-preserving facsimile (exact x/y, size, weight);
+        # the plain rows behind the sentinel exist for the audit and DB.
+        out.extend(_render_headmatter_facsimile(doc))
+    elif not doc.summary:
         out.append('<div class="empty">(none)</div>')
     else:
         out.append('<div class="raw">')
         for s in doc.summary:
-            if isinstance(s, dict) and s.get("__caption__"):
-                # A two-column caption box (left = parties, right = docket):
-                # render the columns side by side as text, not as a raw dict.
+            if isinstance(s, dict) and s.get("__image__"):
+                # The court seal / logo, placed above the caption.
+                out.append(
+                    f'<img class="hm-logo" src="{escape(str(s.get("src", "")))}" '
+                    'alt="court seal">'
+                )
+            elif isinstance(s, dict) and s.get("__caption__"):
+                # A two-column caption box (left = parties, right = docket).
+                # The divider mirrors the SOURCE: a stacked rail-glyph column
+                # (')' / '§' / ':') where the PDF uses glyphs, nothing where
+                # the columns are separated by whitespace alone, and the
+                # legacy drawn rule only when the producer didn't say.
                 out.append(
                     '<div class="caption-cols" style="display:flex;'
                     'gap:1.4rem;align-items:stretch">'
                 )
-                out.append('<div style="flex:1;min-width:0">')
-                for ln in s.get("left", []):
-                    out.append(f'<div class="rawline">{_inline_to_html(str(ln))}</div>')
-                # The drawn vertical rule between parties (left) and docket (right).
-                out.append(
-                    '</div><div style="border-left:1px solid #999"></div>'
-                    '<div style="flex:1;min-width:0">'
-                )
-                for ln in s.get("right", []):
-                    out.append(f'<div class="rawline">{_inline_to_html(str(ln))}</div>')
+                # 'Old Faithful' close: the half-rule under the parties that
+                # runs into the vertical renders as the left column's bottom
+                # border, meeting the divider at the corner.
+                shape = s.get("shape")
+                lstyle = "flex:1;min-width:0"
+                if s.get("boxes") or shape == "double-box":
+                    lstyle += ";border:1px solid #999;padding:.4rem .6rem"
+                elif shape == "i-beam":
+                    lstyle += (";border-top:1px solid #999"
+                               ";border-bottom:1px solid #999")
+                elif shape == "backwards-c":
+                    lstyle += (";border-top:1px solid #999"
+                               ";border-bottom:1px solid #999")
+                elif shape == "upside-down-t":
+                    lstyle += ";border-bottom:1px solid #999"
+                elif s.get("corner") or shape == "old-faithful":
+                    lstyle += ";border-bottom:1px solid #999"
+                out.append(f'<div style="{lstyle}">')
+                out.extend(_caption_cell_lines(s.get("left", [])))
+                rail = s.get("rail", "__legacy__")
+                shape = s.get("shape")
+                if s.get("boxes") or shape == "double-box":
+                    mid_div = '<div style="flex:none;width:.2rem"></div>'
+                elif shape == "twin-rail":
+                    mid_div = '<div style="border-left:3px double #999"></div>'
+                elif shape in ("i-beam", "backwards-c", "upside-down-t",
+                               "old-faithful"):
+                    mid_div = '<div style="border-left:1px solid #999"></div>'
+                elif rail == "__legacy__" or rail == "|":
+                    # '|' = the PDF draws a real vertical rule here.
+                    mid_div = '<div style="border-left:1px solid #999"></div>'
+                elif rail:
+                    # draw exactly one rail glyph per SOURCE row that bore it
+                    # (the PDF draws a ')' per caption row); never one-per-cell,
+                    # which invents glyphs for banner / blank rows. Falls back
+                    # to the non-blank cell count for older stored summaries.
+                    n = s.get("rail_rows")
+                    if not n:
+                        n = max(
+                            sum(1 for x in s.get("left", []) if str(x).strip()),
+                            sum(1 for x in s.get("right", []) if str(x).strip()),
+                            1,
+                        )
+                    glyphs = "<br>".join([escape(str(rail))] * n)
+                    mid_div = (
+                        '<div class="rawline" style="color:#8a8374;'
+                        f'text-align:center;flex:none">{glyphs}</div>'
+                    )
+                else:
+                    mid_div = '<div style="flex:none;width:.2rem"></div>'
+                rstyle = "flex:1;min-width:0"
+                shape = s.get("shape")
+                if s.get("boxes") or shape == "double-box":
+                    rstyle += ";border:1px solid #999;padding:.4rem .6rem"
+                elif shape == "i-beam":
+                    rstyle += (";border-top:1px solid #999"
+                               ";border-bottom:1px solid #999")
+                elif shape == "upside-down-t":
+                    rstyle += ";border-bottom:1px solid #999"
+                elif shape == "status-flush":
+                    # status labels are pinned against the right margin
+                    rstyle += ";text-align:right"
+                out.append(f"</div>{mid_div}" f'<div style="{rstyle}">')
+                out.extend(_caption_cell_lines(s.get("right", [])))
                 out.append("</div></div>")
+            elif isinstance(s, dict) and s.get("__hmrow__"):
+                # A three-zone flush-right row: party at the left margin,
+                # status label pinned right, docket centered between them.
+                # Equal 1fr side tracks keep the center cell truly centered.
+                out.append(
+                    '<div class="hmline" style="display:grid;'
+                    'grid-template-columns:1fr auto 1fr;column-gap:.6rem">'
+                    f'<div>{_inline_to_html(str(s.get("l", "")))}</div>'
+                    '<div style="text-align:center">'
+                    f'{_inline_to_html(str(s.get("c", "")))}</div>'
+                    '<div style="text-align:right">'
+                    f'{_inline_to_html(str(s.get("r", "")))}</div>'
+                    "</div>"
+                )
             elif isinstance(s, dict) and s.get("__hm__"):
                 # A style-preserving headmatter line: relative font size,
                 # alignment, and inline bold/italic kept from the PDF.
@@ -459,6 +718,9 @@ def _render_headmatter(doc: ExtractedDocument) -> list:
                 )
             elif isinstance(s, dict):
                 out.append(f'<div class="rawline">{escape(str(s))}</div>')
+            elif str(s).strip() == "__RULE__":
+                # a DRAWN full-width rule at its position
+                out.append('<hr style="border:0;border-top:1px solid #999;margin:.55rem 0">')
             elif str(s).strip() == "__DIVIDER__":
                 out.append('<hr class="divider">')
             elif str(s).strip() == "":

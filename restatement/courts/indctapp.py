@@ -19,6 +19,83 @@ from ._appellate import StateAppellate
 class CourtOfAppealsOfIndiana(StateAppellate):
     court_id = "indctapp"
     court_label = "Court of Appeals of Indiana."
+    # Body text is anchored at x≈86.4 (not 72); the footnote rule shares that
+    # margin, and paragraph starts are flagged by the '[N]' margin markers
+    # rather than an indent.
+    body_baseline_x0 = 86.0
+
+    def extract(self, pdf_path):
+        self._footer_dropped = []
+        doc = super().extract(pdf_path)
+        extra = list(dict.fromkeys(self._footer_dropped))
+        if extra:
+            doc.dropped = list(doc.dropped) + extra
+        return doc
+
+    def page_lines(self, page):
+        lines = super().page_lines(page)
+        if getattr(self, "_footer_dropped", None) is None:
+            self._footer_dropped = []
+        kept, markers = [], []
+        for ln in lines:
+            t = self.line_plain_text(ln).strip()
+            # The per-page footer ('Court of Appeals of Indiana | Opinion
+            # 25A-CR-2182 | May 20, 2026 Page 1 of 15') sits inside the text
+            # margins — furniture, recorded once.
+            if ln["top"] > 700 and t.startswith("Court of Appeals of Indiana"):
+                self._footer_dropped.append(t)
+                continue
+            # A hanging '[N]' paragraph marker in the left margin.
+            if (
+                ln["x1"] < self.body_baseline_x0
+                and t.startswith("[")
+                and t.endswith("]")
+                and t[1:-1].isdigit()
+            ):
+                markers.append(ln)
+                continue
+            kept.append(ln)
+        # Attach each marker to the body line it labels (nearest top), so
+        # '[1]' opens its paragraph instead of floating as its own block.
+        for mk in markers:
+            best = None
+            for ln in kept:
+                if ln["x0"] >= self.body_baseline_x0 - 2:
+                    d = abs(ln["top"] - mk["top"])
+                    if d <= 10 and (best is None or d < abs(best["top"] - mk["top"])):
+                        best = ln
+            if best is not None:
+                # Normalize the marker glyphs to the line's metrics, or the
+                # small raised digits read as a footnote reference.
+                ref = (best.get("chars") or [{}])[0]
+                mchars = []
+                for c in mk.get("chars") or []:
+                    c = dict(c)
+                    c["size"] = ref.get("size", c.get("size"))
+                    c["top"] = ref.get("top", c.get("top"))
+                    c["bottom"] = ref.get("bottom", c.get("bottom"))
+                    mchars.append(c)
+                best["chars"] = mchars + list(best.get("chars") or [])
+                best["x0"] = min(best["x0"], mk["x0"])
+            else:
+                kept.append(mk)
+        return kept
+
+    def split_body_paragraphs(self, seg) -> list:
+        """Indiana paragraphs are flush-left with no indent; the '[N]'
+        marker (merged onto the first line) is the paragraph start."""
+        if not seg:
+            return []
+        paras = [[seg[0]]]
+        for line in seg[1:]:
+            t = self.line_plain_text(line).lstrip()
+            if t.startswith("[") and "]" in t[:6] and t[1 : t.find("]")].isdigit():
+                paras.append([line])
+            elif line["x0"] > self.body_baseline_x0 + self.para_indent_min:
+                paras.append([line])
+            else:
+                paras[-1].append(line)
+        return paras
 
     def find_footnote_separator(self, page) -> Optional[float]:
         """A real footnote separator has footnote-sized text directly below it.
@@ -40,7 +117,7 @@ class CourtOfAppealsOfIndiana(StateAppellate):
             below = [
                 c
                 for c in chars
-                if r["top"] < c["top"] < r["top"] + 22 and not c["text"].isspace()
+                if r["top"] < c["top"] < r["top"] + 40 and not c["text"].isspace()
             ]
             if below and min(below, key=lambda c: c["top"]).get("size", 99) <= small:
                 cands.append(r["top"])

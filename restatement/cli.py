@@ -117,7 +117,9 @@ def main(argv=None):
         tot = cov = 0
         for pdf in pdfs:
             try:
-                r = audit_coverage(extractor.extract(str(pdf)), str(pdf))
+                r = audit_coverage(
+                    extractor.extract(str(pdf)), str(pdf), extractor=extractor
+                )
             except Exception as e:
                 print(f"!! {pdf.name}: {type(e).__name__}: {e}", file=sys.stderr)
                 continue

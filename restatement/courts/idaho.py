@@ -13,4 +13,6 @@ class IdahoSupreme(StateSupreme):
     court_id = "idaho"
     court_label = "Supreme Court of the State of Idaho."
     fold_page_numbers = True  # bare page numbers -> inline page-break markers
-    author_titles = ("Justice", "Chief Justice", "Pro Tem Justice")
+    author_titles = ("Justice", "Chief Justice", "Pro Tem Justice",
+                     # Court of Appeals opinions appear in the corpus
+                     "Judge", "Chief Judge", "Judge Pro Tem")

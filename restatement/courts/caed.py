@@ -12,4 +12,5 @@ from ._district import DistrictBase
 
 class EasternDistrictOfCalifornia(DistrictBase):
     court_id = "caed"
+    styled_headmatter = True
     court_label = "United States District Court, Eastern District of California."

@@ -130,6 +130,12 @@ class ExtractedDocument:
     # "Syllabus"). Kept as its own block, separate from headmatter and body.
     syllabus: list = field(default_factory=list)
 
+    # Reporter headnotes that precede the opinion — bold topical headings and
+    # their summary prose, set on their own page(s) before the caption
+    # (Maryland's reported opinions). Their own section, not headmatter or
+    # body; distinct from ``syllabus`` (a court-written case summary).
+    headnotes: list = field(default_factory=list)
+
     # Body
     opinions: list[Opinion] = field(default_factory=list)
     headmatter_footnotes: list[Footnote] = field(default_factory=list)
@@ -141,6 +147,11 @@ class ExtractedDocument:
     # Trailing matter after the last opinion (counsel names/addresses, "See
     # next page for ... counsel" blocks) — surfaced separately, not body.
     trailer: list = field(default_factory=list)
+
+    # The signature block lifted off the end of the last opinion: the '/s/'
+    # conformed signature (or the underscore signature rule), the printed
+    # name, and the signer's title line. Rendered as its own section.
+    signature: list = field(default_factory=list)
 
     # Diagnostics
     warnings: list[str] = field(default_factory=list)

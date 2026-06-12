@@ -29,6 +29,10 @@ _ABBREV = (
     ("C. J.", "Chief Justice"),
     ("P.J.", "Presiding Justice"),
     ("P. J.", "Presiding Justice"),
+    # 'A.R.J.' = Active Retired Justice (a retired justice sitting by
+    # designation), e.g. Maine 'HJELM, A.R.J.'. Longer than the bare 'J.', and
+    # its distinct prefix means order is not load-bearing, but keep it ahead.
+    ("A.R.J.", "Active Retired Justice"),
     ("J.", "Justice"),
 )
 _KIND_WORDS = ("concur", "dissent")
@@ -56,6 +60,13 @@ class AbbrevTitleSupreme(StateSupreme):
     # Set True for courts whose surname is title-case, not all-caps, before the
     # abbreviated title ('Papik, J.' — Nebraska).
     allow_titlecase_name = False
+    # Court-section designators that may follow the title in a prose byline
+    # ('STAFFORD, P.J., W.S., delivered ...'); peeled before the verb check.
+    title_suffixes: tuple = ()
+    # The abbreviated-title table; courts with their own abbreviations extend
+    # it ('LASTER, V.C.' — Delaware Chancery). Longest-first within a prefix
+    # family so 'C.J.' wins over 'J.'.
+    abbrev_titles: tuple = _ABBREV
 
     def _name_ok(self, name: str) -> bool:
         if _is_byline_name(name):
@@ -88,18 +99,38 @@ class AbbrevTitleSupreme(StateSupreme):
         (name, title, kind, byline_end) or None, where ``byline_end`` is the
         index in ``text`` just past the byline clause (the rest is inline body).
         """
-        text = text.strip()
+        text = text.replace(" ", " ").strip()
         if "," not in text:
             return None
         name = text.split(",", 1)[0].strip()
         if not self._name_ok(name):
             return None
         after = text.split(",", 1)[1].lstrip()
-        for ab, full in _ABBREV:
+        # A generational suffix between the surname and the title belongs to
+        # the name ('JOHN W. CAMPBELL, SR., J., delivered ...'); peel it so the
+        # title check sees the 'J.'. Only a comma-followed suffix is peeled —
+        # a bare 'SR' word opening a roster/summary clause is left alone.
+        for sfx in ("SR.", "JR.", "SR", "JR", "III", "II", "IV"):
+            rest = after[len(sfx) :].lstrip()
+            if after.startswith(sfx) and rest.startswith(","):
+                name = f"{name}, {sfx}"
+                after = rest[1:].lstrip()
+                break
+        for ab, full in self.abbrev_titles:
             if not after.startswith(ab):
                 continue
             end = text.find(ab) + len(ab)
             tail = text[end:].lstrip()
+            # A footnote marker directly after the title belongs to the
+            # byline ('MADSEN, J.P.T.* (dissenting)—' — a pro-tempore
+            # designation footnote); absorb it so the kind clause that
+            # follows still parses.
+            stars = 0
+            while stars < len(tail) and tail[stars] in "*†‡":
+                stars += 1
+            if stars:
+                end += (len(text[end:]) - len(tail)) + stars
+                tail = tail[stars:].lstrip()
             low = tail.lower()
             nxt = tail[:1]
             # ': ' colon form ('STEGALL, J.: Bethany King ...') — the colon
@@ -112,6 +143,12 @@ class AbbrevTitleSupreme(StateSupreme):
             # merely contains it later ('NAME, J., joins the foregoing opinion
             # concurring in part ...' — a joinder) is not a byline.
             head = tail.lstrip(", (").lower()
+            first_word = head.split()[0].rstrip(".,") if head.split() else ""
+            # Third-person verb forms are ANNOUNCEMENTS of separate writings
+            # ('Molter, J., concurs with separate opinion ...'), not bylines —
+            # a byline uses the participle ('Molter, J., concurring.').
+            if first_word in ("concurs", "dissents"):
+                return None
             if nxt in (",", "(") and any(head.startswith(k) for k in _KIND_WORDS):
                 stop = next((k for k in range(end, len(text)) if text[k] in ".)"), -1)
                 if stop != -1:
@@ -128,8 +165,23 @@ class AbbrevTitleSupreme(StateSupreme):
             # this court announces authorship in prose and the continuation is an
             # opinion verb ('TARWATER, J., delivered the opinion of the Court').
             if nxt == ",":
+                # a byline ending in a bare comma with NOTHING after it
+                # ('MAYLE, J.,' — Ohio 6th district, body starts on the
+                # next line) is a byline; a roster/summary always names
+                # others after the comma
+                if not tail.lstrip(", ").strip():
+                    return name, full, None, len(text)
                 if self.accept_delivered:
-                    verb = (low.lstrip(", ").split() or [""])[0]
+                    after_title = tail.lstrip(", ")
+                    # A court-section designator between the title and the
+                    # verb ('STAFFORD, P.J., W.S., delivered ...' — Western
+                    # Section of the Tennessee Court of Appeals) is byline
+                    # furniture; peel it so the verb check sees 'delivered'.
+                    for sfx in self.title_suffixes:
+                        if after_title.startswith(sfx):
+                            after_title = after_title[len(sfx) :].lstrip(", ")
+                            break
+                    verb = (after_title.lower().split() or [""])[0]
                     if verb in _DELIVER_VERBS:
                         kind = (
                             "concurring"
@@ -137,6 +189,16 @@ class AbbrevTitleSupreme(StateSupreme):
                             else "dissenting" if "dissent" in low else None
                         )
                         return name, full, kind, len(text)
+                    # 'NAME, J., with whom NAME, C.J., joins, concurring in
+                    # part ...' — a separate writing that names its joiners
+                    # inline. The leading name is the author ('joins' refers
+                    # to the others joining THIS writing); a joinder line
+                    # ('NAME, J., joins the foregoing opinion') never opens
+                    # with 'with whom' and stays rejected.
+                    if after_title.lower().startswith("with whom") and any(
+                        k in low for k in _KIND_WORDS
+                    ):
+                        return name, full, text[end:].strip(" ,.—–"), len(text)
                 return None
             return name, full, None, end
         return None

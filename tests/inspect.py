@@ -12,6 +12,7 @@ Usage:
     uv run python tests/inspect.py <pdf> -p 1-3           # pages 1..3
     uv run python tests/inspect.py <pdf> -p all           # every page
     uv run python tests/inspect.py <pdf> --chars          # per-CHAR dump too
+    uv run python tests/inspect.py <pdf> --geom           # every rect/line (H/V/box)
     uv run python tests/inspect.py --court kan            # page 1 of every kan file
     uv run python tests/inspect.py --court kan -p 2       # page 2 of every kan file
 
@@ -34,7 +35,7 @@ import sys
 _here = os.path.dirname(os.path.abspath(__file__))
 sys.path[:] = [p for p in sys.path if os.path.abspath(p or ".") != _here]
 
-from collections import Counter
+from collections import Counter, defaultdict
 
 
 def _resolve(arg: str) -> str:
@@ -100,11 +101,76 @@ def _rules(page) -> list:
     return sorted(out)
 
 
-def dump_page(page, pageno: int, *, chars=False, court_lines=None) -> None:
+def _kind(x0, top, x1, bottom) -> str:
+    """Tag a drawn object by shape: H-rule (thin + wide), V-rule (thin +
+    tall), dot (tiny), or box (everything else) — the geometry a footnote
+    separator / caption rail / box edge is keyed off."""
+    w, h = x1 - x0, bottom - top
+    if h < 2.5 and w >= 2.5:
+        return "H"
+    if w < 2.5 and h >= 2.5:
+        return "V"
+    if w < 2.5 and h < 2.5:
+        return "·"
+    return "box"
+
+
+def dump_geometry(page) -> None:
+    """Every rect and vector line on the page with full coordinates, sorted
+    top→left, each tagged H/V/box — so a footnote separator (a thin H rect
+    in the lower page) is distinguishable from caption-box edges and rails.
+    The 'H' rows are exactly the candidates a footnote-separator rule sees."""
+    pw, ph = page.width, page.height
+
+    def rows(objs, label, x1k="x1", botk="bottom"):
+        items = []
+        for o in objs:
+            x0, x1 = o["x0"], o[x1k]
+            top, bottom = o["top"], o.get(botk, o["top"])
+            if x1 < x0:
+                x0, x1 = x1, x0
+            items.append((top, x0, x1, bottom))
+        items.sort()
+        if not items:
+            return
+        print(f"  -- {label} ({len(items)}) --")
+        for top, x0, x1, bottom in items:
+            k = _kind(x0, top, x1, bottom)
+            # fraction of page width the object spans (the full/half tell)
+            frac = (x1 - x0) / pw
+            print(
+                f"     {k:3} top={top:6.1f} x0={x0:6.1f} x1={x1:6.1f} "
+                f"bot={bottom:6.1f} w={x1 - x0:6.1f} h={bottom - top:5.1f} "
+                f"({frac:.0%} pw, top {top / ph:.0%})"
+            )
+
+    print(f"  ============ geometry  (page {pw:.0f} x {ph:.0f}) ============")
+    rows(page.rects, "rects")
+    rows(page.lines, "lines", x1k="x1", botk="bottom")
+
+
+def dump_page(page, pageno: int, *, chars=False, court_lines=None, geom=False) -> None:
     pw = page.width
+
+    # lines = page.extract_text_lines(use_text_flow=True)
+    # print(lines)
+    # for line in lines:
+    #     print(line['text'])
+    # print(page.objects)
+    # for c in page.objects:
+    #     # if c["text"] in "()" or c["text"].startswith(("Ara", "J")):
+    #     print(c)
+            # print(f"{c']!r:10} top={c['top']:7.2f} "
+            #     f"size={c.get('size',0):5.2f} "
+            #     f"font={(c.get('fontname') or '').split('+')[-1]:20} "
+            #     f"matrix={c.get('matrix')}")
+
+
+    # return
     print(f"=== page {pageno + 1}  ({pw:.0f} x {page.height:.0f}) ===")
     lines = court_lines if court_lines is not None else page.extract_text_lines()
     lines = [l for l in lines if l.get("chars")]
+    
     # The page's single-line spacing: the modal gap between consecutive tops. A
     # gap bigger than that is a line break (paragraph / section gap).
     gaps = [round(lines[i]["top"] - lines[i - 1]["top"]) for i in range(1, len(lines))]
@@ -133,11 +199,14 @@ def dump_page(page, pageno: int, *, chars=False, court_lines=None) -> None:
                     f"sz={c.get('size', 0):4.1f} "
                     f"{(c.get('fontname') or '').split('+')[-1][:22]:22} | {c.get('text')!r}"
                 )
-    rules = _rules(page)
-    if rules:
-        print("  -- horizontal rules (top, x0, x1, width) --")
-        for top, x0, x1 in rules:
-            print(f"     top={top:6.1f} x0={x0:6.1f} x1={x1:6.1f} w={x1 - x0:6.1f}")
+    if geom:
+        dump_geometry(page)
+    else:
+        rules = _rules(page)
+        if rules:
+            print("  -- horizontal rules (top, x0, x1, width) --")
+            for top, x0, x1 in rules:
+                print(f"     top={top:6.1f} x0={x0:6.1f} x1={x1:6.1f} w={x1 - x0:6.1f}")
 
 
 def main(argv: list[str]) -> int:
@@ -154,6 +223,13 @@ def main(argv: list[str]) -> int:
         "-p", "--page", default="1", help="N, N-M, or 'all' (1-based; default 1)"
     )
     ap.add_argument("--chars", action="store_true", help="also dump per-char metadata")
+    ap.add_argument(
+        "--geom",
+        action="store_true",
+        help="dump every rect and vector line (full coords, tagged "
+        "H/V/box) instead of just horizontal rules — the geometry a "
+        "footnote separator / caption rail keys off",
+    )
     ap.add_argument(
         "--court",
         help="run this court's page_lines(); also, with no file, "
@@ -188,7 +264,10 @@ def main(argv: list[str]) -> int:
             for i in _parse_pages(args.page, len(pdf.pages)):
                 page = pdf.pages[i]
                 court_lines = ex.page_lines(page) if ex is not None else None
-                dump_page(page, i, chars=args.chars, court_lines=court_lines)
+                dump_page(
+                    page, i, chars=args.chars, court_lines=court_lines,
+                    geom=args.geom,
+                )
     return 0
 
 

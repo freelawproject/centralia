@@ -50,6 +50,11 @@ _KIND_ENDINGS = (
     "court.",
     "concurring:",
     "dissenting:",
+    # 'JUSTICE JACKSON, concurring in the judgment.' (SCOTUS)
+    "judgment.",
+    "judgment",
+    "result.",
+    "result",
     "part:",
     "court:",
 )

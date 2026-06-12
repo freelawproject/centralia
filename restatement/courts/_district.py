@@ -74,8 +74,10 @@ _JUDGE_TITLES = (
     "u.s.d.j.",
     "u.s.m.j.",
     "chief united states magistrate judge",
+    "united states district court judge",
     "chief judge",
     "senior district judge",
+    "district court judge",
     "district judge",
     "magistrate judge",
 )
@@ -131,6 +133,123 @@ def _looks_like_name(text: str) -> bool:
 class DistrictBase(GenericExtractor):
     drop_notice_in_body = False
 
+    def extract(self, pdf_path):
+        self._hm_super_labels = set()
+        doc = super().extract(pdf_path)
+        labels = getattr(self, "_hm_super_labels", set())
+        if labels and doc.opinions:
+            op = doc.opinions[0]
+            moved = [f for f in op.footnotes if f.label in labels]
+            if moved:
+                op.footnotes = [f for f in op.footnotes if f.label not in labels]
+                doc.headmatter_footnotes = list(doc.headmatter_footnotes) + moved
+        self._harvest_signature(doc)
+        return doc
+
+    @staticmethod
+    def _untag(text: str) -> str:
+        """Plain text of a block's inline-HTML string (no markup)."""
+        out, i = [], 0
+        s = str(text)
+        while True:
+            j = s.find("<", i)
+            if j < 0:
+                out.append(s[i:])
+                break
+            out.append(s[i:j])
+            k = s.find(">", j)
+            if k < 0:
+                break
+            i = k + 1
+        return "".join(out)
+
+    def _harvest_signature(self, doc):
+        """Lift the signature block off the END of the last opinion into
+        ``doc.signature``: the '/s/' conformed signature (or the underscore
+        signature rule), the printed name, and the signer's title line.
+        Fires only when the very last body block is a judge-title line, so
+        ordinary prose endings are never touched."""
+        if not doc.opinions:
+            return
+        op = doc.opinions[-1]
+        blocks = op.blocks
+        if not blocks:
+            return
+
+        def is_title(t):
+            low = t.strip().rstrip(".").lower()
+            return any(
+                low == jt.rstrip(".") or low.endswith(" " + jt.rstrip("."))
+                for jt in _JUDGE_TITLES
+            )
+
+        # An image-signed order: 'Signed: <date>' / 'ENTER: <date>' followed
+        # by a signature GRAPHIC (the name + title live inside the image, so
+        # there is no title text line to anchor on). The date line and the
+        # image together are the signature block. A trailing bare page
+        # number after the image is ignored when anchoring.
+        end = len(blocks)
+        while end > 0 and blocks[end - 1].kind == "p" and (
+            self._untag(blocks[end - 1].text).strip().isdigit()
+        ):
+            end -= 1
+        if end >= 2 and blocks[end - 1].kind == "image":
+            prev = self._untag(blocks[end - 2].text).strip().lower()
+            # a date stamp ('Signed:' / 'ENTER:' / 'Dated:') belongs WITH
+            # the signature; decretal prose ('IT IS SO ORDERED.') stays in
+            # the body — only the image moves.
+            if any(
+                prev.startswith(sk)
+                for sk in ("signed", "dated", "date", "enter", "entered")
+            ):
+                doc.signature = [
+                    str(blocks[end - 2].text),
+                    {"__image__": True, **(blocks[end - 1].payload or {})},
+                ]
+                op.blocks = blocks[: end - 2] + blocks[end:]
+            elif any(prev.startswith(sk) for sk in _SIG_SKIP):
+                doc.signature = [
+                    {"__image__": True, **(blocks[end - 1].payload or {})}
+                ]
+                op.blocks = blocks[: end - 1] + blocks[end:]
+            return
+        if not is_title(self._untag(blocks[-1].text)):
+            return
+        taken = 1
+        for b in reversed(blocks[:-1]):
+            if taken >= 5:
+                break
+            if b.kind == "image":
+                taken += 1
+                break  # the signature image tops the block
+            t = self._untag(b.text).strip()
+            low = t.lower()
+            if low.startswith("/s/") or low.startswith("s/"):
+                taken += 1
+                break  # the conformed signature tops the block
+            if len(t) >= 4 and set(t) <= {"_"}:
+                taken += 1
+                break  # the drawn/typed signature rule tops the block
+            if (
+                t
+                and len(t) <= 48
+                and not t.endswith(".")
+                and not any(low.startswith(sk) for sk in _SIG_SKIP)
+                and not is_title(t)
+            ):
+                taken += 1  # the printed name between rule/'/s/' and title
+                continue
+            break
+        if taken < 2:
+            return
+        doc.signature = [
+            {"__image__": True, **(b.payload or {})}
+            if b.kind == "image"
+            else str(b.text)
+            for b in blocks[-taken:]
+        ]
+        op.blocks = blocks[:-taken]
+
     # ----------------------------------------- pleading-paper line numbers
     def page_lines(self, page):
         """On pleading paper (California etc.), a left gutter carries the
@@ -166,6 +285,37 @@ class DistrictBase(GenericExtractor):
         ]
         return max(xs) if xs else None
 
+    def find_footnote_separator(self, page):
+        """The page-1 caption's closing shelf — a left rule meeting the mid
+        vertical (Old Faithful) — sits past the half-page cutoff on long
+        captions and the generic scan takes it for the footnote rule, which
+        shoves the ruling's opening body into the footnote flow (seen on
+        waed, wawd; wash has the state-court version). The page-1 caption
+        fingerprint knows the caption's bottom; a 'separator' at that height
+        is the shelf, so rescan strictly below it."""
+        sep = super().find_footnote_separator(page)
+        if sep is None or page.page_number != 1:
+            return sep
+        sig = (getattr(self, "_caption_fp", None) or (None,))[0]
+        cap_bottom = None
+        if sig:
+            rb = sig.get("rail_band")
+            if rb:
+                cap_bottom = rb[1]
+            elif sig.get("vmid") and sig.get("band"):
+                cap_bottom = sig["band"][1]
+        if cap_bottom is None or sep > cap_bottom + 12:
+            return sep
+        cands = [
+            r["top"]
+            for r in page.rects
+            if r["bottom"] - r["top"] < 2.5
+            and (r["x1"] - r["x0"]) >= 100
+            and r["x0"] <= self.body_baseline_x0 + 4
+            and r["top"] > cap_bottom + 12
+        ]
+        return min(cands) if cands else None
+
     def extract_page_tables(self, page):
         """Completeness-first: don't lift tables into separate structures.
         District rulings embed fee schedules / claim charts / exhibits whose
@@ -187,8 +337,20 @@ class DistrictBase(GenericExtractor):
     # (each row is one positioned string), so coverage is unaffected. Not every
     # district has a column caption, but where it does this is a clear win and
     # it is harmless (a single-column caption just renders at its x) elsewhere.
+    # Styled headmatter is the default (matching the state-court families):
+    # centered banner rows with bold/relative sizes and the whitespace-
+    # separated caption columns folded into a two-column '__caption__' block
+    # (parties left, docket/doc-title right). A court can opt back out to
+    # the monospace grid with ``styled_headmatter = False``.
+    styled_headmatter = True
+
     def extract_headmatter(self, headmatter_segs, page1_rules=None) -> dict:
         out = super().extract_headmatter(headmatter_segs, page1_rules=page1_rules)
+        if self.styled_headmatter:
+            rows = self._styled_caption_rows(headmatter_segs)
+            if rows:
+                out["summary"] = rows
+            return out
         items = []
         for seg in headmatter_segs:
             if self.skip_headmatter_segment(seg):
@@ -204,23 +366,484 @@ class DistrictBase(GenericExtractor):
             out["summary"] = rows
         return out
 
-    def _caption_runs(self, line):
-        """Split a line into (x0, text) runs at the wide x-gaps that separate
-        caption columns (the divider, the case-number column), leaving ordinary
-        word spacing within a run intact."""
-        chars = line.get("chars") or []
-        if not chars:
+    def _styled_caption_rows(self, headmatter_segs) -> list:
+        """Styled headmatter rows. Runs are regrouped into VISUAL rows by
+        (page, top) — page-line building sometimes splits a caption row into
+        separate line objects — then a row with material on both sides of
+        mid-page is a caption row (left = party, right = docket/doc-title),
+        and adjacent narrow one-sided rows join their open side ('vs.',
+        wrapped party names, a right-column doc-title wrap). Everything else
+        is a styled row — centered when midpoint-centered, with inline
+        bold/italic and relative size; underscore runs are dividers."""
+        from collections import Counter
+
+        pw = getattr(self, "_page1_width", 612.0) or 612.0
+        mid = pw * 0.45
+        wide = (pw - 2 * self.body_baseline_x0) * 0.7
+
+        items = []  # (page, top, run-chars)
+        for seg in headmatter_segs:
+            if self.skip_headmatter_segment(seg):
+                continue
+            for line in seg:
+                if not self.line_plain_text(line).strip():
+                    continue
+                chars = line.get("chars") or []
+                pno = (chars[0].get("page_number") if chars else None) or 1
+                for run in self._caption_char_runs(line):
+                    items.append((pno, round(line["top"], 1), run))
+        if not items:
             return []
-        runs, cur = [], [chars[0]]
-        for c in chars[1:]:
-            if c["x0"] - cur[-1]["x1"] > _CAPTION_GAP:
+        # Pleading paper offsets the text column right of the gutter, so
+        # "centered" means centered on the CONTENT column, not the page.
+        col_x0 = min(r[0]["x0"] for _p, _t, r in items)
+        col_x1 = max(r[-1]["x1"] for _p, _t, r in items)
+        col_mid = (col_x0 + col_x1) / 2
+        col_w = col_x1 - col_x0
+        items.sort(key=lambda r: (r[0], r[1], r[2][0]["x0"]))
+        rows, cur = [], None
+        for pno, top, run in items:
+            if cur is not None and (pno != cur[0] or abs(top - cur[1]) > 2):
+                rows.append(cur)
+                cur = None
+            if cur is None:
+                cur = (pno, top, [])
+            cur[2].append(run)
+        rows.append(cur)
+
+        sizes = [
+            round(c.get("size", 0))
+            for _p, _t, runs in rows
+            for r in runs
+            for c in r
+            if (c.get("text") or "").strip()
+        ]
+        base = float(Counter(sizes).most_common(1)[0][0]) if sizes else 12.0
+
+        def run_text(r):
+            return self.line_plain_text({"chars": r}).strip()
+
+        # Drawn caption-box geometry (see /captions), measured BEFORE the
+        # column test: a drawn mid vertical makes every row in its y-band a
+        # caption row split at the rule — a row whose runs all sit on one
+        # side (a party block with no docket opposite, the lone 'Case No.'
+        # line) still belongs to its column. Without the rule, two-column
+        # means material on both sides of mid-page.
+        box = getattr(self, "_hm_caption_box", None) or {}
+        drawn_v = box.get("vx")
+        verts = [v for v in box.get("verts", []) or [] if v[2] - v[1] >= 40]
+        vxs = sorted({v[0] for v in verts})
+        fp_sig = (getattr(self, "_caption_fp", None) or (None,))[0]
+        if fp_sig:
+            # The fingerprint's verticals are gutter-filtered, so pleading
+            # margin rails at the page edges can't masquerade as box sides.
+            boxes = bool(
+                fp_sig["vleft"] and fp_sig["vmid"] and fp_sig["vright"]
+            )
+        else:
+            boxes = (
+                len(vxs) >= 3
+                and vxs[0] < pw * 0.25
+                and vxs[-1] > pw * 0.7
+                and any(pw * 0.4 < x < pw * 0.75 for x in vxs)
+            )
+        box_band = (
+            (min(v[1] for v in verts), max(v[2] for v in verts)) if verts else None
+        )
+        v_band = None
+        if drawn_v is not None:
+            spans = [v for v in verts if abs(v[0] - drawn_v) < 2]
+            if spans:
+                v_band = (
+                    min(v[1] for v in spans) - 6,
+                    max(v[2] for v in spans) + 6,
+                )
+
+        two_col, row_split = [], []
+        for _p, _t, runs in rows:
+            in_band = (
+                v_band is not None and _p == 1 and v_band[0] <= _t <= v_band[1]
+            )
+            split = drawn_v if (in_band and drawn_v is not None) else mid
+            lefts = [r for r in runs if r[0]["x0"] < split]
+            rights = [r for r in runs if r[0]["x0"] >= split]
+            two_col.append((bool(lefts) and bool(rights)) or in_band)
+            row_split.append(split)
+
+        def near_caption(i) -> bool:
+            lo, hi = max(0, i - 6), min(len(rows), i + 7)
+            return any(two_col[j] for j in range(lo, hi))
+
+        # Vertical rhythm: a row gap well past the page's median line pitch
+        # becomes a blank row (median-adaptive, so double-spaced pleading
+        # paper doesn't gap between every line).
+        deltas = sorted(
+            b[1] - a[1]
+            for a, b in zip(rows, rows[1:])
+            if a[0] == b[0] and b[1] > a[1]
+        )
+        med = deltas[len(deltas) // 2] if deltas else 14.0
+        gap_min = med * 1.6
+
+        # The Flush-Right Status draws nothing — its structure is per-ROW
+        # alignment (party at the left margin, status label pinned at the
+        # right margin, docket floating between them on the 'v.' line), so
+        # stacked columns would unpair the rows. Render it as three-zone
+        # rows instead of a caption block.
+        fp = getattr(self, "_caption_fp", (None, None, None))
+        if fp and fp[1] == "status-flush":
+            return self._flush_right_rows(rows, gap_min)
+
+        # 'Old Faithful': one mid-page vertical + a half-rule closing into
+        # it at the corner. 'The Double Box': tall verticals at BOTH content
+        # edges and the middle, closed top and bottom. An hrule with a text
+        # line directly above it is an UNDERLINE, not a rule, and never
+        # becomes a divider.
+        def _is_underline(h):
+            htop, hx0, hx1 = h
+            for _p2, t2, runs2 in rows:
+                if 0 < htop - t2 < 16:
+                    rx0 = min(r[0]["x0"] for r in runs2)
+                    rx1 = max(r[-1]["x1"] for r in runs2)
+                    ov = min(hx1, rx1) - max(hx0, rx0)
+                    if ov > 0.7 * (hx1 - hx0):
+                        return True
+            return False
+
+        closing, pending_hrules, shelf_ys = False, [], []
+        for h in box.get("hrules", []) or []:
+            if _is_underline(h):
+                continue
+            if boxes and box_band and (
+                abs(h[0] - box_band[0]) < 6 or abs(h[0] - box_band[1]) < 6
+            ):
+                continue  # the box's own top/bottom edges
+            if drawn_v is not None and abs(h[2] - drawn_v) < 8:
+                closing = True  # the half-rule meeting the vertical
+                shelf_ys.append(h[0])
+            else:
+                pending_hrules.append(h[0])
+        pending_hrules.sort()
+        # An INTERIOR shelf (a closing rule with caption rows still below it
+        # — consolidated cases stack two captions on one vertical) splits the
+        # caption into stacked blocks, one per case.
+        shelf_ys.sort()
+        if shelf_ys and v_band is not None and shelf_ys[-1] >= v_band[1] - 12:
+            shelf_ys.pop()  # the bottom close isn't an interior shelf
+
+        out, left, right = [], [], []
+        state = {"open": False, "rail": None, "rail_rows": 0}
+        fp_rail = ((getattr(self, "_caption_fp", None) or ({},))[0]
+                   or {}).get("rail")
+
+        def strip_rail(run):
+            """Drop a leading/trailing rail glyph that joined a text run
+            (') MEMORANDUM') when it matches the caption's known rail."""
+            railg = state["rail"] or fp_rail
+            chars = list(run)
+            while chars and not (chars[0].get("text") or "").strip():
+                chars.pop(0)
+            if railg and chars and (chars[0].get("text") or "") == railg:
+                state["rail"] = railg
+                chars.pop(0)
+                while chars and not (chars[0].get("text") or "").strip():
+                    chars.pop(0)
+            while chars and not (chars[-1].get("text") or "").strip():
+                chars.pop()
+            if railg and chars and (chars[-1].get("text") or "") == railg:
+                state["rail"] = railg
+                chars.pop()
+                while chars and not (chars[-1].get("text") or "").strip():
+                    chars.pop()
+            return chars
+
+        def push(side, html, x0, top):
+            """Append a cell line; a vertical gap past the caption's line
+            pitch becomes a blank spacer row (double-spaced captions keep
+            their air)."""
+            if (
+                side
+                and isinstance(side[-1], dict)
+                and top - side[-1]["top"] > gap_min
+            ):
+                side.append("")
+            side.append({"h": html, "x0": round(x0, 1), "top": top})
+
+        def cellify(side):
+            """Final cell lines: inline html + indent relative to the
+            cell's own left edge, so 'Plaintiff,' sits indented under the
+            party name exactly as printed."""
+            ents = list(side)
+            while ents and ents[0] == "":
+                ents.pop(0)
+            while ents and ents[-1] == "":
+                ents.pop()
+            xs = [e["x0"] for e in ents if isinstance(e, dict)]
+            minx = min(xs) if xs else 0.0
+            return [
+                e if e == "" else {"h": e["h"], "ind": round(e["x0"] - minx, 1)}
+                for e in ents
+            ]
+
+        def flush():
+            if left or right:
+                rail = state["rail"]
+                if rail is None and drawn_v is not None and not boxes:
+                    rail = "|"  # a DRAWN vertical rule divides the columns
+                cap = {
+                    "__caption__": True,
+                    "left": cellify(left),
+                    "right": cellify(right),
+                    "rail": rail,
+                }
+                # the glyph rail is drawn once per SOURCE row that bore it —
+                # render exactly that many, never one-per-cell (which would
+                # invent glyphs for banner/blank rows). 0 → fall back at render.
+                if state.get("rail_rows"):
+                    cap["rail_rows"] = state["rail_rows"]
+                state["rail_rows"] = 0
+                fp = getattr(self, "_caption_fp", (None, None, None))
+                if fp and fp[1] in (
+                    "double-box", "old-faithful", "upside-down-t", "i-beam",
+                    "backwards-c", "twin-rail", "x-capped-box", "status-flush",
+                ):
+                    cap["shape"] = fp[1]
+                if boxes:
+                    cap["boxes"] = True  # The Double Box
+                elif closing and rail == "|":
+                    cap["corner"] = True  # Old Faithful ┘ close
+                out.append(cap)
+                left.clear()
+                right.clear()
+            state["open"] = False
+            state["rail"] = None
+
+        prev_row = None
+        for i, (_pno, _top, runs) in enumerate(rows):
+            # A drawn horizontal rule above this row becomes a FULL-WIDTH
+            # rule row at its position.
+            while pending_hrules and _pno == 1 and _top > pending_hrules[0]:
+                flush()
+                if not out or out[-1] != "__RULE__":
+                    out.append("__RULE__")
+                pending_hrules.pop(0)
+            # Passing an interior shelf closes the current stacked caption.
+            while shelf_ys and _pno == 1 and _top > shelf_ys[0] + 2:
+                flush()
+                shelf_ys.pop(0)
+            if (
+                prev_row is not None
+                and not (left or right)
+                and (prev_row[0] != _pno or (_top - prev_row[1]) > gap_min)
+                and out
+                and out[-1] != ""
+            ):
+                out.append("")
+            prev_row = (_pno, _top)
+            texts = [run_text(r) for r in runs]
+            joined = " ".join(t for t in texts if t)
+            x0 = min(r[0]["x0"] for r in runs)
+            x1 = max(r[-1]["x1"] for r in runs)
+            # one rail glyph is drawn per source row that contains it — count
+            # those rows so the renderer draws exactly that many (not one per
+            # cell, which would invent glyphs for the banner / blank rows).
+            _railg = state["rail"] or fp_rail
+            if _railg and _railg in joined:
+                state["rail_rows"] += 1
+            if len(joined) >= 4 and all(c in "_-—–=* " for c in joined):
+                flush()
+                out.append("__DIVIDER__")
+                continue
+            if two_col[i]:
+                # A run that is nothing but rail glyphs IS the column divider
+                # (')' / '§' / ':' stacked down the caption) — record it for
+                # the renderer, keep it out of the cells.
+                cell_runs = []
+                for r in runs:
+                    t = run_text(r)
+                    if t and all(c in ")]§|(: " for c in t):
+                        state["rail"] = t[:1]
+                        continue
+                    cell_runs.append(r)
+
+                for side, keep in (
+                    (left, lambda r: r[0]["x0"] < row_split[i]),
+                    (right, lambda r: r[0]["x0"] >= row_split[i]),
+                ):
+                    sruns = [strip_rail(r) for r in cell_runs if keep(r)]
+                    sruns = [r for r in sruns if r]
+                    if not sruns:
+                        continue
+                    html = " ".join(
+                        self.line_inline_text({"chars": r}) for r in sruns
+                    ).strip()
+                    if html:
+                        push(side, html, sruns[0][0]["x0"], _top)
+                state["open"] = True
+                continue
+            # A glyph-only row (a stray ',' from interleaved caption lines)
+            # never stands alone — it joins the open caption side or the
+            # previous row. Rail glyphs ARE the divider, not cell text.
+            if joined and not any(c.isalnum() for c in joined):
+                if all(c in ")]§|(: " for c in joined):
+                    state["rail"] = joined.strip()[:1]
+                    continue
+                if left or right:
+                    side = left if x0 < row_split[i] else right
+                    if side and isinstance(side[-1], dict):
+                        side[-1]["h"] = (side[-1]["h"] + " " + joined).strip()
+                    else:
+                        push(side, joined, x0, _top)
+                elif out and isinstance(out[-1], dict) and out[-1].get("__hm__"):
+                    out[-1]["html"] += " " + joined
+                continue
+            # ±40 / 0.8: pleading-paper banners center sloppily and run wide
+            # within the column; caption party rows sit 60pt+ off-center.
+            # A caption role row ('Plaintiffs,' / 'Defendant.') belongs to
+            # the open caption even when it sits near the column center.
+            role_words = {
+                "plaintiff", "plaintiffs", "defendant", "defendants",
+                "petitioner", "petitioners", "respondent", "respondents",
+                "appellant", "appellants", "appellee", "appellees",
+            }
+            if (state["open"] or near_caption(i)) and joined.rstrip(
+                ".,"
+            ).lower() in role_words:
+                push(
+                    left,
+                    self.line_inline_text(
+                        {"chars": [c for r in runs for c in r]}
+                    ),
+                    x0,
+                    _top,
+                )
+                state["open"] = True
+                continue
+            # Centered on the column OR on the PAGE — a court banner ('IN THE
+            # UNITED STATES DISTRICT COURT') is page-centered but the column
+            # midpoint is skewed by the banner's own width, so test both; this
+            # keeps the banner out of the rail caption (where it would inflate
+            # the rail-glyph count with lines the PDF never drew a rail on).
+            cx = (x0 + x1) / 2
+            centered = (
+                abs(cx - col_mid) <= 40 and (x1 - x0) < col_w * 0.8
+            ) or (
+                # page-centered banner: width capped against the PAGE, not the
+                # column — a narrow caption column would otherwise reject the
+                # wider of two banner lines and fold it into the caption
+                abs(cx - pw / 2) <= 30 and (x1 - x0) < pw * 0.65
+            )
+            narrow = (x1 - x0) <= wide
+            if (state["open"] or near_caption(i)) and narrow and not centered:
+                sruns = [strip_rail(r) for r in runs]
+                sruns = [r for r in sruns if r]
+                if sruns:
+                    push(
+                        left if x0 < row_split[i] else right,
+                        " ".join(
+                            self.line_inline_text({"chars": r})
+                            for r in sruns
+                        ).strip(),
+                        sruns[0][0]["x0"],
+                        _top,
+                    )
+                state["open"] = True
+                continue
+            flush()
+            all_chars = [c for r in runs for c in r]
+            printable = [
+                round(c.get("size", 0))
+                for c in all_chars
+                if (c.get("text") or "").strip()
+            ]
+            size = float(Counter(printable).most_common(1)[0][0]) if printable else base
+            out.append(
+                {
+                    "__hm__": True,
+                    "html": self.line_inline_text({"chars": all_chars}),
+                    "rel": round(size / base, 3) if base else 1.0,
+                    "align": "C" if centered else "L",
+                }
+            )
+        flush()
+        return out
+
+
+    def _flush_right_rows(self, rows, gap_min) -> list:
+        """Three-zone rows for The Flush-Right Status: each visual row keeps
+        its own left / center / right runs paired (PLAINTIFF stays on the
+        party's row, the docket floats centered on the 'v.' line). Inline
+        bold/italic is preserved per run. One-zone rows stay ordinary styled
+        rows so banners render exactly like every other court's."""
+        xs = [r for _p, _t, runs in rows for r in runs]
+        lmargin = min(r[0]["x0"] for r in xs)
+        rmargin = max(r[-1]["x1"] for r in xs)
+        out, prev = [], None
+        for pno, top, runs in rows:
+            if (
+                prev is not None
+                and (pno != prev[0] or top - prev[1] > gap_min)
+                and out
+                and out[-1] != ""
+            ):
+                out.append("")
+            prev = (pno, top)
+            cells = {"l": [], "c": [], "r": []}
+            for r in runs:
+                if r[-1]["x1"] > rmargin - 15 and r[0]["x0"] > lmargin + 30:
+                    k = "r"
+                elif r[0]["x0"] < lmargin + 30:
+                    k = "l"
+                else:
+                    k = "c"
+                cells[k].append(self.line_inline_text({"chars": r}))
+            filled = [k for k in ("l", "c", "r") if cells[k]]
+            if len(filled) == 1:
+                k = filled[0]
+                out.append({
+                    "__hm__": True,
+                    "html": " ".join(cells[k]),
+                    "rel": 1.0,
+                    "align": {"l": "L", "c": "C", "r": "R"}[k],
+                })
+            else:
+                out.append({
+                    "__hmrow__": True,
+                    "l": " ".join(cells["l"]),
+                    "c": " ".join(cells["c"]),
+                    "r": " ".join(cells["r"]),
+                })
+        return out
+
+    def _caption_char_runs(self, line) -> list:
+        """Char runs split at the wide x-gaps that separate caption columns.
+        Typewriter-set captions fill the column gap with literal space
+        glyphs instead of leaving it empty, so spaces are buffered and the
+        gap is measured between printable neighbors — a wide run of spaces
+        splits just like a wide empty gap (the padding spaces are dropped)."""
+        chars = line.get("chars") or []
+        runs, cur, spaces = [], [], []
+        for c in chars:
+            if not (c.get("text") or "").strip():
+                if cur:
+                    spaces.append(c)
+                continue
+            if cur and c["x0"] - cur[-1]["x1"] > _CAPTION_GAP:
                 runs.append(cur)
                 cur = [c]
             else:
+                cur.extend(spaces)
                 cur.append(c)
-        runs.append(cur)
+            spaces = []
+        if cur:
+            runs.append(cur)
+        return runs
+
+    def _caption_runs(self, line):
+        """(x0, text) runs at the wide x-gaps that separate caption columns,
+        leaving ordinary word spacing within a run intact."""
         out = []
-        for run in runs:
+        for run in self._caption_char_runs(line):
             text = self.line_plain_text({"chars": run}).strip()
             if text:
                 out.append((round(run[0]["x0"], 1), text))
@@ -265,16 +888,40 @@ class DistrictBase(GenericExtractor):
         lines = [t for t in lines if t]
         for i in range(len(lines) - 1, -1, -1):
             low = lines[i].lower().strip().rstrip(".")
+            # A signature TITLE line is short ('UNITED STATES DISTRICT
+            # JUDGE', 'Thomas S. Kleeh, Chief Judge'); a body sentence that
+            # merely ENDS in a title phrase ('…consent to jurisdiction of
+            # the Magistrate Judge') is long — cap the endswith match so
+            # decree text above it ('DISMISSED WITH PREJUDICE.') can't be
+            # taken for the judge's name.
             title = next(
                 (
                     t
                     for t in _JUDGE_TITLES
-                    if low == t.rstrip(".") or low.endswith(" " + t.rstrip("."))
+                    if low == t.rstrip(".")
+                    or (
+                        len(lines[i]) <= 52
+                        and low.endswith(" " + t.rstrip("."))
+                    )
                 ),
                 None,
             )
             if title is None:
                 continue
+            # name + title on ONE line ('THOMAS S. KLEEH, CHIEF JUDGE'):
+            # the part before the title is the name — take it directly
+            # rather than walking back into unrelated text above.
+            head = lines[i][: len(lines[i]) - len(title.rstrip("."))]
+            head = head.rstrip(" .").rstrip(",").strip()
+            if (
+                head
+                and _looks_like_name(head)
+                and not any(
+                    w in head.lower().split()
+                    for w in ("court", "courts", "division", "states", "district")
+                )
+            ):
+                return _strip_sig_prefix(head).rstrip(",")
             # Walk back over rules / 'SO ORDERED' / 'Dated:' to the name line.
             for j in range(i - 1, max(-1, i - 5), -1):
                 cand = lines[j]
@@ -368,9 +1015,13 @@ class DistrictBase(GenericExtractor):
     # ------------------------------------------------------------- opinion start
     def _is_heading(self, line) -> bool:
         """True if ``line`` is an exact document-type heading phrase
-        ('MEMORANDUM OPINION AND ORDER' / 'ORDER' / ...)."""
+        ('MEMORANDUM OPINION AND ORDER' / 'ORDER' / ...). Letter-spaced
+        headings ('O RDER') match with spaces removed."""
         low = self.line_plain_text(line).strip().rstrip(".:").lower()
-        return low in _HEADINGS
+        if low in _HEADINGS:
+            return True
+        squeezed = low.replace(" ", "")
+        return squeezed in {h.replace(" ", "") for h in _HEADINGS}
 
     def find_authors(self, all_segments) -> list:
         # Author, in order of reliability: signature block, minute-order
@@ -383,7 +1034,9 @@ class DistrictBase(GenericExtractor):
         )
         # Opinion start: the document-type heading; else the first body segment.
         # (Courts whose ruling opens differently — e.g. an ALL-CAPS heading after
-        # a ruled caption box — override this in their own file; see akd.py.)
+        # a ruled caption box, or a title set INSIDE the caption column with the
+        # body opening 'THIS MATTER is before…' — override this in their own
+        # file; see akd.py and ncwd.py.)
         start = None
         for i, (_p, seg, _k) in enumerate(all_segments):
             if seg and self._is_heading(seg[0]):
@@ -394,8 +1047,130 @@ class DistrictBase(GenericExtractor):
                 if kind == "body":
                     start = i
                     break
+        # Last resorts — a district doc always has a ruling, so an empty
+        # result is always wrong: (1) a compound ALL-CAPS heading the exact
+        # phrase table doesn't list ('ORDER DENYING PLAINTIFF'S MOTION TO
+        # ALTER OR AMEND JUDGMENT'); (2) the first multi-line prose segment
+        # when the court's line pitch classifies body as blockquote.
+        if start is None:
+            for i, (_p, seg, _k) in enumerate(all_segments):
+                if seg and len(seg) <= 2:
+                    t = self.line_plain_text(seg[0]).strip()
+                    if (
+                        t
+                        and t == t.upper()
+                        and len(t) < 90
+                        and any(
+                            t.startswith(w)
+                            for w in (
+                                "ORDER", "MEMORANDUM", "OPINION", "FINDINGS",
+                                "JUDGMENT", "DECISION", "REPORT AND",
+                            )
+                        )
+                    ):
+                        start = i
+                        break
+        if start is None:
+            for i, (_p, seg, kind) in enumerate(all_segments):
+                if kind == "blockquote" and len(seg) >= 2:
+                    start = i
+                    break
         if start is None:
             return []
+        # The opinion can never start ABOVE the page-1 caption: when the
+        # fingerprint drew a caption band (mid vertical or glyph rail) and
+        # the chosen start sits inside/above it (a double-spaced caption
+        # classifying as 'body' pulls the fallback to the banner), advance
+        # to the first segment below the band.
+        sig = (getattr(self, "_caption_fp", None) or (None,))[0]
+        cap_bottom = None
+        if sig:
+            rb = sig.get("rail_band")
+            if rb:
+                cap_bottom = rb[1]
+            elif sig.get("vmid") and sig.get("band"):
+                cap_bottom = sig["band"][1]
+        if cap_bottom is not None:
+            pno0, seg0, _k0 = all_segments[start]
+            if pno0 == 1 and seg0 and seg0[0].get("top", 0) < cap_bottom - 4:
+                for i, (pno, seg, _k) in enumerate(all_segments):
+                    if pno == 1 and seg and seg[0].get("top", 0) > cap_bottom + 4:
+                        start = i
+                        break
+                    if pno > 1 and seg:
+                        start = i
+                        break
+        # A doc-title heading can sit INSIDE the caption (in the right
+        # column, above 'Defendants.'); the body then starts after the
+        # caption's last party-role row. The scan stops at the first wide
+        # single-run line (real body text), so a body sentence that happens
+        # to end '... Defendants.' can never trigger it.
+        roles = {
+            "plaintiff", "plaintiffs", "defendant", "defendants",
+            "respondent", "respondents", "petitioner", "petitioners",
+            "appellant", "appellants", "appellee", "appellees",
+            "intervenor", "intervenors",
+        }
+        pw = getattr(self, "_page1_width", 612.0) or 612.0
+        wide = (pw - 2 * self.body_baseline_x0) * 0.7
+        start_page = all_segments[start][0]
+        last_role = None
+        # The fallback start segment may itself BE caption rows ('C. Perez,
+        # et al.,' / 'Defendants') — scan it too, not just what follows.
+        for j in range(start, len(all_segments)):
+            pno, seg, _k2 = all_segments[j]
+            if pno != start_page:
+                break
+            stop = False
+            for l in seg:
+                runs = self._caption_char_runs(l)
+                if len(runs) == 1 and (l["x1"] - l["x0"]) > wide:
+                    stop = True
+                    break
+                t = self.line_plain_text(l).strip()
+                # Role rows may be compounds ('Plaintiff/Third-Party
+                # Defendant,' / 'Third-Party Plaintiffs.') — a short,
+                # punctuation-terminated caption row containing a role word.
+                low = t.rstrip(".,").lower()
+                if low in roles or (
+                    len(t) <= 45
+                    and t[-1:] in ".,"
+                    and any(
+                        w in low.replace("/", " ").replace("-", " ").split()
+                        for w in roles
+                    )
+                ):
+                    last_role = j
+            if stop:
+                break
+        if last_role is not None and last_role + 1 < len(all_segments):
+            start = last_role + 1
+        # A footnote referenced from the CAPTION (a superscript on a party
+        # or title row) belongs to the headmatter — record its label so
+        # ``extract`` can move it. A footnote must never go missing.
+        labels = set()
+        for _p3, seg3, _k3 in all_segments[:start]:
+            for line in seg3:
+                chars = line.get("chars") or []
+                sizes = [
+                    round(c.get("size", 0), 1)
+                    for c in chars
+                    if (c.get("text") or "").strip()
+                ]
+                if not sizes:
+                    continue
+                dom = max(set(sizes), key=sizes.count)
+                run = ""
+                for c in chars:
+                    t3 = c.get("text") or ""
+                    if t3.isdigit() and c.get("size", 0) < dom * 0.8:
+                        run += t3
+                    elif run:
+                        labels.add(run)
+                        run = ""
+                if run:
+                    labels.add(run)
+        self._hm_super_labels = labels
         return [start]
 
     def split_author_line(self, line):

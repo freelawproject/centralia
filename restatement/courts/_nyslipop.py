@@ -34,6 +34,9 @@ def _is_nyscef(low: str) -> bool:
 
 
 class NewYorkSlipOp(GenericExtractor):
+    # The scanned decisions' OCR layers have tight line gaps that classify
+    # as 'notice' — never drop them from the body.
+    drop_notice_in_body = False
     # The cover's bold case-name title sits at top~38; keep it (default 39 clips
     # it).
     margin_top = 30.0
@@ -52,10 +55,24 @@ class NewYorkSlipOp(GenericExtractor):
             doc.dropped = list(doc.dropped) + uniq
         return doc
 
+    @staticmethod
+    def _x_runs(line):
+        chars = line.get("chars") or []
+        runs, cur = [], []
+        for c in chars:
+            if cur and c["x0"] - cur[-1]["x1"] > 8:
+                runs.append(cur)
+                cur = [c]
+            else:
+                cur.append(c)
+        if cur:
+            runs.append(cur)
+        return runs
+
     def page_lines(self, page):
         out, in_notice = [], False
         for l in super().page_lines(page):
-            t = (l.get("text") or "").strip()
+            t = self.line_plain_text(l).strip()
             low = t.lower()
             if low.startswith("cases posted with"):
                 in_notice = True
@@ -65,7 +82,22 @@ class NewYorkSlipOp(GenericExtractor):
                     in_notice = False
                 continue
             if _is_nyscef(low):
-                self._ny_dropped.append(t)
+                # An edge stamp can merge with a caption row — drop only the
+                # stamp runs, keep the content runs.
+                keep = []
+                for r in self._x_runs(l):
+                    rt = self.line_plain_text({"chars": r}).strip()
+                    if _is_nyscef(rt.lower()):
+                        self._ny_dropped.append(rt)
+                    else:
+                        keep.append(r)
+                if keep:
+                    chars = [c for r in keep for c in r]
+                    l = dict(l)
+                    l["chars"] = chars
+                    l["x0"] = min(c["x0"] for c in chars)
+                    l["x1"] = max(c["x1"] for c in chars)
+                    out.append(l)
                 continue
             out.append(l)
         return out

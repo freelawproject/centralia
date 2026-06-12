@@ -50,6 +50,7 @@ class Document(models.Model):
     # furniture, trailing matter — kept verbatim as the extractor returned them.
     summary = models.JSONField(default=list, blank=True)
     syllabus = models.JSONField(default=list, blank=True)
+    headnotes = models.JSONField(default=list, blank=True)
     dropped = models.JSONField(default=list, blank=True)
     trailer = models.JSONField(default=list, blank=True)
     warnings = models.JSONField(default=list, blank=True)
