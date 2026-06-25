@@ -98,6 +98,12 @@ class BaseExtractor:
     gap_tight_max: float = 16  # < this = tight (notice-like)
     gap_single_max: float = 22  # < this = single (blockquote / footnote)
     gap_double_max: float = 40  # < this = double (body); >= this = boundary
+    # A line-to-line change in bold normally marks a structural boundary
+    # (heading / byline). Courts that bold text *inline* for emphasis — e.g.
+    # Puerto Rico bolds dates and times mid-paragraph — set this False so an
+    # emphasized line does not split the paragraph; their headings still
+    # separate by alignment, size, and gap.
+    bold_breaks_segment: bool = True
 
     underline_offset_min: float = 0.0
     underline_offset_max: float = 5.0
@@ -106,6 +112,13 @@ class BaseExtractor:
     # If set to (x0, x1), the footnote-zone separator is the rect whose left
     # and right edges match exactly; otherwise baseline-anchored detection.
     footnote_sep_rect: tuple | None = None
+    # A footnote separator is a SHORT hairline (the printer's ~2-inch rule),
+    # never the full text measure. A rule spanning (nearly) the whole column is
+    # a section/caption divider, not a footnote rule — mistaking one for a
+    # footnote separator shoves real body text into the footnote flow. Cap the
+    # candidate width at this fraction of the page width. A court that genuinely
+    # draws a full-width rule above its footnotes can raise this toward 1.0.
+    footnote_sep_max_width_frac: float = 0.55
     # Drop a repeating docket-number running header from the top of
     # continuation pages (2+).
     running_header_docket: bool = False
@@ -742,13 +755,15 @@ class BaseExtractor:
             return None
         cutoff = page.height * 0.55
         x0_max = self.body_baseline_x0 + 4
+        max_w = page.width * self.footnote_sep_max_width_frac
         divider = self.find_caption_divider(page)
         cap_bot = divider[2] if divider else None
         candidates = []
         for r in page.rects:
+            w = r["x1"] - r["x0"]
             if not (
                 r["height"] < 2
-                and (r["x1"] - r["x0"]) >= 100
+                and 100 <= w <= max_w
                 and r["x0"] <= x0_max
                 and r["top"] > cutoff
             ):
@@ -798,7 +813,7 @@ class BaseExtractor:
                 gap = line["top"] - prev_top
                 big_gap = gap > self.gap_double_max
                 size_changed = abs(size - prev_size) >= 1.0
-                bold_changed = bold != prev_bold
+                bold_changed = bold != prev_bold and self.bold_breaks_segment
                 # C→L is not a structural change: it just means the last line
                 # of a justified paragraph is short and doesn't reach the right
                 # margin. All other alignment transitions remain boundaries.

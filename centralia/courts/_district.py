@@ -326,11 +326,12 @@ class DistrictBase(GenericExtractor):
         gx = self._pleading_gutter_x(page)
         x0_hi = (gx + 30) if gx is not None else (self.body_baseline_x0 + 4)
         x0_lo = (gx - 2) if gx is not None else 0
+        max_w = page.width * self.footnote_sep_max_width_frac
         cands = [
             r["top"]
             for r in page.rects
             if r["bottom"] - r["top"] < 2.5
-            and (r["x1"] - r["x0"]) >= 90
+            and 90 <= (r["x1"] - r["x0"]) <= max_w
             and x0_lo <= r["x0"] <= x0_hi
             and r["top"] > cap_bottom + 12
         ]
@@ -350,11 +351,12 @@ class DistrictBase(GenericExtractor):
                 cap_bottom = rb[1]
             elif sig.get("vmid") and sig.get("band"):
                 cap_bottom = sig["band"][1]
+        max_w = page.width * self.footnote_sep_max_width_frac
         cands = []
         for r in page.rects:
             if not (
                 r["height"] < 2
-                and (r["x1"] - r["x0"]) >= 90
+                and 90 <= (r["x1"] - r["x0"]) <= max_w
                 and gx - 2 <= r["x0"] <= gx + 30
                 and r["top"] > cutoff
             ):

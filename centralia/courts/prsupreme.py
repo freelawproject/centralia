@@ -61,6 +61,45 @@ class PuertoRicoSupreme(StateSupreme):
     # margin-filter the bottom third of every page
     margin_bottom = 975
 
+    # the body is monospace Courier; the court bolds dates and times inline
+    # ('20 de mayo de 2025.', '10:28 p.m. del 20 de junio de 2025') — emphasis,
+    # not structure. Don't let a bold line break the paragraph (headings are
+    # centered/short and still separate by alignment + gap).
+    bold_breaks_segment = False
+
+    # every continuation page tops with a docket-number running header —
+    # 'CC-2025-0671 2' / 'AB-2023-135 2' (PR docket + page number). Drop it as
+    # furniture; left in the body it also lands mid-paragraph when the
+    # cross-page merge spans the page break.
+    running_header_docket = True
+
+    def is_docket_line(self, text) -> bool:
+        """A PR docket running header: one '<LL>-<YYYY>-<n>' token (a 2–3 letter
+        prefix, 4-digit year, number) optionally flanked by a bare page
+        number — and nothing else."""
+        toks = (text or "").split()
+        if not (1 <= len(toks) <= 2):
+            return False
+        if len(toks) == 2:  # strip an optional page number off either end
+            if toks[-1].isdigit():
+                toks = toks[:1]
+            elif toks[0].isdigit():
+                toks = toks[1:]
+            else:
+                return False
+        parts = toks[0].split("-")
+        if len(parts) != 3:
+            return False
+        pref, year, num = parts
+        return (
+            pref.isalpha()
+            and pref.isupper()
+            and len(pref) <= 3
+            and len(year) == 4
+            and year.isdigit()
+            and num.isdigit()
+        )
+
     # ------------------------------------------------------- writing starts
     @classmethod
     def _start_kind(cls, text: str):
