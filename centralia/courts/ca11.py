@@ -36,26 +36,40 @@ class EleventhCircuit(FederalCircuitBase):
     def _running_header_name(text: str):
         """If ``text`` is a page-2+ running header, return its opinion-name
         ('Opinion of the Court' / 'ABUDU, J., Concurring' / 'LAGOA, J.,
-        Dissenting'); else None. The docket token and bare page number flank
-        the name in either order, so strip them off both ends."""
+        Dissenting'); else None. A bare page number flanks one end and one OR
+        MORE docket tokens flank the other (consolidated appeals print every
+        docket, e.g. '24-11398; 25-11185'), so strip a page number off one end
+        and a run of dockets off the other."""
         toks = (text or "").split()
         if len(toks) < 3:
             return None
 
         def is_docket(t):
+            # Tolerate trailing punctuation joining consolidated dockets
+            # ('24-11398;' between '24-11398' and '25-11185').
+            t = t.strip(";:,.")
             return t.count("-") == 1 and all(p.isdigit() for p in t.split("-"))
 
-        # STRICT form: a docket token on one end and a bare page number on the
-        # other, flanking the name. Requiring both ends rejects body lines that
-        # merely quote '(Gorsuch, J., concurring)' or 'the dissenting opinion'.
-        first, last = toks[0], toks[-1]
-        if is_docket(first) and last.isdigit():
-            mid = toks[1:-1]
-        elif first.isdigit() and is_docket(last):
-            mid = toks[1:-1]
+        # STRICT form: a bare page number on one end and a docket run on the
+        # other, flanking the name. Requiring BOTH a page number and a docket —
+        # on opposite ends — rejects body lines that merely quote
+        # '(Gorsuch, J., concurring)' or 'the dissenting opinion'.
+        lo, hi = 0, len(toks)
+        if toks[0].isdigit():            # page number leads, dockets trail
+            lo += 1
+            while lo < hi and is_docket(toks[hi - 1]):
+                hi -= 1
+            saw_docket = hi < len(toks)
+        elif toks[-1].isdigit():         # dockets lead, page number trails
+            hi -= 1
+            while lo < hi and is_docket(toks[lo]):
+                lo += 1
+            saw_docket = lo > 0
         else:
             return None
-        name = " ".join(mid).strip()
+        if not saw_docket or lo >= hi:
+            return None
+        name = " ".join(toks[lo:hi]).strip()
         low = name.lower()
         if "opinion of the court" in low or "concurring" in low or "dissenting" in low:
             return name
