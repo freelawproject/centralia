@@ -16,10 +16,10 @@ from pathlib import Path
 
 import pytest
 
-from restatement import get_extractor
-from restatement.audit import audit_coverage
-from restatement.models import DocType
-from restatement.registry import EXTRACTORS
+from centralia import get_extractor
+from centralia.audit import audit_coverage
+from centralia.models import DocType
+from centralia.registry import EXTRACTORS
 
 ASSETS = Path(__file__).resolve().parent.parent / "assets"
 SMOKE_PER_COURT = 2

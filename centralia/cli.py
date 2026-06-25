@@ -1,9 +1,9 @@
 """Command-line entry: PDF + court id -> extracted document.
 
-    python -m restatement.cli <court_id> <path/to.pdf>          # criteria summary
-    python -m restatement.cli <court_id> <path/to.pdf> --xml    # casebody XML
-    python -m restatement.cli <court_id> <path/to.pdf> --html   # PDF + extraction
-    python -m restatement.cli <court_id> <path/to.pdf> --json   # JSON criteria
+    python -m centralia.cli <court_id> <path/to.pdf>          # criteria summary
+    python -m centralia.cli <court_id> <path/to.pdf> --xml    # casebody XML
+    python -m centralia.cli <court_id> <path/to.pdf> --html   # PDF + extraction
+    python -m centralia.cli <court_id> <path/to.pdf> --json   # JSON criteria
 
 The HTML view shows the source PDF and the extracted content side by side
 for review. Add --output to write to output/<court_id>/<name>.<ext>,
@@ -56,7 +56,7 @@ def _summary(doc) -> str:
 
 
 def main(argv=None):
-    ap = argparse.ArgumentParser(prog="restatement")
+    ap = argparse.ArgumentParser(prog="centralia")
     ap.add_argument("court_id")
     ap.add_argument("pdf_path")
     g = ap.add_mutually_exclusive_group()

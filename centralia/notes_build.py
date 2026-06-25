@@ -11,7 +11,7 @@ The viewer shows ``NOTES[court]`` as the starting text, lets you edit it (kept
 in localStorage), and exports a ``notes.json`` you can hand back to merge into
 the markdown files.
 
-Run:  uv run python -m restatement.notes_build
+Run:  uv run python -m centralia.notes_build
 """
 
 from __future__ import annotations

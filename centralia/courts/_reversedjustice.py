@@ -57,6 +57,9 @@ _KIND_ENDINGS = (
     "result",
     "part:",
     "court:",
+    # 'JUSTICE THOMAS, dissenting from the denial of certiorari.' (SCOTUS cert denials)
+    "certiorari.",
+    "certiorari",
 )
 
 

@@ -6,7 +6,7 @@ the base class defines *what gets returned* (a fixed field set), and each
 court subclass only fills/overrides the parts that differ for its layout.
 
 Rendering (Harvard casebody XML, HTML, JSON, ...) is a separate concern that
-consumes this model — see ``restatement.render``.
+consumes this model — see ``centralia.render``.
 
 Inline formatting inside paragraph/footnote text is preserved as a small set
 of inline tags baked into the string (``<em>``, ``<strong>``, ``<u>``,
@@ -152,6 +152,15 @@ class ExtractedDocument:
     # conformed signature (or the underscore signature rule), the printed
     # name, and the signer's title line. Rendered as its own section.
     signature: list = field(default_factory=list)
+
+    # Completeness safety net: source lines the pipeline placed in NO other
+    # section, swept up at the end of extraction so nothing is silently lost.
+    # Each entry is {"page": int, "text": str, "kind": "content" | "furniture"}
+    # — "furniture" is identifiable junk (stamps/rules/running headers) and
+    # "content" is real text that still needs a proper home. Rendered inside
+    # the Removed box. Should be empty (of "content") when a court is done; a
+    # non-empty residual is the review to-do, NOT a place to leave things.
+    residual: list = field(default_factory=list)
 
     # Diagnostics
     warnings: list[str] = field(default_factory=list)

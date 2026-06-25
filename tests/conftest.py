@@ -8,7 +8,7 @@ from pathlib import Path
 
 import pytest
 
-from restatement import get_extractor
+from centralia import get_extractor
 
 ASSETS = Path(__file__).resolve().parent.parent / "assets"
 

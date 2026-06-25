@@ -1,4 +1,4 @@
-{% extends "library/base.html" %}{% block title %}{{ court.court_id }} — restatement{% endblock %}
+{% extends "library/base.html" %}{% block title %}{{ court.court_id }} — centralia{% endblock %}
 {% block crumbs %} / <a href="{% url 'library:court_list' %}">courts</a> / {{ court.court_id }}{% endblock %}
 {% block content %}<h1>{{ court.label|default:court.court_id }}
  {% if court.claude_done %}<span class="done">✅ done</span>{% endif %}</h1>

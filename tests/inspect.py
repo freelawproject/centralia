@@ -31,7 +31,7 @@ import sys
 # This file is named inspect.py, which shadows the stdlib `inspect` that
 # pdfminer imports. When run as a script, its own directory lands on sys.path[0]
 # and wins — so drop the script dir from sys.path before importing pdfplumber.
-# (`restatement` is an installed package, so it still imports fine.)
+# (`centralia` is an installed package, so it still imports fine.)
 _here = os.path.dirname(os.path.abspath(__file__))
 sys.path[:] = [p for p in sys.path if os.path.abspath(p or ".") != _here]
 
@@ -89,6 +89,39 @@ def _line_meta(chars: list) -> tuple[float, str, bool]:
     return size, font.split("+")[-1], "Bold" in font
 
 
+def _underline_info(page, line) -> tuple[bool, str]:
+    """Whether the line carries an underline, and the underlined substring —
+    mirrors BaseExtractor._tag_underlined_chars: hairline rects sitting just
+    below the line's baseline and overlapping its glyphs. CA1 underlines the
+    bench title in a byline ('BARRON, **Chief Judge**, …') and counsel
+    names/titles in the caption, so the underlined run is a structural tell."""
+    chars = line.get("chars") or []
+    if not chars:
+        return False, ""
+    baseline = max(c["bottom"] for c in chars)
+    rects = [
+        r
+        for r in page.rects
+        if r.get("height", 9) < 2
+        and (r["x1"] - r["x0"]) > 6
+        and -1.0 <= (r["top"] - baseline) <= 5.0
+        and r["x0"] < chars[-1]["x1"]
+        and r["x1"] > chars[0]["x0"]
+    ]
+    if not rects:
+        return False, ""
+    out = []
+    for c in chars:
+        cmid = (c["x0"] + c["x1"]) / 2
+        if any(r["x0"] - 1 <= cmid <= r["x1"] + 1 for r in rects):
+            out.append(c.get("text", ""))
+        elif not c.get("text", "").isspace():
+            out.append(" ")
+        else:
+            out.append(c.get("text", ""))
+    return True, " ".join("".join(out).split())
+
+
 def _rules(page) -> list:
     """Thin, wide horizontal rules (rects + vector lines), top-sorted."""
     out = []
@@ -116,10 +149,15 @@ def _kind(x0, top, x1, bottom) -> str:
 
 
 def dump_geometry(page) -> None:
-    """Every rect and vector line on the page with full coordinates, sorted
-    top→left, each tagged H/V/box — so a footnote separator (a thin H rect
-    in the lower page) is distinguishable from caption-box edges and rails.
-    The 'H' rows are exactly the candidates a footnote-separator rule sees."""
+    """Every drawn object on the page with full coordinates, sorted top→left,
+    each tagged H/V/box — so a footnote separator (a thin H rule in the lower
+    page) is distinguishable from caption-box edges and rails. The 'H' rows are
+    the candidates a footnote-separator rule sees. Dumps all four pdfplumber
+    geometry collections: rects, lines, curves, edges. A divider drawn as a
+    filled rect shows under 'rects'; a stroked rule under 'lines'; a rule drawn
+    as a path/curve under 'curves'; 'edges' is pdfplumber's derived superset
+    (rect/line/curve edges) and is the catch-all when a visible rule appears in
+    none of the other three."""
     pw, ph = page.width, page.height
 
     def rows(objs, label, x1k="x1", botk="bottom"):
@@ -147,6 +185,8 @@ def dump_geometry(page) -> None:
     print(f"  ============ geometry  (page {pw:.0f} x {ph:.0f}) ============")
     rows(page.rects, "rects")
     rows(page.lines, "lines", x1k="x1", botk="bottom")
+    rows(page.curves, "curves", x1k="x1", botk="bottom")
+    rows(page.edges, "edges", x1k="x1", botk="bottom")
 
 
 def dump_page(page, pageno: int, *, chars=False, court_lines=None, geom=False) -> None:
@@ -168,9 +208,15 @@ def dump_page(page, pageno: int, *, chars=False, court_lines=None, geom=False) -
 
     # return
     print(f"=== page {pageno + 1}  ({pw:.0f} x {page.height:.0f}) ===")
-    lines = court_lines if court_lines is not None else page.extract_text_lines()
-    lines = [l for l in lines if l.get("chars")]
-    
+    # Always display the FULL raw page so every line is visible (the running
+    # headers / bates stamp are the structural tells). When --court is given,
+    # mark with 'x' the lines the extractor would DROP (margin filter, running-
+    # header drop) so you see both the page and what extraction removes.
+    lines = [l for l in page.extract_text_lines() if l.get("chars")]
+    court_tops = (
+        {round(l["top"]) for l in court_lines} if court_lines is not None else None
+    )
+
     # The page's single-line spacing: the modal gap between consecutive tops. A
     # gap bigger than that is a line break (paragraph / section gap).
     gaps = [round(lines[i]["top"] - lines[i - 1]["top"]) for i in range(1, len(lines))]
@@ -185,10 +231,15 @@ def dump_page(page, pageno: int, *, chars=False, court_lines=None, geom=False) -
         size, font, bold = _line_meta(ch)
         a = _align(l["x0"], l["x1"], pw)
         b = "B" if bold else " "
+        underlined, ul_text = _underline_info(page, l)
+        u = "U" if underlined else " "
         text = (l.get("text") or "").strip()
+        ul_note = f"   u:{ul_text!r}" if underlined else ""
+        # 'x' = the extractor drops this line (furniture); ' ' = kept.
+        drop = " " if court_tops is None else ("x" if round(l["top"]) not in court_tops else " ")
         print(
-            f"  top={l['top']:6.1f} x0={l['x0']:6.1f} x1={l['x1']:6.1f} "
-            f"sz={size:4.1f} {a}{b} {font[:24]:24} | {text[:60]}"
+            f"  {drop} top={l['top']:6.1f} x0={l['x0']:6.1f} x1={l['x1']:6.1f} "
+            f"sz={size:4.1f} {a}{b}{u} {font[:24]:24} | {text}{ul_note}"
         )
         if chars:
             for c in ch:
@@ -243,7 +294,7 @@ def main(argv: list[str]) -> int:
 
     ex = None
     if args.court:
-        from restatement.registry import get_extractor
+        from centralia.registry import get_extractor
 
         ex = get_extractor(args.court)
 

@@ -31,8 +31,14 @@ class NewMexicoCourtOfAppeals(StateAppellate):
     court_id = "nmctapp"
     court_label = "New Mexico Court of Appeals."
 
+    # body paragraphs are numbered with a raised brace pinpoint ('{1}', '{2}')
+    # — the small digit between the braces is content, not a footnote ref
+    bracket_pinpoint = True
+
     # the slip-opinion notice prints at 11pt (fulton) or 12pt (komis);
-    # body is 14pt — 12.5 separates them cleanly
+    # body is 14pt. The size cap is now gated on being smaller than the
+    # document's own dominant size too, so a NM opinion set entirely at 12pt
+    # (apache) keeps its caption instead of dropping it all as a notice.
     notice_max_size = 12.5
     # komis's notice starts at top≈12, above the default top margin — keep
     # it in the flow so the size routing can surface it in Removed
@@ -69,8 +75,78 @@ class NewMexicoCourtOfAppeals(StateAppellate):
                 prev.footnotes = list(prev.footnotes) + list(op.footnotes)
                 continue
             merged.append(op)
-        doc.opinions = merged
+        # A block quotation is split across segments by the double spacing
+        # between its parts (a lead clause, then nested '(1)/(2)/(3)' items),
+        # so it arrives as a run of adjacent blockquote blocks. Fold a run of
+        # consecutive blockquote blocks into one so the quote reads as a single
+        # quotation, not one box per line/part.
+        for op in doc.opinions:
+            folded = []
+            for b in op.blocks:
+                if (
+                    b.kind == "blockquote"
+                    and folded
+                    and folded[-1].kind == "blockquote"
+                ):
+                    folded[-1].text = (
+                        str(folded[-1].text).rstrip() + " " + str(b.text).lstrip()
+                    )
+                else:
+                    folded.append(b)
+            op.blocks = folded
         return doc
+
+    # ------------------------------------------------------- blockquotes
+    def classify_segment(self, seg) -> str:
+        """The base classifies a segment by line spacing, but NM bodies are
+        single-spaced — so ordinary body and bold section headings get called
+        'blockquote' (and the blockquote build path then tags every line a
+        quote, ignoring geometry). Confirm a spacing-'blockquote' by GEOMETRY:
+        a real quotation is indented at both margins and not bold; otherwise
+        it's body, and per-paragraph ``classify_paragraph`` decides."""
+        base = super().classify_segment(seg)
+        if base != "blockquote":
+            return base
+        if (
+            seg
+            and all(self._is_indented(l) for l in seg)
+            and not any(self.line_meta(l)[2] for l in seg)
+        ):
+            return "blockquote"
+        return "body"
+
+    def _is_indented(self, line) -> bool:
+        """True when a line sits right of the body margin by a full paragraph
+        indent — the geometry of a both-margins block quotation (the body is
+        at x0≈72; quotations sit at x0≈108, nested items at x0≈144)."""
+        return line["x0"] > self.body_baseline_x0 + self.para_indent_min
+
+    def classify_paragraph(self, lines) -> str:
+        """An indented, non-bold paragraph is a block quotation (geometry, not
+        punctuation). A bold indented run is a numbered section heading
+        ('I. Defendant Was Not Deprived …'), not a quotation, so it stays
+        prose."""
+        if not lines or not all(self._is_indented(l) for l in lines):
+            return "p"
+        if any(self.line_meta(l)[2] for l in lines):  # bold -> heading
+            return "p"
+        return "blockquote"
+
+    def split_body_paragraphs(self, seg) -> list:
+        """Group lines by indent level: a run of indented quotation lines stays
+        together as one paragraph regardless of internal single/double spacing
+        and nested item indents, and crossing the indent boundary (in either
+        direction) starts a new paragraph — so a quotation that de-indents back
+        to the body margin closes cleanly and the body resumes as prose."""
+        if not seg:
+            return []
+        paras = [[seg[0]]]
+        for i in range(1, len(seg)):
+            if self._is_indented(seg[i]) != self._is_indented(seg[i - 1]):
+                paras.append([seg[i]])
+            else:
+                paras[-1].append(seg[i])
+        return paras
 
     @staticmethod
     def _signs_off(prev_author: str, author: str) -> bool:

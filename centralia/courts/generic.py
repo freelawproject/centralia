@@ -3,7 +3,7 @@
 Does not attempt to parse structured headmatter (parties, panel, etc.); it
 classifies the document type, emits the court label, and extracts whatever
 opinion bodies + footnotes the core pipeline detects. Write a per-court
-subclass under ``restatement/courts/<court>/`` when a court needs tuning.
+subclass under ``centralia/courts/<court>/`` when a court needs tuning.
 """
 
 from __future__ import annotations

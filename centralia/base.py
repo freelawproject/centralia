@@ -1,7 +1,7 @@
 """Court-pluggable PDF extractor.
 
 ``BaseExtractor.extract(pdf_path)`` turns one court PDF into a structured
-``ExtractedDocument`` (see ``restatement.models``). The base class holds the
+``ExtractedDocument`` (see ``centralia.models``). The base class holds the
 deterministic layout heuristics; each court subclass overrides only the hook
 points where its typesetting differs.
 
@@ -128,6 +128,11 @@ class BaseExtractor:
     HEADMATTER_DIVIDER = "__DIVIDER__"
     # Star, dagger, double-dagger, section, paragraph + digits.
     FOOTNOTE_LABEL_CHARS = set("0123456789*†‡§¶**")
+    # Some courts number paragraphs with a raised, brace-wrapped pinpoint
+    # ('{1}', '{2}' — New Mexico). The digit is small + a label char, so it
+    # otherwise reads as a footnote reference; a court with this convention
+    # sets this True so a digit BETWEEN '{' and '}' stays inline content.
+    bracket_pinpoint: bool = False
 
     # ====================================================================
     # MAIN PIPELINE
@@ -146,6 +151,7 @@ class BaseExtractor:
         tables_by_page = {}
         page1_rules = []
         layout_ok = True
+        source_pages = []  # (page_number, [text lines]) — ground truth for the residual sweep
         with pdfplumber.open(pdf_path) as pdf:
             n_pages = len(pdf.pages)
             layout_ok = self.matches_expected_layout(pdf)
@@ -163,7 +169,13 @@ class BaseExtractor:
             for page in pdf.pages:
                 pw = page.width
                 sep_y = self.find_footnote_separator(page)
-                lines = self.page_lines(page)
+                lines = self.page_lines(page)  # also applies correct_page_geometry
+                # Capture the upright ground-truth text for the residual sweep,
+                # the same way audit.py reads it (geometry already corrected).
+                gt = page.filter(lambda o: o.get("upright", True) is not False)
+                source_pages.append(
+                    (page.page_number, (gt.extract_text() or "").splitlines())
+                )
                 tables = self.extract_page_tables(page)
                 table_bboxes = [t["bbox"] for t in tables]
 
@@ -227,6 +239,7 @@ class BaseExtractor:
             doc.warnings.append(f"body not parsed for doc_type={doc_type}")
             if not layout_ok:
                 doc.warnings.append("layout does not match expected court format")
+            self._sweep_residual(doc, source_pages)
             return doc
 
         opinion_ranges = []
@@ -293,7 +306,19 @@ class BaseExtractor:
         if fp and fp[2]:
             doc.caption_box = dict(doc.caption_box or {})
             doc.caption_box["fp_id"], doc.caption_box["fp_style"] = fp[1], fp[2]
+        self._sweep_residual(doc, source_pages)
         return doc
+
+    def _sweep_residual(self, doc: ExtractedDocument, source_pages) -> None:
+        """Completeness safety net: any source line the pipeline placed in no
+        rendered section lands in ``doc.residual`` (tagged content/furniture),
+        so nothing is silently lost — it surfaces in the Removed box."""
+        try:
+            from .audit import sweep_unplaced
+
+            doc.residual = sweep_unplaced(doc, source_pages)
+        except Exception as e:  # the sweep is a safety net, never a hard failure
+            doc.warnings.append(f"residual sweep failed: {type(e).__name__}: {e}")
 
     def _apply_headmatter(self, doc: ExtractedDocument, hm: dict) -> None:
         """Copy the recognized headmatter dict onto the document fields."""
@@ -774,7 +799,12 @@ class BaseExtractor:
                 big_gap = gap > self.gap_double_max
                 size_changed = abs(size - prev_size) >= 1.0
                 bold_changed = bold != prev_bold
-                align_changed = align != prev_align
+                # C→L is not a structural change: it just means the last line
+                # of a justified paragraph is short and doesn't reach the right
+                # margin. All other alignment transitions remain boundaries.
+                align_changed = align != prev_align and not (
+                    prev_align == "C" and align == "L"
+                )
                 zone_changed = prev_zone is not None and zone != prev_zone
                 col_changed = line.get("_caption_col") != current[-1].get(
                     "_caption_col"
@@ -1104,15 +1134,36 @@ class BaseExtractor:
         (``body_baseline_x0 + para_indent_min``) so wide-margin courts (federal
         circuits at x0≈108-156) split on their real indent rather than a fixed
         x0 — for the default baseline 72 / indent 28 this is the historical
-        ``x0 > 100``."""
+        ``x0 > 100``.
+
+        The baseline is also re-derived from the SEGMENT's own left margin
+        (the leftmost / continuation-line x0), floored at the configured
+        ``body_baseline_x0``: pleading-paper and shifted-column layouts set
+        the body column well right of the page baseline (caed at x0≈104), so
+        an absolute threshold would read every continuation line as
+        'indented' and emit one paragraph per line. Flooring keeps courts
+        that tuned a high baseline unaffected."""
         if not seg:
             return []
-        indent_min = self.body_baseline_x0 + self.para_indent_min
+        seg_left = min(l["x0"] for l in seg)
+        indent_min = max(self.body_baseline_x0, seg_left) + self.para_indent_min
+        # Lines must clear a *second* indent threshold to be treated as a
+        # multi-line indented block rather than a paragraph first line.
+        # A paragraph first line lands just above indent_min; a blockquote
+        # sits a full para_indent_min deeper.
+        block_min = indent_min + self.para_indent_min
         paras = [[seg[0]]]
         for i in range(1, len(seg)):
             line = seg[i]
+            prev = seg[i - 1]
             if line["x0"] > indent_min:
-                paras.append([line])
+                # Deeply indented AND same x0 as the immediately preceding
+                # line: continuation of a multi-line indented block-quote.
+                # Otherwise: a new paragraph (first-line indent or level shift).
+                if line["x0"] > block_min and abs(line["x0"] - prev["x0"]) <= 3:
+                    paras[-1].append(line)
+                else:
+                    paras.append([line])
             else:
                 paras[-1].append(line)
         return paras
@@ -1194,6 +1245,7 @@ class BaseExtractor:
         cur_fn = ""
         prev_x1 = None
         prev_pos = None
+        in_brace = False
 
         def style_wrap(text):
             t = escape(text)
@@ -1221,6 +1273,11 @@ class BaseExtractor:
             if pos == prev_pos:
                 continue
             prev_pos = pos
+            if self.bracket_pinpoint:
+                if c["text"] == "{":
+                    in_brace = True
+                elif c["text"] == "}":
+                    in_brace = False
             fn = c.get("fontname") or ""
             ch_bold = "Bold" in fn
             ch_italic = ("Italic" in fn) or ("Oblique" in fn)
@@ -1237,7 +1294,7 @@ class BaseExtractor:
                         buf += " "
 
             small = round(c["size"], 1) <= body_size - 1.5
-            is_label = c["text"] in self.FOOTNOTE_LABEL_CHARS
+            is_label = c["text"] in self.FOOTNOTE_LABEL_CHARS and not in_brace
             if small and is_label:
                 flush_buf()
                 cur_fn += c["text"]
@@ -1336,6 +1393,19 @@ class BaseExtractor:
         blocks: list[Block] = []
         last_body_page = [None]
 
+        # The continuation margin of THIS opinion's body — the leftmost body
+        # line x0 (indents sit right of it). A page-top line at this margin
+        # continues the prior paragraph; the page-break fold is measured from
+        # here so shifted columns (pleading paper at x0≈104) fold correctly,
+        # not just the page baseline.
+        body_xs = [
+            l["x0"]
+            for k in range(op_start, op_end)
+            for l in all_segments[k][1]
+            if all_segments[k][2] == "body"
+        ]
+        op_body_left = min(body_xs) if body_xs else self.body_baseline_x0
+
         def add_para(tag, lines, page_no):
             if not lines:
                 return
@@ -1345,7 +1415,14 @@ class BaseExtractor:
             if self.fold_page_numbers and self._is_page_number_text(txt):
                 return  # bare page number — drop; merge spans the gap
             first_x0 = lines[0]["x0"]
-            wrap_max = self._wrap_continuation_max()
+            # re-base the court's continuation slop on THIS opinion's body
+            # column so a shifted column (caed x0≈104) folds page-top
+            # continuations — but keep the same tight slop, so block-style
+            # courts (no first-line indent) don't over-merge across pages
+            wrap_max = max(
+                self._wrap_continuation_max(),
+                op_body_left + (self._wrap_continuation_max() - self.body_baseline_x0),
+            )
             if (
                 tag == "p"
                 and blocks

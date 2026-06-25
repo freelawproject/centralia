@@ -1,29 +1,29 @@
-# restatement
+# centralia
 
 A court-pluggable PDF opinion extractor: give it a court PDF and a court id, get back
 one structured `ExtractedDocument`. Rendering (Harvard casebody XML, JSON, …) is a
 separate concern that consumes that model.
 
 ```python
-from restatement import get_extractor
+from centralia import get_extractor
 doc = get_extractor("ala").extract("path/to/opinion.pdf")
 #  -> ExtractedDocument: doc.doc_type, doc.decision_date, doc.opinions, ...
 
-from restatement.render import render_casebody
+from centralia.render import render_casebody
 xml = render_casebody(doc)
 ```
 
 ```
-python -m restatement.cli ala opinion.pdf          # human-readable criteria summary
-python -m restatement.cli ala opinion.pdf --xml    # Harvard casebody XML
-python -m restatement.cli ala opinion.pdf --json   # full ExtractedDocument as JSON
+python -m centralia.cli ala opinion.pdf          # human-readable criteria summary
+python -m centralia.cli ala opinion.pdf --xml    # Harvard casebody XML
+python -m centralia.cli ala opinion.pdf --json   # full ExtractedDocument as JSON
 ```
 
 ---
 
 ## Where this came from
 
-`restatement` is a clean reimplementation of the extraction "guts" from the older
+`centralia` is a clean reimplementation of the extraction "guts" from the older
 `ca1` repo. That repo carried two parallel extractors; we ported **`casebody/`**
 (standalone, Harvard casebody XML, one subclass per court) and deliberately left
 behind the Django-coupled `extractor/` + `circuits/` system.
@@ -38,7 +38,7 @@ Extraction is modeled after Juriscraper's opinion scrapers: the base class defin
 only the parts that differ for its layout. The return value is a structured
 `ExtractedDocument` (the "criteria"), never an XML string.
 
-`ExtractedDocument` (see `restatement/models.py`) carries:
+`ExtractedDocument` (see `centralia/models.py`) carries:
 
 - **Provenance / classification** — `court_id`, `court_label`, `doc_type`, `n_pages`,
   `layout_ok`, `source_path`
@@ -76,7 +76,7 @@ opt-in via class-level config flags rather than overridden methods:
 | `banner_center_min_size` | font size at/above which a line is treated as a centered banner |
 | `skip_notice_headmatter` | skip headmatter segments on notice-style docs |
 
-`AlabamaSupreme` (`restatement/courts/ala.py`) is the first and reference court — it sets
+`AlabamaSupreme` (`centralia/courts/ala.py`) is the first and reference court — it sets
 all five flags and is otherwise a thin subclass. Unknown court ids fall back to
 `GenericExtractor`.
 
@@ -87,11 +87,11 @@ genuinely warranted.)
 ## Layout
 
 ```
-restatement/
+centralia/
   models.py           ExtractedDocument / Opinion / Block / Footnote / DocType — the contract
   base.py             BaseExtractor: all the shared layout heuristics + hooks
   registry.py         court id -> extractor class
-  cli.py              python -m restatement.cli
+  cli.py              python -m centralia.cli
   courts/
     ala.py            AlabamaSupreme — reference court
     generic.py        fallback extractor for unknown courts
@@ -106,7 +106,7 @@ the full Alabama corpus (466 PDFs). The only diff is a Pillow-version PNG re-enc
 embedded image, which is structurally identical. To re-check a single PDF:
 
 ```
-diff <(python -m restatement.cli ala FILE.pdf --xml) \
+diff <(python -m centralia.cli ala FILE.pdf --xml) \
      <(cd ../ca1 && python -m casebody.cli ala FILE.pdf)
 ```
 

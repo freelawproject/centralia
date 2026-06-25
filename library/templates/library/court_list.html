@@ -1,4 +1,4 @@
-{% extends "library/base.html" %}{% block title %}Courts — restatement{% endblock %}
+{% extends "library/base.html" %}{% block title %}Courts — centralia{% endblock %}
 {% block content %}<h1>Courts <span class="pill">{{ courts|length }}</span></h1>
 {% regroup courts by grp.0 as groups %}
 {% for g in groups %}<div class="grp">{{ g.grouper }} ({{ g.list|length }})</div>

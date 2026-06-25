@@ -14,7 +14,7 @@ returned text.
 
 from __future__ import annotations
 
-from dataclasses import dataclass
+from dataclasses import dataclass, field
 
 import pdfplumber
 
@@ -24,8 +24,10 @@ from .models import ExtractedDocument
 @dataclass
 class AuditResult:
     total: int
-    covered: int
-    missing: list  # list of (page_number, line_text)
+    covered: int  # accounted-for anywhere = total - len(missing)
+    missing: list  # (page, text) — matched no bucket; the real failure
+    dropped: list = field(default_factory=list)  # (page, text) — matched doc.dropped (the Removed box)
+    furniture: list = field(default_factory=list)  # (page, text) — identified stamps/rules/running headers
 
     @property
     def ok(self) -> bool:
@@ -106,9 +108,11 @@ def _chunk(x):
 
 
 def _doc_chunks(doc: ExtractedDocument):
+    """Kept content ONLY — everything the extractor surfaced as real content.
+    ``doc.dropped`` is deliberately excluded so the audit can match kept and
+    removed text against separate haystacks and tell them apart."""
     for s in doc.summary:
         yield from _chunk(s)
-    yield from doc.dropped
     yield from doc.trailer
     for s in getattr(doc, "signature", []) or []:
         if not isinstance(s, dict):  # image rows carry no text
@@ -117,23 +121,24 @@ def _doc_chunks(doc: ExtractedDocument):
         yield from _chunk(s)
     for s in getattr(doc, "headnotes", []) or []:
         yield from _chunk(s)
-    yield from doc.parties
-    for v in (
-        doc.court_label,
-        doc.decision_date,
-        doc.docket_number,
-        doc.other_docket,
-        doc.motion,
-        doc.history,
-        doc.parent_case,
-        doc.lower_court,
-        doc.disposition,
-        doc.attorneys,
-        doc.judges,
-        doc.submitted,
-    ):
-        if v:
-            yield str(v)
+    # NOTE: the parsed metadata fields (court_label, decision_date,
+    # docket_number, parties, attorneys, …) are deliberately NOT audited.
+    # The audit must match ONLY text the review HTML actually renders as
+    # content — headmatter, headnotes/syllabus, opinions, footnotes,
+    # signature, trailer. A caption line absorbed into court_label but never
+    # drawn in the headmatter (e.g. ca1's "United States Court of Appeals"
+    # banner) is INVISIBLE to the reader, so it must read as missing, not be
+    # excused by a substring hiding in a metadata field.
+
+    # The residual safety net IS rendered (in the Removed box), so its text
+    # counts as accounted-for. Filled by sweep_unplaced AFTER the sections, so
+    # it is empty while the kept haystack is being built — no circularity.
+    for r in getattr(doc, "residual", []) or []:
+        if isinstance(r, dict):
+            if r.get("text"):
+                yield str(r["text"])
+        elif r:
+            yield str(r)
 
     def from_footnotes(fns):
         for fn in fns:
@@ -267,11 +272,35 @@ def _is_filing_stamp(raw: str) -> bool:
     return False
 
 
-def _covered(raw: str, haystack: str) -> bool:
-    """Whether source line ``raw`` is accounted for in ``haystack``. Tolerates a
-    leading pleading-paper line number ('1 ...', '23 ...'): such gutter numbers
-    are merged into the row by ``extract_text`` but are layout furniture, not
-    content, so the line still counts as covered if the rest of it matches."""
+def _is_furniture(raw: str) -> bool:
+    """Layout junk identifiable from the line ALONE (no output to match
+    against): a rule or caption rail drawn as text, a '(cid:NN)' unmappable-
+    glyph line, or a court-system filing/page stamp. These are legitimately
+    removed page furniture — the audit routes them to the furniture bucket so
+    everything stays accounted for, but surfaces them for review."""
+    stripped = raw.strip()
+    # A horizontal rule drawn as text ('______' / '------' / '******').
+    if len(stripped) >= 3 and all(c in "_-—–=* " for c in stripped):
+        return True
+    # A line that is nothing but caption-rail glyphs ('§' / ') )') — the drawn
+    # rail of a two-column caption, not content.
+    if stripped and all(c in ")]§|* " for c in stripped):
+        return True
+    # Glyphs the PDF maps to no unicode point come through as '(cid:NN)' tokens
+    # — the source carries no text there, so the line is unauditable junk.
+    if "(cid:" in raw:
+        return True
+    if _is_filing_stamp(raw):
+        return True
+    return False
+
+
+def _matches(raw: str, haystack: str) -> bool:
+    """Whether source line ``raw`` is present in ``haystack`` (one normalized
+    blob of output text). Tolerates a leading pleading-paper line number
+    ('1 ...', '23 ...'): such gutter numbers are merged into the row by
+    ``extract_text`` but are layout furniture, not content, so the line still
+    counts as matched if the rest of it appears."""
     needle = _norm(raw)
     if not needle:
         return True
@@ -281,23 +310,13 @@ def _covered(raw: str, haystack: str) -> bool:
     # the extractor keeps the text without the gutter colon.
     if ":" in needle and needle.strip(":") and needle.strip(":") in haystack:
         return True
-    # A horizontal rule drawn as text ('______' / '------' / '******'): layout
-    # furniture, not content.
     stripped = raw.strip()
-    if len(stripped) >= 3 and all(c in "_-—–=* " for c in stripped):
-        return True
-    # A line that is nothing but caption-rail glyphs ('§' / ') )') is the
-    # drawn rail of a two-column caption, not content.
-    if stripped and all(c in ")]§|* " for c in stripped):
-        return True
     # A date typed over an underscore fill-in rule interleaves '_' with the
     # glyphs ('Atlanta,__0_5_/2_2_/2_0_2_6___'); the extractor strips the
     # underscores, so match without them.
     if "_" in raw and _norm(raw.replace("_", "")) and _norm(
         raw.replace("_", "")
     ) in haystack:
-        return True
-    if _is_filing_stamp(raw):
         return True
     # ROTATED margin text (the court name printed sideways up a pleading
     # margin) extracts REVERSED per line ('truoC' / 'tcirtsiD') while the
@@ -317,17 +336,19 @@ def _covered(raw: str, haystack: str) -> bool:
     if raw.rstrip().endswith(",") and _norm(raw.rstrip().rstrip(",")) in haystack:
         return True
     nshort = _norm(raw)
-    toks_s = [t for t in raw.split() if _norm(t)]
+    # Substantial tokens only: a bare-punctuation token ('-') must not pad the
+    # count toward the >=2 threshold. Otherwise a page-number footer ('- 37 -',
+    # tokens '-' '37' '-') is falsely "covered" whenever its digits happen to
+    # appear ANYWHERE else in the opinion (a year, a dollar amount, a cite) —
+    # which silently swallowed most footers while leaking only the few whose
+    # number collided with nothing. Requiring two real (alphanumeric-bearing)
+    # tokens keeps the genuine interleave-fragment case ('Id. see') working.
+    toks_s = [t for t in raw.split() if _norm(t) and any(c.isalnum() for c in t)]
     if (
         0 < len(nshort) <= 14
         and len(toks_s) >= 2
         and all(_norm(t) in haystack for t in toks_s)
     ):
-        return True
-    # Glyphs the PDF maps to no unicode point come through as '(cid:NN)'
-    # tokens — the source itself carries no text there, so the line is
-    # unauditable (the extractor drops such lines as identified junk).
-    if "(cid:" in raw:
         return True
     # A doubled leading slash ('//s/ Robert S. Ballou' — the overlap dedup
     # keeps one): collapse and retry.
@@ -372,7 +393,7 @@ def _covered(raw: str, haystack: str) -> bool:
     if len(parts) == 2 and parts[0].isdigit() and len(parts[0]) <= 3:
         # Recurse so the gutter-stripped rest gets every fallback too (a
         # pleading caption row needs the two-column split after the strip).
-        if _covered(parts[1], haystack):
+        if _matches(parts[1], haystack):
             return True
     # Two-column caption row: pdfplumber merges 'LEFT-COLUMN  RIGHT-COLUMN'
     # (parties + docket) into one source line, but the extractor emits the
@@ -445,10 +466,54 @@ def _running_furniture(pages_lines) -> set:
     return {n for n, pgs in margin_pages.items() if len(pgs) >= thresh}
 
 
+def sweep_unplaced(doc: ExtractedDocument, pages_lines) -> list:
+    """Source lines present in NO rendered section → tagged residual entries.
+
+    The completeness safety net the pipeline runs at the end of extraction:
+    given the already-built ``doc`` and the page ground-truth lines, return the
+    leftovers as ``{"page", "text", "kind"}`` dicts so they can be surfaced in
+    the Removed box instead of silently lost. Reuses the audit's own matching
+    and furniture detection, so the extractor's sweep and the audit agree on
+    what counts as placed. Lines already in ``doc.dropped`` are skipped (they
+    render there already); everything else is tagged 'furniture' (identifiable
+    junk) or 'content' (real text needing a home)."""
+    kept = _norm(" ".join(c for c in _doc_chunks(doc) if c))
+    dropped_hay = _norm(" ".join(c for c in doc.dropped if c))
+    table_pages = {
+        b.page
+        for op in doc.opinions
+        for b in op.blocks
+        if b.kind == "table" and b.page
+    }
+    furniture = _running_furniture(pages_lines)
+    out = []
+    for pno, lines in pages_lines:
+        for raw in lines:
+            if not raw.strip():
+                continue
+            if _matches(raw, kept):
+                continue
+            if pno in table_pages and all(
+                _norm(t) in kept for t in raw.split() if _norm(t)
+            ):
+                continue
+            # Already shown in the Removed box via doc.dropped — don't double it.
+            if dropped_hay and _matches(raw, dropped_hay):
+                continue
+            kind = (
+                "furniture"
+                if (_furniture_key(raw) in furniture or _is_furniture(raw))
+                else "content"
+            )
+            out.append({"page": pno, "text": raw.strip(), "kind": kind})
+    return out
+
+
 def audit_coverage(
     doc: ExtractedDocument, pdf_path: str, extractor=None
 ) -> AuditResult:
-    haystack = _norm(" ".join(c for c in _doc_chunks(doc) if c))
+    kept = _norm(" ".join(c for c in _doc_chunks(doc) if c))
+    dropped_hay = _norm(" ".join(c for c in doc.dropped if c))
 
     # Pages where the output carries a table block: a multi-line table row
     # reads row-major in the source ('02CR176 Greene County, Delivery of
@@ -465,6 +530,8 @@ def audit_coverage(
 
     total = 0
     missing = []
+    dropped = []
+    furniture_hits = []
     with pdfplumber.open(pdf_path) as pdf:
         pages_lines = []
         for page in pdf.pages:
@@ -488,27 +555,54 @@ def audit_coverage(
             if not raw.strip():
                 continue
             total += 1
-            if _furniture_key(raw) in furniture or _covered(raw, haystack):
+            # Kept content takes precedence: a line that is real content AND
+            # happens to recur in the Removed box counts as kept.
+            if _matches(raw, kept):
                 continue
             if pno in table_pages and all(
-                _norm(t) in haystack for t in raw.split() if _norm(t)
+                _norm(t) in kept for t in raw.split() if _norm(t)
             ):
                 continue
+            # Routed to the Removed box (doc.dropped).
+            if dropped_hay and _matches(raw, dropped_hay):
+                dropped.append((pno, raw.strip()))
+                continue
+            # Identified page furniture: running headers/footers, or a stamp /
+            # rule / rail recognizable from the line alone.
+            if _furniture_key(raw) in furniture or _is_furniture(raw):
+                furniture_hits.append((pno, raw.strip()))
+                continue
             missing.append((pno, raw.strip()))
-    return AuditResult(total=total, covered=total - len(missing), missing=missing)
+    return AuditResult(
+        total=total,
+        covered=total - len(missing),
+        missing=missing,
+        dropped=dropped,
+        furniture=furniture_hits,
+    )
 
 
 def format_report(name: str, r: AuditResult, limit: int = 40) -> str:
     pct = (100.0 * r.covered / r.total) if r.total else 100.0
     head = (
-        f"{name}: {r.covered}/{r.total} lines accounted for "
-        f"({pct:.1f}%), {len(r.missing)} missing"
+        f"{name}: {r.covered}/{r.total} lines accounted for ({pct:.1f}%) — "
+        f"{len(r.dropped)} dropped, {len(r.furniture)} furniture, "
+        f"{len(r.missing)} missing"
     )
-    if not r.missing:
-        return head + "  ✓"
-    lines = [head]
-    for pno, text in r.missing[:limit]:
-        lines.append(f"    p{pno}: {text[:90]!r}")
-    if len(r.missing) > limit:
-        lines.append(f"    … +{len(r.missing) - limit} more")
+    lines = [head + ("  ✓" if not r.missing else "")]
+
+    def _bucket(label, items):
+        if not items:
+            return
+        lines.append(f"  {label}:")
+        for pno, text in items[:limit]:
+            lines.append(f"    p{pno}: {text[:90]!r}")
+        if len(items) > limit:
+            lines.append(f"    … +{len(items) - limit} more")
+
+    # MISSING is the failure; DROPPED/FURNITURE are surfaced for eyeball review
+    # so the removal decisions can be checked, not silently trusted.
+    _bucket("MISSING", r.missing)
+    _bucket("DROPPED", r.dropped)
+    _bucket("FURNITURE", r.furniture)
     return "\n".join(lines)

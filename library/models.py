@@ -1,6 +1,6 @@
 """Database models mirroring the extractor's ``ExtractedDocument`` contract.
 
-The ``restatement`` package extracts a court PDF into an in-memory
+The ``centralia`` package extracts a court PDF into an in-memory
 ``ExtractedDocument`` (court/headmatter/opinions/footnotes). These models are the
 persisted form of that contract so the corpus can be browsed, searched, and
 reviewed from the web app. The ``ingest`` management command runs the extractors
@@ -53,6 +53,9 @@ class Document(models.Model):
     headnotes = models.JSONField(default=list, blank=True)
     dropped = models.JSONField(default=list, blank=True)
     trailer = models.JSONField(default=list, blank=True)
+    # Completeness safety net: source lines placed in no section, tagged
+    # content/furniture. Surfaced in the Removed box. See ExtractedDocument.
+    residual = models.JSONField(default=list, blank=True)
     warnings = models.JSONField(default=list, blank=True)
 
     # Review/diagnostic

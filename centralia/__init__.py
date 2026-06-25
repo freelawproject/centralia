@@ -1,10 +1,10 @@
-"""restatement — court-pluggable PDF opinion extractor.
+"""centralia — court-pluggable PDF opinion extractor.
 
-    from restatement import get_extractor
+    from centralia import get_extractor
     doc = get_extractor("ala").extract("path/to/opinion.pdf")
     # doc is an ExtractedDocument: doc.doc_type, doc.opinions, ...
 
-    from restatement.render import render_casebody
+    from centralia.render import render_casebody
     xml = render_casebody(doc)
 """
 

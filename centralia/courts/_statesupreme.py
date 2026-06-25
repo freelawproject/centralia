@@ -198,6 +198,20 @@ class StateSupreme(GenericExtractor):
         from collections import Counter as _Counter
 
         pw = getattr(self, "_page1_width", 612.0) or 612.0
+        # A notice is *small print* — smaller than the document's own body. The
+        # ``notice_max_size`` cap alone misfires when a court sets it near the
+        # body size and a given document is set entirely at that size (NM Ct
+        # App: a 12pt notice on 14pt opinions, but other NM opinions are 12pt
+        # throughout — the whole caption would be dropped). Gate the routing on
+        # being strictly smaller than the dominant headmatter size as well, so
+        # body-size text is never mistaken for a notice.
+        hm_sizes = _Counter(
+            round(self.line_meta(line)[0])
+            for seg in headmatter_segs
+            for line in seg
+            if (line.get("text") or "").strip()
+        )
+        dominant = hm_sizes.most_common(1)[0][0] if hm_sizes else 12
         rows, notice = [], []
         for seg in headmatter_segs:
             for line in seg:
@@ -205,7 +219,11 @@ class StateSupreme(GenericExtractor):
                 if not t:
                     continue
                 size, _font, _bold = self.line_meta(line)
-                if self.notice_max_size is not None and size <= self.notice_max_size:
+                if (
+                    self.notice_max_size is not None
+                    and size <= self.notice_max_size
+                    and round(size) < dominant
+                ):
                     notice.append(t)
                     continue
                 chars = line.get("chars") or []

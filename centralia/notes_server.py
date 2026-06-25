@@ -14,7 +14,7 @@ from ``file://``:
     GET  /api/notes            -> {court: markdown, ...}   (live from disk)
     PUT  /api/notes/<court>    body = markdown             -> writes the .md
 
-Run:  uv run python -m restatement.notes_server [port]
+Run:  uv run python -m centralia.notes_server [port]
 """
 
 from __future__ import annotations

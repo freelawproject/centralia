@@ -17,8 +17,8 @@ from django.shortcuts import get_object_or_404, render
 from django.utils.safestring import mark_safe
 from django.views.decorators.csrf import csrf_exempt
 
-from restatement.registry import EXTRACTORS
-from restatement.render.html import _inline_to_html
+from centralia.registry import EXTRACTORS
+from centralia.render.html import _inline_to_html
 from .families import family_of, similar_courts
 from .models import Court, Document, Opinion
 
@@ -68,12 +68,12 @@ def reprocess(request, court_id):
             )
         # no --index: a single-file run must not rewrite the court index
         cmd = [
-            sys.executable, "-m", "restatement.cli", court_id,
+            sys.executable, "-m", "centralia.cli", court_id,
             f"assets/{court_id}/{stem}.pdf", "--html", "--output",
         ]
     else:
         cmd = [
-            sys.executable, "-m", "restatement.cli", court_id,
+            sys.executable, "-m", "centralia.cli", court_id,
             f"assets/{court_id}", "--html", "--output", "--index",
         ]
     try:
@@ -351,4 +351,5 @@ def document_detail(request, court_id, stem):
     return render(request, "library/document_detail.html", {
         "doc": doc, "headmatter": headmatter, "syllabus": syllabus,
         "headnotes": headnotes,
-        "opinions": opinions, "dropped": doc.dropped, "trailer": doc.trailer})
+        "opinions": opinions, "dropped": doc.dropped, "trailer": doc.trailer,
+        "residual": doc.residual})

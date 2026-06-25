@@ -56,6 +56,7 @@ class SupremeCourtUS(ReversedJusticeSupreme):
         self._page_label = {}
         self._page_printed = {}
         self._authors = {}
+        self._covers = {}  # op_start (top) → byline segment index for i>0 writings
         self._syllabus_rows = []
         doc = super().extract(pdf_path)
         if self._syllabus_rows:
@@ -205,12 +206,14 @@ class SupremeCourtUS(ReversedJusticeSupreme):
                 # The FIRST writing starts at its byline — its cover page
                 # (banner / docket / caption / [date]) is the document
                 # headmatter. Later writings start at the top of their own
-                # fancy first page, cover included.
+                # fancy first page so those segments are claimed; the cover
+                # content is dropped in build_opinion.
                 starts.append(b)
                 self._authors[b] = self._page_byline(all_segments, top, b)
             else:
                 starts.append(top)
                 self._authors[top] = self._page_byline(all_segments, top, b)
+                self._covers[top] = b  # cover runs from top to b-1; body starts at b
         return starts
 
     @staticmethod
@@ -255,13 +258,38 @@ class SupremeCourtUS(ReversedJusticeSupreme):
         return "", [line]
 
     def build_opinion(self, op_start, op_end, **kw):
-        op = super().build_opinion(op_start, op_end, **kw)
+        # For i>0 writings the opinion is claimed from the top of its cover
+        # page, but the cover content (banner/docket/caption/date) is the
+        # same boilerplate as the first-opinion headmatter — drop it and
+        # start the body at the byline segment.
+        byline_seg = getattr(self, "_covers", {}).get(op_start)
+        if byline_seg is not None:
+            all_segs = kw.get("all_segments", [])
+            for j in range(op_start, byline_seg):
+                for ln in all_segs[j][1]:
+                    txt = self.line_plain_text(ln).strip()
+                    if txt:
+                        self._notice_dropped.append(txt)
+            body_start = byline_seg
+        else:
+            body_start = op_start
+        op = super().build_opinion(body_start, op_end, **kw)
         author = getattr(self, "_authors", {}).get(op_start)
         if author:
             op.author = author
             r = self.parse_author_line(author)
             op.type = self.normalize_opinion_type(r[2] if r else None)
         return op
+
+    # ------------------------------------------------------ paragraph types
+    def classify_paragraph(self, lines) -> str:
+        """A paragraph where every line sits well inside the body column (all
+        x0 > indent_min and at least two lines) is an indented block-quote."""
+        if len(lines) < 2:
+            return "p"
+        seg_left = min(l["x0"] for l in lines)
+        indent_min = self.body_baseline_x0 + self.para_indent_min
+        return "blockquote" if seg_left > indent_min else "p"
 
     # ---------------------------------------------------------- headmatter
     def extract_headmatter(self, headmatter_segs, page1_rules=None) -> dict:
@@ -283,20 +311,25 @@ class SupremeCourtUS(ReversedJusticeSupreme):
         return self._styled_headmatter(hm_segs, page1_rules)
 
     def _syllabus_paragraphs(self, lines) -> list:
-        """Styled syllabus rows. Centered lines (the slip cover's case line,
-        'CERTIORARI TO ...', the 'Syllabus' heading) each keep their own
-        centered row; flowing text groups into paragraphs around the
-        continuation margin (the most common x0) — a line starting off that
-        margin, in or out, opens a new paragraph."""
+        """Styled syllabus rows.
+
+        The cover section (SUPREME COURT banner through the docket/date line
+        "No. NNN–NNN. Argued … Decided …") renders each line as its own
+        centered row.  Everything after groups into paragraphs: a line whose
+        x0 is off the continuation margin (> 4pt) starts a new paragraph,
+        matching the same logic used for the opinion body."""
         from collections import Counter
 
-        pw = getattr(self, "_page1_width", 612.0) or 612.0
         body = [l for l in lines if self.line_plain_text(l).strip()]
         if not body:
             return []
+
+        # Continuation margin = most common x0 across all lines; body lines
+        # dominate because there are far more of them than cover headings.
         margin = Counter(round(l["x0"], 1) for l in body).most_common(1)[0][0]
 
         rows, para = [], []
+        cover_done = False  # True once we have passed the docket/date line
 
         def gap():
             if rows and rows[-1] != "":
@@ -315,10 +348,10 @@ class SupremeCourtUS(ReversedJusticeSupreme):
                 del para[:]
 
         for l in body:
-            x0, x1 = l["x0"], l["x1"]
-            centered = abs((x0 + x1) / 2 - pw / 2) <= 25 and (x1 - x0) < pw * 0.7
-            if centered:
-                flush()
+            txt = self.line_plain_text(l).strip()
+
+            if not cover_done:
+                # Render each cover line as its own centered heading row.
                 gap()
                 rows.append(
                     {
@@ -328,9 +361,15 @@ class SupremeCourtUS(ReversedJusticeSupreme):
                         "align": "C",
                     }
                 )
+                # Docket/date line closes the cover: "No. 17–646. Argued …"
+                if txt.startswith("No.") and any(c.isdigit() for c in txt[:20]):
+                    cover_done = True
                 continue
-            if para and abs(x0 - margin) > 4:
-                flush()  # off-margin start: a new paragraph
+
+            # Body text: off-margin x0 opens a new paragraph.
+            if para and abs(l["x0"] - margin) > 4:
+                flush()
             para.append(l)
+
         flush()
         return rows

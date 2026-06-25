@@ -1,9 +1,9 @@
-{% extends "library/base.html" %}{% block title %}{{ doc.stem }} — restatement{% endblock %}
+{% extends "library/base.html" %}{% block title %}{{ doc.stem }} — centralia{% endblock %}
 {% block crumbs %} / <a href="{% url 'library:court_detail' doc.court_id %}">{{ doc.court_id }}</a> / {{ doc.stem }}{% endblock %}
 {% block content %}
 <h1>{{ doc.stem }}</h1>
 <div class="badge">{{ doc.doc_type }} · {{ doc.n_pages }} pages · coverage {{ doc.coverage }}%{% if doc.suspect %} · <span class="susp">⚠ suspect</span>{% endif %}</div>
-{% if dropped %}<h2 class="sec">Removed (notices / furniture)</h2><div class="raw">{% for d in dropped %}<div class="rawline">{{ d }}</div>{% endfor %}</div>{% endif %}
+{% if dropped or residual %}<h2 class="sec">Removed (notices / furniture)</h2><div class="raw">{% for d in dropped %}<div class="rawline">{{ d }}</div>{% endfor %}{% for r in residual %}{% if r.kind != 'furniture' %}<div class="rawline">⚠ unplaced content <span class="pill">p{{ r.page }}</span> {{ r.text }}</div>{% endif %}{% endfor %}{% for r in residual %}{% if r.kind == 'furniture' %}<div class="rawline">furniture <span class="pill">p{{ r.page }}</span> {{ r.text }}</div>{% endif %}{% endfor %}</div>{% endif %}
 <h2 class="sec">Headmatter</h2><div class="raw">{{ headmatter }}</div>
 {% if headnotes %}<h2 class="sec">Headnotes <span class="pill">not part of the opinion</span></h2><div class="raw">{{ headnotes }}</div>{% endif %}
 {% if syllabus %}<h2 class="sec">Syllabus <span class="pill">not part of the opinion</span></h2><div class="raw">{{ syllabus }}</div>{% endif %}

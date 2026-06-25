@@ -38,6 +38,15 @@ class KentuckySupreme(StateSupreme):
     court_id = "ky"
     court_label = "Supreme Court of Kentucky."
 
+    def extract_page_images(self, page) -> list:
+        """Kentucky slip opinions carry a court-seal watermark image centered
+        on every page (the same 'Im2' object, 363x294 at x≈124/top≈249). The
+        body text is drawn over it, so cropping the image region rasterizes
+        that text back in — making the harvested 'image' look like page
+        content. The full text layer is intact, so don't render any image
+        back: drop them all."""
+        return []
+
     # ------------------------------------------------------- byline parsing
     def parse_author_line(self, text):
         t = text.strip().rstrip(".")

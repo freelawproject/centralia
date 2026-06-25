@@ -6,10 +6,10 @@ drawn rules and boxes) and the glyph layer (page.chars: punctuation columns that
 stand in for rules, plus fonts and seals) — and reports the detected facets and a
 best-guess style name.
 
-    from restatement.caption_id import classify_caption
+    from centralia.caption_id import classify_caption
     print(classify_caption("assets/kan/king_v._schwert.pdf"))
 
-CLI:  uv run python -m restatement.caption_id <pdf> [<pdf> ...]
+CLI:  uv run python -m centralia.caption_id <pdf> [<pdf> ...]
 """
 
 from __future__ import annotations

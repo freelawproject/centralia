@@ -13,7 +13,7 @@ from __future__ import annotations
 
 from collections import defaultdict
 
-from restatement.registry import EXTRACTORS
+from centralia.registry import EXTRACTORS
 
 # Most-specific intent first; the description is what the per-court view shows.
 _FAMILY_NAMES = {

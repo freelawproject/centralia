@@ -93,6 +93,11 @@ _SIG_SKIP = (
     "/s/",
     "by the court",
 )
+# A date stamp ('Dated: …' / 'Signed: …') is part of the signature block — it
+# sits between the conformed signature / image and the printed name, so the
+# backward scan must include it and keep going (a 'so ordered' decretal does
+# NOT, hence this is a strict subset of _SIG_SKIP).
+_SIG_DATE = ("dated", "date", "signed", "entered")
 
 # Headmatter-facsimile geometry.
 _CAPTION_GAP = 8.0  # x-gap (pt) that separates caption runs / the divider
@@ -230,6 +235,9 @@ class DistrictBase(GenericExtractor):
             if len(t) >= 4 and set(t) <= {"_"}:
                 taken += 1
                 break  # the drawn/typed signature rule tops the block
+            if any(low.startswith(sk) for sk in _SIG_DATE):
+                taken += 1
+                continue  # a date stamp inside the block; image/'/s/' above it
             if (
                 t
                 and len(t) <= 48
@@ -294,6 +302,15 @@ class DistrictBase(GenericExtractor):
         fingerprint knows the caption's bottom; a 'separator' at that height
         is the shelf, so rescan strictly below it."""
         sep = super().find_footnote_separator(page)
+        if sep is None:
+            # Pleading paper offsets the body text column — and with it the
+            # footnote rule — to the right of the page margin by the
+            # line-number gutter. The base scan anchors at the nominal margin
+            # and so misses the rule; re-scan anchored at the gutter (the
+            # rule sits a few points right of the gutter, at the text column).
+            gx = self._pleading_gutter_x(page)
+            if gx is not None:
+                sep = self._gutter_footnote_rule(page, gx)
         if sep is None or page.page_number != 1:
             return sep
         sig = (getattr(self, "_caption_fp", None) or (None,))[0]
@@ -306,14 +323,45 @@ class DistrictBase(GenericExtractor):
                 cap_bottom = sig["band"][1]
         if cap_bottom is None or sep > cap_bottom + 12:
             return sep
+        gx = self._pleading_gutter_x(page)
+        x0_hi = (gx + 30) if gx is not None else (self.body_baseline_x0 + 4)
+        x0_lo = (gx - 2) if gx is not None else 0
         cands = [
             r["top"]
             for r in page.rects
             if r["bottom"] - r["top"] < 2.5
-            and (r["x1"] - r["x0"]) >= 100
-            and r["x0"] <= self.body_baseline_x0 + 4
+            and (r["x1"] - r["x0"]) >= 90
+            and x0_lo <= r["x0"] <= x0_hi
             and r["top"] > cap_bottom + 12
         ]
+        return min(cands) if cands else None
+
+    def _gutter_footnote_rule(self, page, gx):
+        """A footnote separator on pleading paper: a thin, left-anchored
+        horizontal rule low on the page whose left edge sits at the body text
+        column (a few points right of the line-number gutter). A page-1
+        caption's closing shelf at the caption-band bottom is excluded."""
+        cutoff = page.height * 0.55
+        cap_bottom = None
+        sig = (getattr(self, "_caption_fp", None) or (None,))[0]
+        if page.page_number == 1 and sig:
+            rb = sig.get("rail_band")
+            if rb:
+                cap_bottom = rb[1]
+            elif sig.get("vmid") and sig.get("band"):
+                cap_bottom = sig["band"][1]
+        cands = []
+        for r in page.rects:
+            if not (
+                r["height"] < 2
+                and (r["x1"] - r["x0"]) >= 90
+                and gx - 2 <= r["x0"] <= gx + 30
+                and r["top"] > cutoff
+            ):
+                continue
+            if cap_bottom is not None and r["top"] <= cap_bottom + 12:
+                continue
+            cands.append(r["top"])
         return min(cands) if cands else None
 
     def extract_page_tables(self, page):
@@ -1093,8 +1141,12 @@ class DistrictBase(GenericExtractor):
         if cap_bottom is not None:
             pno0, seg0, _k0 = all_segments[start]
             if pno0 == 1 and seg0 and seg0[0].get("top", 0) < cap_bottom - 4:
+                # The first body line often sits flush at the band bottom
+                # (the divider rule ends exactly where the prose begins), so
+                # land on a segment AT the band bottom — a true caption role
+                # row that slips through is swept up by the role-row scan below.
                 for i, (pno, seg, _k) in enumerate(all_segments):
-                    if pno == 1 and seg and seg[0].get("top", 0) > cap_bottom + 4:
+                    if pno == 1 and seg and seg[0].get("top", 0) > cap_bottom - 6:
                         start = i
                         break
                     if pno > 1 and seg:

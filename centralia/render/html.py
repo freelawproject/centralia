@@ -383,15 +383,38 @@ def _render_fingerprint(doc: ExtractedDocument) -> list:
 def _render_dropped(doc: ExtractedDocument) -> list:
     """Collapsible block (closed by default) of content found and removed —
     publication notices, stamps, etc. — shown at the very top for review."""
-    if not doc.dropped:
+    residual = getattr(doc, "residual", None) or []
+    if not doc.dropped and not residual:
         return []
+    total = len(doc.dropped) + len(residual)
     out = [
         '<details class="dropped">',
         f"<summary>Removed before parsing — notices / stamps "
-        f"({len(doc.dropped)})</summary>",
+        f"({total})</summary>",
     ]
     for d in doc.dropped:
         out.append(f'<div class="dropline">{_inline_to_html(str(d))}</div>')
+
+    # Residual: source lines that landed in no section, swept up so nothing is
+    # silently lost. Split so real content (a to-do) stands apart from junk.
+    def _kind(r):
+        return r.get("kind") if isinstance(r, dict) else None
+
+    content = [r for r in residual if _kind(r) != "furniture"]
+    furniture = [r for r in residual if _kind(r) == "furniture"]
+
+    def _emit(items, label):
+        if not items:
+            return
+        out.append(f'<div class="dropgroup">{label} ({len(items)})</div>')
+        for r in items:
+            txt = r.get("text", "") if isinstance(r, dict) else str(r)
+            pg = r.get("page") if isinstance(r, dict) else None
+            tag = f'<span class="droppg">p{pg}</span> ' if pg else ""
+            out.append(f'<div class="dropline">{tag}{_inline_to_html(str(txt))}</div>')
+
+    _emit(content, "Unplaced content — needs a home")
+    _emit(furniture, "Unplaced furniture — confirm &amp; drop")
     out.append("</details>")
     return out
 

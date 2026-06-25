@@ -7,7 +7,7 @@ history — review and adjust freely.)
 
 ## What this is
 
-`restatement` is a juriscraper-style, extensible tool that parses **digital** court PDFs into a
+`centralia` is a juriscraper-style, extensible tool that parses **digital** court PDFs into a
 structured `ExtractedDocument` and renders it (review HTML, Harvard casebody XML). It identifies
 opinions and their authors, headmatter, headnotes/syllabus, blockquotes, footnotes, signatures,
 and page furniture (stamps, running heads, page numbers, seals).
@@ -80,13 +80,13 @@ centering, line spacing, drawn rules and glyph rails — **not** by regex over t
 ## Architecture
 
 ```
-restatement/
+centralia/
   base.py            # BaseExtractor: the pipeline + the one allowed regex (byline grammar)
   models.py          # ExtractedDocument contract (the section model)
   registry.py        # EXTRACTORS dict — every court id → class
   captionfp.py       # page-1 caption fingerprint: geometry signature → catalog style
   audit.py           # per-source-line coverage proof
-  cli.py             # `python -m restatement.cli ...`
+  cli.py             # `python -m centralia.cli ...`
   render/
     html.py          # review HTML + fingerprint chip
     casebody.py      # Harvard casebody XML
@@ -139,10 +139,10 @@ Order as rendered: **headmatter → headnotes → syllabus → opinions → sign
 
 ```bash
 # regenerate one court's review HTML
-uv run python -m restatement.cli <court> assets/<court> --html --output --index
+uv run python -m centralia.cli <court> assets/<court> --html --output --index
 
 # coverage audit (a directory, or a single PDF)
-uv run python -m restatement.cli <court> assets/<court> --audit
+uv run python -m centralia.cli <court> assets/<court> --audit
 
 # inspect a PDF — the primary debugging lens
 uv run python tests/inspect.py <name-or-path> -p <page>   # lines: top/x0/x1/size/align/bold/font
@@ -291,6 +291,6 @@ green when you touch it.
 ## Memory
 
 Durable project notes live under `~/.claude/projects/<this-repo>/memory/` — `MEMORY.md` (index) plus
-per-topic files: `restatement-architecture`, `state-supreme-courts`, `district-courts`,
+per-topic files: `centralia-architecture`, `state-supreme-courts`, `district-courts`,
 `caption-styles-catalog`, `extraction-principles`, `no-regex-preference`, `resolution-honesty`,
 `django-viewer-app`. Check there for the per-court quirk history before diving in.

@@ -269,6 +269,30 @@ class FederalCircuitBase(GenericExtractor):
             return False
         return True
 
+    def _has_byline_form(self, s: str) -> bool:
+        """A name, a comma, then a singular bench title (Judge/Justice) reached
+        through title qualifiers only — the byline shape, WITHOUT requiring a
+        trailing '.'/':' terminator (a concurrence/dissent byline carries a kind
+        suffix after the title: 'NAME, Circuit Judge, dissenting in part.'). The
+        plural 'Judges' roster is rejected. Shared by the font-keyed per-court
+        detectors (ca1, ca10) that delimit the byline by weight, not by form."""
+        if "," not in s:
+            return False
+        comma = s.index(",")
+        if not _is_name(s[:comma].strip()):
+            return False
+        for kw in _BENCH:
+            idx = s.find(kw, comma)
+            while idx != -1:
+                end = idx + len(kw)
+                if end < len(s) and s[end] == "s":  # 'Judges' = plural roster
+                    idx = s.find(kw, end)
+                    continue
+                if self._is_title_run(s[comma + 1 : idx]):
+                    return True
+                idx = s.find(kw, end)
+        return False
+
     def parse_author_line(self, text):
         """Parse a federal byline into (name, title, kind). Handles the period
         form via the base, plus the colon form ('PAN, Circuit Judge:') and a

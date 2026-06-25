@@ -13,7 +13,7 @@ import os
 from django.core.management.base import BaseCommand
 from django.db import transaction
 
-from restatement.registry import get_extractor
+from centralia.registry import get_extractor
 
 ASSETS = "assets"
 NOTES_DIR = "output/notes"
@@ -48,7 +48,7 @@ class Command(BaseCommand):
         from library.models import (Block, Court, Document, Footnote, Opinion)
         do_audit = not opts["no_audit"]
         if do_audit:
-            from restatement.audit import audit_coverage
+            from centralia.audit import audit_coverage
 
         courts = opts["courts"] or sorted(
             d for d in os.listdir(ASSETS) if os.path.isdir(f"{ASSETS}/{d}"))
@@ -100,6 +100,7 @@ class Command(BaseCommand):
                         syllabus=list(getattr(d, "syllabus", []) or []),
                         headnotes=list(getattr(d, "headnotes", []) or []),
                         dropped=list(d.dropped), trailer=list(d.trailer),
+                        residual=list(getattr(d, "residual", []) or []),
                         warnings=list(d.warnings),
                         suspect=(not has_body) and d.n_pages > 2, coverage=cov)
                     for fn in d.headmatter_footnotes:
