@@ -17,3 +17,6 @@ from ._reversedjustice import ReversedJusticeSupreme
 class UtahSupreme(ReversedJusticeSupreme):
     court_id = "utah"
     court_label = "Supreme Court of the State of Utah."
+    # Footnote separator is a full-measure line of '_' text (not a vector
+    # rule), footnotes set at body size — detect the underscore line by width.
+    footnote_sep_text_min_width = 200

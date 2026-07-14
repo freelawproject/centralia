@@ -22,5 +22,8 @@ class GeorgiaSupreme(StateSupreme):
     gap_double_max = 27
     body_baseline_x0 = 126.0  # base splits paragraphs at body_baseline_x0+28
     # Georgia prints a small (~8pt) 'NOTICE: ...' publication advisory at the
-    # top; the caption/body is ~13pt, so this cleanly removes the whole notice.
+    # top; the caption/banner is larger, so this removes the whole notice.
     notice_max_size = 10.0
+    # The footnote separator is a right-shifted ~324pt rule at x0≈162 (aligned
+    # with the indented body column, not the page's left quarter).
+    footnote_sep_x0_max = 170.0

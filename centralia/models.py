@@ -98,6 +98,12 @@ class ExtractedDocument:
     doc_type: str = DocType.UNKNOWN
     n_pages: int = 0
     layout_ok: bool = True
+    # True when the PDF is a scanned image with an OCR text layer, not a
+    # born-digital document. The engine trusts page geometry (margins,
+    # x-positions, font size, drawn rules); OCR'd scans report estimated,
+    # unreliable geometry, so such documents are detected up front and NOT
+    # processed — only flagged.
+    non_digital: bool = False
     source_path: str | None = None
 
     # Headmatter criteria

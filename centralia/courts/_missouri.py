@@ -87,6 +87,11 @@ def _mo_name_ok(name: str) -> bool:
 
 
 class MissouriStyle:
+    # Missouri double-spaces the body but single-spaces block quotes (and
+    # footnotes) at a tight leading below gap_tight_max, so an indented quote
+    # would read as a 'notice'. Re-tag it by its both-margins indent.
+    blockquote_by_indent = True
+
     def parse_author_line(self, text):
         t = text.strip().rstrip(".")
         if t.upper() == "PER CURIAM":

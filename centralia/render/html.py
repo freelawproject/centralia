@@ -167,6 +167,14 @@ def _pdf_uri(source_path: str | None) -> str | None:
 
 def _render_content(doc: ExtractedDocument) -> list:
     out = []
+    if doc.non_digital:
+        out.append(
+            '<div class="warnings">🖼 non-born-digital document '
+            "(scanned image + OCR text layer) — not processed. The engine "
+            "relies on authored page geometry, which an OCR’d scan does not "
+            "provide.</div>"
+        )
+        return out
     if not doc.layout_ok:
         out.append(
             '<div class="warnings">⚠ unexpected layout — ' "review carefully</div>"
@@ -827,8 +835,11 @@ def _render_table(rows: list) -> list:
     out = ["<table>"]
     for ri, row in enumerate(rows):
         tag = "th" if ri == 0 else "td"
+        # Keep the cell's internal line breaks — a multi-line citation cell
+        # ('State v. Clark,\n2022 ND 85\n999 N.W.2d 632') reads as the PDF
+        # stacks it, not as one run-on line.
         cells = "".join(
-            f"<{tag}>{escape((c or '').replace(chr(10), ' ').strip())}</{tag}>"
+            f"<{tag}>{escape((c or '').strip()).replace(chr(10), '<br>')}</{tag}>"
             for c in row
         )
         out.append(f"<tr>{cells}</tr>")

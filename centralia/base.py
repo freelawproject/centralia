@@ -98,6 +98,13 @@ class BaseExtractor:
     gap_tight_max: float = 16  # < this = tight (notice-like)
     gap_single_max: float = 22  # < this = single (blockquote / footnote)
     gap_double_max: float = 40  # < this = double (body); >= this = boundary
+    # Some courts double-space the body but single-space block quotes at a tight
+    # ~13-15pt leading — below ``gap_tight_max`` — so a quote reads as a 'notice'
+    # and renders as body prose. When True, a both-margins-indented multi-line
+    # run is re-tagged as a block quote by its geometry (CLAUDE.md principle 7),
+    # whatever tight gap band its leading lands in. Off by default so the gap
+    # bands are the sole classifier (Alabama fidelity).
+    blockquote_by_indent: bool = False
     # A line-to-line change in bold normally marks a structural boundary
     # (heading / byline). Courts that bold text *inline* for emphasis — e.g.
     # Puerto Rico bolds dates and times mid-paragraph — set this False so an
@@ -112,13 +119,13 @@ class BaseExtractor:
     # If set to (x0, x1), the footnote-zone separator is the rect whose left
     # and right edges match exactly; otherwise baseline-anchored detection.
     footnote_sep_rect: tuple | None = None
-    # A footnote separator is a SHORT hairline (the printer's ~2-inch rule),
-    # never the full text measure. A rule spanning (nearly) the whole column is
-    # a section/caption divider, not a footnote rule — mistaking one for a
-    # footnote separator shoves real body text into the footnote flow. Cap the
-    # candidate width at this fraction of the page width. A court that genuinely
-    # draws a full-width rule above its footnotes can raise this toward 1.0.
-    footnote_sep_max_width_frac: float = 0.55
+    # Some courts (e.g. Utah) draw the footnote separator as a full-measure
+    # line of '_' TEXT rather than a vector rule, and set their footnotes at
+    # body size — so neither the rect scan nor the 'smaller text below'
+    # discriminator finds it, and the footnotes fall into the body. Set this to
+    # the minimum separator width (pt) to detect that underscore line in the
+    # lower half of the page. None disables it (rect-based detection only).
+    footnote_sep_text_min_width: float | None = None
     # Drop a repeating docket-number running header from the top of
     # continuation pages (2+).
     running_header_docket: bool = False
@@ -141,15 +148,46 @@ class BaseExtractor:
     HEADMATTER_DIVIDER = "__DIVIDER__"
     # Star, dagger, double-dagger, section, paragraph + digits.
     FOOTNOTE_LABEL_CHARS = set("0123456789*†‡§¶**")
-    # Some courts number paragraphs with a raised, brace-wrapped pinpoint
-    # ('{1}', '{2}' — New Mexico). The digit is small + a label char, so it
-    # otherwise reads as a footnote reference; a court with this convention
-    # sets this True so a digit BETWEEN '{' and '}' stays inline content.
+    # Some courts number paragraphs with a raised, bracket-wrapped pinpoint
+    # ('{1}' — New Mexico; '[1]' — Indiana Court of Appeals). The digit is
+    # small + a label char, so it otherwise reads as a footnote reference; a
+    # court with this convention sets this True so a digit BETWEEN '{'/'[' and
+    # '}'/']' stays inline paragraph-number content.
     bracket_pinpoint: bool = False
+
+    # A page counts as "scanned" when a single image covers at least this
+    # fraction of the page area. A born-digital opinion never rasterizes a
+    # whole page; a scan does it on every page.
+    non_digital_page_cover_frac: float = 0.85
+    # The document is treated as a non-born-digital scan when at least this
+    # fraction of its pages are scanned. The two signals together cleanly
+    # separate scans (≈1.0) from digital PDFs that carry one decorative
+    # full-page image (a lone exhibit/signature page, well under this).
+    non_digital_min_page_frac: float = 0.6
 
     # ====================================================================
     # MAIN PIPELINE
     # ====================================================================
+    def is_non_digital(self, pdf) -> bool:
+        """True when the PDF is a scanned image with an OCR text layer rather
+        than a born-digital document. Detected by a full-page raster image on
+        most pages — the engine's geometry cues are unreliable on such scans,
+        so the caller skips processing and only flags the document."""
+        pages = pdf.pages
+        if not pages:
+            return False
+        scanned = 0
+        for page in pages:
+            page_area = page.width * page.height
+            if not page_area:
+                continue
+            for im in page.images:
+                img_area = (im["x1"] - im["x0"]) * (im["bottom"] - im["top"])
+                if img_area / page_area >= self.non_digital_page_cover_frac:
+                    scanned += 1
+                    break
+        return scanned / len(pages) >= self.non_digital_min_page_frac
+
     def matches_expected_layout(self, pdf) -> bool:
         """True if the PDF looks like a typical document for this court.
         Subclasses override to check layout signatures (e.g. a caption
@@ -167,6 +205,19 @@ class BaseExtractor:
         source_pages = []  # (page_number, [text lines]) — ground truth for the residual sweep
         with pdfplumber.open(pdf_path) as pdf:
             n_pages = len(pdf.pages)
+            if self.is_non_digital(pdf):
+                doc = ExtractedDocument(
+                    court_id=self.court_id,
+                    court_label=self.court_label,
+                    doc_type=DocType.UNKNOWN,
+                    n_pages=n_pages,
+                    non_digital=True,
+                    source_path=pdf_path,
+                )
+                doc.warnings.append(
+                    "non-born-digital (scanned image + OCR text layer); not processed"
+                )
+                return doc
             layout_ok = self.matches_expected_layout(pdf)
             self._hm_caption_box = None
             self._page1_width = pdf.pages[0].width if pdf.pages else 612.0
@@ -755,25 +806,79 @@ class BaseExtractor:
             return None
         cutoff = page.height * 0.55
         x0_max = self.body_baseline_x0 + 4
-        max_w = page.width * self.footnote_sep_max_width_frac
         divider = self.find_caption_divider(page)
         cap_bot = divider[2] if divider else None
         candidates = []
         for r in page.rects:
-            w = r["x1"] - r["x0"]
             if not (
                 r["height"] < 2
-                and 100 <= w <= max_w
+                and (r["x1"] - r["x0"]) >= 100
                 and r["x0"] <= x0_max
                 and r["top"] > cutoff
             ):
                 continue
             if cap_bot is not None and abs(r["top"] - cap_bot) <= 4:
                 continue
+            if not self._rule_over_footnotes(page, r["top"]):
+                continue
             candidates.append(r)
-        if not candidates:
+        if candidates:
+            return min(candidates, key=lambda r: r["top"])["top"]
+        return self._footnote_sep_text(page)
+
+    def _footnote_sep_text(self, page) -> Optional[float]:
+        """Top of a full-measure underscore-TEXT footnote separator in the lower
+        half of the page, or None. Gated by ``footnote_sep_text_min_width`` —
+        for courts (e.g. Utah) that draw the separator as a line of '_' text
+        rather than a vector rule. The line itself is later dropped from the
+        footnote flow by ``_is_separator_text``."""
+        if self.footnote_sep_text_min_width is None:
             return None
-        return min(candidates, key=lambda r: r["top"])["top"]
+        cutoff = page.height * 0.5
+        best = None
+        for ln in page.extract_text_lines():
+            t = (ln.get("text") or "").strip()
+            # Width (footnote_sep_text_min_width) is the real gate; the char
+            # floor only rejects a 1–2 char stray. A short 8pt rule (Oregon's
+            # ~14-char '____' band) is a valid separator, so keep the floor low.
+            if len(t) < 6 or any(c != "_" for c in t):
+                continue
+            if ln["top"] <= cutoff:
+                continue
+            if (ln["x1"] - ln["x0"]) < self.footnote_sep_text_min_width:
+                continue
+            if best is None or ln["top"] < best:
+                best = ln["top"]
+        return best
+
+    def _rule_over_footnotes(self, page, rule_top) -> bool:
+        """Discriminate a footnote separator from a full-width section/caption
+        divider by what sits below it. A footnote rule has *footnote-size* text
+        below — set smaller than the body text just above it. A divider (e.g.
+        the rule above 'MEMORANDUM OPINION') has body-size text below, so the
+        body just resumes; treating it as a footnote rule would shove that body
+        into the footnote flow (the ded bug).
+
+        Width can't make this call: a full-measure footnote rule and a
+        full-measure divider are the same ~0.76-of-page width. Returns True when
+        the rule should be taken as a footnote separator."""
+        above, below = [], []
+        for ln in page.extract_text_lines():
+            chars = ln.get("chars") or []
+            sizes = [c["size"] for c in chars if c.get("size")]
+            if not sizes:
+                continue
+            sz = median(sizes)
+            top = ln["top"]
+            if rule_top - 120 <= top < rule_top - 2:
+                above.append(sz)
+            elif rule_top + 2 < top <= rule_top + 200:
+                below.append(sz)
+        if not below:
+            return False  # nothing below -> not a footnote rule
+        if not above:
+            return True  # footnote-heavy page with no body just above
+        return median(below) < median(above) - 0.75
 
     # ====================================================================
     # SEGMENTATION (lines -> segments)
@@ -827,6 +932,23 @@ class BaseExtractor:
                 author_break = (
                     self.parse_author_line((line.get("text") or "").strip()) is not None
                 )
+                # Indent-aware segmentation (blockquote_by_indent courts). A run
+                # deeply indented past a first-line paragraph indent is a block
+                # quote; when the body and the quote share the same leading (a
+                # fully single-spaced opinion), the gap/zone signals can't split
+                # it, so the quote dissolves into the body segment. Break when a
+                # line crosses that deep-indent boundary in either direction so
+                # the quote lands in its own segment — geometry, not spacing.
+                # Inside such a block, the L↔C flip from short centered lines is
+                # not a structural boundary, so suppress the alignment break.
+                indent_changed = False
+                if self.blockquote_by_indent:
+                    deep = self.body_baseline_x0 + 1.5 * self.indent_step
+                    prev_deep = current[-1]["x0"] >= deep
+                    this_deep = line["x0"] >= deep
+                    indent_changed = prev_deep != this_deep
+                    if prev_deep and this_deep:
+                        align_changed = False
                 if (
                     big_gap
                     or size_changed
@@ -835,6 +957,7 @@ class BaseExtractor:
                     or zone_changed
                     or col_changed
                     or author_break
+                    or indent_changed
                 ):
                     segments.append(current)
                     current = []
@@ -858,12 +981,45 @@ class BaseExtractor:
         gaps = [seg[i + 1]["top"] - seg[i]["top"] for i in range(len(seg) - 1)]
         med = median(gaps)
         if med < self.gap_tight_max:
-            return "notice"
-        if med < self.gap_single_max:
-            return "blockquote"
-        if med < self.gap_double_max:
-            return "body"
-        return "spaced"
+            kind = "notice"
+        elif med < self.gap_single_max:
+            kind = "blockquote"
+        elif med < self.gap_double_max:
+            kind = "body"
+        else:
+            kind = "spaced"
+        # A both-margins-indented run is a block quote regardless of which tight
+        # gap band its (often sub-body) leading lands in — geometry, not gaps.
+        if (
+            self.blockquote_by_indent
+            and kind in ("notice", "body")
+            and self._is_indented_blockquote(seg)
+        ):
+            kind = "blockquote"
+        return kind
+
+    def _is_indented_blockquote(self, seg) -> bool:
+        """True if ``seg`` is a multi-line run indented on BOTH margins — the
+        geometric signature of a block quote: left indented in from the body
+        margin, the longest line still short of the right margin (where a body
+        paragraph runs flush), AND a consistent flush-left edge (≥2 lines share
+        the block's left column). The last requirement rejects centered/short
+        headings, which are also both-margins-indented but vary their left edge
+        line-to-line."""
+        if len(seg) < 2:
+            return False
+        pw = getattr(self, "_page1_width", None) or 612.0
+        left = self.body_baseline_x0 + self.para_indent_min
+        right = pw - self.body_baseline_x0
+        x0s = [l["x0"] for l in seg]
+        x1s = [l["x1"] for l in seg]
+        # Indented in from the left, longest line short of the right — and the
+        # left edge modest (a body quote indents a step or two; a signature /
+        # right-aligned block sits out past ~40% of the page and is NOT a quote).
+        if not (left <= min(x0s) <= pw * 0.4 and max(x1s) <= right - 24):
+            return False
+        edge = min(x0s)
+        return sum(1 for x in x0s if abs(x - edge) <= 3) >= 2
 
     # ====================================================================
     # LAYOUT PRIMITIVES
@@ -1289,9 +1445,9 @@ class BaseExtractor:
                 continue
             prev_pos = pos
             if self.bracket_pinpoint:
-                if c["text"] == "{":
+                if c["text"] in "{[":
                     in_brace = True
-                elif c["text"] == "}":
+                elif c["text"] in "}]":
                     in_brace = False
             fn = c.get("fontname") or ""
             ch_bold = "Bold" in fn

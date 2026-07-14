@@ -25,10 +25,52 @@ class WisconsinSupreme(AbbrevTitleSupreme):
     court_id = "wis"
     court_label = "Supreme Court of Wisconsin."
 
+    def extract(self, pdf_path):
+        doc = super().extract(pdf_path)
+        # The page-1 banner and court-seal images are letterhead furniture, not
+        # opinion figures — move them out of the body into ``dropped`` (notice).
+        for o in doc.opinions:
+            imgs = [b for b in o.blocks if b.kind == "image"]
+            if imgs:
+                o.blocks = [b for b in o.blocks if b.kind != "image"]
+                doc.dropped = list(doc.dropped or []) + [
+                    "[court seal / letterhead image]" for _ in imgs
+                ]
+        return doc
+
     def extract_headmatter(self, headmatter_segs, page1_rules=None) -> dict:
         return self._styled_headmatter(headmatter_segs, page1_rules)
 
     strip_para_marker = True
+
+    _ORDER_OPENER = "the court entered the following order"
+
+    def parse_author_line(self, text):
+        """A per curiam ORDER opens with 'The Court entered the following order
+        on this date:' — an unsigned lead opinion (no 'NAME, J.' byline), which
+        the byline grammar otherwise leaves in headmatter."""
+        if text.strip().lower().startswith(self._ORDER_OPENER):
+            return ("PER CURIAM", "per curiam", "order")
+        return super().parse_author_line(text)
+
+    def _maybe_drop_running_header(self, page, lines):
+        """Continuation pages carry a two-line running header at the very top —
+        the case short-name (small, ~9.5pt) and the writing header ('Order of
+        the Court' / 'JUSTICE X, dissenting'), both centered. Drop the
+        contiguous centered lines from the top of the page so they stop
+        repeating through the body."""
+        lines = super()._maybe_drop_running_header(page, lines)
+        if page.page_number == 1 or not lines:
+            return lines
+        drop = set()
+        for ln in sorted(lines, key=lambda l: l.get("top", 0)):
+            if ln.get("top", 0) > 75:
+                break
+            if self.line_alignment(ln, page.width) == "C":
+                drop.add(id(ln))
+            else:
+                break
+        return [l for l in lines if id(l) not in drop]
 
     def _byline_split(self, line):
         text = self.line_plain_text(line).strip()

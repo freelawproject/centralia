@@ -21,10 +21,34 @@ class OregonSupreme(AbbrevTitleSupreme):
     body_baseline_x0 = 45.0
     # Drop the top-of-page running header (top ~36); body proper starts ~63.
     margin_top = 45.0
+    # Footnotes (*/**) sit at 8pt below a short (~62pt) underscore-TEXT rule, not
+    # a vector rule — so detect the separator by that underscore band. Width, not
+    # length, is the gate; 40pt clears the rule but rejects tiny stray fills.
+    footnote_sep_text_min_width = 40.0
 
     # Style-preserving headmatter (the shared 'Florida look').
     def extract_headmatter(self, headmatter_segs, page1_rules=None) -> dict:
         return self._styled_headmatter(headmatter_segs, page1_rules)
+
+    def detect_footnote_label(self, line):
+        """Oregon foot-marks are same-size '*' / '**' stars set flush with the
+        8pt footnote text, not raised superscripts, so the base 'smaller char'
+        test misses them. Read the leading star run as the label."""
+        text = (line.get("text") or "").lstrip()
+        if text.startswith("*"):
+            return text[: len(text) - len(text.lstrip("*"))]
+        return super().detect_footnote_label(line)
+
+    def build_footnote(self, label, lines):
+        """Strip the leading star marker off the footnote text (it is the label,
+        not prose — the base only strips raised <footnotemark> marks)."""
+        fn = super().build_footnote(label, lines)
+        if fn.paragraphs and label and label != "?":
+            tag, txt = fn.paragraphs[0]
+            stripped = txt.lstrip()
+            if stripped.startswith(label):
+                fn.paragraphs[0] = (tag, stripped[len(label) :].lstrip())
+        return fn
 
     def extract(self, pdf_path):
         """Each opinion is signed twice — once over the one-paragraph disposition

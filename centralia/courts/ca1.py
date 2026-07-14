@@ -57,6 +57,21 @@ class FirstCircuit(FederalCircuitBase):
         real page-1 footnote rule (e.g. buckley's '*' note) still registers
         while a counsel underline does not."""
         cutoff = page.height * 0.55
+        text_lines = page.extract_text_lines()
+
+        def is_underline(r):
+            # A counsel-name underline sits at the baseline of the text it
+            # underlines (same width/margin as the separator); a real footnote
+            # separator sits in whitespace with no text line at its level.
+            for tl in text_lines:
+                if (
+                    tl["bottom"] - 3 <= r["top"] <= tl["bottom"] + 3
+                    and r["x0"] < tl["x1"]
+                    and r["x1"] > tl["x0"]
+                ):
+                    return True
+            return False
+
         cands = [
             r
             for r in page.rects
@@ -64,6 +79,7 @@ class FirstCircuit(FederalCircuitBase):
             and abs(r["x0"] - 72.0) <= 1.5
             and abs((r["x1"] - r["x0"]) - 144.0) <= 1.0
             and r["top"] > cutoff
+            and not is_underline(r)
         ]
         if not cands:
             return None

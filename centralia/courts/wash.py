@@ -107,14 +107,17 @@ class WashingtonSupreme(AbbrevTitleSupreme):
         kept = []
         pno = page.page_number
         h, w = page.height, page.width
-        banner_top = self._banner_top(page) if pno == 1 else None
+        # A consolidated appeal bundles several stamped writings — each opens
+        # with its own banner and filing stamp partway through the PDF, not just
+        # on page 1 — so look for the banner on every page.
+        banner_top = self._banner_top(page)
         for idx, l in enumerate(lines):
             t = self.line_plain_text(l).strip()
             top = l.get("top", 0)
-            # page-1 filing stamps: everything above the centered banner.
-            # The two stamps share lines — split each at the wide x-gap so
-            # the dropped text reads as two coherent stamps.
-            if pno == 1 and banner_top is not None and top < banner_top - 4:
+            # filing stamps: everything above a centered banner (the stamp zone
+            # that opens each writing). The two stamps share lines — split each
+            # at the wide x-gap so the dropped text reads as two coherent stamps.
+            if banner_top is not None and top < banner_top - 4:
                 for part in self._x_parts(l):
                     if part.strip():
                         self._wash_dropped.append(part.strip())
@@ -171,10 +174,14 @@ class WashingtonSupreme(AbbrevTitleSupreme):
 
     @staticmethod
     def _banner_top(page):
-        """y (top) of the centered 'IN THE SUPREME COURT …' banner, the line
-        that closes the page-1 filing-stamp zone. None if not found."""
+        """y (top) of the centered 'IN THE SUPREME COURT …' / 'IN THE COURT OF
+        APPEALS …' banner, the line that closes the page-1 filing-stamp zone.
+        None if not found."""
         for tl in page.extract_text_lines():
-            if (tl.get("text") or "").strip().startswith("IN THE SUPREME COURT"):
+            s = (tl.get("text") or "").strip()
+            if s.startswith("IN THE SUPREME COURT") or s.startswith(
+                "IN THE COURT OF APPEALS"
+            ):
                 return tl["top"]
         return None
 

@@ -10,8 +10,7 @@ announcement were being taken instead). Body paragraphs are bracket-numbered
 
 from __future__ import annotations
 
-from collections import Counter
-from typing import Optional
+from statistics import median
 
 from ._appellate import StateAppellate
 
@@ -19,10 +18,21 @@ from ._appellate import StateAppellate
 class CourtOfAppealsOfIndiana(StateAppellate):
     court_id = "indctapp"
     court_label = "Court of Appeals of Indiana."
+    # Paragraphs are numbered '[1]', '[2]' in a smaller raised glyph — a label
+    # char that otherwise reads as a footnote reference. Keep the digit between
+    # '[' and ']' as inline paragraph-number content.
+    bracket_pinpoint = True
     # Body text is anchored at x≈86.4 (not 72); the footnote rule shares that
     # margin, and paragraph starts are flagged by the '[N]' margin markers
     # rather than an indent.
     body_baseline_x0 = 86.0
+    # The footnote separator is a fixed ~2-inch rule (144pt at x0≈86). The
+    # headmatter carries full-column divider rules (396pt at x0≈108, e.g. the
+    # brackets around 'Opinion by Judge …' on the title page) — the size-below
+    # test can't tell them apart (the title page's caption is set LARGER than
+    # its 12pt headmatter, so the headmatter reads as 'small'), but the width
+    # does. Cap it so those dividers aren't taken for the separator.
+    footnote_sep_max_width = 200.0
 
     def extract(self, pdf_path):
         self._footer_dropped = []
@@ -81,6 +91,17 @@ class CourtOfAppealsOfIndiana(StateAppellate):
                 kept.append(mk)
         return kept
 
+    def classify_paragraph(self, lines) -> str:
+        """Section headings ('Facts and Procedural History', 'Discussion and
+        Decision', 'The Trial Court Did Not Err …') are set larger than the 12pt
+        body (16pt sections, 14pt subheadings). Tag them 'heading' so they render
+        as headings and don't get folded into the surrounding body paragraphs
+        (including across a page break)."""
+        szs = [c["size"] for l in lines for c in (l.get("chars") or []) if c.get("size")]
+        if szs and median(szs) >= 13.5:
+            return "heading"
+        return super().classify_paragraph(lines)
+
     def split_body_paragraphs(self, seg) -> list:
         """Indiana paragraphs are flush-left with no indent; the '[N]'
         marker (merged onto the first line) is the paragraph start."""
@@ -96,32 +117,6 @@ class CourtOfAppealsOfIndiana(StateAppellate):
             else:
                 paras[-1].append(line)
         return paras
-
-    def find_footnote_separator(self, page) -> Optional[float]:
-        """A real footnote separator has footnote-sized text directly below it.
-        Indiana prints full-width horizontal divider rules in the headmatter
-        (between caption / appeal-info / byline); the shared finder mistakes the
-        topmost one for the footnote separator and drops the byline + body
-        beneath it. Requiring small text below excludes those dividers."""
-        chars = page.chars
-        if not chars:
-            return super().find_footnote_separator(page)
-        body_size = Counter(round(c.get("size", 0)) for c in chars).most_common(1)[0][0]
-        small = body_size - 1.5
-        h, cands = page.height, []
-        for r in page.rects:
-            if not (
-                r["height"] < 2.5 and (r["x1"] - r["x0"]) >= 80 and r["top"] > h * 0.4
-            ):
-                continue
-            below = [
-                c
-                for c in chars
-                if r["top"] < c["top"] < r["top"] + 40 and not c["text"].isspace()
-            ]
-            if below and min(below, key=lambda c: c["top"]).get("size", 99) <= small:
-                cands.append(r["top"])
-        return min(cands) if cands else None
 
     def _is_signing_byline(self, text: str) -> bool:
         t = text.strip()

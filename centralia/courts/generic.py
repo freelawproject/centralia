@@ -134,17 +134,18 @@ class GenericExtractor(BaseExtractor):
 
     def find_footnote_separator(self, page) -> Optional[float]:
         cutoff = page.height * 0.55
-        # A footnote separator is a short hairline, never the full text measure
-        # (a full-width rule is a section/caption divider — taking it as the
-        # footnote rule shoves the body into the footnote flow). Cap the width.
-        max_w = page.width * self.footnote_sep_max_width_frac
+        # A full-width rule may be a section/caption divider rather than a
+        # footnote separator (taking it as the footnote rule shoves the body
+        # into the footnote flow). Discriminate by what's below it — footnote
+        # rules carry footnote-size text below; dividers carry body-size text.
         candidates = [
             r
             for r in page.rects
             if r["height"] < 2
-            and 100 <= (r["x1"] - r["x0"]) <= max_w
+            and (r["x1"] - r["x0"]) >= 100
             and r["x0"] < 100
             and r["top"] > cutoff
+            and self._rule_over_footnotes(page, r["top"])
         ]
         if not candidates:
             return None

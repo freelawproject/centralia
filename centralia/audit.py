@@ -512,6 +512,10 @@ def sweep_unplaced(doc: ExtractedDocument, pages_lines) -> list:
 def audit_coverage(
     doc: ExtractedDocument, pdf_path: str, extractor=None
 ) -> AuditResult:
+    # A non-born-digital scan is intentionally not processed, so there is no
+    # output to audit against its OCR text — treat it as N/A, not 0% coverage.
+    if doc.non_digital:
+        return AuditResult(total=0, covered=0, missing=[])
     kept = _norm(" ".join(c for c in _doc_chunks(doc) if c))
     dropped_hay = _norm(" ".join(c for c in doc.dropped if c))
 

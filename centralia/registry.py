@@ -151,6 +151,7 @@ from .courts.mtd import DistrictOfMontana
 from .courts.nced import EasternDistrictOfNorthCarolina
 from .courts.ncmd import MiddleDistrictOfNorthCarolina
 from .courts.ncwd import WesternDistrictOfNorthCarolina
+from .courts.ncbizct import NCBusinessCourt
 from .courts.nd import NorthDakotaSupreme
 from .courts.ndd import DistrictOfNorthDakota
 from .courts.ned import DistrictOfNebraska
@@ -389,6 +390,7 @@ EXTRACTORS: dict[str, type[BaseExtractor]] = {
     "nced": EasternDistrictOfNorthCarolina,
     "ncmd": MiddleDistrictOfNorthCarolina,
     "ncwd": WesternDistrictOfNorthCarolina,
+    "ncbizct": NCBusinessCourt,
     "nd": NorthDakotaSupreme,
     "ndd": DistrictOfNorthDakota,
     "ned": DistrictOfNebraska,

@@ -62,23 +62,29 @@ class StateSupreme(GenericExtractor):
         """Collapse a run of rail-glyph caption rows ('PARTY § No. 62, 2026' /
         'PARTY )') into one two-column ``__caption__`` block — parties left of
         the rail, docket/court-below right. ``rows`` is a styled summary list;
-        non-caption rows pass through untouched."""
+        non-caption rows pass through untouched.
+
+        The rail is drawn one glyph PER SOURCE ROW that bore it — including the
+        rail-only rows the PDF stacks between double-spaced party names ('PARTY
+        )' / ')' / 'Respondent, )') — so the bracket keeps its true height and
+        the left/right cells keep their vertical rhythm (blank rows aligned to
+        the rail rows that carried no text)."""
         from re import sub as _sub
 
-        out, left, right = [], [], []
+        out, cap_rows = [], []  # cap_rows: [(lpart, rpart)]
 
         def flush():
-            if left or right:
+            if cap_rows:
                 out.append(
                     {
                         "__caption__": True,
-                        "left": list(left),
-                        "right": list(right),
+                        "left": [l for l, _ in cap_rows],
+                        "right": [r for _, r in cap_rows],
                         "rail": rail,
+                        "rail_rows": len(cap_rows),
                     }
                 )
-                left.clear()
-                right.clear()
+                cap_rows.clear()
 
         for r in rows:
             if not (isinstance(r, dict) and r.get("__hm__")):
@@ -93,10 +99,7 @@ class StateSupreme(GenericExtractor):
                 idx = toks.index(rail)
                 lpart = " ".join(toks[:idx]).strip()
                 rpart = " ".join(t for t in toks[idx + 1 :] if t != rail).strip()
-                if lpart:
-                    left.append(lpart)
-                if rpart:
-                    right.append(rpart)
+                cap_rows.append((lpart, rpart))
             else:
                 flush()
                 out.append(r)
@@ -211,7 +214,11 @@ class StateSupreme(GenericExtractor):
             for line in seg
             if (line.get("text") or "").strip()
         )
-        dominant = hm_sizes.most_common(1)[0][0] if hm_sizes else 12
+        # A notice is smaller than the caption/banner. Compare against the
+        # LARGEST headmatter size, not the most-common one: a multi-line notice
+        # can itself be the most-common size (Georgia's 5-line 8pt advisory),
+        # which would defeat a 'dominant'-based guard and leave it in.
+        hm_max = max(hm_sizes) if hm_sizes else 12
         rows, notice = [], []
         for seg in headmatter_segs:
             for line in seg:
@@ -222,7 +229,7 @@ class StateSupreme(GenericExtractor):
                 if (
                     self.notice_max_size is not None
                     and size <= self.notice_max_size
-                    and round(size) < dominant
+                    and round(size) < hm_max
                 ):
                     notice.append(t)
                     continue
@@ -246,6 +253,16 @@ class StateSupreme(GenericExtractor):
                         },
                     )
                 )
+        # Preserve DRAWN caption/headmatter rules (vector lines, hairline rects,
+        # rule images) as dividers at their y-position — the styled builder
+        # otherwise only kept underscore-TEXT rules. Collapse near-duplicate tops
+        # (the same visual rule is often captured as several rect segments).
+        seen_div: list = []
+        for div_top in sorted(page1_rules or []):
+            if any(abs(div_top - s) < 4 for s in seen_div):
+                continue
+            seen_div.append(div_top)
+            rows.append((1, round(div_top, 1), 0.0, {"divider": True}))
         rows.sort(key=lambda r: (r[0], r[1], r[2]))
         sizes = [p["size"] for _, _, _, p in rows if "size" in p]
         base = _Counter(round(s) for s in sizes).most_common(1)[0][0] if sizes else 12
@@ -548,20 +565,27 @@ class StateSupreme(GenericExtractor):
         block) are excluded too — otherwise such a rule chops the opinion body
         beneath it."""
         cutoff = page.height * 0.5
-        # A footnote separator is left-aligned with the body text; a centered,
+        # A footnote separator is anchored at the body's left edge; a centered,
         # short rule high on a title page (e.g. a section divider under a
-        # running header) is not one and must not chop the body beneath it.
-        left_max = page.width * 0.25
+        # running header) is not one and must not chop the body beneath it. The
+        # anchor is the page's left quarter by default; a court whose separator
+        # is right-shifted (Georgia: x0≈162) or right-aligned raises
+        # ``footnote_sep_x0_max``.
+        left_max = self.footnote_sep_x0_max or page.width * 0.25
+        # Optional per-court width cap (a court whose separator is a fixed short
+        # rule, e.g. iowa's ~2-inch). None = any rule >=100pt.
+        wmax = self.footnote_sep_max_width
         rules = [
             r
             for r in page.rects
             if r["height"] < 2
             and (r["x1"] - r["x0"]) >= 100
+            and (wmax is None or (r["x1"] - r["x0"]) <= wmax)
             and r["top"] > cutoff
             and r["x0"] < left_max
         ]
         if not rules:
-            return None
+            return self._footnote_sep_text(page)
         text_lines = page.extract_text_lines()
 
         def is_caption_pair(r):
@@ -596,7 +620,7 @@ class StateSupreme(GenericExtractor):
 
         cands = [r for r in rules if not is_caption_pair(r) and not is_underline(r)]
         if not cands:
-            return None
+            return self._footnote_sep_text(page)
         return min(cands, key=lambda r: r["top"])["top"]
 
     # Tuning for ``_footnote_sep_small_text_below``. The default treats the line
@@ -609,6 +633,15 @@ class StateSupreme(GenericExtractor):
     _fnsep_band = 22.0
     _fnsep_size_delta = 1.0
     _fnsep_scan_band = False
+    # Optional per-court footnote-separator width cap (pt): a court whose
+    # separator is a fixed short rule sets this so a wider caption shelf /
+    # opinion divider isn't mistaken for it (iowa ~2-inch; indctapp's 144pt
+    # rule vs the 396pt full-column byline divider). None = any rule >=100pt.
+    footnote_sep_max_width: float | None = None
+    # Optional per-court cap on the separator's left edge (pt). Default = the
+    # page's left quarter; a court whose separator is right-shifted raises it
+    # (Georgia: separator at x0≈162, a right-aligned ~324pt rule).
+    footnote_sep_x0_max: float | None = None
 
     def _footnote_sep_small_text_below(self, page):
         """Footnote separator identified by footnote-sized text below the rule —
