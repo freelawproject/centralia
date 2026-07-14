@@ -41,6 +41,10 @@ class MarylandSupreme(AbbrevTitleSupreme):
     court_id = "md"
     court_label = "Supreme Court of Maryland."
     allow_titlecase_name = True
+    # The centered caption banner that opens the caption page — the reporter
+    # headnotes are the page(s) before it. The Appellate Court (mdctspecapp)
+    # shares the whole anatomy under its own banner.
+    caption_banner = _BANNER
 
     # ------------------------------------------------------------- bylines
     def _md_strip(self, text: str):
@@ -115,7 +119,7 @@ class MarylandSupreme(AbbrevTitleSupreme):
         whose '* IN THE' rail line is not this banner."""
         for seg in segs:
             for l in seg:
-                if _BANNER in self.line_plain_text(l):
+                if self.caption_banner in self.line_plain_text(l):
                     return self._seg_page(seg)
         return None
 
@@ -222,6 +226,15 @@ class MarylandSupreme(AbbrevTitleSupreme):
         self._order_start = None
         self._order_author = None
         starts = super().find_authors(all_segments)
+        # The headnote page's attribution line can wrap so 'Opinion by Zic,
+        # J.' sits alone and reads as a byline — but a real byline never
+        # appears BEFORE the caption-banner page. Drop pre-banner starts.
+        bp = self._banner_page([seg for _p, seg, _k in all_segments])
+        if bp is not None and starts:
+            starts = [
+                i for i in starts
+                if self._seg_page(all_segments[i][1]) >= bp
+            ]
         if starts:
             return starts
         # No 'Opinion by' byline: an ORDER. The body starts at the centered
@@ -265,6 +278,20 @@ class MarylandSupreme(AbbrevTitleSupreme):
 
             return DocType.ORDER
         return super().classify_document_type(all_segments, author_indices, n_pages)
+
+    def correct_page_geometry(self, page) -> None:
+        """Word/Cambria footnote anchors embed an INVISIBLE ~1pt 'F'+digit
+        ghost pair beside the real superscript mark, which extracts as text
+        ('650.7F8' / '12F13'). Strip sub-visible chars from the page's object
+        cache so neither the extractor nor the audit (which reads through
+        this same hook) ever sees them."""
+        super().correct_page_geometry(page)
+        try:
+            objs = page.objects.get("char")
+        except Exception:
+            objs = None
+        if objs:
+            objs[:] = [c for c in objs if (c.get("size") or 9.0) > 1.5]
 
     # A long writing byline wraps: 'Concurring and Dissenting Opinion by' on
     # one line, the justice name ('Killough, J.') on the next. Join them so

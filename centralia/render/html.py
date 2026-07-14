@@ -494,6 +494,14 @@ def _caption_cell_lines(entries) -> list:
     (older stored summaries) still render as before."""
     out = []
     for ln in entries:
+        if isinstance(ln, dict) and ln.get("__shelf__"):
+            # a DRAWN caption rule at its true side — the shelf under a party
+            # column, or the full rule between stacked consolidated captions
+            out.append(
+                '<div style="border-bottom:1px solid #999;'
+                'height:.3rem;margin-bottom:.3rem"></div>'
+            )
+            continue
         if isinstance(ln, dict):
             ind = ln.get("ind") or 0
             style = (
@@ -793,14 +801,27 @@ def _render_opinion(op: Opinion) -> list:
     out.append(f'<div class="author">{escape(op.author)}</div>')
     for b in op.blocks:
         if b.kind == "image":
+            # Render at the figure's true size on the page — the payload
+            # carries the PDF-point box, and CSS pt maps 1:1 to it (the PNG
+            # itself is rasterized at 150dpi and would display ~2x too big).
+            w = b.payload.get("width")
+            size = (
+                f' style="width:{round(w)}pt;max-width:100%;height:auto"'
+                if w
+                else ""
+            )
             out.append(
                 f'<img src="{escape(str(b.payload.get("src", "")))}" '
-                f'alt="figure on page {b.page}">'
+                f'alt="figure on page {b.page}"{size}>'
             )
         elif b.kind == "table":
             out.extend(_render_table(b.payload.get("rows") or []))
         elif b.kind == "heading":
             out.append(f"<h3>{_inline_to_html(b.text)}</h3>")
+        elif b.kind == "rule":
+            # a rule DRAWN on the page at this point in the flow (wvnd's
+            # full-width line under the document-type title)
+            out.append('<hr class="divider">')
         elif b.kind == "blockquote":
             out.append(f"<blockquote>{_inline_to_html(b.text)}</blockquote>")
         else:

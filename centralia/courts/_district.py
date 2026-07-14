@@ -621,31 +621,66 @@ class DistrictBase(GenericExtractor):
                 side.append("")
             side.append({"h": html, "x0": round(x0, 1), "top": top})
 
-        def cellify(side):
-            """Final cell lines: inline html + indent relative to the
+        def cellify_pair(l_side, r_side):
+            """Final PARALLEL cell arrays: the two columns merged onto one
+            row grid by baseline, so a right cell renders beside the left
+            row it shares on the page ('v. | Civ. Action No. …'), never
+            packed to the top of its column. Indents are relative to each
             cell's own left edge, so 'Plaintiff,' sits indented under the
-            party name exactly as printed."""
-            ents = list(side)
-            while ents and ents[0] == "":
-                ents.pop(0)
-            while ents and ents[-1] == "":
-                ents.pop()
-            xs = [e["x0"] for e in ents if isinstance(e, dict)]
-            minx = min(xs) if xs else 0.0
-            return [
-                e if e == "" else {"h": e["h"], "ind": round(e["x0"] - minx, 1)}
-                for e in ents
+            party name exactly as printed; a vertical gap past the caption's
+            line pitch keeps its blank spacer row on both sides."""
+            ents = [("L", e) for e in l_side if isinstance(e, dict)] + [
+                ("R", e) for e in r_side if isinstance(e, dict)
             ]
+            ents.sort(key=lambda t: t[1]["top"])
+            rows = []  # [top, left-cell, right-cell]
+            for side, e in ents:
+                if (
+                    rows
+                    and abs(e["top"] - rows[-1][0]) <= 4
+                    and (rows[-1][1] if side == "L" else rows[-1][2]) is None
+                ):
+                    if side == "L":
+                        rows[-1][1] = e
+                    else:
+                        rows[-1][2] = e
+                else:
+                    rows.append(
+                        [e["top"],
+                         e if side == "L" else None,
+                         e if side == "R" else None]
+                    )
+            minx = {}
+            for key, cells in (("L", [r[1] for r in rows]),
+                               ("R", [r[2] for r in rows])):
+                xs = [c["x0"] for c in cells if c]
+                minx[key] = min(xs) if xs else 0.0
+
+            def cell(e, key):
+                if not e:
+                    return ""
+                return {"h": e["h"], "ind": round(e["x0"] - minx[key], 1)}
+
+            out_l, out_r, prev = [], [], None
+            for top, lc, rc in rows:
+                if prev is not None and top - prev > gap_min:
+                    out_l.append("")
+                    out_r.append("")
+                prev = top
+                out_l.append(cell(lc, "L"))
+                out_r.append(cell(rc, "R"))
+            return out_l, out_r
 
         def flush():
             if left or right:
                 rail = state["rail"]
                 if rail is None and drawn_v is not None and not boxes:
                     rail = "|"  # a DRAWN vertical rule divides the columns
+                cells_l, cells_r = cellify_pair(left, right)
                 cap = {
                     "__caption__": True,
-                    "left": cellify(left),
-                    "right": cellify(right),
+                    "left": cells_l,
+                    "right": cells_r,
                     "rail": rail,
                 }
                 # the glyph rail is drawn once per SOURCE row that bore it —

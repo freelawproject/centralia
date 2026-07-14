@@ -19,6 +19,15 @@ class NevadaSupreme(AbbrevTitleSupreme):
     court_id = "nev"
     court_label = "Supreme Court of the State of Nevada."
 
+    def is_non_digital(self, pdf) -> bool:
+        """Nevada slips print born-digital Times text OVER a full-page
+        letterhead raster, so image cover alone misreads them as scans. A
+        real scan in this corpus has NO text layer at all — require that."""
+        if not super().is_non_digital(pdf):
+            return False
+        chars = sum(len(pg.chars) for pg in pdf.pages[:3])
+        return chars < 100
+
     def _byline_split(self, line):
         text = self.line_plain_text(line).strip()
         if not text.startswith(_TAG):

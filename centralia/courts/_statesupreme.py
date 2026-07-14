@@ -106,6 +106,214 @@ class StateSupreme(GenericExtractor):
         flush()
         return out
 
+    def _fold_open_caption(self, summary, headmatter_segs, limit=None):
+        """Fold an 'Open Range' caption — two columns held by whitespace alone
+        (parties left, docket / division / opinion-type right of the page
+        middle) — into one two-column ``__caption__`` block with no rail
+        glyph, rebuilt from the page-1 line runs. pdfplumber merges the two
+        columns onto single lines ('PERSON and ESTATE OF MILO No. 87593-1-I'),
+        so the styled rows can't be split after the fact; the runs can.
+
+        The caption zone is the span of rows carrying a right-column run,
+        extended in BOTH directions through rows whose runs stay on one side
+        of the page middle (a party row above the first docket row, a
+        defendant list below the last one); a row with a run CROSSING the
+        middle — banner, byline, prose — ends the zone. ``limit`` caps the
+        zone by y (Ohio's '* * * * *' counsel divider). Rows the fold can't
+        place stay exactly as they were."""
+        import re as _re
+        from statistics import median
+
+        lines = []
+        for seg in headmatter_segs:
+            for l in seg:
+                chars = l.get("chars") or []
+                pno = (
+                    chars[0].get("page_number", 1)
+                    if chars
+                    else l.get("page_number", 1)
+                ) or 1
+                if pno == 1:
+                    lines.append(l)
+        lines.sort(key=lambda l: l["top"])
+        pw = getattr(self, "_page1_width", None) or 612.0
+        mid = pw / 2 - 25
+        center = pw / 2
+
+        # One visual row per baseline: the two columns often reach page_lines
+        # as SEPARATE lines at the same top ('PERSON and ESTATE OF MILO' +
+        # 'No. 87593-1-I'), so fold same-top lines into one row before zoning.
+        rows = []  # {top, lines, lefts, rights, crosses}
+        for l in lines:
+            if limit is not None and l["top"] >= limit - 1:
+                continue
+            runs = self._split_line_runs(l)
+            lefts = [r for r in runs if r["x0"] < mid]
+            rights = [r for r in runs if r["x0"] >= mid]
+            crosses = any(r["x0"] < center < r["x1"] for r in runs)
+            if rows and abs(l["top"] - rows[-1]["top"]) <= 2:
+                m = rows[-1]
+                m["lines"].append(l)
+                m["lefts"] += lefts
+                m["rights"] += rights
+                m["crosses"] = m["crosses"] or crosses
+            else:
+                rows.append(
+                    {
+                        "top": l["top"],
+                        "lines": [l],
+                        "lefts": lefts,
+                        "rights": rights,
+                        "crosses": crosses,
+                    }
+                )
+        hit = [i for i, r in enumerate(rows) if r["rights"]]
+        if len(hit) < 2:
+            return summary
+        lo, hi = min(hit), max(hit)
+        # extend through one-sided rows; a middle-crossing row ends the zone
+        while lo > 0 and not rows[lo - 1]["crosses"]:
+            lo -= 1
+        while hi + 1 < len(rows) and not rows[hi + 1]["crosses"]:
+            hi += 1
+        zone = rows[lo : hi + 1]
+
+        # Build the two cells, keeping the page's vertical rhythm (a 1.5-line
+        # gap becomes a blank row) and the left column's role indents.
+        tops = [z["top"] for z in zone]
+        gaps = [b - a for a, b in zip(tops, tops[1:])]
+        unit = median(gaps) if gaps else 30.0
+        zone_left = min(
+            (r["x0"] for z in zone for r in z["lefts"]), default=None
+        )
+        # Claim the DRAWN caption rules inside the zone — a shelf under the
+        # party column (teela), the full rule between stacked consolidated
+        # captions (aiden), the short rule under a right-cell heading — and
+        # render each at its true side, not as a full-width divider after the
+        # block. Claimed rules are removed from the summary's __DIVIDER__
+        # rows by the splice below.
+        shelves = []  # (top, side) side ∈ left / right / full
+        for rt_, rx0, rx1 in getattr(self, "_p1_rule_spans", []) or []:
+            if not (tops[0] - unit <= rt_ <= tops[-1] + 2 * unit):
+                continue
+            if limit is not None and rt_ >= limit - 1:
+                continue
+            if rx1 <= center + 60 and rx0 < mid:
+                side = "left"
+            elif rx0 >= mid - 20:
+                side = "right"
+            else:
+                side = "full"
+            # a rule drawn in pieces shares one top — first (widest-first by
+            # sort) piece wins
+            if not any(abs(rt_ - t) < 1.5 for t, _s in shelves):
+                shelves.append((rt_, side))
+        claimed_rules = len(shelves)
+        # A DRAWN vertical mid rule between the columns renders as the '|'
+        # divider — whitespace would drop a line the PDF draws. A partial
+        # vertical (aiden: one caption of a consolidated stack) is NOT
+        # stretched to full height; the columns stay whitespace-held rather
+        # than inventing rule length the page doesn't have.
+        rail = ""
+        zone_span = max(tops[-1] - tops[0], 1.0)
+        for vx, vtop, vbot in getattr(self, "_p1_vrule_spans", []) or []:
+            if not (mid - 30 <= vx <= center + 30):
+                continue
+            overlap = min(vbot, tops[-1] + unit) - max(vtop, tops[0] - unit)
+            if overlap / zone_span >= 0.6:
+                rail = "|"
+                break
+
+        left_cells, right_cells = [], []
+        prev = None
+
+        def emit_shelves(upto):
+            while shelves and shelves[0][0] < upto:
+                _t, side = shelves.pop(0)
+                left_cells.append(
+                    {"__shelf__": True} if side in ("left", "full") else ""
+                )
+                right_cells.append(
+                    {"__shelf__": True} if side in ("right", "full") else ""
+                )
+
+        for z in zone:
+            emit_shelves(z["top"])
+            if prev is not None and unit and (z["top"] - prev) > 1.4 * unit:
+                for _ in range(max(1, round((z["top"] - prev) / unit) - 1)):
+                    left_cells.append("")
+                    right_cells.append("")
+            prev = z["top"]
+            lefts = sorted(z["lefts"], key=lambda r: r["x0"])
+            rights = sorted(z["rights"], key=lambda r: r["x0"])
+            lt = " ".join((r.get("text") or "").strip() for r in lefts).strip()
+            rt = " ".join((r.get("text") or "").strip() for r in rights).strip()
+            if (
+                lt
+                and lefts
+                and zone_left is not None
+                and lefts[0]["x0"] - zone_left > 14
+            ):
+                left_cells.append({"h": lt, "ind": lefts[0]["x0"] - zone_left})
+            else:
+                left_cells.append(lt)
+            right_cells.append(rt)
+        emit_shelves(float("inf"))  # trailing shelf under the last row
+
+        # Splice: replace the styled rows that came from the zone lines with
+        # the one caption block; swallow the '' gap rows between them.
+        def norm(s):
+            return " ".join(
+                _re.sub(r"<[^>]+>", "", str(s)).replace("&amp;", "&").split()
+            )
+
+        targets = [
+            " ".join((l.get("text") or "").split())
+            for z in zone
+            for l in z["lines"]
+        ]
+        out, ti, placed = [], 0, False
+        dividers_left = claimed_rules
+        at_tail = False  # inside/just past the block, only blanks appended
+        for row in summary:
+            txt = (
+                norm(row.get("html", ""))
+                if isinstance(row, dict) and row.get("__hm__")
+                else None
+            )
+            if ti < len(targets) and txt is not None and txt == targets[ti]:
+                if not placed:
+                    out.append(
+                        {
+                            "__caption__": True,
+                            "left": left_cells,
+                            "right": right_cells,
+                            "rail": rail,
+                            "rail_rows": len(left_cells),
+                        }
+                    )
+                    placed = True
+                    at_tail = True
+                ti += 1
+                continue
+            if placed and at_tail and isinstance(row, str):
+                if not row.strip():
+                    if ti < len(targets):
+                        continue  # a gap between caption rows: in the block
+                    out.append(row)
+                    continue  # a blank after the block keeps us at the tail
+                if row == self.HEADMATTER_DIVIDER and dividers_left > 0:
+                    # this rule renders as an in-caption shelf, not a divider
+                    dividers_left -= 1
+                    continue
+            # any other real row ends the tail
+            if placed and (
+                txt is not None or (isinstance(row, str) and row.strip())
+            ):
+                at_tail = False
+            out.append(row)
+        return out if placed else summary
+
     def _split_line_runs(self, line) -> list:
         """Split a line into separately-positioned runs at column gaps
         ('GREGORY GRIFFIN, ... §' is two runs, not one string at the line's

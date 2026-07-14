@@ -34,6 +34,32 @@ class NorthernDistrictOfWestVirginia(DistrictBase):
     # told from prose by font); fold it into a page-break marker so it stops
     # reading as its own body paragraph.
     fold_page_numbers = True
+    # Kleeh-style opinions bold dispositions INLINE ('… GRANTED IN PART and
+    # DENIED IN / PART.') — a bold line is emphasis, not a boundary; headings
+    # still separate by centering and gap.
+    bold_breaks_segment = False
+
+    def page_lines(self, page):
+        """Mark the first body line under the Kleeh title rule with
+        ``_seg_break`` so segmentation treats the DRAWN rule as the structural
+        boundary it is — otherwise the title's tight leading colors the first
+        body line's zone and splits the opening paragraph."""
+        lines = super().page_lines(page)
+        if page.page_number != 1:
+            return lines
+        rule_tops = [
+            r["top"]
+            for r in page.rects
+            if r["height"] < 3 and (r["x1"] - r["x0"]) >= _HM_RULE_MIN_WIDTH
+        ]
+        if not rule_tops:
+            return lines
+        rule_top = min(rule_tops)
+        below = [l for l in lines if l.get("top", 0) > rule_top + 2]
+        if below:
+            first = min(below, key=lambda l: l["top"])
+            first["_seg_break"] = True
+        return lines
 
     def _headmatter_rule_top(self):
         """Top of the full-width rule that closes the Kleeh-style headmatter
@@ -73,12 +99,25 @@ class NorthernDistrictOfWestVirginia(DistrictBase):
         title_lines, caption_segs = self._split_title(headmatter_segs, rule_top)
         out = super().extract_headmatter(caption_segs, page1_rules=page1_rules)
         if title_lines:
-            html = " ".join(
+            # The title names the WRITING, not the caption — it opens the
+            # opinion (as a heading over its drawn rule) rather than closing
+            # the headmatter; see extract().
+            self._wvnd_title = " ".join(
                 self.line_inline_text(l) for l in title_lines
             ).strip()
-            heading = {"__hm__": True, "html": html, "rel": 1.0, "align": "C"}
-            out["summary"] = list(out.get("summary") or []) + [heading, "__RULE__"]
         return out
+
+    def extract(self, pdf_path):
+        self._wvnd_title = None
+        doc = super().extract(pdf_path)
+        if self._wvnd_title and doc.opinions:
+            from ..models import Block
+
+            doc.opinions[0].blocks[0:0] = [
+                Block(kind="heading", text=self._wvnd_title, page=1),
+                Block(kind="rule", text="", page=1),
+            ]
+        return doc
 
     def _split_title(self, headmatter_segs, rule_top):
         """Return (title_lines, caption_segs): the contiguous single-spaced run

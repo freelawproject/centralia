@@ -70,9 +70,39 @@ class WesternDistrictOfWisconsin(DistrictBase):
     # The signature 'District Judge' line sits as low as top≈744; keep it (and a
     # body line wrapping to top≈727) rather than the default 725 cutoff.
     margin_bottom = 756.0
+    # Ordered-relief lists hang their continuations at x0=126 — exactly the
+    # default deep-indent boundary (72 + 1.5*36), so every item was split from
+    # its own wrapped line. Raise the step past the hang; real quotes (144+)
+    # still clear it.
+    indent_step = 40
+    # The signature stack ('JAMES D. PETERSON' / 'District Judge') is a
+    # short-line stack — one line per block, so the harvest lifts the name
+    # and title as separate lines.
+    split_line_stacks = True
 
     # Bottom band (top > height - this) where the bare page-number footer sits.
     _footer_band_pt = 70.0
+
+    def split_body_paragraphs(self, seg):
+        """Ordered-relief lists are single-spaced (~14pt) with a double gap
+        (~26pt) between items, and the whole run lands in ONE kept-'notice'
+        segment — the base indent splitter can't see the item boundaries, so
+        split on the gap first, then apply the indent logic within each item.
+        Double-spaced body segments have uniform gaps and pass through
+        unsplit."""
+        if not seg:
+            return []
+        from statistics import median
+
+        gaps = [b["top"] - a["top"] for a, b in zip(seg, seg[1:])]
+        med = median(gaps) if gaps else 0.0
+        groups = [[seg[0]]]
+        for line, g in zip(seg[1:], gaps):
+            if med and g > 1.4 * med:
+                groups.append([line])
+            else:
+                groups[-1].append(line)
+        return [p for grp in groups for p in super().split_body_paragraphs(grp)]
 
     def extract(self, pdf_path: str):
         self._wiwd_footer = []

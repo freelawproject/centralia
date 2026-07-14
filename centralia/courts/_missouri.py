@@ -266,6 +266,9 @@ class MissouriStyle:
         op = super().build_opinion(op_start, op_end, **kwargs)
         found = self._mo_opinion_at(op_start)
         if found:
-            op.author, typ = found
+            author, typ = found
+            # justified signature lines carry word-spacing runs
+            # ('KELLY  C.  BRONIEC') — collapse to single spaces
+            op.author = " ".join(str(author or "").split())
             op.type = typ
         return op

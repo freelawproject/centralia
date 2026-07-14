@@ -24,8 +24,38 @@ class WashingtonCourtOfAppeals(WashingtonSupreme):
 
     def extract(self, pdf_path):
         doc = super().extract(pdf_path)
+        # A publish-order + opinion stapled in one PDF reads as two
+        # back-to-back writings by the same judge (the phantom first one is
+        # the order's signature image + the opinion's own second caption).
+        # Consecutive same-author same-type writings are ONE writing — the
+        # oregon 'signed twice' merge.
+        merged = []
+        for op in doc.opinions:
+            if (
+                merged
+                and merged[-1].author == op.author
+                and merged[-1].type == op.type
+            ):
+                merged[-1].blocks.extend(op.blocks)
+                merged[-1].footnotes.extend(op.footnotes)
+            else:
+                merged.append(op)
+        doc.opinions = merged
         self._harvest_panel_signature(doc)
         return doc
+
+    def extract_headmatter(self, headmatter_segs, page1_rules=None) -> dict:
+        """Only boyce-style captions carry the ')' rail (folded by the wash
+        base); the other Division slips set an 'Open Range' caption — two
+        columns held by whitespace alone — which pdfplumber merges onto
+        single lines ('PERSON and ESTATE OF MILO No. 87593-1-I'). When no
+        rail caption emerged, rebuild the two columns from the line runs."""
+        d = super().extract_headmatter(headmatter_segs, page1_rules)
+        if not any(
+            isinstance(r, dict) and r.get("__caption__") for r in d["summary"]
+        ):
+            d["summary"] = self._fold_open_caption(d["summary"], headmatter_segs)
+        return d
 
     @staticmethod
     def _is_sig_line(text: str) -> bool:
@@ -42,72 +72,11 @@ class WashingtonCourtOfAppeals(WashingtonSupreme):
         core = title.strip().rstrip(".").replace(".", "").replace(" ", "")
         return bool(name.strip()) and core.isupper() and 1 <= len(core) <= 5
 
-    # -------------------------------------------------- footnote separator
-    def find_footnote_separator(self, page):
-        """Division slip opinions set footnotes at BODY size (12pt, only the
-        label digit is superscript), so the Supreme Court's 'smaller type
-        below' test never fires and the footnotes fall into the body.
-
-        The court's real cues are structural: the separator is a thin rule at
-        the body's left margin, standing clear of any text line (the court
-        also UNDERLINES case names — a rule inside a text line's band is an
-        underline, not a separator), with footnote matter below it — either a
-        raised label digit, or single-spaced continuation text (the body is
-        double-spaced, so leading is the discriminator). Caption shelves and
-        conformed-signature rules carry double-spaced text below and drop
-        out."""
-        from collections import Counter
-
-        chars = [c for c in page.chars if (c.get("text") or "").strip()]
-        if not chars:
-            return None
-        body = Counter(round(c.get("size", 0)) for c in chars).most_common(1)[0][0]
-        pw, cutoff = page.width, page.height * 0.45
-        text_lines = page.extract_text_lines()
-
-        cands = []
-        for r in page.rects:
-            if (
-                r["bottom"] - r["top"] < 2.5
-                and (r["x1"] - r["x0"]) >= 60
-                and r["x0"] < pw * 0.35
-                and r["top"] > cutoff
-            ):
-                cands.append((r["top"], r["x0"], r["x1"]))
-        for ln in page.lines:
-            if (
-                abs(ln["bottom"] - ln["top"]) < 2.5
-                and abs(ln["x1"] - ln["x0"]) >= 60
-                and min(ln["x0"], ln["x1"]) < pw * 0.35
-                and ln["top"] > cutoff
-            ):
-                cands.append(
-                    (ln["top"], min(ln["x0"], ln["x1"]), max(ln["x0"], ln["x1"]))
-                )
-
-        good = []
-        for top, rx0, rx1 in cands:
-            # An underline sits INSIDE the band of the text line it decorates.
-            if any(
-                tl["top"] - 1 <= top <= tl["bottom"] + 2
-                and tl["x0"] < rx1
-                and tl["x1"] > rx0
-                for tl in text_lines
-            ):
-                continue
-            below = sorted(
-                (tl for tl in text_lines if tl["top"] > top + 1),
-                key=lambda tl: tl["top"],
-            )[:4]
-            if not below:
-                continue
-            first_chars = below[0].get("chars") or []
-            label = first_chars and round(first_chars[0].get("size", 0)) <= body - 3
-            gaps = [b["top"] - a["top"] for a, b in zip(below, below[1:])]
-            single = gaps and gaps[0] < body * 1.4  # ~13.8 vs the 27.6 body
-            if label or single:
-                good.append(top)
-        return min(good) if good else None
+    # Division slip opinions set footnotes at BODY size (12pt, only the label
+    # digit is superscript), so the Supreme Court's 'smaller type below' test
+    # never fires — use the structural separator test (the court also
+    # UNDERLINES case names; a rule inside a text line's band is excluded).
+    footnote_sep_structural = True
 
     def _harvest_panel_signature(self, doc) -> None:
         """Lift the three-judge sign-off panel ('MAXA, J. / We concur: /

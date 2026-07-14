@@ -12,3 +12,6 @@ from .md import MarylandSupreme
 class AppellateCourtOfMaryland(MarylandSupreme):
     court_id = "mdctspecapp"
     court_label = "Appellate Court of Maryland."
+    # Same reporter anatomy as the Supreme Court — headnote page(s), then the
+    # right-shifted caption page — under this court's own banner.
+    caption_banner = "IN THE APPELLATE COURT"

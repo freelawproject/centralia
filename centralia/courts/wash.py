@@ -151,7 +151,9 @@ class WashingtonSupreme(AbbrevTitleSupreme):
         if not t or len(t) > 70:
             return False
         low = t.lower()
-        if low.startswith("no. ") and any(c.isdigit() for c in t):
+        # 'No. 103058-4' — consolidated pages carry the plural
+        # 'Nos. 60325-0-II/ 60331-4-II/ 60335-7-II'
+        if low.startswith(("no. ", "nos. ")) and any(c.isdigit() for c in t):
             return True
         # 'State v. Abrams' / 'State v. Abrams, No. 103058-4'
         if " v. " in t and len(t) <= 60 and not t.endswith((".", ",")):
@@ -273,7 +275,12 @@ class WashingtonSupreme(AbbrevTitleSupreme):
         body-size caption text — the byline — below it. Keying off width and
         position alone mistakes the lowest caption shelf for the separator
         and chops the majority byline into the footnote flow (the 'first
-        opinion missing' root cause). Returns the topmost qualifying rule."""
+        opinion missing' root cause). Returns the topmost qualifying rule.
+
+        Divisions that set footnotes at body size (washctapp) opt into the
+        shared structural test instead."""
+        if self.footnote_sep_structural:
+            return self._footnote_sep_structural(page)
         from collections import Counter
 
         chars = [c for c in page.chars if (c.get("text") or "").strip()]

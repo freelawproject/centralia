@@ -111,6 +111,12 @@ class BaseExtractor:
     # emphasized line does not split the paragraph; their headings still
     # separate by alignment, size, and gap.
     bold_breaks_segment: bool = True
+    # OPT-IN: a paragraph group in which NO line reaches the right measure is
+    # a *stack* (name/title sign-off, roster) — one block per line, since a
+    # line that ends far short of the margin never wrapped. Off by default:
+    # Alabama's fidelity-locked output joins its no-opinion order rosters and
+    # transcript-quote continuations, so the rule must not fire there.
+    split_line_stacks: bool = False
 
     underline_offset_min: float = 0.0
     underline_offset_max: float = 5.0
@@ -126,6 +132,14 @@ class BaseExtractor:
     # the minimum separator width (pt) to detect that underscore line in the
     # lower half of the page. None disables it (rect-based detection only).
     footnote_sep_text_min_width: float | None = None
+    # Some courts set footnotes at BODY size (only the label digit is raised),
+    # so the 'smaller text below the rule' discriminator never fires. When
+    # True, the separator is found structurally instead: a thin rule at the
+    # body's left margin standing clear of any text line (a rule inside a
+    # text line's band is a case-name underline), with footnote matter below
+    # — a raised label digit, or single-spaced text where the body is
+    # double-spaced. (washctapp, ohioctapp)
+    footnote_sep_structural: bool = False
     # Drop a repeating docket-number running header from the top of
     # continuation pages (2+).
     running_header_docket: bool = False
@@ -232,7 +246,20 @@ class BaseExtractor:
                     self._caption_fp = (None, None, None)
             for page in pdf.pages:
                 pw = page.width
-                sep_y = self.find_footnote_separator(page)
+                # The structural opt-in replaces separator detection outright,
+                # at the call site — family bases override
+                # find_footnote_separator freely, and the flag must win over
+                # any of them (a court can't know which base it sits on).
+                sep_y = (
+                    self._footnote_sep_structural(page)
+                    if self.footnote_sep_structural
+                    else self.find_footnote_separator(page)
+                )
+                if page.page_number == 1 and sep_y is not None:
+                    # The page-1 footnote separator is NOT a headmatter
+                    # divider — without this it leaks into the styled summary
+                    # as a spurious full-width rule at the bottom.
+                    page1_rules = [t for t in page1_rules if t < sep_y - 1]
                 lines = self.page_lines(page)  # also applies correct_page_geometry
                 # Capture the upright ground-truth text for the residual sweep,
                 # the same way audit.py reads it (geometry already corrected).
@@ -455,6 +482,34 @@ class BaseExtractor:
                 if 0 <= (top - tl["bottom"]) <= 5:
                     return True
             return False
+
+        # Every thin rule span rides along UNFILTERED for the open-caption
+        # fold — it claims rules inside its own caption zone (including ones
+        # the divider filters call caption-internal) and renders each at its
+        # true width/side rather than as a full-width divider. Verticals ride
+        # along too: a drawn mid rule between the caption columns renders as
+        # the '|' divider, not as whitespace.
+        spans = []  # (top, x0, x1)
+        vspans = []  # (x, top, bottom)
+        for r in p1.rects:
+            if r["height"] < 2 and (r["x1"] - r["x0"]) > 50:
+                spans.append((r["top"], r["x0"], r["x1"]))
+            elif (r["x1"] - r["x0"]) < 2 and r["height"] > 30:
+                vspans.append((r["x0"], r["top"], r["bottom"]))
+        for ln in p1.lines:
+            if abs(ln["x1"] - ln["x0"]) > 50:
+                spans.append(
+                    (ln["top"], min(ln["x0"], ln["x1"]), max(ln["x0"], ln["x1"]))
+                )
+            elif (
+                abs(ln["x1"] - ln["x0"]) < 2
+                and abs(ln["bottom"] - ln["top"]) > 30
+            ):
+                vspans.append(
+                    (ln["x0"], min(ln["top"], ln["bottom"]), max(ln["top"], ln["bottom"]))
+                )
+        self._p1_rule_spans = sorted(spans)
+        self._p1_vrule_spans = sorted(vspans)
 
         tops = []
         for r in p1.rects:
@@ -798,6 +853,8 @@ class BaseExtractor:
         If ``footnote_sep_rect`` is configured, the separator is the rect whose
         left/right edges match exactly. Otherwise: a thin horizontal rule
         anchored near the body baseline, >=100pt wide, in the bottom half."""
+        if self.footnote_sep_structural:
+            return self._footnote_sep_structural(page)
         if self.footnote_sep_rect is not None:
             sx0, sx1 = self.footnote_sep_rect
             for r in page.rects:
@@ -825,6 +882,65 @@ class BaseExtractor:
         if candidates:
             return min(candidates, key=lambda r: r["top"])["top"]
         return self._footnote_sep_text(page)
+
+    def _footnote_sep_structural(self, page) -> Optional[float]:
+        """Structural footnote-separator detection for body-size-footnote
+        courts (``footnote_sep_structural``): a thin rule at the body's left
+        margin, standing clear of any text line (a rule inside a text line's
+        band is a case-name underline, not a separator), with footnote matter
+        below it — either a raised label digit, or single-spaced text where
+        the body is double-spaced. Caption shelves and conformed-signature
+        rules carry double-spaced text below and drop out."""
+        chars = [c for c in page.chars if (c.get("text") or "").strip()]
+        if not chars:
+            return None
+        body = Counter(round(c.get("size", 0)) for c in chars).most_common(1)[0][0]
+        pw, cutoff = page.width, page.height * 0.45
+        text_lines = page.extract_text_lines()
+
+        cands = []
+        for r in page.rects:
+            if (
+                r["bottom"] - r["top"] < 2.5
+                and (r["x1"] - r["x0"]) >= 60
+                and r["x0"] < pw * 0.35
+                and r["top"] > cutoff
+            ):
+                cands.append((r["top"], r["x0"], r["x1"]))
+        for ln in page.lines:
+            if (
+                abs(ln["bottom"] - ln["top"]) < 2.5
+                and abs(ln["x1"] - ln["x0"]) >= 60
+                and min(ln["x0"], ln["x1"]) < pw * 0.35
+                and ln["top"] > cutoff
+            ):
+                cands.append(
+                    (ln["top"], min(ln["x0"], ln["x1"]), max(ln["x0"], ln["x1"]))
+                )
+
+        good = []
+        for top, rx0, rx1 in cands:
+            # An underline sits INSIDE the band of the text line it decorates.
+            if any(
+                tl["top"] - 1 <= top <= tl["bottom"] + 2
+                and tl["x0"] < rx1
+                and tl["x1"] > rx0
+                for tl in text_lines
+            ):
+                continue
+            below = sorted(
+                (tl for tl in text_lines if tl["top"] > top + 1),
+                key=lambda tl: tl["top"],
+            )[:4]
+            if not below:
+                continue
+            first_chars = below[0].get("chars") or []
+            label = first_chars and round(first_chars[0].get("size", 0)) <= body - 3
+            gaps = [b["top"] - a["top"] for a, b in zip(below, below[1:])]
+            single = gaps and gaps[0] < body * 1.4  # single vs double leading
+            if label or single:
+                good.append(top)
+        return min(good) if good else None
 
     def _footnote_sep_text(self, page) -> Optional[float]:
         """Top of a full-measure underscore-TEXT footnote separator in the lower
@@ -887,7 +1003,14 @@ class BaseExtractor:
         """Group lines into segments using zone/font/bold/align/separator."""
         zones = []
         for i, line in enumerate(lines):
-            prev_top = lines[i - 1]["top"] if i > 0 else None
+            # A '_seg_break' line opens just below a DRAWN structural rule
+            # (wvnd's Kleeh title rule): its upstairs neighbor sits across
+            # the rule and must not color its zone.
+            prev_top = (
+                lines[i - 1]["top"]
+                if i > 0 and not line.get("_seg_break")
+                else None
+            )
             next_top = lines[i + 1]["top"] if i + 1 < len(lines) else None
             zones.append(self.line_zone(prev_top, line["top"], next_top))
 
@@ -899,6 +1022,10 @@ class BaseExtractor:
             align = self.line_alignment(line, page_width)
             sep = self.is_separator_line(line)
             zone = zones[i]
+            if line.get("_seg_break") and current:
+                segments.append(current)
+                current = []
+                prev_size = prev_bold = prev_align = prev_top = prev_zone = None
 
             if sep:
                 if current:
@@ -1337,7 +1464,40 @@ class BaseExtractor:
                     paras.append([line])
             else:
                 paras[-1].append(line)
-        return paras
+        return self._explode_line_stacks(paras)
+
+    def _explode_line_stacks(self, paras) -> list:
+        """Split a *stack* back into one paragraph per line. A group of lines
+        in which NO line reaches the right measure never wrapped — a line that
+        ends far short of the margin cannot have a continuation, so joining
+        the group produced a run-on ('SARAH PIERCE Special Master'). Stacks
+        are name/title sign-offs and rosters; prose is protected because any
+        real multi-line paragraph has full wrapped lines. Centered groups are
+        left joined — a centered heading that wraps IS one heading
+        (CLAUDE.md principle 7). Opt-in via ``split_line_stacks`` — proven to
+        over-fire on default: Alabama's fidelity-locked no-opinion rosters,
+        and two-line ragged sentences ('Delivered and filed on the / 21st day
+        of May, 2026.') where neither line reaches the measure."""
+        if not self.split_line_stacks:
+            return paras
+        pw = getattr(self, "_page1_width", None) or 612.0
+        right_edge = pw - self.body_baseline_x0
+        measure = right_edge - self.body_baseline_x0
+        wrap_min = right_edge - 0.15 * measure
+        out = []
+        for grp in paras:
+            # An all-centered group is a wrapped centered heading — one
+            # heading, never a stack. A MIXED group (name off-axis over a
+            # coincidentally center-ish title line) is still a stack.
+            if (
+                len(grp) >= 2
+                and all(l["x1"] < wrap_min for l in grp)
+                and not all(self.line_alignment(l, pw) == "C" for l in grp)
+            ):
+                out.extend([l] for l in grp)
+            else:
+                out.append(grp)
+        return out
 
     def _wrap_continuation_max(self) -> float:
         """The largest first-line x0 still treated as a wrapped continuation of
@@ -1366,7 +1526,7 @@ class BaseExtractor:
                 paras.append([line])
             else:
                 paras[-1].append(line)
-        return paras
+        return self._explode_line_stacks(paras)
 
     def split_footnote_paragraphs(self, lines) -> tuple:
         """Split footnote lines into paragraphs. Returns (paras, fn_baseline).
@@ -1557,7 +1717,10 @@ class BaseExtractor:
         kind = _parsed[2] if _parsed else None
         op = Opinion(
             type=self.normalize_opinion_type(kind),
-            author=author_text,
+            # Justified byline columns leave word-spacing runs in the text
+            # ('KELLY  C.  BRONIEC') — collapse to single spaces (verified a
+            # no-op on the fidelity-locked Alabama corpus).
+            author=" ".join(author_text.split()),
         )
 
         op_pages = set()
