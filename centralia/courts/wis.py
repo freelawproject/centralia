@@ -25,7 +25,188 @@ class WisconsinSupreme(AbbrevTitleSupreme):
     court_id = "wis"
     court_label = "Supreme Court of Wisconsin."
 
+    # Body sits at x0=108; a numbered paragraph's first line indents to 144
+    # ('¶13 …') and wraps back to 108, while a block quote keeps EVERY line at
+    # 144 (both margins in, x1≈467). The two share a left edge, so the ¶ marker
+    # is the discriminator: quote-split on the deep indent, but never on a line
+    # that opens a paragraph. indent_step lowered so 'deep' (108+1.5·20=138)
+    # falls between the body margin and the quote indent.
+    body_baseline_x0 = 108.0
+    indent_step = 20.0
+    blockquote_by_indent = True
+
+    def _begins_paragraph_block(self, lines):
+        """A first-line-indented body paragraph — its 144pt indent is a first
+        line, not a block-quote edge. Two openers: a '¶N …' numbered paragraph,
+        or a non-numbered paragraph (e.g. after a '* * *' break) whose first
+        line is indented BUT reaches the full right measure. A block quote is
+        indented on both margins, so it stays short on the right (≈467)."""
+        if not lines:
+            return False
+        l = lines[0]
+        if self.line_plain_text(l).lstrip().startswith("¶"):
+            return True
+        right = (getattr(self, "_page1_width", None) or 612.0) - self.body_baseline_x0
+        return (
+            l.get("x0", 0) > self.body_baseline_x0 + 20
+            and l.get("x1", 0) >= right - 20
+        )
+
+    def page_lines(self, page):
+        """A centered '* * *' section break is its own line: mark it (and the
+        paragraph that follows) as a segment boundary so the break isn't glued
+        onto the next paragraph by the C→L short-line rule, and the paragraph
+        after it starts clean."""
+        lines = super().page_lines(page)
+        ordered = sorted(range(len(lines)), key=lambda i: lines[i].get("top", 0))
+        for pos, i in enumerate(ordered):
+            t = self.line_plain_text(lines[i]).strip()
+            if t and set(t.replace(" ", "")) == {"*"}:
+                lines[i]["_seg_break"] = True
+                if pos + 1 < len(ordered):
+                    lines[ordered[pos + 1]]["_seg_break"] = True
+        return lines
+
+    # ------------------------------------------------------ footnote separator
+    def find_footnote_separator(self, page):
+        """The footnote rule is a fixed ~144pt rect at the body's left margin
+        (x0≈108) — but on a short page it can sit HIGH (footnote 2 opens at
+        top≈195), so the shared bottom-half cutoff misses it. Match the rule by
+        its width/left-edge signature at any height, gated on footnote-size
+        (11pt < the 12pt body) text directly below it."""
+        from statistics import median
+
+        tls = page.extract_text_lines()
+        best = None
+        for r in page.rects:
+            w = r["x1"] - r["x0"]
+            if (
+                r["height"] >= 2
+                or not (100 <= w <= 200)
+                or r["x0"] >= page.width * 0.3
+                or r["top"] <= 90
+            ):
+                continue
+            below = sorted(
+                (l for l in tls if l["top"] > r["top"] + 1),
+                key=lambda l: l["top"],
+            )[:4]
+            if not below:
+                continue
+            szs = [
+                median([c["size"] for c in (l.get("chars") or []) if c.get("size")]
+                       or [12.0])
+                for l in below
+            ]
+            first = (below[0].get("chars") or [{}])[0].get("size", 12.0)
+            if (szs and median(szs) <= 11.4) or first <= 9:
+                if best is None or r["top"] < best:
+                    best = r["top"]
+        return best if best is not None else super().find_footnote_separator(page)
+
+    # ------------------------------------------------------ style adaptation
+    @staticmethod
+    def _body_line_height(pdf) -> float:
+        """Median top-to-top gap of 12pt body chars on a mid-opinion page. The
+        five WI layout styles single-space the body at either 15pt (A/C/D) or
+        16.2pt (B); the gap bands must key off this so 16.2pt body doesn't fall
+        in the block-quote band and render every paragraph as a quote."""
+        from statistics import median
+
+        pages = pdf.pages
+        pg = pages[min(3, len(pages) - 1)]
+        body = [c for c in pg.chars if abs((c.get("size") or 0) - 12) < 0.5]
+        tops = sorted({round(c["top"], 1) for c in body})
+        gaps = [b - a for a, b in zip(tops, tops[1:]) if 12 < (b - a) < 20]
+        return round(median(gaps), 1) if gaps else 15.0
+
+    def _wis_facets(self, pdf, doc, line_h) -> str:
+        """Measure the layout facets the reporter's styles vary on — text-block
+        left margin, body line height, footnote size + separator-rule width,
+        block-quote indent + size, body font — and format a compact signature
+        for the review fingerprint. These are the same signals the grouping app
+        compares; the extractor surfaces the raw facets to inform it rather than
+        assigning a (competing) style letter."""
+        from collections import Counter
+        from statistics import median
+
+        pages = pdf.pages
+        pg = pages[min(3, len(pages) - 1)]
+        body = [c for c in pg.chars if abs((c.get("size") or 0) - 12) < 0.5]
+        left = round(min((c["x0"] for c in body), default=108))
+        bfont = (
+            "italic"
+            if sum("Italic" in (c.get("fontname") or "") for c in body) > len(body) / 2
+            else "roman"
+        )
+
+        fn = "none"
+        for p in pages:
+            sep = self.find_footnote_separator(p)
+            if not sep:
+                continue
+            rule_w = next(
+                (round(r["x1"] - r["x0"]) for r in p.rects
+                 if abs(r["top"] - sep) < 1 and r["height"] < 2),
+                144,
+            )
+            below = [c["size"] for c in p.chars
+                     if c["top"] > sep + 1 and 6 < (c.get("size") or 0) <= 11.6]
+            fn = f"fn {round(median(below), 1) if below else 11}pt/{rule_w}rule"
+            break
+
+        # block-quote facet: LINES indented on both margins (left+~36 in, short
+        # of the right) that do NOT open a numbered paragraph — a ¶N first line
+        # shares the indent but wraps back to the body margin, so excluding it
+        # leaves the true quote size (11pt on some styles, 12pt on others).
+        right = pg.width - left
+        qi, qs = [], []
+        for p in pages:
+            for ln in p.extract_text_lines():
+                x0, x1 = ln["x0"], ln["x1"]
+                if (
+                    left + 20 < x0 < left + 60
+                    and x1 < right - 20
+                    and not (ln.get("text") or "").lstrip().startswith("¶")
+                ):
+                    szc = [c["size"] for c in (ln.get("chars") or []) if c.get("size")]
+                    if szc:
+                        qi.append(x0 - left)
+                        qs.append(median(szc))
+        bq = (
+            f"bq {round(median(qi))}pt/{round(median(qs), 1)}pt" if qs else "no bq"
+        )
+        return f"WI · L{left}pt · {line_h}pt line · {fn} · {bq} · {bfont}"
+
+    def is_non_digital(self, pdf) -> bool:
+        """Style E is a scanned opinion: after the digital caption/syllabus, the
+        body pages carry only the running header as live text (~a line or two)
+        and are otherwise a full-page raster. Flag it so the body isn't emitted
+        as a stub — most pages are header-only + image-dominated."""
+        pages = pdf.pages
+        if len(pages) < 4:
+            return super().is_non_digital(pdf)
+        header_only = 0
+        for pg in pages:
+            txt = (pg.extract_text() or "").strip()
+            if pg.images and len(txt) < 120:
+                header_only += 1
+        if header_only >= 0.6 * len(pages):
+            return True
+        return super().is_non_digital(pdf)
+
     def extract(self, pdf_path):
+        import pdfplumber
+
+        with pdfplumber.open(pdf_path) as pdf:
+            line_h = self._body_line_height(pdf)
+        # Single-spaced body (15pt A/C/D · 16.2pt B) must classify as body, not
+        # a block quote — quotes are found by both-margins indent, so collapse
+        # the gap-based block-quote band to nothing and key 'tight' just above
+        # the measured line height.
+        self.gap_tight_max = round(line_h) + 2
+        self.gap_single_max = self.gap_tight_max
+
         doc = super().extract(pdf_path)
         # The page-1 banner and court-seal images are letterhead furniture, not
         # opinion figures — move them out of the body into ``dropped`` (notice).
@@ -36,6 +217,11 @@ class WisconsinSupreme(AbbrevTitleSupreme):
                 doc.dropped = list(doc.dropped or []) + [
                     "[court seal / letterhead image]" for _ in imgs
                 ]
+        if not doc.non_digital:
+            with pdfplumber.open(pdf_path) as pdf:
+                sig = self._wis_facets(pdf, doc, line_h)
+            doc.caption_box = dict(doc.caption_box or {})
+            doc.caption_box["style_label"] = sig
         return doc
 
     def extract_headmatter(self, headmatter_segs, page1_rules=None) -> dict:

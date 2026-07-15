@@ -1071,8 +1071,17 @@ class BaseExtractor:
                 indent_changed = False
                 if self.blockquote_by_indent:
                     deep = self.body_baseline_x0 + 1.5 * self.indent_step
-                    prev_deep = current[-1]["x0"] >= deep
-                    this_deep = line["x0"] >= deep
+                    # A line at the deep indent that OPENS a numbered paragraph
+                    # ('¶13 ...') is a first-line indent, not a block-quote edge
+                    # — its continuations wrap back to the body margin. Excluding
+                    # it stops the quote-split from fragmenting such a paragraph
+                    # on courts whose ¶ indent equals the quote indent (wis).
+                    prev_deep = current[-1]["x0"] >= deep and not (
+                        self._begins_paragraph_block([current[-1]])
+                    )
+                    this_deep = line["x0"] >= deep and not (
+                        self._begins_paragraph_block([line])
+                    )
                     indent_changed = prev_deep != this_deep
                     if prev_deep and this_deep:
                         align_changed = False

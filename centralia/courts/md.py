@@ -41,6 +41,10 @@ class MarylandSupreme(AbbrevTitleSupreme):
     court_id = "md"
     court_label = "Supreme Court of Maryland."
     allow_titlecase_name = True
+    # Block quotes sit a full inch in (x0≈144 vs the 72 body margin), single
+    # spaced at ~15pt — inside the 'notice' gap band, so they rendered as
+    # plain paragraphs. The both-margins-indent geometry is the tell.
+    blockquote_by_indent = True
     # The centered caption banner that opens the caption page — the reporter
     # headnotes are the page(s) before it. The Appellate Court (mdctspecapp)
     # shares the whole anatomy under its own banner.

@@ -377,6 +377,9 @@ def _render_fingerprint(doc: ExtractedDocument) -> list:
     cap_style = _caption_style(doc)
     if cap_style:
         signals.append(f"caption: {escape(cap_style)}")
+    style_label = (doc.caption_box or {}).get("style_label")
+    if style_label:
+        signals.append(escape(str(style_label)))
     chips = "".join(f"<span>{s}</span>" for s in signals)
     slug = fp.lower().replace(" ", "-")
     return [
