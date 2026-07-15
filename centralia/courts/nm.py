@@ -31,6 +31,21 @@ class NewMexicoSupreme(StateSupreme):
     court_id = "nm"
     court_label = "Supreme Court of the State of New Mexico."
 
+    # Paragraphs are numbered with a raised, brace-wrapped pinpoint ('{1}',
+    # '{2}', …). The digit is small + a label char, so without this it reads as
+    # a footnote reference — '{1}' becomes '{<footnotemark>1</footnotemark>}'
+    # and the '{2}'…'{5}' markers get consumed as footnotes. Keep a digit
+    # between '{' and '}' as inline paragraph-number content.
+    bracket_pinpoint = True
+
+    # The slip-opinion publication notice — a body-size boilerplate block at the
+    # very top of page 1 ('The slip opinion is the first version … deviations
+    # from the formal authenticated opinion.'). Body-size, so it can't be told
+    # from prose by font; keyed on the fixed opening/closing strings and dropped
+    # into the Removed box.
+    _SLIP_START = "the slip opinion is the first version"
+    _SLIP_END = "authenticated opinion"
+
     def filter_margins(self, obj):
         if super().filter_margins(obj) is None:
             return None
@@ -43,14 +58,114 @@ class NewMexicoSupreme(StateSupreme):
             return None
         return True
 
+    def page_lines(self, page):
+        lines = self._merge_hanging_markers(super().page_lines(page))
+        if page.page_number != 1 or not lines:
+            return lines
+        texts = [self.line_plain_text(l).strip() for l in lines]
+        start = next(
+            (i for i, t in enumerate(texts) if t.lower().startswith(self._SLIP_START)),
+            None,
+        )
+        if start is None:
+            return lines
+        end = next(
+            (j for j in range(start, len(lines)) if self._SLIP_END in texts[j].lower()),
+            start,
+        )
+        for j in range(start, end + 1):
+            if texts[j]:
+                getattr(self, "_nm_dropped", []).append(texts[j])
+        return lines[:start] + lines[end + 1 :]
+
+    def _merge_hanging_markers(self, lines):
+        """Fold a hanging '{N}' pinpoint that pdfplumber split onto its own line
+        (its raised, smaller baseline sits a few pt off the paragraph's) into
+        the paragraph text it opens — the same-baseline run just to its right.
+        Otherwise the lone marker sorts BETWEEN the paragraph's first and second
+        lines and splits the opening line off."""
+        markers = [
+            l
+            for l in lines
+            if (l.get("x1", 0) - l.get("x0", 0)) < 25
+            and self._is_brace_marker(self.line_plain_text(l))
+        ]
+        drop = set()
+        for m in markers:
+            target = min(
+                (
+                    l
+                    for l in lines
+                    if l is not m
+                    and abs(l.get("top", 0) - m.get("top", 0)) < 6
+                    and l.get("x0", 0) > m.get("x0", 0)
+                ),
+                key=lambda l: l.get("x0", 0),
+                default=None,
+            )
+            if target is None:
+                continue
+            target["chars"] = sorted(
+                (m.get("chars") or []) + (target.get("chars") or []),
+                key=lambda c: c["x0"],
+            )
+            target["x0"] = min(target.get("x0", 0), m.get("x0", 0))
+            target["text"] = "".join(c.get("text", "") for c in target["chars"])
+            drop.add(id(m))
+        return [l for l in lines if id(l) not in drop]
+
+    @staticmethod
+    def _is_brace_marker(text: str) -> bool:
+        """True if ``text`` opens with a '{N}' paragraph pinpoint."""
+        t = text.lstrip()
+        if not t.startswith("{"):
+            return False
+        i = 1
+        while i < len(t) and t[i].isdigit():
+            i += 1
+        return i > 1 and i < len(t) and t[i] == "}"
+
+    def _split_on_brace(self, seg):
+        """Split a segment at each '{N}' paragraph marker — the Times layout
+        hangs the marker at the margin (text indented), so its paragraphs share
+        one left edge and can't be split by first-line indent alone."""
+        if not seg:
+            return []
+        paras = [[seg[0]]]
+        for line in seg[1:]:
+            if self._is_brace_marker(self.line_plain_text(line)):
+                paras.append([line])
+            else:
+                paras[-1].append(line)
+        return paras
+
+    def split_body_paragraphs(self, seg):
+        return [
+            p
+            for grp in self._split_on_brace(seg)
+            for p in super().split_body_paragraphs(grp)
+        ]
+
+    def split_blockquote_paragraphs(self, seg):
+        return [
+            p
+            for grp in self._split_on_brace(seg)
+            for p in super().split_blockquote_paragraphs(grp)
+        ]
+
     def _begins_paragraph_block(self, lines):
-        """A first-line-indented body paragraph reaches the FULL right measure;
-        a block quote is indented on BOTH margins and stays short of it. Keying
-        on the right edge stops a non-numbered indented first line from being
-        read as a quote boundary (which would fragment the paragraph). Only the
-        single-spaced Arial layout needs this; the double-spaced Times layout
-        finds quotes by gap and is left untouched."""
-        if not getattr(self, "_nm_single", False) or not lines:
+        """A '{N}' pinpoint opens a paragraph — never fold it into the prior
+        one across a page break. Otherwise: a first-line-indented body paragraph
+        reaches the FULL right measure while a block quote (both margins in)
+        stays short of it — keying on the right edge stops a non-numbered
+        indented first line from being read as a quote boundary. Only the
+        single-spaced Arial layout needs the right-edge test; the double-spaced
+        Times layout finds quotes by gap and is left untouched."""
+        if not lines:
+            return False
+        if self._is_brace_marker(self.line_plain_text(lines[0])):
+            return True
+        if not getattr(self, "_nm_single", False):
             return False
         l = lines[0]
         right = (getattr(self, "_page1_width", None) or 612.0) - self.body_baseline_x0
@@ -79,6 +194,7 @@ class NewMexicoSupreme(StateSupreme):
     def extract(self, pdf_path):
         import pdfplumber
 
+        self._nm_dropped = []
         with pdfplumber.open(pdf_path) as pdf:
             line_h = self._body_line_height(pdf)
         # The single-spaced Arial layout needs indent-based quotes + retuned
@@ -97,6 +213,10 @@ class NewMexicoSupreme(StateSupreme):
             self.gap_tight_max = type(self).gap_tight_max
             self.gap_single_max = type(self).gap_single_max
         doc = super().extract(pdf_path)
+        seen = set()
+        uniq = [t for t in self._nm_dropped if not (t in seen or seen.add(t))]
+        if uniq:
+            doc.dropped = list(doc.dropped or []) + uniq
         if not doc.non_digital:
             with pdfplumber.open(pdf_path) as pdf:
                 sig = self._nm_facets(pdf, line_h)
