@@ -60,6 +60,13 @@ _HEADINGS = frozenset(
     }
 )
 
+# Opening words of a compound ALL-CAPS document title ('ORDER ADOPTING …',
+# 'MEMORANDUM OPINION GRANTING …'). A short ALL-CAPS line starting with one of
+# these is the ruling's title, hence its start — not trailing headmatter.
+_HEADING_STARTS = frozenset(
+    {"order", "memorandum", "opinion", "findings", "judgment", "decision", "report"}
+)
+
 # Judicial titles that close a signature block; the line above carries the name.
 _JUDGE_TITLES = (
     "united states district judge",
@@ -1140,14 +1147,24 @@ class DistrictBase(GenericExtractor):
 
     # ------------------------------------------------------------- opinion start
     def _is_heading(self, line) -> bool:
-        """True if ``line`` is an exact document-type heading phrase
-        ('MEMORANDUM OPINION AND ORDER' / 'ORDER' / ...). Letter-spaced
-        headings ('O RDER') match with spaces removed."""
-        low = self.line_plain_text(line).strip().rstrip(".:").lower()
+        """True if ``line`` is a document-type heading — an exact phrase
+        ('MEMORANDUM OPINION AND ORDER' / 'ORDER' / ...; letter-spaced 'O RDER'
+        matches with spaces removed), OR a compound ALL-CAPS title that opens
+        with a doc-type word ('ORDER ADOPTING MEMORANDUM AND RECOMMENDATION',
+        'ORDER GRANTING DEFENDANT'S MOTION …'). The compound title is the
+        opinion's start, not the last line of the headmatter."""
+        plain = self.line_plain_text(line).strip()
+        low = plain.rstrip(".:").lower()
         if low in _HEADINGS:
             return True
         squeezed = low.replace(" ", "")
-        return squeezed in {h.replace(" ", "") for h in _HEADINGS}
+        if squeezed in {h.replace(" ", "") for h in _HEADINGS}:
+            return True
+        if plain and plain == plain.upper() and len(plain) < 90:
+            head = low.split()
+            if head and head[0].strip(",") in _HEADING_STARTS:
+                return True
+        return False
 
     def find_authors(self, all_segments) -> list:
         # Author, in order of reliability: signature block, minute-order
