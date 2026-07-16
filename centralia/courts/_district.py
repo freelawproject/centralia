@@ -394,6 +394,19 @@ class DistrictBase(GenericExtractor):
             cands.append(r["top"])
         return min(cands) if cands else None
 
+    def extract_page_images(self, page):
+        """Drop pleading-paper rule furniture drawn as images — the tall, narrow
+        left/right margin rules, the caption-box verticals, and the thin line-
+        number ticks all render as embedded images on some California filings. A
+        rule is thin in one dimension; a real figure (an exhibit, a signature
+        graphic) is substantial in both, so keep only images thicker than the
+        rule threshold in their smaller dimension."""
+        return [
+            im
+            for im in super().extract_page_images(page)
+            if min(im["width"], im["height"]) > 10
+        ]
+
     def extract_page_tables(self, page):
         """Completeness-first: don't lift tables into separate structures.
         District rulings embed fee schedules / claim charts / exhibits whose
