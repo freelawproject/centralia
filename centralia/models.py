@@ -34,12 +34,17 @@ class DocType:
     OPINION = "opinion"  # has one or more authored opinions
     ORDER = "order"  # court order / per-curiam disposition, no authored opinion
     NOTICE = "notice"  # clerk notice / advisory / calendar — administrative
+    # An attorney-submitted document, not a court ruling: a motion, a position
+    # paper, or a [PROPOSED] order the judge has not signed. It sits on the
+    # docket in the same reporter but carries no judicial author — a signed
+    # order is ORDER/OPINION, an unsigned filing is FILING.
+    FILING = "filing"
     # Clerk's certificate that judgment was entered — administrative, no
     # opinion body worth parsing.
     CERTIFICATE = "certificate-of-judgment"
     UNKNOWN = "unknown"  # recognizable text but no confident classification
 
-    ALL = (OPINION, ORDER, NOTICE, CERTIFICATE, UNKNOWN)
+    ALL = (OPINION, ORDER, NOTICE, FILING, CERTIFICATE, UNKNOWN)
 
 
 # ---------------------------------------------------------------------------

@@ -43,6 +43,7 @@ _CSS = """
   .fingerprint.fp-no-opinion-decision { border-left-color: #6a4a1f; }
   .fingerprint.fp-per-curiam-opinion { border-left-color: #1f4e7a; }
   .fingerprint.fp-order, .fingerprint.fp-notice { border-left-color: var(--accent); }
+  .fingerprint.fp-attorney-filing { border-left-color: #8a1f1f; }
   .fp-main { font-weight: bold; font-size: 1.15rem; }
   .fp-court { font-variant: small-caps; color: var(--muted); font-size: .9rem; }
   .fp-signals { margin-top: .5rem; display: flex; gap: .4rem; flex-wrap: wrap; }
@@ -298,6 +299,8 @@ def _fingerprint(doc: ExtractedDocument) -> str:
         return "Certificate of judgment"
     if doc.doc_type == "order":
         return "Order"
+    if doc.doc_type == "filing":
+        return "Attorney filing"
     if doc.doc_type == "notice":
         return "Notice"
     if doc.doc_type == "unknown":
