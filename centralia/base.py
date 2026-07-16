@@ -178,29 +178,58 @@ class BaseExtractor:
     # separate scans (≈1.0) from digital PDFs that carry one decorative
     # full-page image (a lone exhibit/signature page, well under this).
     non_digital_min_page_frac: float = 0.6
+    # A full-page image on PAGE 1 carrying fewer than this many real text chars
+    # is a scanned caption page (only the ECF header as text) — the headmatter
+    # and the opinion's opening are a raster. A born-digital opinion's page 1
+    # always sets the caption in real text, well above this; a decorative
+    # letterhead image sits under real text, also above it.
+    non_digital_page1_text_max: int = 200
+    # ...but a raster page 1 only makes the WHOLE document non-digital when there
+    # is no born-digital body to parse elsewhere. A page with at least this many
+    # real chars counts as a body page; if two or more sit beyond page 1, the
+    # opinion body is digital (a scanned cover/letterhead over a real opinion —
+    # Texas AG letters, a scanned order page ahead of a digital memorandum) and
+    # the document is processed. One-or-none (only a certificate-of-service or a
+    # mid-order fragment follows the rastered caption) → the document is a scan.
+    non_digital_body_page_min_chars: int = 500
 
     # ====================================================================
     # MAIN PIPELINE
     # ====================================================================
+    def _page_image_covered(self, page) -> bool:
+        page_area = page.width * page.height
+        if not page_area:
+            return False
+        for im in page.images:
+            img_area = (im["x1"] - im["x0"]) * (im["bottom"] - im["top"])
+            if img_area / page_area >= self.non_digital_page_cover_frac:
+                return True
+        return False
+
     def is_non_digital(self, pdf) -> bool:
-        """True when the PDF is a scanned image with an OCR text layer rather
-        than a born-digital document. Detected by a full-page raster image on
-        most pages — the engine's geometry cues are unreliable on such scans,
-        so the caller skips processing and only flags the document."""
+        """True when the PDF is a scanned image rather than a born-digital
+        document. Detected by a full-page raster image on most pages (an OCR'd
+        scan), OR by an image-only page 1 whose caption is a raster with only
+        the ECF header as text — the engine's geometry cues are unreliable
+        either way, so the caller skips processing and only flags the document."""
         pages = pdf.pages
         if not pages:
             return False
-        scanned = 0
-        for page in pages:
-            page_area = page.width * page.height
-            if not page_area:
-                continue
-            for im in page.images:
-                img_area = (im["x1"] - im["x0"]) * (im["bottom"] - im["top"])
-                if img_area / page_area >= self.non_digital_page_cover_frac:
-                    scanned += 1
-                    break
-        return scanned / len(pages) >= self.non_digital_min_page_frac
+        scanned = sum(1 for page in pages if self._page_image_covered(page))
+        if scanned / len(pages) >= self.non_digital_min_page_frac:
+            return True
+        first = pages[0]
+        if self._page_image_covered(first):
+            real = len([c for c in first.chars if (c.get("text") or "").strip()])
+            body_pages = sum(
+                1
+                for p in pages[1:]
+                if len([c for c in p.chars if (c.get("text") or "").strip()])
+                >= self.non_digital_body_page_min_chars
+            )
+            if real < self.non_digital_page1_text_max and body_pages <= 1:
+                return True
+        return False
 
     def matches_expected_layout(self, pdf) -> bool:
         """True if the PDF looks like a typical document for this court.
