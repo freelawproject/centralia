@@ -21,16 +21,37 @@ dropping the fabricated author so it is not presented as the court's opinion.
 
 from __future__ import annotations
 
-import re
-
 import pdfplumber
 
 from ..models import DocType
 from ._district import DistrictBase
 
-# A judge's conformed-signature title line at the foot of a signed ruling.
-_JUDGE_SIG = re.compile(
-    r"UNITED STATES (DISTRICT|MAGISTRATE|CIRCUIT|BANKRUPTCY|CHIEF) JUDGE", re.I
+
+def _squeeze(text: str) -> str:
+    """Letters only, lowercased, with runs of a repeated letter collapsed to one
+    — so a font that renders each glyph several times ('UUnniitttteeeedd
+    SSttaatteess DDiissttrriicctt JJuuddggee') and the interleaved line numbers
+    both normalize to plain 'unitedstatesdistrictjudge'. The target titles have
+    no doubled letters, so collapsing is lossless for the match."""
+    letters = [c.lower() for c in text if c.isalpha()]
+    out = []
+    for c in letters:
+        if not out or out[-1] != c:
+            out.append(c)
+    return "".join(out)
+
+
+# A judge's conformed-signature title line at the foot of a signed ruling —
+# with the common 'District Court Judge' variant alongside the plain forms.
+_JUDGE_TITLES_SQ = tuple(
+    _squeeze(t)
+    for t in (
+        "United States District Judge",
+        "United States District Court Judge",
+        "United States Magistrate Judge",
+        "United States Circuit Judge",
+        "United States Bankruptcy Judge",
+    )
 )
 
 
@@ -55,24 +76,22 @@ class CentralDistrictOfCalifornia(DistrictBase):
 
     def _is_ruling(self, pdf_path) -> bool:
         """True when the document is a court ruling, not an attorney filing: a
-        'CIVIL MINUTES' minute order, or a judge's signature-block title line at
-        the foot of a page (a signed order — including a signed [PROPOSED] order
-        whose signature sits a page or two before a trailing signature/service
-        exhibit). Scan each page's foot, not just the last page: the caption's
-        'Present:'/assigned-judge lines sit at the TOP of page 1, so a
-        foot-of-page title is a conformed signature, not a caption reference —
-        and empirically an unsigned proposed order carries no such foot title."""
+        'CIVIL MINUTES' minute order, or a judge's conformed-signature title line
+        ('... UNITED STATES DISTRICT/MAGISTRATE JUDGE') anywhere in the document.
+        The signature can sit mid-page (ahead of a footnote), a page or two
+        before a trailing service exhibit, and can be glyph-duplicated by a bad
+        font — so the whole text is matched, squeezed. A pleading-paper filing's
+        caption never carries the full title, and an unsigned proposed order
+        carries only a blank signature line, so neither trips the match."""
         with pdfplumber.open(pdf_path) as pdf:
             pages = pdf.pages
             if not pages:
                 return False
-            for page in pages:
-                lines = (page.extract_text() or "").splitlines()
-                if "CIVIL MINUTES" in "\n".join(lines):
-                    return True
-                if _JUDGE_SIG.search("\n".join(lines[-22:])):
-                    return True
-        return False
+            full = "\n".join((p.extract_text() or "") for p in pages)
+        if "CIVIL MINUTES" in full:
+            return True
+        squeezed = _squeeze(full)
+        return any(t in squeezed for t in _JUDGE_TITLES_SQ)
 
     def extract(self, pdf_path):
         doc = super().extract(pdf_path)
