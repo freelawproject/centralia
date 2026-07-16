@@ -890,12 +890,18 @@ class DistrictBase(GenericExtractor):
                 if (c.get("text") or "").strip()
             ]
             size = float(Counter(printable).most_common(1)[0][0]) if printable else base
+            # A narrow caption line that sits clearly right of the content
+            # midpoint is the caption's right column ('DECISION AND ORDER', the
+            # docket) — staggered onto its own rows, so it never paired with a
+            # left run and the two-column detector didn't catch it. Right-align
+            # it so it renders on the right, not collapsed into the left column.
+            right_aligned = not centered and narrow and x0 > col_mid + 20
             out.append(
                 {
                     "__hm__": True,
                     "html": self.line_inline_text({"chars": all_chars}),
                     "rel": round(size / base, 3) if base else 1.0,
-                    "align": "C" if centered else "L",
+                    "align": "C" if centered else ("R" if right_aligned else "L"),
                 }
             )
         flush()
