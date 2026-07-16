@@ -69,21 +69,9 @@ class MichiganSupreme(AbbrevTitleSupreme):
         and masthead rules are full-width or right-shifted) finds it where the
         small-text-below heuristic cannot; fall back to that heuristic if a
         document draws a differently-sized rule."""
-        cands = [
-            r["top"]
-            for r in page.rects
-            if r["height"] < 2.5
-            and 70.0 <= r["x0"] <= 74.0
-            and 138.0 <= (r["x1"] - r["x0"]) <= 150.0
-            and any(
-                r["top"] < c["top"] < page.height
-                and not (c.get("text") or "").isspace()
-                for c in page.chars
-            )
-        ]
-        if cands:
-            return min(cands)
-        return self._footnote_sep_small_text_below(page)
+        return self.footnote_sep_fixed_left_rule(page) or (
+            self._footnote_sep_small_text_below(page)
+        )
 
     def classify_document_type(self, all_segments, author_indices, n_pages) -> str:
         # A clerk's order is authored PER CURIAM (so author_indices is set), but

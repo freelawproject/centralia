@@ -915,6 +915,36 @@ class BaseExtractor:
             return min(candidates, key=lambda r: r["top"])["top"]
         return self._footnote_sep_text(page)
 
+    def footnote_sep_fixed_left_rule(self, page, width=144.0, tol=6.0):
+        """Footnote separator = the fixed-width thin rule the court draws at the
+        left body margin (a 2-inch / 144pt rule is the common Word/CM-ECF and
+        reporter footnote divider), with text directly below it. Keyed on that
+        known separator — no positional cutoff — so it is found wherever the
+        rule falls: near the page foot on a short footnote, high up on a
+        continuation page whose long footnote fills most of the column (mich).
+        Reliable where the footnote text is BODY-sized, so the 'small text below
+        the rule' heuristic can't see the boundary. Returns the topmost such
+        rule's top, or None. The width/x0 signature is distinct from a caption
+        divider (full-width) or a right-shifted signature rule, so no page-
+        position fence is needed."""
+        x0_max = self.body_baseline_x0 + 4
+        best = None
+        for r in page.rects:
+            if r["height"] >= 2.5:
+                continue
+            if abs((r["x1"] - r["x0"]) - width) > tol:
+                continue
+            if r["x0"] > x0_max:
+                continue
+            if not any(
+                r["top"] < c["top"] < page.height and (c.get("text") or "").strip()
+                for c in page.chars
+            ):
+                continue
+            if best is None or r["top"] < best:
+                best = r["top"]
+        return best
+
     def _footnote_sep_structural(self, page) -> Optional[float]:
         """Structural footnote-separator detection for body-size-footnote
         courts (``footnote_sep_structural``): a thin rule at the body's left

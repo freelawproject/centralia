@@ -348,6 +348,17 @@ class DistrictBase(GenericExtractor):
             gx = self._pleading_gutter_x(page)
             if gx is not None:
                 sep = self._gutter_footnote_rule(page, gx)
+        if sep is None:
+            # Body-sized footnotes (12pt, same as the body) under the common
+            # 2-inch left-margin rule — the small-text-below scan can't see the
+            # boundary (ohnd and other CM/ECF PDFs). A 2-inch rule at the margin
+            # is not unique in these filings (a 'NOT FOR PUBLICATION' underline,
+            # a mid-body redaction rule), so confirm the rule really opens a
+            # footnote zone: the first line beneath it must carry a footnote
+            # label (a raised marker '4' — the court's own label test).
+            cand = self.footnote_sep_fixed_left_rule(page)
+            if cand is not None and self._opens_footnote_zone(page, cand):
+                sep = cand
         if sep is None or page.page_number != 1:
             return sep
         sig = (getattr(self, "_caption_fp", None) or (None,))[0]
@@ -400,6 +411,20 @@ class DistrictBase(GenericExtractor):
                 continue
             cands.append(r["top"])
         return min(cands) if cands else None
+
+    def _opens_footnote_zone(self, page, sep_top) -> bool:
+        """True if the first non-empty line below ``sep_top`` starts a footnote
+        (carries a raised label) — the structural proof that a fixed 2-inch rule
+        is a footnote separator and not a header underline or a mid-body rule."""
+        below = [
+            ln
+            for ln in page.extract_text_lines()
+            if ln.get("top", 0) > sep_top + 1 and (ln.get("text") or "").strip()
+        ]
+        if not below:
+            return False
+        first = min(below, key=lambda ln: ln["top"])
+        return self.detect_footnote_label(first) is not None
 
     def extract_page_images(self, page):
         """Drop pleading-paper rule furniture drawn as images — the tall, narrow
