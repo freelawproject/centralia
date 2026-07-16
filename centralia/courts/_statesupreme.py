@@ -635,6 +635,14 @@ class StateSupreme(GenericExtractor):
             split = self._byline_split(line)
             if split is None and not self.parse_author_line(text):
                 continue
+            # ``require_bold_byline`` also gates detection: a roman look-alike
+            # (a trial judge from the 'Appeal from' block, a roman disposition
+            # summary) parses via ``parse_author_line`` — which has no font — so
+            # when the split path (bold-gated) declined, require bold here too.
+            if split is None and getattr(self, "require_bold_byline", False):
+                fc = (line.get("chars") or [{}])[0]
+                if "bold" not in (fc.get("fontname") or "").lower():
+                    continue
             bare = self._is_bare_signature(text, split)
             if roster_started and bare:
                 continue

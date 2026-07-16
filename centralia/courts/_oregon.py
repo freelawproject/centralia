@@ -18,8 +18,18 @@ Court, StateAppellate for the Court of Appeals) so its overrides win and their
 
 from __future__ import annotations
 
+from ._abbrevtitle import _ABBREV
+
 
 class OregonReports:
+    # Oregon seats Senior Judges by designation, so a byline can read
+    # 'WALTERS, S. J.' / 'WALTERS, S.J.' (Senior Judge) — not in the shared
+    # abbreviated-title table. Extend it (spaced first, matching 'P. J.').
+    abbrev_titles: tuple = (
+        ("S. J.", "Senior Judge"),
+        ("S.J.", "Senior Judge"),
+    ) + _ABBREV
+
     # Narrow reporter page: body sits at x0 ~45, not the 72 of letter-size courts.
     body_baseline_x0 = 45.0
     # Drop the top-of-page running header (top ~36); body proper starts ~63.
