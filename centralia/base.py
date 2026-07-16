@@ -321,6 +321,9 @@ class BaseExtractor:
             n_pages=n_pages,
             layout_ok=layout_ok,
             source_path=pdf_path,
+            cid_glyphs=sum(
+                ln.count("(cid:") for _pno, lines in source_pages for ln in lines
+            ),
         )
         self._apply_headmatter(doc, headmatter)
 

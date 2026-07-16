@@ -105,6 +105,10 @@ class ExtractedDocument:
     # processed — only flagged.
     non_digital: bool = False
     source_path: str | None = None
+    # Count of unmapped '(cid:N)' glyphs in the source text — a font-encoding
+    # problem (a glyph the PDF's font declares but doesn't map to a character).
+    # Surfaced as a review flag; a court can map the glyph in correct_page_geometry.
+    cid_glyphs: int = 0
 
     # Headmatter criteria
     decision_date: str | None = None

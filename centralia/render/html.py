@@ -380,6 +380,8 @@ def _render_fingerprint(doc: ExtractedDocument) -> list:
     style_label = (doc.caption_box or {}).get("style_label")
     if style_label:
         signals.append(escape(str(style_label)))
+    if getattr(doc, "cid_glyphs", 0):
+        signals.append(f"⚠ {doc.cid_glyphs} unmapped glyph(s) (cid:)")
     chips = "".join(f"<span>{s}</span>" for s in signals)
     slug = fp.lower().replace(" ", "-")
     return [
