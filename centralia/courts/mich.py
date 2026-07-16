@@ -61,6 +61,28 @@ class MichiganSupreme(AbbrevTitleSupreme):
     _fnsep_scan_band = True
 
     def find_footnote_separator(self, page) -> Optional[float]:
+        """The separator is a fixed 2-inch (144pt) rule at the left margin
+        (x0=72) — drawn on every footnote page, including a continuation page
+        whose zone opens with the prior footnote's body-size block quote (no
+        small marker to key on) and whose rule can sit high on the page when
+        the footnote is long. Keying on that distinctive rule (the caption box
+        and masthead rules are full-width or right-shifted) finds it where the
+        small-text-below heuristic cannot; fall back to that heuristic if a
+        document draws a differently-sized rule."""
+        cands = [
+            r["top"]
+            for r in page.rects
+            if r["height"] < 2.5
+            and 70.0 <= r["x0"] <= 74.0
+            and 138.0 <= (r["x1"] - r["x0"]) <= 150.0
+            and any(
+                r["top"] < c["top"] < page.height
+                and not (c.get("text") or "").isspace()
+                for c in page.chars
+            )
+        ]
+        if cands:
+            return min(cands)
         return self._footnote_sep_small_text_below(page)
 
     def classify_document_type(self, all_segments, author_indices, n_pages) -> str:
