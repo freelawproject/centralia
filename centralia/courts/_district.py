@@ -268,12 +268,38 @@ class DistrictBase(GenericExtractor):
         sequential line numbers 1-28, set off from the body by a vertical margin
         rule; pdfplumber merges each number onto its line ('1 However ...'). When
         that rule is present, drop the chars left of it so the body reads cleanly
-        without the line numbers. Gated on the rule, so ordinary CM/ECF filings
-        (no gutter) are untouched."""
+        without the line numbers. Gated on the rule (or, when no rule is drawn,
+        on the number column itself), so ordinary CM/ECF filings are untouched."""
         gx = self._pleading_gutter_x(page)
+        if gx is None:
+            gx = self._pleading_gutter_by_numbers(page)
         if gx is not None:
             page = page.filter(lambda c: c["x0"] >= gx - 1)
         return super().page_lines(page)
+
+    @staticmethod
+    def _pleading_gutter_by_numbers(page):
+        """Gutter right-edge x inferred from the line-number column when NO
+        margin rule is drawn: a far-left stack of pure integers running roughly
+        1, 2, 3, … down the page. Returns the numbers' right edge (chars left of
+        it are the gutter), or None. Requires a long, mostly-sequential run so an
+        ordinary filing's stray leading digits never trip it."""
+        nums = [
+            (int(w["text"]), w["x1"], w["top"])
+            for w in page.extract_words()
+            if w["text"].isdigit()
+            and int(w["text"]) <= 40
+            and w["x0"] < 90
+            and (w["x1"] - w["x0"]) < 16
+        ]
+        if len(nums) < 8:
+            return None
+        nums.sort(key=lambda n: n[2])  # top-to-bottom
+        vals = [n[0] for n in nums]
+        runs = sum(1 for a, b in zip(vals, vals[1:]) if b == a + 1)
+        if runs < 6:
+            return None
+        return max(n[1] for n in nums)
 
     @staticmethod
     def _pleading_gutter_x(page):
