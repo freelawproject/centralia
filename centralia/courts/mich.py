@@ -128,7 +128,11 @@ class MichiganSupreme(AbbrevTitleSupreme):
     def _split_syllabus(doc) -> None:
         """Move the Reporter's syllabus (everything before the formal caption,
         which opens with a letter-spaced 'S T A T E O F M I C H I G A N') out of
-        ``summary`` and into the ``syllabus`` field."""
+        ``summary`` and into the ``syllabus`` field — GROUPED into paragraphs.
+
+        The syllabus is prose (a disclaimer, the case name, the docket line, then
+        the holdings), single-spaced with a ~2× gap between paragraphs, so join
+        wrapped lines by that gap instead of emitting one row per source line."""
         summary = doc.summary or []
         idx = next(
             (
@@ -140,10 +144,50 @@ class MichiganSupreme(AbbrevTitleSupreme):
         )
         if not idx:  # None or 0 — no caption found, or nothing precedes it
             return
-        syl = [str(r).strip() for r in summary[:idx] if str(r).strip()]
-        if syl:
-            doc.syllabus = syl
-            doc.summary = summary[idx:]
+        doc.summary = summary[idx:]
+
+        from statistics import median
+
+        # Group the pre-caption lines (geometry from headmatter_lines) into
+        # paragraphs: a gap wider than ~1.5× the single-spaced leading, or a
+        # page break, opens a new paragraph.
+        pre = [
+            l
+            for l in (doc.headmatter_lines or [])
+            if str(l.get("text", "")).strip()
+            and "".join(str(l.get("text", "")).split()).upper()
+            != "STATEOFMICHIGAN"
+        ]
+        cap_i = next(
+            (
+                i
+                for i, l in enumerate(pre)
+                if "".join(str(l.get("text", "")).split()).upper().startswith(
+                    "STATEOFMICHIGAN"
+                )
+            ),
+            len(pre),
+        )
+        pre = pre[:cap_i]
+        if not pre:
+            doc.syllabus = [str(r).strip() for r in summary[:idx] if str(r).strip()]
+            return
+        gaps = [
+            b["top"] - a["top"]
+            for a, b in zip(pre, pre[1:])
+            if a.get("page") == b.get("page") and b["top"] - a["top"] > 0
+        ]
+        med = median(gaps) if gaps else 14.0
+        paras = [[pre[0]]]
+        for prev, cur in zip(pre, pre[1:]):
+            same_page = prev.get("page") == cur.get("page")
+            gap = cur["top"] - prev["top"]
+            if not same_page or gap > med * 1.5 or gap < 0:
+                paras.append([cur])
+            else:
+                paras[-1].append(cur)
+        syl = [" ".join(l["text"] for l in grp).strip() for grp in paras]
+        doc.syllabus = [s for s in syl if s]
 
     # ------------------------------------------------------- per-curiam orders
     def extract(self, pdf_path):
