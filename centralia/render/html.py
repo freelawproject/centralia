@@ -169,12 +169,25 @@ def _pdf_uri(source_path: str | None) -> str | None:
 def _render_content(doc: ExtractedDocument) -> list:
     out = []
     if doc.non_digital:
-        out.append(
-            '<div class="warnings">🖼 non-born-digital document '
-            "(scanned image + OCR text layer) — not processed. The engine "
-            "relies on authored page geometry, which an OCR’d scan does not "
-            "provide.</div>"
-        )
+        # Two different faults land here: a raster scan, and a born-digital PDF
+        # whose font ships no character map. Name the one that actually applies
+        # — 'scanned image' on a CID-broken file sends review down the wrong path.
+        if getattr(doc, "cid_glyphs", 0):
+            out.append(
+                '<div class="warnings">🔤 unreadable text layer — '
+                f"{doc.cid_glyphs} unmapped <code>(cid:N)</code> glyphs. The "
+                "PDF's font declares glyphs but no character mapping, so the "
+                "text extracts as glyph ids rather than characters. Not "
+                "processed: the page geometry is intact, so this would "
+                "otherwise parse into an opinion made of noise.</div>"
+            )
+        else:
+            out.append(
+                '<div class="warnings">🖼 non-born-digital document '
+                "(scanned image + OCR text layer) — not processed. The engine "
+                "relies on authored page geometry, which an OCR’d scan does not "
+                "provide.</div>"
+            )
         return out
     if not doc.layout_ok:
         out.append(

@@ -192,6 +192,16 @@ class BaseExtractor:
     # the document is processed. One-or-none (only a certificate-of-service or a
     # mid-order fragment follows the rastered caption) → the document is a scan.
     non_digital_body_page_min_chars: int = 500
+    # A PDF can be born-digital and still be unreadable: when a font declares
+    # glyphs but ships no ToUnicode map, the text layer extracts as '(cid:36)
+    # (cid:83)...' instead of characters. Nothing downstream can work with that
+    # — the bylines, margins and font sizes are all intact, so the document parses
+    # into a confident-looking opinion made of nothing. Treated as non-digital
+    # (flagged, not processed) once unmapped glyphs are this fraction of the
+    # text. Corpus-wide the worst genuinely-readable document sits at 0.04 and
+    # a CID-broken one at 0.63+, so the band between them is wide; a court whose
+    # template mixes a broken decorative font into good text can raise it.
+    cid_unreadable_max_frac: float = 0.35
 
     # ====================================================================
     # MAIN PIPELINE
@@ -231,6 +241,28 @@ class BaseExtractor:
                 return True
         return False
 
+    def cid_unreadable(self, pdf) -> tuple[bool, int]:
+        """Whether the text layer is mostly unmapped glyphs, and how many.
+
+        A font that declares glyphs without a ToUnicode CMap extracts as
+        '(cid:36)(cid:83)(cid:83)...'. The page geometry is untouched, so such a
+        document sails through every layout cue and parses into an opinion whose
+        text is machine noise — worse than failing, because it looks processed.
+        Measured against the readable characters so a stray unmapped ligature
+        in an otherwise fine document never trips it."""
+        import re as _re
+
+        cid = readable = 0
+        for page in pdf.pages:
+            text = page.extract_text() or ""
+            cid += text.count("(cid:")
+            readable += len(
+                _re.sub(r"\(cid:\d+\)", "", text).replace(" ", "").replace("\n", "")
+            )
+        if not cid:
+            return False, 0
+        return cid / (cid + readable + 1) >= self.cid_unreadable_max_frac, cid
+
     def matches_expected_layout(self, pdf) -> bool:
         """True if the PDF looks like a typical document for this court.
         Subclasses override to check layout signatures (e.g. a caption
@@ -261,16 +293,34 @@ class BaseExtractor:
                     "non-born-digital (scanned image + OCR text layer); not processed"
                 )
                 return doc
+            cid_broken, n_cid = self.cid_unreadable(pdf)
+            if cid_broken:
+                doc = ExtractedDocument(
+                    court_id=self.court_id,
+                    court_label=self.court_label,
+                    doc_type=DocType.UNKNOWN,
+                    n_pages=n_pages,
+                    non_digital=True,
+                    cid_glyphs=n_cid,
+                    source_path=pdf_path,
+                )
+                doc.warnings.append(
+                    f"unreadable text layer: {n_cid} unmapped (cid:N) glyphs — the "
+                    "PDF's font declares no character mapping; not processed"
+                )
+                return doc
             layout_ok = self.matches_expected_layout(pdf)
             self._hm_caption_box = None
-            self._page1_width = pdf.pages[0].width if pdf.pages else 612.0
-            if pdf.pages:
-                page1_rules = self._page1_rules(pdf.pages[0])
-                self._hm_caption_box = self._page1_caption_box(pdf.pages[0])
+            cap_page = self.caption_page(pdf)
+            self._caption_pno = cap_page.page_number if cap_page is not None else 1
+            self._page1_width = cap_page.width if cap_page is not None else 612.0
+            if cap_page is not None:
+                page1_rules = self._page1_rules(cap_page)
+                self._hm_caption_box = self._page1_caption_box(cap_page)
                 try:
                     from .captionfp import classify_page
 
-                    self._caption_fp = classify_page(pdf.pages[0])
+                    self._caption_fp = classify_page(cap_page)
                 except Exception:
                     self._caption_fp = (None, None, None)
             for page in pdf.pages:
@@ -897,25 +947,37 @@ class BaseExtractor:
         x0_max = self.body_baseline_x0 + 4
         divider = self.find_caption_divider(page)
         cap_bot = divider[2] if divider else None
-        candidates = []
-        for r in page.rects:
-            if not (
-                r["height"] < 2
-                and (r["x1"] - r["x0"]) >= 100
-                and r["x0"] <= x0_max
-                and r["top"] > cutoff
-            ):
-                continue
-            if cap_bot is not None and abs(r["top"] - cap_bot) <= 4:
-                continue
-            if not self._rule_over_footnotes(page, r["top"]):
-                continue
-            candidates.append(r)
+        def scan(objs):
+            out = []
+            for r in objs:
+                if not (
+                    abs(r.get("height", 0)) < 2
+                    and (r["x1"] - r["x0"]) >= 100
+                    and r["x0"] <= x0_max
+                    and r["top"] > cutoff
+                ):
+                    continue
+                if cap_bot is not None and abs(r["top"] - cap_bot) <= 4:
+                    continue
+                if not self._rule_over_footnotes(page, r["top"]):
+                    continue
+                out.append(r)
+            return out
+
+        candidates = scan(page.rects)
+        if not candidates:
+            # Some courts STROKE the separator as a vector line instead of
+            # filling a thin rect (neb, nd, conn, gactapp, nysurct ...). Their
+            # ``page.rects`` is empty, so the rect scan finds nothing and every
+            # footnote in the volume is silently lost — body text and all.
+            # Consulted only when the rects found nothing, so a court that
+            # already resolves via rects is unaffected.
+            candidates = scan(page.lines)
         if candidates:
             return min(candidates, key=lambda r: r["top"])["top"]
         return self._footnote_sep_text(page)
 
-    def footnote_sep_fixed_left_rule(self, page, width=144.0, tol=6.0):
+    def footnote_sep_fixed_left_rule(self, page, width=144.0, tol=6.0, x0_max=None):
         """Footnote separator = the fixed-width thin rule the court draws at the
         left body margin (a 2-inch / 144pt rule is the common Word/CM-ECF and
         reporter footnote divider), with text directly below it. Keyed on that
