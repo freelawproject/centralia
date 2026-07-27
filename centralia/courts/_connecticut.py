@@ -18,6 +18,7 @@ files stay thin — they only pick the right byline base):
 from __future__ import annotations
 
 import re
+from statistics import median
 
 from ._statesupreme import is_caps_name
 
@@ -40,7 +41,11 @@ class ConnecticutStyle:
         if r is not None:
             return r
         low = text.lower()
-        if ", with whom" in low and "joins" in low:
+        # One judge 'joins', two or more 'join' — a plural roster ('with whom
+        # McDONALD and ECKER, Js., join') is the common shape for a separate
+        # writing, so matching only the singular missed those outright.
+        joined = {t.strip(".,;:") for t in low.split()} & {"join", "joins", "joined"}
+        if ", with whom" in low and joined:
             name = text.split(",", 1)[0].strip()
             if is_caps_name(name):
                 after = text.split(",", 1)[1].lstrip()
@@ -64,6 +69,61 @@ class ConnecticutStyle:
                 )
                 return name, title, kind
         return None
+
+    def find_authors(self, all_segments) -> list:
+        """A joinder byline wraps across two lines —
+
+            D'AURIA, J., with whom McDONALD and ECKER,
+            Js., join, dissenting in part. In State v. Purcell, ...
+
+        so the first line carries no verb and parses as nothing on its own. A
+        separate writing published as its own file then yields no opinion at
+        all, taking its footnotes with it. Retry those as a joined pair, gated
+        on the 'with whom' shape so ordinary bylines are left alone."""
+        found = list(super().find_authors(all_segments))
+        for i, (_p, seg, _kind) in enumerate(all_segments):
+            # No kind filter: Connecticut's centered measure classifies most
+            # body segments as 'notice', bylines included.
+            if i in found or len(seg) < 2:
+                continue
+            first = self.line_plain_text(seg[0]).strip()
+            if ", with whom" not in first.lower():
+                continue
+            pair = f"{first} {self.line_plain_text(seg[1]).strip()}"
+            if self.parse_author_line(pair):
+                found.append(i)
+        return sorted(found)
+
+    def find_footnote_separator(self, page):
+        """Connecticut strokes its rules as vector lines rather than filled
+        rects. The shared finder scans only ``page.rects`` — which is empty on
+        every page here — so it finds no separator and the footnotes are lost
+        wholesale, body text and all.
+
+        Same predicate as the base (thin, >=100pt wide, at the body margin,
+        footnote-sized text below), applied to the strokes — but bounded by the
+        head band rather than the base's half-page cutoff. A long footnote
+        pushes its separator well up the sheet (alers_v._bemer draws it at
+        385pt on a 792pt page, above the base's 435pt cutoff, and the footnote
+        it opens was silently lost). The running-head rules at 163.8/180.2 read
+        as footnote separators on the 'small text below' test alone, so they
+        still have to be excluded by position — the head band does that, and
+        nothing but head furniture ever sits above 185pt here."""
+        sep = super().find_footnote_separator(page)
+        if sep is not None:
+            return sep
+        cutoff = 185.0
+        x0_max = self.body_baseline_x0 + 4
+        tops = [
+            l["top"]
+            for l in page.lines
+            if abs(l.get("height", 0)) < 2
+            and (l["x1"] - l["x0"]) >= 100
+            and l["x0"] <= x0_max
+            and l["top"] > cutoff
+            and self._rule_over_footnotes(page, l["top"])
+        ]
+        return min(tops) if tops else None
 
     def build_opinion(self, op_start, op_end, **kwargs):
         op = super().build_opinion(op_start, op_end, **kwargs)
@@ -103,12 +163,25 @@ class ConnecticutStyle:
                 out.append(l)
         if captured:
             self._conn_notice.append(" ".join(captured))
-        # Drop the running header: the topmost line, a short 'X v. Y' case name.
-        if out:
-            top_line = min(out, key=lambda l: l.get("top", 0))
-            t = (top_line.get("text") or "").strip()
-            if " v. " in t and len(t) <= 80:
-                out = [l for l in out if l is not top_line]
+        # Drop the running head. A slip opinion carries one line (the short
+        # 'X v. Y' case name); the bound Connecticut Reports carry two — a
+        # volume/page/date band ('354 Conn. 151 FEBRUARY, 2026 153') above the
+        # case name. Both sit above the body and are set smaller than it, so
+        # the head is the run of undersized lines at the page top.
+        #
+        # Left in, that band is not just noise: it lands mid-sentence between
+        # the page's first line and the paragraph continuing from the previous
+        # page, so every paragraph spanning a page break is split in three.
+        # Anchored on position alone. Font size cannot make this call: the
+        # syllabus is itself set at 8pt, so on syllabus pages the 8pt head is
+        # not "smaller than the body" and survives. Nor can wording: an
+        # 'In re Hunter T.' head carries no ' v. '. But the reporter's measure
+        # is rigid — across both corpora the only lines above 185pt on a
+        # continuation page are head furniture (the volume/date band at 150.5
+        # and the case name at ~169, wrapping to a second row on long names),
+        # and the body never opens above 187.7.
+        if page.page_number > 1:
+            out = [l for l in out if l.get("top", 0) >= 185]
         return out
 
     # ----------------------------------------------------- page-aware headmatter
