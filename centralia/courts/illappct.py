@@ -21,6 +21,122 @@ class IllinoisAppellateCourt(IllinoisStyle, ReversedJusticeSupreme):
     court_id = "illappct"
     court_label = "Illinois Appellate Court."
 
+    # ------------------------------------------- case-information end page
+    def extract(self, pdf_path):
+        self._ill_endmatter = []
+        doc = super().extract(pdf_path)
+        if self._ill_endmatter:
+            doc.trailer = list(doc.trailer) + self._ill_endmatter
+        return doc
+
+    def _case_info_table(self, page):
+        """Every Illinois Official Reports opinion closes with a
+        case-information page — a drawn two-column table (label column left,
+        content right) carrying the case title + citation, 'Decision Under
+        Review', and counsel for each side. Left in place it reads as more
+        opinion body, so it is lifted into the document's ending matter.
+
+        Detected from the drawing, never the wording: each row rule is laid
+        down as TWO segments meeting at a shared column seam, so several rules
+        sharing one seam x is the table's signature. Returns (seam_x, rule
+        tops) or None."""
+        bands: dict = {}
+        for r in page.rects:
+            if r["height"] < 2.5 and (r["x1"] - r["x0"]) > 40:
+                bands.setdefault(round(r["top"], 1), []).append(r)
+        seams: dict = {}
+        for top, rs in bands.items():
+            rs.sort(key=lambda r: r["x0"])
+            for a, b in zip(rs, rs[1:]):
+                if 0 <= b["x0"] - a["x1"] < 4:  # two segments, one seam
+                    seams.setdefault(round((a["x1"] + b["x0"]) / 2), set()).add(top)
+        if not seams:
+            return None
+        seam_x, tops = max(seams.items(), key=lambda kv: len(kv[1]))
+        # A single seam could be any two abutting rules; a table has several.
+        if len(tops) < 2:
+            return None
+        return seam_x, sorted(bands)
+
+    @staticmethod
+    def _seam_split(line, seam_x):
+        """Split one source line into (label, content) at the column seam.
+
+        A row whose text runs straight through the seam (the case title) is one
+        cell, not two — splitting it would scramble its reading order — so it is
+        returned whole. Spaces are real chars here (``keep_blank_chars``), so
+        the gutter is measured between non-blank glyphs."""
+        chars = list(line.get("chars", ()))
+        glyphs = [c for c in chars if not c["text"].isspace()]
+        if not glyphs:
+            return "", ""
+
+        def join(cs):
+            return " ".join(
+                "".join(c["text"] for c in sorted(cs, key=lambda c: c["x0"])).split()
+            )
+
+        # Sides are measured on the ink, but rebuilt from every char so the
+        # real space glyphs survive and words keep their breaks.
+        ink_l = [c for c in glyphs if c["x0"] < seam_x]
+        ink_r = [c for c in glyphs if c["x0"] >= seam_x]
+        if not ink_l or not ink_r:
+            return (join(chars), "") if ink_l else ("", join(chars))
+        gutter = min(c["x0"] for c in ink_r) - max(c["x1"] for c in ink_l)
+        if gutter < 12:  # continuous text crossing the seam — a spanning row
+            return join(chars), ""
+        return (
+            join([c for c in chars if c["x0"] < seam_x]),
+            join([c for c in chars if c["x0"] >= seam_x]),
+        )
+
+    def _fold_case_info(self, rows, seam_x, rule_tops) -> list:
+        """One entry per table row, with each column's wrapped lines rejoined:
+        the label column stacks 'Attorneys' / 'for' / 'Appellant:' down three
+        baselines that pdfplumber merges into the counsel names beside them, so
+        the two columns are gathered separately and then set side by side."""
+        out = []
+        for lo, hi in zip(rule_tops, rule_tops[1:] + [float("inf")]):
+            band = sorted(
+                (ln for ln in rows if lo <= ln.get("top", 0) < hi),
+                key=lambda ln: ln.get("top", 0),
+            )
+            label, content = [], []
+            for ln in band:
+                l, r = self._seam_split(ln, seam_x)
+                if l:
+                    label.append(l)
+                if r:
+                    content.append(r)
+            row = " ".join(label + content).strip()
+            if row:
+                out.append(row)
+        return out
+
+    def page_lines(self, page) -> list:
+        lines = super().page_lines(page)
+        table = self._case_info_table(page)
+        if not table:
+            return lines
+        seam_x, rule_tops = table
+        top0 = rule_tops[0]
+        body = [ln for ln in lines if ln.get("top", 0) < top0]
+        rows = [ln for ln in lines if ln.get("top", 0) >= top0]
+        if not rows:
+            return lines
+        self._ill_endmatter = self._fold_case_info(rows, seam_x, rule_tops)
+        return body
+
+    def extract_headmatter(self, headmatter_segs, page1_rules=None) -> dict:
+        """Fold the ')'-railed caption (The Banded Bracket) into a two-column
+        block: parties left of the rail, court-below / docket / trial judge
+        right — like idahoctapp/delch/wash. Without this the rail stays inline
+        in the text ('PARTY ) Appeal from the') and the two columns lose their
+        alignment, with the rail-only rows orphaned as lone ')' lines."""
+        d = self._styled_headmatter(headmatter_segs, page1_rules)
+        d["summary"] = self._fold_rail_caption(d["summary"], ")")
+        return d
+
     def find_footnote_separator(self, page) -> Optional[float]:
         """A footnote separator has footnote-sized text directly below it. The
         two-column caption is closed by full-width divider rules; the shared
