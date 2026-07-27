@@ -82,6 +82,14 @@ DATABASES = {
     "default": {
         "ENGINE": "django.db.backends.sqlite3",
         "NAME": BASE_DIR / "db.sqlite3",
+        # Ingesting several courts at once (a parallel re-ingest of the corpus)
+        # otherwise dies on 'database is locked': each court is one big
+        # delete-then-bulk-insert transaction and the default 5s timeout runs
+        # out. WAL lets the viewer keep reading while a court is being written.
+        "OPTIONS": {
+            "timeout": 180,
+            "init_command": "PRAGMA journal_mode=WAL;",
+        },
     }
 }
 

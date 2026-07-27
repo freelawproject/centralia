@@ -17,6 +17,18 @@ from library.views import captions, review_marks, viewer
 _OUTPUT = str(settings.BASE_DIR / "output")
 _ASSETS = str(settings.BASE_DIR / "assets")
 
+
+def _serve_nocache(request, path, document_root=None):
+    """manifest.js / notes.js, told never to be cached.
+
+    Both are rewritten whenever a court is re-ingested or a review mark moves,
+    but ``django.views.static.serve`` sends only Last-Modified — so the browser
+    reuses its copy and the sidebar keeps showing stale document counts through
+    a normal reload, which reads as 'the new PDFs never arrived'."""
+    response = serve(request, path, document_root=document_root)
+    response["Cache-Control"] = "no-store, must-revalidate"
+    return response
+
 urlpatterns = [
     path("", viewer, name="viewer"),
     path("captions", captions, name="captions"),
@@ -28,6 +40,9 @@ urlpatterns = [
     re_path(r"^assets/(?P<path>.+)$", serve, {"document_root": _ASSETS}),
     # Viewer assets, served from output/ at the site root so the viewer's
     # relative links resolve (manifest.js, notes.js, and <court>/<stem>.html).
-    re_path(r"^(?P<path>(?:manifest|notes)\.js)$", serve, {"document_root": _OUTPUT}),
+    re_path(
+        r"^(?P<path>(?:manifest|notes)\.js)$", _serve_nocache,
+        {"document_root": _OUTPUT},
+    ),
     re_path(r"^(?P<path>[^/]+/[^/]+\.html)$", serve, {"document_root": _OUTPUT}),
 ]
