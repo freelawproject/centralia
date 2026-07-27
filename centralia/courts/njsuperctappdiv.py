@@ -58,6 +58,21 @@ class NewJerseySuperiorCourtAppellateDivision(StateSupreme):
             i += 1
         return out
 
+    def find_footnote_separator(self, page):
+        """This court's separator is the 2-inch (144pt) rule at the left body
+        margin — 108 of them across the corpus, against a scatter of other
+        widths (103, 112, 118, 324, 468 ...) that are underlines and shelves.
+
+        Keyed on that width alone. The inherited finder takes any thin rule
+        >=100pt in the bottom half that is neither a caption PAIR nor an
+        underline, which on page 1 matches the 216pt shelf closing the caption
+        box — sweeping the argued/decided line and the panel roster beneath it
+        into the footnote zone. Width is what separates the two here: the shelf
+        is 216pt, the separator always 144pt. Keying on the court's own rule
+        also drops the bottom-half fence, so a long footnote that pushes its
+        separator high up the page is still found."""
+        return self.footnote_sep_fixed_left_rule(page, width=144.0)
+
     def extract(self, pdf_path):
         """Bridge the page-break case the per-page join can't: the introduction
         is the last line of one page and the byline the first line of the next,
