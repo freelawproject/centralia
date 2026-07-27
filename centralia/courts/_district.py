@@ -148,6 +148,18 @@ class DistrictBase(GenericExtractor):
     # tight leading (Courier/Times ~13-15pt) — below gap_tight_max — so an
     # indented quote reads as a 'notice'. Re-tag it by its both-margins indent.
     blockquote_by_indent = True
+    # A paragraph that is nothing but a page number is the page's folio, never
+    # body text — fold it out and let the residual sweep surface it in the
+    # Removed box.
+    fold_page_numbers = True
+    # A district ruling closes on a STACK of short lines — signature rule,
+    # printed name, title, court, date, place — none of which reaches the
+    # right measure, so none of them wrapped and none of them is a
+    # continuation of the line above. Joining them produces run-ons
+    # ('ELIZABETH A. WOLFORD Chief Judge United States District Court') and
+    # hides the title line the signature block is anchored on. Body prose is
+    # untouched: a real wrapped paragraph always has full-measure lines.
+    split_line_stacks = True
 
     def extract(self, pdf_path):
         self._hm_super_labels = set()
@@ -179,6 +191,29 @@ class DistrictBase(GenericExtractor):
             i = k + 1
         return "".join(out)
 
+    def _caption_band_bottom(self):
+        """The y of the page-1 caption's bottom edge, as the fingerprint
+        measured it — or None when the caption's shape was not recognised.
+
+        The three structures that close a caption, most specific first: a
+        glyph rail column (')' / ':' / '§'), a drawn mid vertical, and a pair
+        of TYPED rules (the New York districts' '--------x'). Everything that
+        needs to know where the caption ends — the opinion start, the footnote
+        separator, the page-1 shelf test — reads it from here, so they cannot
+        disagree about the caption's extent."""
+        sig = (getattr(self, "_caption_fp", None) or (None,))[0]
+        if not sig:
+            return None
+        rail_band = sig.get("rail_band")
+        if rail_band:
+            return rail_band[1]
+        if sig.get("vmid") and sig.get("band"):
+            return sig["band"][1]
+        typed_band = sig.get("typed_band")
+        if typed_band:
+            return typed_band[1]
+        return None
+
     def _harvest_signature(self, doc):
         """Lift the signature block off the END of the last opinion into
         ``doc.signature``: the '/s/' conformed signature (or the underscore
@@ -206,7 +241,7 @@ class DistrictBase(GenericExtractor):
         # number after the image is ignored when anchoring.
         end = len(blocks)
         while end > 0 and blocks[end - 1].kind == "p" and (
-            self._untag(blocks[end - 1].text).strip().isdigit()
+            self._is_page_number_text(self._untag(blocks[end - 1].text))
         ):
             end -= 1
         if end >= 2 and blocks[end - 1].kind == "image":
@@ -229,45 +264,65 @@ class DistrictBase(GenericExtractor):
                 ]
                 op.blocks = blocks[: end - 1] + blocks[end:]
             return
-        if not is_title(self._untag(blocks[-1].text)):
-            return
-        taken = 1
-        for b in reversed(blocks[:-1]):
-            if taken >= 5:
-                break
+        # Otherwise the block is the trailing run of SIGN-OFF lines: the
+        # conformed signature or its rule, the printed name, the title, the
+        # court, and the date/place stamp — in whatever order the district
+        # prints them (E.D.N.Y. puts 'Dated: …' / 'Brooklyn, New York' BELOW
+        # the title; W.D.N.Y. puts them below the court line). They are all
+        # short, none of them closes a sentence, and the run stops the moment
+        # real prose appears above it ('SO ORDERED.'). The run only counts as
+        # a signature if it names a judicial title, so an ordinary short
+        # closing line can never be lifted out of the body.
+        run: list[int] = []
+        i = end - 1
+        while i >= 0 and len(run) < 7:
+            b = blocks[i]
             if b.kind == "image":
-                taken += 1
-                break  # the signature image tops the block
+                run.append(i)  # the signature graphic tops the block
+                break
+            # 'p' or 'blockquote' — a tightly-led, indented sign-off is
+            # tagged as a quote by the paragraph classifier, which says
+            # nothing about whether it is one.
+            if b.kind not in ("p", "blockquote"):
+                break
             t = self._untag(b.text).strip()
             low = t.lower()
+            if not t:
+                break
             if low.startswith("/s/") or low.startswith("s/"):
-                taken += 1
-                break  # the conformed signature tops the block
+                run.append(i)  # the conformed signature tops the block
+                break
             if len(t) >= 4 and set(t) <= {"_"}:
-                taken += 1
-                break  # the drawn/typed signature rule tops the block
-            if any(low.startswith(sk) for sk in _SIG_DATE):
-                taken += 1
-                continue  # a date stamp inside the block; image/'/s/' above it
-            if (
-                t
-                and len(t) <= 48
-                and not t.endswith(".")
-                and not any(low.startswith(sk) for sk in _SIG_SKIP)
-                and not is_title(t)
+                run.append(i)  # the typed signature rule tops the block
+                break
+            if not (
+                is_title(t)
+                or any(low.startswith(sk) for sk in _SIG_DATE)
+                or (
+                    len(t) <= 48
+                    and not t.endswith(".")
+                    and not any(low.startswith(sk) for sk in _SIG_SKIP)
+                )
             ):
-                taken += 1  # the printed name between rule/'/s/' and title
-                continue
-            break
-        if taken < 2:
+                break
+            run.append(i)
+            i -= 1
+        if len(run) < 2:
             return
+        if not any(
+            blocks[j].kind in ("p", "blockquote")
+            and is_title(self._untag(blocks[j].text))
+            for j in run
+        ):
+            return
+        first = min(run)
         doc.signature = [
             {"__image__": True, **(b.payload or {})}
             if b.kind == "image"
             else str(b.text)
-            for b in blocks[-taken:]
+            for b in blocks[first:end]
         ]
-        op.blocks = blocks[:-taken]
+        op.blocks = blocks[:first] + blocks[end:]
 
     # ----------------------------------------- pleading-paper line numbers
     def page_lines(self, page):
@@ -361,14 +416,7 @@ class DistrictBase(GenericExtractor):
                 sep = cand
         if sep is None or page.page_number != 1:
             return sep
-        sig = (getattr(self, "_caption_fp", None) or (None,))[0]
-        cap_bottom = None
-        if sig:
-            rb = sig.get("rail_band")
-            if rb:
-                cap_bottom = rb[1]
-            elif sig.get("vmid") and sig.get("band"):
-                cap_bottom = sig["band"][1]
+        cap_bottom = self._caption_band_bottom()
         if cap_bottom is None or sep > cap_bottom + 12:
             return sep
         gx = self._pleading_gutter_x(page)
@@ -390,14 +438,9 @@ class DistrictBase(GenericExtractor):
         column (a few points right of the line-number gutter). A page-1
         caption's closing shelf at the caption-band bottom is excluded."""
         cutoff = page.height * 0.55
-        cap_bottom = None
-        sig = (getattr(self, "_caption_fp", None) or (None,))[0]
-        if page.page_number == 1 and sig:
-            rb = sig.get("rail_band")
-            if rb:
-                cap_bottom = rb[1]
-            elif sig.get("vmid") and sig.get("band"):
-                cap_bottom = sig["band"][1]
+        cap_bottom = (
+            self._caption_band_bottom() if page.page_number == 1 else None
+        )
         cands = []
         for r in page.rects:
             if not (
@@ -808,7 +851,7 @@ class DistrictBase(GenericExtractor):
             _railg = state["rail"] or fp_rail
             if _railg and _railg in joined:
                 state["rail_rows"] += 1
-            if len(joined) >= 4 and all(c in "_-—–=* " for c in joined):
+            if self.is_rule_text(joined, "_-—–=*"):
                 flush()
                 out.append("__DIVIDER__")
                 continue
@@ -1161,6 +1204,53 @@ class DistrictBase(GenericExtractor):
                     return name
         return None
 
+    def _judge_byline_name(self, line):
+        """The judge named by an opening BYLINE — 'ERIC KOMITEE, United States
+        District Judge:' — the form the New York districts print immediately
+        below the caption's closing rule. Returns the name, or None.
+
+        This is a byline, not a signature: it opens the ruling, so the line
+        itself is consumed by the opinion's ``author`` (see
+        ``split_author_line``) rather than rendered as caption text."""
+        t = self.line_plain_text(line).strip()
+        if "," not in t or len(t) > 70:
+            return None
+        name, rest = t.split(",", 1)
+        rest = rest.strip().rstrip(":.").lower()
+        if rest not in _JUDGE_TITLES:
+            return None
+        name = name.strip()
+        return name if _looks_like_name(name) else None
+
+    def _split_segments_at_bylines(self, all_segments) -> list:
+        """Also isolate a judge BYLINE onto its own segment.
+
+        The New York districts set the byline at the body margin one
+        double-space above the first paragraph — the same pitch as the body —
+        so no gap/font/alignment cue separates them and the byline arrives
+        glued to the front of the opening body segment. Cutting around it lets
+        it be recognised as the opinion start and consumed as the author
+        instead of read as the first sentence."""
+        out = []
+        for page_no, seg, kind in super()._split_segments_at_bylines(all_segments):
+            cuts = sorted(
+                {
+                    j
+                    for i, line in enumerate(seg)
+                    if self._judge_byline_name(line)
+                    for j in (i, i + 1)
+                    if 0 < j < len(seg)
+                }
+            )
+            if not cuts:
+                out.append((page_no, seg, kind))
+                continue
+            for a, b in zip([0] + cuts, cuts + [len(seg)]):
+                sub = seg[a:b]
+                if sub:
+                    out.append((page_no, sub, self.classify_segment(sub)))
+        return out
+
     def _caption_judge(self, all_segments, limit=14):
         """A caption author tag: 'Judge NAME' / 'Hon. NAME' / 'Honorable NAME'
         sitting in the caption column."""
@@ -1200,21 +1290,50 @@ class DistrictBase(GenericExtractor):
     def find_authors(self, all_segments) -> list:
         # Author, in order of reliability: signature block, minute-order
         # 'Present:' line, a 'NAME, J.' opening byline, a caption 'Judge NAME'.
-        self._district_author = (
-            self._signature_author(all_segments)
-            or self._present_author(all_segments)
-            or self._byline_author(all_segments)
-            or self._caption_judge(all_segments)
-        )
+        # Keep the SOURCE as well as the name: which signal produced the judge
+        # is what tells a ruling from a paper filed with the court (see
+        # ``classify_document_type``).
+        self._district_author = self._district_author_source = None
+        for src, finder in (
+            ("signature", self._signature_author),
+            ("present", self._present_author),
+            ("byline", self._byline_author),
+            ("caption", self._caption_judge),
+        ):
+            name = finder(all_segments)
+            if name:
+                self._district_author, self._district_author_source = name, src
+                break
         # Opinion start: the document-type heading; else the first body segment.
         # (Courts whose ruling opens differently — e.g. an ALL-CAPS heading after
         # a ruled caption box, or a title set INSIDE the caption column with the
         # body opening 'THIS MATTER is before…' — override this in their own
         # file; see akd.py and ncwd.py.)
+        # Caption band bottom (page 1) — bounds the heading scan below, and is
+        # reused further down to keep the start from landing above the caption.
+        cap_bottom = self._caption_band_bottom()
+
+        # Bound the heading scan to the FRONT of the ruling. Once real body
+        # prose has begun — a later page, or below the page-1 caption band — the
+        # opinion has already started, so a heading-table match further down is a
+        # running footer that repeats the caption's document title ('ORDER
+        # REMANDING DECISION …' at the foot of page 8), not the opinion start.
+        def _body_started(pno, seg, kind):
+            if kind != "body" or not seg:
+                return False
+            if pno > 1:
+                return True
+            return (
+                cap_bottom is not None
+                and seg[0].get("top", 0) >= cap_bottom - 6
+            )
+
         start = None
-        for i, (_p, seg, _k) in enumerate(all_segments):
+        for i, (pno, seg, kind) in enumerate(all_segments):
             if seg and self._is_heading(seg[0]):
                 start = i
+                break
+            if _body_started(pno, seg, kind):
                 break
         if start is None:
             for i, (_p, seg, kind) in enumerate(all_segments):
@@ -1255,15 +1374,7 @@ class DistrictBase(GenericExtractor):
         # fingerprint drew a caption band (mid vertical or glyph rail) and
         # the chosen start sits inside/above it (a double-spaced caption
         # classifying as 'body' pulls the fallback to the banner), advance
-        # to the first segment below the band.
-        sig = (getattr(self, "_caption_fp", None) or (None,))[0]
-        cap_bottom = None
-        if sig:
-            rb = sig.get("rail_band")
-            if rb:
-                cap_bottom = rb[1]
-            elif sig.get("vmid") and sig.get("band"):
-                cap_bottom = sig["band"][1]
+        # to the first segment below the band (cap_bottom computed above).
         if cap_bottom is not None:
             pno0, seg0, _k0 = all_segments[start]
             if pno0 == 1 and seg0 and seg0[0].get("top", 0) < cap_bottom - 4:
@@ -1323,6 +1434,25 @@ class DistrictBase(GenericExtractor):
                 break
         if last_role is not None and last_role + 1 < len(all_segments):
             start = last_role + 1
+        # The caption's closing rule is caption furniture, never the ruling's
+        # first line — step over it so it renders as the caption's divider
+        # (the New York districts close the caption with a typed '------x').
+        while (
+            start + 1 < len(all_segments)
+            and all_segments[start][1]
+            and self.is_separator_line(all_segments[start][1][0])
+        ):
+            start += 1
+        # A judge BYLINE below the caption ('ERIC KOMITEE, United States
+        # District Judge:') opens the ruling. Start there — that lifts it out
+        # of the caption, and ``split_author_line`` consumes it as the author.
+        for i in range(min(start + 1, len(all_segments))):
+            seg = all_segments[i][1]
+            if not seg or len(seg) > 1:
+                continue
+            if self._judge_byline_name(seg[0]):
+                start = i
+                break
         # A footnote referenced from the CAPTION (a superscript on a party
         # or title row) belongs to the headmatter — record its label so
         # ``extract`` can move it. A footnote must never go missing.
@@ -1356,13 +1486,38 @@ class DistrictBase(GenericExtractor):
         from the signature block / minute line. Return (author, [heading-as-body]).
         When no structured author was found, leave it empty — guessing from the
         opening line would grab the caption banner ('UNITED STATES DISTRICT
-        COURT') on a signature-less order."""
+        COURT') on a signature-less order.
+
+        A judge byline is the exception: it *is* the author line, so it is
+        consumed here rather than kept as the opinion's opening paragraph."""
         author = getattr(self, "_district_author", None)
+        byline = self._judge_byline_name(line)
+        if byline:
+            return (author or byline, [])
         return (author or "", [line])
 
     def classify_document_type(self, all_segments, author_indices, n_pages):
         from ..models import DocType
 
+        # A LETTER to the court is a paper filed WITH the court, not a ruling
+        # BY it, and must not enter the case law. Its shape is an addressee
+        # block ('The Honorable NAME' over the court's address) followed by a
+        # salutation ('Dear Judge NAME:'). Both are required, so a ruling that
+        # merely names a judge is never mistaken for one — and no ruling opens
+        # with a salutation. The judicial title inside that addressee block is
+        # also what fools the signature scan into reading the addressee as the
+        # author, so this check cannot be gated on where the author came from.
+        addressed = salutation = False
+        for _p, seg, _k in all_segments[:40]:
+            for line in seg:
+                t = self.line_plain_text(line).strip()
+                low = t.lower()
+                if low.startswith(("the honorable ", "honorable ", "hon. ")):
+                    addressed = True
+                elif low.startswith("dear ") and t.endswith(":"):
+                    salutation = True
+        if addressed and salutation:
+            return DocType.FILING
         if author_indices:
             return DocType.OPINION
         return super().classify_document_type(all_segments, author_indices, n_pages)

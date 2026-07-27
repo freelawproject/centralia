@@ -466,11 +466,12 @@ class StateSupreme(GenericExtractor):
         # otherwise only kept underscore-TEXT rules. Collapse near-duplicate tops
         # (the same visual rule is often captured as several rect segments).
         seen_div: list = []
+        cap_pno = getattr(self, "_caption_pno", 1)
         for div_top in sorted(page1_rules or []):
             if any(abs(div_top - s) < 4 for s in seen_div):
                 continue
             seen_div.append(div_top)
-            rows.append((1, round(div_top, 1), 0.0, {"divider": True}))
+            rows.append((cap_pno, round(div_top, 1), 0.0, {"divider": True}))
         rows.sort(key=lambda r: (r[0], r[1], r[2]))
         sizes = [p["size"] for _, _, _, p in rows if "size" in p]
         base = _Counter(round(s) for s in sizes).most_common(1)[0][0] if sizes else 12

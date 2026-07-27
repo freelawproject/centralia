@@ -334,8 +334,8 @@ class BaseExtractor:
                     if self.footnote_sep_structural
                     else self.find_footnote_separator(page)
                 )
-                if page.page_number == 1 and sep_y is not None:
-                    # The page-1 footnote separator is NOT a headmatter
+                if page.page_number == self._caption_pno and sep_y is not None:
+                    # The caption page's footnote separator is NOT a headmatter
                     # divider — without this it leaks into the styled summary
                     # as a spurious full-width rule at the bottom.
                     page1_rules = [t for t in page1_rules if t < sep_y - 1]
@@ -544,6 +544,14 @@ class BaseExtractor:
     # ====================================================================
     # PAGE-1 HORIZONTAL RULES
     # ====================================================================
+    def caption_page(self, pdf):
+        """The page carrying the case caption. Page 1 for almost every court —
+        but a court that prints an official summary / publication-notice sheet
+        AHEAD of the caption (the Colorado Court of Appeals) must measure its
+        caption geometry, drawn rules and fingerprint on the page that actually
+        holds the caption, not on the sheet in front of it."""
+        return pdf.pages[0] if pdf.pages else None
+
     def _page1_rules(self, p1) -> list:
         """Tops of horizontal rules on page 1 (caption-zone dividers).
         The same visual rule may be a hairline RECT, a vector LINE, or a
@@ -676,7 +684,9 @@ class BaseExtractor:
                 {
                     "page": page.page_number,
                     "top": img["top"],
+                    "bottom": img["bottom"],
                     "x0": img["x0"],
+                    "x1": img["x1"],
                     "width": img["width"],
                     "height": img["height"],
                     "data": f"data:image/png;base64,{data}",
@@ -699,11 +709,20 @@ class BaseExtractor:
                 )
         vx = vtop = vbottom = None
         if verts:
-            # The COLUMN divider is the vertical nearest mid-page — a boxed
-            # caption also has edge verticals, which must not win.
+            # The COLUMN divider is the interior vertical nearest mid-page. A
+            # boxed caption also has edge verticals, and pleading paper draws
+            # full-height margin/border rails at the very edges — neither is a
+            # column divider, so restrict to the interior band before choosing.
+            # If nothing sits interior (the caption is held by a glyph rail
+            # like ')' rather than a drawn rule), leave vx None so the split
+            # falls back to mid-page instead of snapping to a margin rail.
             mid = page.width / 2
-            best = min(verts, key=lambda v: abs(v[0] - mid))
-            vx, vtop, vbottom = best
+            interior = [
+                v for v in verts if page.width * 0.25 < v[0] < page.width * 0.75
+            ]
+            if interior:
+                best = min(interior, key=lambda v: abs(v[0] - mid))
+                vx, vtop, vbottom = best
         hrules = []
         for r in page.rects:
             if (r["bottom"] - r["top"]) < 2 and (r["x1"] - r["x0"]) > 20:
@@ -793,11 +812,47 @@ class BaseExtractor:
         return out
 
     def correct_page_geometry(self, page) -> None:
-        """Hook: adjust raw char geometry on ``page`` (in place) before any line
-        clustering. Default no-op. A court whose font declares a broken glyph
-        bounding box overrides this to snap chars back to their true row (see
-        Maine); the completeness audit calls it too, so it reads the same
-        corrected text the extractor does."""
+        """Adjust raw char geometry on ``page`` (in place) before any line
+        clustering. A court whose font declares a broken glyph bounding box
+        overrides this to snap chars back to their true row (see Maine); the
+        completeness audit calls it too, so it reads the same corrected text
+        the extractor does.
+
+        The base behaviour is to drop OVERSTRUCK glyphs — a character redrawn
+        at a position another copy of it already occupies. Conformed
+        signatures are often darkened by stamping the judge's name dozens of
+        times at one spot, which reads out as
+        'CCCCCCCCCCCCCCCCCOOLLLLEEEENN DD. HHHHHOOOOLLLLLLAANNDD'. Two
+        distinct glyphs never share a position, so a repeat there is the same
+        glyph struck again, not new text."""
+        chars = page.chars
+        # Sorted by glyph then POSITION, so every copy of one stamp lands
+        # beside its originals: the restamps scatter by hundredths of a point,
+        # which a fixed grid would split across two buckets, and ordering by
+        # x0 before top keeps two stamps of the same letter on one line from
+        # interleaving and breaking the run.
+        order = sorted(
+            range(len(chars)),
+            key=lambda i: (
+                chars[i].get("text") or "",
+                chars[i]["x0"],
+                chars[i]["top"],
+            ),
+        )
+        dupes, anchor = [], None
+        for i in order:
+            c = chars[i]
+            if (
+                anchor is not None
+                and (c.get("text") or "") == (anchor.get("text") or "")
+                and abs(c["top"] - anchor["top"]) <= 0.5
+                and abs(c["x0"] - anchor["x0"]) <= 0.5
+            ):
+                dupes.append(i)
+            else:
+                anchor = c
+        for i in sorted(dupes, reverse=True):
+            del chars[i]
 
     def page_lines(self, page) -> list:
         """Return text lines after filtering header/footer margins. If the
@@ -874,9 +929,17 @@ class BaseExtractor:
         Default False; courts using ``running_header_docket`` implement it."""
         return False
 
+    @staticmethod
+    def is_rule_text(text: str, glyphs: str = "_-—–") -> bool:
+        """True if ``text`` is a TYPED horizontal rule — see
+        ``captionfp.is_typed_rule``, the one definition of the shape, which
+        the caption fingerprint measures with as well."""
+        from .captionfp import is_typed_rule
+
+        return is_typed_rule(text, glyphs)
+
     def _is_separator_text(self, line) -> bool:
-        text = (line.get("text") or "").strip()
-        return len(text) >= 4 and set(text).issubset({"_", "-", "=", " "})
+        return self.is_rule_text((line.get("text") or ""), "_-=")
 
     @staticmethod
     def _is_page_number_text(text: str) -> bool:
@@ -988,8 +1051,11 @@ class BaseExtractor:
         the rule' heuristic can't see the boundary. Returns the topmost such
         rule's top, or None. The width/x0 signature is distinct from a caption
         divider (full-width) or a right-shifted signature rule, so no page-
-        position fence is needed."""
-        x0_max = self.body_baseline_x0 + 4
+        position fence is needed. A court whose template indents the separator
+        past the body margin (flnd draws the 2-inch rule at a 1.5-inch indent)
+        can widen the left-edge window via ``x0_max``."""
+        if x0_max is None:
+            x0_max = self.body_baseline_x0 + 4
         best = None
         for r in page.rects:
             if r["height"] >= 2.5:
@@ -1138,8 +1204,11 @@ class BaseExtractor:
             next_top = lines[i + 1]["top"] if i + 1 < len(lines) else None
             zones.append(self.line_zone(prev_top, line["top"], next_top))
 
+        deep_flags = self._deep_indent_flags(lines)
+
         segments = []
         current = []
+        prev_i = None
         prev_size = prev_bold = prev_align = prev_top = prev_zone = None
         for i, line in enumerate(lines):
             size, _, bold = self.line_meta(line)
@@ -1169,13 +1238,47 @@ class BaseExtractor:
                 gap = line["top"] - prev_top
                 big_gap = gap > self.gap_double_max
                 size_changed = abs(size - prev_size) >= 1.0
-                bold_changed = bold != prev_bold and self.bold_breaks_segment
-                # C→L is not a structural change: it just means the last line
-                # of a justified paragraph is short and doesn't reach the right
-                # margin. All other alignment transitions remain boundaries.
-                align_changed = align != prev_align and not (
-                    prev_align == "C" and align == "L"
+                # A bold RUN inside a body line — a case name in a citation —
+                # does not make that line a heading, and must not cut the
+                # paragraph in half. Only a line that is bold THROUGHOUT is a
+                # structural change; ``line_meta``'s dominant-font bold says
+                # merely that most of the line's glyphs are bold, which a long
+                # citation achieves on its own.
+                bold_changed = self.bold_breaks_segment and (
+                    self._line_all_bold(line) != self._line_all_bold(current[-1])
                 )
+                # A short line that simply fails to reach the right margin
+                # reads as 'centered' — its midpoint drifts to the middle of
+                # the measure. So a C↔L flip is only a structural change when
+                # the 'centered' line opens well RIGHT of the paragraph's own
+                # left margin; a line flush with that margin is the short LAST
+                # line of the paragraph above, or the first line under a
+                # heading, and joining it is correct. Both directions matter:
+                # the short line can be the one arriving (L→C) or the one
+                # already in hand (C→L). All other transitions stay boundaries.
+                align_changed = align != prev_align
+                if {prev_align, align} == {"C", "L"}:
+                    suspect = line if align == "C" else current[-1]
+                    neighbour = current[-1] if align == "C" else line
+                    # Measure the margin from the OTHER lines — the suspect's
+                    # own x0 must not define the margin it is tested against,
+                    # or a heading alone in the segment always looks flush.
+                    above = [l["x0"] for l in current if l is not suspect]
+                    # Nothing above it to measure against — a heading standing
+                    # alone in the segment — so compare with the line it would
+                    # join instead.
+                    para_left = (
+                        max(self.body_baseline_x0, min(above))
+                        if above
+                        else neighbour["x0"]
+                    )
+                    # A block quote's item line hangs half an inch out from its
+                    # own continuation and is still one block; a centered
+                    # heading stands a full inch or more right of the text
+                    # around it. Two indent steps sits between the two.
+                    align_changed = (
+                        suspect["x0"] > para_left + 2 * self.indent_step
+                    )
                 zone_changed = prev_zone is not None and zone != prev_zone
                 col_changed = line.get("_caption_col") != current[-1].get(
                     "_caption_col"
@@ -1194,18 +1297,8 @@ class BaseExtractor:
                 # not a structural boundary, so suppress the alignment break.
                 indent_changed = False
                 if self.blockquote_by_indent:
-                    deep = self.body_baseline_x0 + 1.5 * self.indent_step
-                    # A line at the deep indent that OPENS a numbered paragraph
-                    # ('¶13 ...') is a first-line indent, not a block-quote edge
-                    # — its continuations wrap back to the body margin. Excluding
-                    # it stops the quote-split from fragmenting such a paragraph
-                    # on courts whose ¶ indent equals the quote indent (wis).
-                    prev_deep = current[-1]["x0"] >= deep and not (
-                        self._begins_paragraph_block([current[-1]])
-                    )
-                    this_deep = line["x0"] >= deep and not (
-                        self._begins_paragraph_block([line])
-                    )
+                    prev_deep = bool(prev_i is not None and deep_flags[prev_i])
+                    this_deep = bool(deep_flags[i])
                     indent_changed = prev_deep != this_deep
                     if prev_deep and this_deep:
                         align_changed = False
@@ -1223,6 +1316,7 @@ class BaseExtractor:
                     current = []
 
             current.append(line)
+            prev_i = i
             prev_size, prev_bold, prev_align, prev_top, prev_zone = (
                 size,
                 bold,
@@ -1233,6 +1327,42 @@ class BaseExtractor:
         if current:
             segments.append(current)
         return segments
+
+    def _deep_indent_flags(self, lines) -> list:
+        """Per-line: is this line a BLOCK-QUOTE left edge (as opposed to a
+        paragraph's first-line indent)? Used by ``segment_lines`` on
+        ``blockquote_by_indent`` courts to split a quote into its own segment
+        when spacing alone can't.
+
+        Two lines get excluded from 'deep':
+
+        * a line that OPENS a numbered paragraph ('¶13 …') — its continuations
+          wrap back to the body margin, so its indent is a first line (wis);
+        * a LONE deep line whose neighbours sit back at the body margin. A
+          block quote holds its left edge for at least two consecutive lines;
+          one indented line followed by lines that wrap out to the margin is a
+          first-line indent. Courts that indent the first line a full two
+          inches (the New York districts' Courier template) land past the
+          quote threshold, and without this every paragraph would be cut after
+          its opening line.
+        """
+        if not self.blockquote_by_indent:
+            return [False] * len(lines)
+        deep = self.body_baseline_x0 + 1.5 * self.indent_step
+        raw = [
+            l["x0"] >= deep and not self._begins_paragraph_block([l]) for l in lines
+        ]
+        out = []
+        for i, d in enumerate(raw):
+            if d:
+                d = any(
+                    0 <= j < len(lines)
+                    and raw[j]
+                    and abs(lines[j]["x0"] - lines[i]["x0"]) <= 3
+                    for j in (i - 1, i + 1)
+                )
+            out.append(d)
+        return out
 
     def classify_segment(self, seg) -> str:
         """notice / blockquote / body / single / spaced."""
@@ -1294,6 +1424,36 @@ class BaseExtractor:
         fontname = fonts.most_common(1)[0][0]
         return size, fontname.split("+")[-1], "Bold" in fontname
 
+    def _line_all_bold(self, line) -> bool:
+        """True when a line's boldness is STRUCTURAL — a heading — rather than
+        a bold run inside prose.
+
+        Two conditions. Every printable glyph must be bold: a body line
+        carrying a bold case name is only *mostly* bold, which the dominant
+        font reports as bold outright. And the line must stop short of the
+        right measure: a heading is short, whereas a case name long enough to
+        fill a whole line of a string citation runs to the margin like any
+        other body line and is still prose.
+        """
+        # Judge boldness on LETTERS AND DIGITS only. Quotation marks, periods
+        # and brackets are routinely left in the roman face inside an
+        # otherwise-bold passage, and counting them would call a fully bold
+        # block quote line ('"The parties acknowledge and agree that this')
+        # mixed, splitting the quote at its own opening quote mark.
+        seen = False
+        for c in line.get("chars") or []:
+            t = c.get("text") or ""
+            if not t.strip() or not t.isalnum():
+                continue
+            seen = True
+            if "Bold" not in (c.get("fontname") or ""):
+                return False
+        if not seen:
+            return False
+        pw = getattr(self, "_page1_width", None) or 612.0
+        right_edge = pw - self.body_baseline_x0
+        return line["x1"] < right_edge - 0.06 * (right_edge - self.body_baseline_x0)
+
     def line_alignment(self, line, page_width) -> str:
         x0 = line["x0"]
         x1 = line["x1"]
@@ -1339,8 +1499,7 @@ class BaseExtractor:
         return "isolated"
 
     def is_separator_line(self, line) -> bool:
-        t = (line.get("text") or "").strip()
-        return len(t) >= 4 and all(c in "_-—–" for c in t)
+        return self.is_rule_text(line.get("text") or "")
 
     # ====================================================================
     # AUTHOR DETECTION
@@ -1543,8 +1702,9 @@ class BaseExtractor:
                 out_events.append((pno, top, text))
                 i += 1
 
+        cap_pno = getattr(self, "_caption_pno", 1)
         for div_top in page1_rules or []:
-            out_events.append((1, div_top, self.HEADMATTER_DIVIDER))
+            out_events.append((cap_pno, div_top, self.HEADMATTER_DIVIDER))
         out_events.sort(key=lambda e: (e[0], e[1]))
         return {
             "court": self.court_label,
@@ -1610,27 +1770,55 @@ class BaseExtractor:
         (CLAUDE.md principle 7). Opt-in via ``split_line_stacks`` — proven to
         over-fire on default: Alabama's fidelity-locked no-opinion rosters,
         and two-line ragged sentences ('Delivered and filed on the / 21st day
-        of May, 2026.') where neither line reaches the measure."""
+        of May, 2026.') where neither line reaches the measure.
+
+        A group is first cut where it crosses between the body column and a
+        RIGHT-hand column. A signature block is set in its own column in the
+        right half of the measure; body prose is never set there, and a line
+        that jumps back to the body margin below it cannot be its
+        continuation. That cut is what separates 'United States Magistrate
+        Judge' from the 'Dated: …' / 'Rochester, New York' stamp beneath it.
+        Every line of a right-column run is its own line for the same reason:
+        nothing in that column wrapped."""
         if not self.split_line_stacks:
             return paras
         pw = getattr(self, "_page1_width", None) or 612.0
         right_edge = pw - self.body_baseline_x0
         measure = right_edge - self.body_baseline_x0
         wrap_min = right_edge - 0.15 * measure
+        right_col = self.body_baseline_x0 + 0.35 * measure
+
         out = []
         for grp in paras:
-            # An all-centered group is a wrapped centered heading — one
-            # heading, never a stack. A MIXED group (name off-axis over a
-            # coincidentally center-ish title line) is still a stack.
-            if (
-                len(grp) >= 2
-                and all(l["x1"] < wrap_min for l in grp)
-                and not all(self.line_alignment(l, pw) == "C" for l in grp)
-            ):
-                out.extend([l] for l in grp)
-            else:
-                out.append(grp)
+            for run in self._split_at_column_change(grp, right_col):
+                # An all-centered run is a wrapped centered heading — one
+                # heading, never a stack. A MIXED run (name off-axis over a
+                # coincidentally center-ish title line) is still a stack.
+                if len(run) >= 2 and all(
+                    self.line_alignment(l, pw) == "C" for l in run
+                ):
+                    out.append(run)
+                elif len(run) >= 2 and (
+                    all(l["x1"] < wrap_min for l in run)
+                    or all(l["x0"] >= right_col for l in run)
+                ):
+                    out.extend([l] for l in run)
+                else:
+                    out.append(run)
         return out
+
+    @staticmethod
+    def _split_at_column_change(grp, right_col) -> list:
+        """Cut ``grp`` wherever consecutive lines sit in different columns —
+        one in the body column, the next in the right-hand column, or back."""
+        runs: list = []
+        for line in grp:
+            side = line["x0"] >= right_col
+            if runs and runs[-1][0] == side:
+                runs[-1][1].append(line)
+            else:
+                runs.append((side, [line]))
+        return [lines for _side, lines in runs]
 
     def _wrap_continuation_max(self) -> float:
         """The largest first-line x0 still treated as a wrapped continuation of
@@ -1692,6 +1880,48 @@ class BaseExtractor:
     # ====================================================================
     # TEXT (inline formatting)
     # ====================================================================
+    def _footnote_mark_chars(self, chars, body_size) -> list:
+        """Per-char: may this small glyph be read as a footnote MARK?
+
+        Being smaller than the rest of the line is necessary but not
+        sufficient. A mark is a SHORT run — one to three label characters and
+        nothing else. A longer small run, or one carrying letters, is ordinary
+        small print sharing the line: the Wisconsin caption sets
+        'Cir. Ct. No.  2024CV549' at 9pt beside a 13pt 'Appeal No.  2025AP825',
+        and on size alone its digits read as a string of footnote references.
+        """
+        small = [
+            round(c.get("size", 0), 1) <= body_size - 1.5
+            and bool((c.get("text") or "").strip())
+            for c in chars
+        ]
+        out = [False] * len(chars)
+        i = 0
+        while i < len(chars):
+            if not small[i]:
+                i += 1
+                continue
+            j = i
+            while j < len(chars) and (
+                small[j] or not (chars[j].get("text") or "").strip()
+            ):
+                j += 1
+            run = [c for c in chars[i:j] if (c.get("text") or "").strip()]
+            labels = [c for c in run if c["text"] in self.FOOTNOTE_LABEL_CHARS]
+            # Punctuation may ride along with a mark — a bracketed editorial
+            # reference sets its closing ']' at the same reduced size. What
+            # disqualifies a run is LETTERS (a small-print docket number,
+            # '2024CV549') or more label characters than a mark ever has.
+            if (
+                labels
+                and len(labels) <= 3
+                and not any(c["text"].isalpha() for c in run)
+            ):
+                for k in range(i, j):
+                    out[k] = small[k]
+            i = j
+        return out
+
     def line_inline_text(self, line) -> str:
         """Render a line's text with inline formatting preserved:
           - <footnotemark>N</footnotemark> for superscript label chars
@@ -1703,6 +1933,7 @@ class BaseExtractor:
         if not chars:
             return ""
         body_size = max(round(c["size"], 1) for c in chars)
+        mark_ok = self._footnote_mark_chars(chars, body_size)
         parts = []
         buf = ""
         in_bold = in_italic = in_underline = False
@@ -1728,7 +1959,7 @@ class BaseExtractor:
             parts.append(style_wrap(buf))
             buf = ""
 
-        for c in chars:
+        for _ci, c in enumerate(chars):
             # Some fonts double-emit a ligature glyph ('fi'/'ffl') as two
             # identical chars at the exact same coordinates; extract_text dedups
             # them but the raw char list does not. Skip the overlapping copy so
@@ -1757,7 +1988,7 @@ class BaseExtractor:
                     elif buf and not buf.endswith(" "):
                         buf += " "
 
-            small = round(c["size"], 1) <= body_size - 1.5
+            small = mark_ok[_ci]
             is_label = c["text"] in self.FOOTNOTE_LABEL_CHARS and not in_brace
             if small and is_label:
                 flush_buf()
@@ -1946,8 +2177,16 @@ class BaseExtractor:
                         tag = self.classify_paragraph(p)
                         events.append((page_no, p[0]["top"], tag, p))
 
+        # An image ABOVE the opinion's first line, on the page the opinion
+        # starts on, sits in the caption zone — a filing stamp, a seal, a
+        # caption-box graphic. It is headmatter furniture, never the ruling's
+        # opening block, so it must not be pulled into the body.
+        start_pno, start_seg, _sk = all_segments[op_start]
+        start_top = start_seg[0]["top"] if start_seg else 0.0
         for pno in op_pages:
             for img in images_by_page.get(pno, []):
+                if pno == start_pno and img["bottom"] <= start_top:
+                    continue
                 events.append((pno, img["top"], "image", img))
         for pno in op_pages:
             for tbl in tables_by_page.get(pno, []):
