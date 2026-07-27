@@ -131,7 +131,8 @@ _DISTRICTS = set(("akd almd alnd alsd ared arwd azd cacd caed cand casd cod ctd 
 _MISC = set((
     "acca afcca armfor asbca bia bap1 bap6 bap8 bap9 bap10 cavc cit guam mspb "
     "nmariana nmcca olc tax ttab uscfc uscgcoca virginislands "
-    "nyfamct nycivct nysupct nysurct njtaxct vtsuperct pacommwct").split())
+    "nyfamct nycivct nysupct nysurct njtaxct vtsuperct pacommwct "
+    "ortc pasuperct minnag mdag").split())
 
 
 def _group(cid):

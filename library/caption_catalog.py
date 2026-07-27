@@ -979,6 +979,42 @@ En Banc
 """,
     ),
     _S(
+        id="typed-sandwich", name="The Typewriter Sandwich",
+        columns="two-column",
+        summary="caption sandwiched between two typed dash rules, each closed with an 'x'",
+        courts="E.D.N.Y. · S.D.N.Y. (and the other New York districts)",
+        tags={"columns": "two-column", "divider": "none", "rules": "typed",
+              "spacing": "double", "name": "caps", "status": "indent",
+              "banner": "caps left", "glyphs": "- and x",
+              "extras": "docket · doc-title right · judge byline below"},
+        desc="Nothing is drawn. The caption is closed above and below by a rule "
+        "<i>typed</i> as a run of hyphens and terminated with a lowercase "
+        "<code>x</code> — the typewriter-era stand-in for the corner of a box, which the "
+        "New York districts kept when they moved to Word. The court banner sits "
+        "flush left above the top rule; the doc-type title and docket ride the right "
+        "of the caption; and a judge byline (<code>NAME, United States District Judge:</code>) "
+        "opens the ruling immediately below the bottom rule.",
+        signal="A line of hyphens ending in <code>x</code>, twice, with the parties between "
+        "them. The <code>x</code> is furniture, not text — the rules render as dividers. If a "
+        "<code>:</code> column also runs down the middle it is The Colon Rail instead.",
+        ascii=r"""
+   UNITED STATES DISTRICT COURT
+   EASTERN DISTRICT OF NEW YORK
+   ------------------------------------x
+   JERMAINE DUNBAR,
+
+                     Plaintiff,          MEMORANDUM & ORDER
+
+              -against-                  22-CV-222 (EK)
+
+   ANTHONY J. ANNUCCI,
+
+                     Defendant.
+   ------------------------------------x
+   ERIC KOMITEE, United States District Judge:
+""",
+    ),
+    _S(
         id="open-range", name="The Open Range",
         columns="two-column",
         summary="parties left, docket right, held together by whitespace alone",

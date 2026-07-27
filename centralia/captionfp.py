@@ -14,15 +14,47 @@ Signature facets:
   rail        a glyph rail column: ')', ']', '§', ':', '*', '}', '|' ...
   diag        True when diagonal lines cross the caption (X-capped)
   gutter      pleading line-number gutter present
+  typed_rails how many TYPED rules (dash runs, optionally 'x'-capped) close
+              the caption; ``typed_band`` is the band between the outermost
+              two — the New York districts draw nothing and rely on these
 
 The caption BAND is the y-range of the mid vertical when one exists, else
-the span of the tall verticals, else the band between the court banner and
-the first body paragraph (approximated by the drawn rules' extent).
+the span of the tall verticals, else — when the caption is closed by typed
+rules alone — the band those rules enclose, else the band between the court
+banner and the first body paragraph (approximated by the drawn rules' extent).
 """
 
 from __future__ import annotations
 
 _RAIL_CHARS = ")]§:*}|("
+
+# Glyphs a typed horizontal rule is built from.
+_RULE_GLYPHS = "_-—–"
+
+
+def is_typed_rule(text: str, glyphs: str = _RULE_GLYPHS) -> bool:
+    """True if ``text`` is a horizontal rule TYPED as characters rather than
+    drawn as a vector: a run of rule glyphs, optionally spaced out, and
+    optionally capped with an ``x`` at either end.
+
+    The cap is the pleading caption's corner — the typewriter-era stand-in for
+    the box corner a modern template draws as a vector rule
+    (``-------------------x`` closing a New York caption). It is furniture
+    exactly like the dashes it terminates, so a capped rule has to read as a
+    rule and never as caption text.
+
+    This is the single definition of 'typed rule' in the codebase; the
+    extractor's segmentation, the styled-caption divider test and this
+    fingerprint all defer to it so they cannot disagree about what a rule is.
+    """
+    t = (text or "").strip()
+    if t[-1:] in ("x", "X"):
+        t = t[:-1].rstrip()
+    if t[:1] in ("x", "X"):
+        t = t[1:].lstrip()
+    if not t or any(c not in glyphs and c != " " for c in t):
+        return False
+    return sum(1 for c in t if c in glyphs) >= 4
 
 
 def caption_signature(page) -> dict:
@@ -76,10 +108,32 @@ def caption_signature(page) -> dict:
         elif pw * 0.3 < v[0] < pw * 0.8:
             vmid = v
 
+    # --- typed rules closing the caption ---
+    # Nothing is drawn: the caption is sandwiched between two rules TYPED as
+    # dash runs and closed with the pleading corner 'x' — the New York
+    # districts' template. Measured before the band, because when there is no
+    # drawn anchor these rules ARE the band.
+    typed = []
+    try:
+        for tl in page.extract_text_lines():
+            if is_typed_rule(tl.get("text") or ""):
+                typed.append((tl["top"], tl["bottom"], tl["x0"], tl["x1"]))
+    except Exception:
+        pass
+    typed.sort()
+    # Only the upper page can close a caption; a signature rule near the foot
+    # is a different piece of furniture entirely.
+    typed_upper = [t for t in typed if t[0] < page.height * 0.6]
+    typed_band = (
+        (typed_upper[0][0], typed_upper[-1][1]) if len(typed_upper) >= 2 else None
+    )
+
     # --- caption band ---
     anchor = vmid or vleft or vright
     if anchor:
         band = (anchor[1] - 10, anchor[2] + 10)
+    elif typed_band:
+        band = (typed_band[0] - 10, typed_band[1] + 10)
     else:
         band = (60.0, page.height * 0.55)
 
@@ -94,14 +148,9 @@ def caption_signature(page) -> dict:
     for ln in page.lines:
         if abs(ln["bottom"] - ln["top"]) < 2.5 and (ln["x1"] - ln["x0"]) >= 2.5:
             raw_h.append((ln["top"], ln["x0"], ln["x1"]))
-    # rules TYPED as underscore/dash runs are rules too (oknd)
-    try:
-        for tl in page.extract_text_lines():
-            t = (tl.get("text") or "").strip()
-            if len(t) >= 6 and all(c in "_-—–" for c in t):
-                raw_h.append((tl["top"], tl["x0"], tl["x1"]))
-    except Exception:
-        pass
+    # rules TYPED as underscore/dash runs are rules too (oknd, and the New
+    # York districts' 'x'-capped caption rules)
+    raw_h.extend((t[0], t[2], t[3]) for t in typed)
     # merge abutting segments drawn at one y
     raw_h.sort(key=lambda h: (round(h[0], 0), h[1]))
     hzs = []
@@ -235,6 +284,8 @@ def caption_signature(page) -> dict:
         "interior": interior,
         "rail": rail,
         "rail_band": rail_band,
+        "typed_rails": len(typed_upper),
+        "typed_band": typed_band,
         "diag": diag,
         "flush_right": flush_right,
         "two_col_ws": two_col_ws,
@@ -272,6 +323,14 @@ _MATRIX = (
      lambda s: s["rail"] in ("(", ")") and (s["h_top"] or s["h_bottom"])),
     ("parenthetical-box", "The Parenthetical Box",
      lambda s: s["rail"] in ("(", ")")),
+    # Nothing drawn and no glyph rail: the caption is sandwiched between two
+    # rules TYPED as dash runs, each closed with the pleading corner 'x'.
+    # Placed after the glyph rails so a caption that has BOTH (the colon rail
+    # dividing the columns, typed rules closing them) keeps the more specific
+    # name — the band the typed rules enclose is recorded either way.
+    ("typed-sandwich", "The Typewriter Sandwich",
+     lambda s: s["typed_rails"] >= 2 and not s["vmid"] and not s["vleft"]
+     and not s["vright"] and not s["rail"]),
     # Last: nothing drawn at all, just two-zone rows with the status label
     # pinned at the right margin.
     ("status-flush", "The Flush-Right Status",
