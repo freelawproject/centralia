@@ -38,6 +38,15 @@ class KentuckySupreme(StateSupreme):
     court_id = "ky"
     court_label = "Supreme Court of Kentucky."
 
+    # Kentucky sets the body DOUBLE-spaced (~28pt) and block quotes single
+    # (~14pt), indented to 108 with the right margin pulled in to ~504. That
+    # 14pt leading falls under ``gap_tight_max`` (16), so a quote classifies as
+    # 'notice' on gaps alone and never reaches the body. Let the both-margins
+    # indent overrule the gap band — the quote's own geometry is unambiguous,
+    # and it is the only thing that separates a quote from a body first line,
+    # which indents to the same x0=108.
+    blockquote_by_indent = True
+
     def extract_page_images(self, page) -> list:
         """Kentucky slip opinions carry a court-seal watermark image centered
         on every page (the same 'Im2' object, 363x294 at x≈124/top≈249). The
@@ -46,6 +55,83 @@ class KentuckySupreme(StateSupreme):
         content. The full text layer is intact, so don't render any image
         back: drop them all."""
         return []
+
+    # ---------------------------------------------------------- headmatter
+    def extract_headmatter(self, headmatter_segs, page1_rules=None) -> dict:
+        """Kentucky's caption is The Flush-Right Status: the party name sits at
+        the left margin and its status label is pinned against the right margin
+        ('ADAM WHEELER; COURTNEY L. ........ APPELLANTS'), with the docket
+        floating between the two on the 'V.' row. Nothing is drawn — the
+        alignment IS the structure.
+
+        pdfplumber merges each pair onto one line, so the styled headmatter
+        emits 'ADAM WHEELER; COURTNEY L. APPELLANTS' as a single left-aligned
+        row: the label collides with the party name and loses the right margin
+        that says which side it labels. Re-split those rows into the
+        three-zone ``__hmrow__`` form so each zone keeps its own alignment."""
+        d = super().extract_headmatter(headmatter_segs, page1_rules)
+        d["summary"] = self._ky_flush_right_rows(d["summary"], headmatter_segs)
+        return d
+
+    @staticmethod
+    def _ky_flat(s: str) -> str:
+        import re as _re
+
+        return " ".join(_re.sub(r"<[^>]+>", "", str(s)).split())
+
+    def _ky_flush_right_rows(self, summary, headmatter_segs) -> list:
+        """Rebuild the multi-zone caption rows from the page-1 line runs.
+
+        Keyed off the page's own margins rather than fixed x values: a run
+        reaching the right margin is the status label, one starting at the left
+        margin is the party, anything between is the docket. Rows that split
+        into fewer than two zones are left exactly as the base styled them."""
+        lines = [
+            l
+            for seg in headmatter_segs
+            for l in seg
+            if (((l.get("chars") or [{}])[0].get("page_number", 1)) or 1) == 1
+        ]
+        runs_by_line = [(l, self._split_line_runs(l)) for l in lines]
+        xs = [r for _l, rs in runs_by_line for r in rs if r.get("x0") is not None]
+        if not xs:
+            return summary
+        lmargin = min(r["x0"] for r in xs)
+        rmargin = max(r["x1"] for r in xs)
+
+        zoned = {}
+        for l, rs in runs_by_line:
+            if len(rs) < 2:
+                continue
+            cells = {"l": [], "c": [], "r": []}
+            for r in rs:
+                if r["x1"] > rmargin - 15 and r["x0"] > lmargin + 30:
+                    k = "r"
+                elif r["x0"] < lmargin + 30:
+                    k = "l"
+                else:
+                    k = "c"
+                cells[k].append(self.line_inline_text({"chars": r["chars"]}).strip())
+            if sum(1 for k in cells if cells[k]) < 2:
+                continue
+            zoned[self._ky_flat(self.line_plain_text(l))] = {
+                "__hmrow__": True,
+                "l": " ".join(cells["l"]),
+                "c": " ".join(cells["c"]),
+                "r": " ".join(cells["r"]),
+            }
+        if not zoned:
+            return summary
+
+        out = []
+        for row in summary:
+            if isinstance(row, dict) and row.get("__hm__"):
+                hit = zoned.get(self._ky_flat(row.get("html", "")))
+                if hit is not None:
+                    out.append(hit)
+                    continue
+            out.append(row)
+        return out
 
     # ------------------------------------------------------- byline parsing
     def parse_author_line(self, text):
