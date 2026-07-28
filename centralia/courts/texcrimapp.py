@@ -39,11 +39,69 @@ class TexasCourtOfCriminalAppeals(StateAppellate):
     # and dropped — keep all body content.
     drop_notice_in_body = False
 
+    def page_lines(self, page):
+        """Remove printed continuation-page furniture.
+
+        TCCA uses either a bare page number at the upper-right (the short
+        per-curiam dispositions) or ``CASE NAME — N`` there (full opinions).
+        Both are outside the body measure and live wholly in the top band.
+        """
+        lines = super().page_lines(page)
+        if page.page_number == 1:
+            return lines
+        kept = []
+        for line in lines:
+            text = self.line_plain_text(line).strip()
+            upper_right = line.get("x0", 0) > page.width * 0.62
+            in_top_band = line.get("top", 999) < 90
+            bare_number = text.isdigit() and len(text) <= 3
+            numbered_head = (
+                text[-1:].isdigit()
+                and any(mark in text for mark in ("—", "–"))
+                and len(text) <= 48
+            )
+            if in_top_band and upper_right and (bare_number or numbered_head):
+                continue
+            kept.append(line)
+        return kept
+
     def find_footnote_separator(self, page) -> Optional[float]:
         # The title page's caption-box bottom rule sits in the lower half and
         # would otherwise be mistaken for a footnote separator, dropping the
         # byline + body of a separate writing below it.
-        return self._footnote_sep_small_text_below(page)
+        found = self._footnote_sep_small_text_below(page)
+        if found is not None:
+            return found
+
+        # Equity-generated slips draw the same short separator as a PDF curve
+        # rather than a rectangle.  Geometry is stable: a thin, left-anchored
+        # horizontal stroke in the lower body, immediately followed by type at
+        # least 1pt smaller than the page's dominant body face.
+        from collections import Counter
+
+        chars = [c for c in page.chars if (c.get("text") or "").strip()]
+        if not chars:
+            return None
+        body = Counter(round(c.get("size", 0)) for c in chars).most_common(1)[0][0]
+        candidates = []
+        for curve in page.curves:
+            width = curve.get("x1", 0) - curve.get("x0", 0)
+            height = curve.get("bottom", 0) - curve.get("top", 0)
+            if not (
+                height < 2.5
+                and 80 <= width <= page.width * 0.4
+                and curve.get("x0", page.width) < page.width * 0.25
+                and curve.get("top", 0) > page.height * 0.45
+            ):
+                continue
+            below = [
+                c
+                for c in chars
+                if curve["top"] < c["top"] < curve["top"] + 24
+            ]
+            if below and min(below, key=lambda c: c["top"]).get("size", 99) <= body - 1:
+                candidates.append(curve["top"])
+        return min(candidates) if candidates else None
 
     @staticmethod
     def _tcca_name_ok(name: str) -> bool:
@@ -109,6 +167,31 @@ class TexasCourtOfCriminalAppeals(StateAppellate):
 
     def build_opinion(self, op_start, op_end, **kwargs):
         op = super().build_opinion(op_start, op_end, **kwargs)
+        author_line = kwargs["all_segments"][op_start][1][0]
+        parsed = self._tcca_byline(self.line_plain_text(author_line).strip())
+        if parsed is not None:
+            if parsed[0] == "PER CURIAM":
+                op.author = parsed[0]
+            else:
+                abbreviation = next(
+                    ab for ab, full in _TCCA_TITLES if full == parsed[1]
+                )
+                op.author = f"{parsed[0]}, {abbreviation}"
+
+        # A delivered/filed announcement often wraps for two or three lines
+        # before the centered OPINION banner.  Those continuation lines describe
+        # votes and separately filed documents; they are not opinion text.
+        if parsed is not None and parsed[0] != "PER CURIAM":
+            banner = next(
+                (
+                    i
+                    for i, block in enumerate(op.blocks[:6])
+                    if "OPINION" in str(block.text or "").upper()
+                ),
+                None,
+            )
+            if banner is not None:
+                op.blocks = op.blocks[banner:]
         if getattr(self, "_tcca_pc", None) == op_start:
             op.author = "PER CURIAM"
             op.type = "majority"
