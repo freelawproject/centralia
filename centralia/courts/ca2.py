@@ -68,7 +68,47 @@ class SecondCircuit(FederalCircuitBase):
                     self._style = self.document_style(pdf.pages[0])
         except Exception:
             pass
+        self._measure_body_template(pdf_path)
         return super().extract(pdf_path)
+
+    def _measure_body_template(self, pdf_path):
+        """Measure CA2's varying body rail and double-space leading."""
+        x0s = Counter()
+        page_rows = []
+        try:
+            with pdfplumber.open(pdf_path) as pdf:
+                for page in pdf.pages:
+                    lines = self.page_lines(page)
+                    usable = [
+                        line
+                        for line in lines
+                        if 75 < line.get("top", 0) < page.height - 75
+                        and line.get("x0", 0) < page.width * 0.42
+                        and line.get("x1", 0) > page.width * 0.55
+                    ]
+                    x0s.update(round(line["x0"]) for line in usable)
+                    page_rows.append(usable)
+        except Exception:
+            return
+        if not x0s:
+            return
+        baseline = float(x0s.most_common(1)[0][0])
+        gaps = Counter()
+        for lines in page_rows:
+            ordered = sorted(lines, key=lambda line: line["top"])
+            for above, below in zip(ordered, ordered[1:]):
+                gap = below["top"] - above["top"]
+                if (
+                    abs(above["x0"] - baseline) <= 4
+                    and abs(below["x0"] - baseline) <= 4
+                    and 14 <= gap <= 42
+                ):
+                    gaps[round(gap, 1)] += 1
+        self.body_baseline_x0 = baseline
+        if gaps:
+            leading = gaps.most_common(1)[0][0]
+            self.gap_single_max = max(self.gap_tight_max + 1, leading - 7)
+            self.gap_double_max = leading + 8
 
     # ------------------------------------------------------------- summary order
     def find_authors(self, all_segments) -> list:
@@ -131,6 +171,40 @@ class SecondCircuit(FederalCircuitBase):
             page = page.filter(lambda c: c.get("x0", 0) >= gx)
         return super().page_lines(page)
 
+    def find_footnote_separator(self, page):
+        """CA2 uses two related footnote-rule indents.
+
+        Full-width prose pages anchor the ~144pt rule at x≈108; pages whose
+        main text is already inset anchor a ~110pt rule at x≈144.  Require
+        footnote-sized text below the rule so an underline/caption shelf cannot
+        become a separator.
+        """
+        candidates = []
+        for rect in page.rects:
+            width = rect.get("x1", 0) - rect.get("x0", 0)
+            if not (
+                rect.get("height", 0) < 2
+                and 100 <= width <= 155
+                and (
+                    abs(rect.get("x0", 0) - self.body_baseline_x0) <= 5
+                    or abs(
+                        rect.get("x0", 0) - (self.body_baseline_x0 + 36)
+                    )
+                    <= 5
+                )
+                and rect.get("top", 0) > page.height * 0.30
+            ):
+                continue
+            below = [
+                char
+                for char in page.chars
+                if rect["top"] + 2 <= char.get("top", 0) <= rect["top"] + 55
+                and (char.get("text") or "").strip()
+            ]
+            if below and sum(char.get("size", 99) <= 12.5 for char in below) >= len(below) * 0.7:
+                candidates.append(rect)
+        return min(candidates, key=lambda rect: rect["top"])["top"] if candidates else None
+
     @staticmethod
     def _linenum_gutter_x(page):
         """X just right of a left-margin line-number gutter, or None. The gutter
@@ -148,4 +222,3 @@ class SecondCircuit(FederalCircuitBase):
         if len(col) < 5:
             return None
         return max(c["x1"] for c in col) + 2
-

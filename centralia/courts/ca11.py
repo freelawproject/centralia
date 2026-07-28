@@ -21,6 +21,20 @@ class EleventhCircuit(FederalCircuitBase):
     gap_tight_max = 10.0
     gap_single_max = 16.0
     gap_double_max = 30.0
+    fold_page_numbers = True
+
+    def detect_printed_folio(self, page, lines):
+        """Read the folio embedded at either end of the running header."""
+        for line in lines:
+            text = self.line_plain_text(line).strip()
+            if not self._running_header_name(text):
+                continue
+            tokens = text.split()
+            if tokens and tokens[0].isdigit():
+                return tokens[0]
+            elif tokens and tokens[-1].isdigit():
+                return tokens[-1]
+        return super().detect_printed_folio(page, lines)
 
     # Pages 2+ carry a running header just below the bates stamp that names the
     # current opinion and resets its page count — an alternating

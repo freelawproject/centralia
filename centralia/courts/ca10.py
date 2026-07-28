@@ -44,6 +44,72 @@ class TenthCircuit(FederalCircuitBase):
     efile_stamp_font = "TimesNewRomanPS-BoldMT"
     efile_stamp_size = 12.0
 
+    def find_authors(self, all_segments):
+        """Add an unsigned/per-curiam rehearing order before separate writings.
+
+        En-banc rehearing dispositions put ``ORDER`` in the caption, begin the
+        ruling after the panel's final horizontal rule, and sign it ``Entered
+        for the Court, PER CURIAM`` at the end.  The signature is evidence of
+        authorship, but the opinion boundary is the first body-width paragraph
+        after that rule.
+        """
+        starts = list(super().find_authors(all_segments))
+        self._ca10_order_start = None
+        self._ca10_order_line = None
+        order_i = next(
+            (
+                i
+                for i, (_pno, seg, _kind) in enumerate(all_segments)
+                if seg
+                and self.line_plain_text(seg[0]).strip().upper()
+                in ("ORDER", "ORDER AND JUDGMENT")
+            ),
+            None,
+        )
+        if order_i is None:
+            return starts
+        entered_i = next(
+            (
+                i
+                for i in range(order_i + 1, len(all_segments))
+                if all_segments[i][1]
+                and self.line_plain_text(all_segments[i][1][0])
+                .strip()
+                .lower()
+                .startswith("entered for the court")
+            ),
+            None,
+        )
+        if entered_i is None:
+            return starts
+
+        last_rule = order_i
+        for i in range(order_i + 1, entered_i):
+            seg = all_segments[i][1]
+            if seg and self.is_separator_line(seg[0]):
+                last_rule = i
+        for i in range(last_rule + 1, entered_i):
+            seg = all_segments[i][1]
+            if not seg:
+                continue
+            text = self.line_plain_text(seg[0]).strip()
+            if not text or text.lower().startswith("before "):
+                continue
+            self._ca10_order_start = i
+            self._ca10_order_line = seg[0]
+            if i not in starts:
+                starts.append(i)
+            break
+        return sorted(starts)
+
+    def split_author_line(self, line):
+        if line is getattr(self, "_ca10_order_line", None):
+            # Match by the first segment line selected in find_authors. The
+            # ruling starts here; its PER CURIAM authorship is printed in the
+            # closing court signature.
+            return "PER CURIAM", [line]
+        return super().split_author_line(line)
+
     def _byline_split(self, line):
         """ca10 opens each opinion with a bold, ALL-CAPS judge name; the bench
         title and any concurrence/dissent kind suffix follow in regular weight:
