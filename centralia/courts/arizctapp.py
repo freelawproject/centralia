@@ -26,6 +26,85 @@ class ArizonaCourtOfAppeals(ArizonaStyle, StateAppellate):
     court_id = "arizctapp"
     court_label = "Arizona Court of Appeals."
 
+    def extract(self, pdf_path: str):
+        # Division Two prints paragraph numbers as small raster glyphs.  Their
+        # pixels carry the number, but their geometry carries the useful
+        # structure: one glyph in the left paragraph-marker column, aligned
+        # with each indented first line.  Number them in document order.
+        self._image_paragraph_number = 1
+        self._paragraph_marker_images = {}
+        return super().extract(pdf_path)
+
+    @staticmethod
+    def _marker_image(image, line) -> bool:
+        """Whether a tiny image occupies the marker slot beside ``line``."""
+        return (
+            8 <= image["width"] <= 20
+            and 8 <= image["height"] <= 18
+            and abs(image["top"] - line["top"]) <= 2.5
+            and line["x0"] >= image["x1"] + 20
+        )
+
+    def page_lines(self, page):
+        lines = super().page_lines(page)
+        marker_keys = set()
+        for image in sorted(page.images, key=lambda item: item["top"]):
+            aligned = [
+                line for line in lines if self._marker_image(image, line)
+            ]
+            if not aligned:
+                continue
+            line = min(aligned, key=lambda item: abs(item["top"] - image["top"]))
+            chars = line.get("chars") or []
+            if not chars:
+                continue
+
+            number = self._image_paragraph_number
+            self._image_paragraph_number += 1
+            marker = dict(chars[0])
+            marker.update(
+                {
+                    "text": f"¶{number}",
+                    "x0": image["x0"],
+                    "x1": image["x1"],
+                    # The printed marker is bold.  Give the synthetic character
+                    # the same semantic style so the shared Arizona grouper
+                    # recognizes it exactly like Division One's text markers.
+                    "fontname": "Centralia-Bold",
+                }
+            )
+            line["chars"] = [marker, *chars]
+            line["text"] = f"¶{number} {line['text']}"
+            # Keep the line's original x0: it describes the indented prose
+            # column and is what the generic paragraph splitter uses.  The
+            # marker's own x0 remains on its synthetic character.
+            marker_keys.add(
+                (
+                    round(image["top"], 2),
+                    round(image["x0"], 2),
+                    round(image["width"], 2),
+                    round(image["height"], 2),
+                )
+            )
+        self._paragraph_marker_images[page.page_number] = marker_keys
+        return lines
+
+    def extract_page_images(self, page) -> list:
+        # Paragraph glyphs have already become semantic text in page_lines().
+        # Keep every other embedded image as ordinary document content.
+        marker_keys = self._paragraph_marker_images.get(page.page_number, set())
+        return [
+            image
+            for image in super().extract_page_images(page)
+            if (
+                round(image["top"], 2),
+                round(image["x0"], 2),
+                round(image["width"], 2),
+                round(image["height"], 2),
+            )
+            not in marker_keys
+        ]
+
     def parse_author_line(self, text):
         r = super().parse_author_line(text)
         if r is not None:

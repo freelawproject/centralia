@@ -70,13 +70,24 @@ class BaseAlaskaExtractor(BaseExtractor):
     gap_single_max = 18.0
     gap_double_max = 28.0
 
+    @staticmethod
+    def _line_page(line) -> int:
+        chars = line.get("chars") or []
+        return (
+            (chars[0].get("page_number") if chars else line.get("page_number"))
+            or 1
+        )
+
     # ---------------------------------------------------------------- pipeline
     def extract(self, pdf_path):
         """Base pipeline, then promote Alaska section headings (bold ALL-CAPS
         lines like 'FACTS AND PROCEEDINGS' and 'A. ...' subsections) from
         paragraphs to heading blocks. The big roman section numerals are
         decorative images and are left as the base produced them."""
+        self._alaska_author_announcements = []
         doc = super().extract(pdf_path)
+        if self._alaska_author_announcements:
+            doc.summary = list(doc.summary) + list(self._alaska_author_announcements)
         for op in doc.opinions:
             op.blocks = [self._maybe_heading(b) for b in op.blocks]
         return doc
@@ -108,7 +119,13 @@ class BaseAlaskaExtractor(BaseExtractor):
     def find_authors(self, all_segments) -> list:
         """Author bylines, minus any with no opinion body before the next one —
         a 'Judge X, writing for the Court.' cover/summary byline repeated above
-        the opinion proper would otherwise spawn an empty opinion."""
+        the opinion proper would otherwise spawn an empty opinion.
+
+        Alaska also prints adjacent authorship lines before the majority body:
+        the first is the majority byline and later lines announce separate
+        writings (``PATE, Justice.`` / ``CARNEY, Justice, dissenting.``). Keep
+        the first author in such a run; the announced writing's real byline
+        appears again where that writing actually begins."""
         cands = [
             i
             for i, (_p, seg, kind) in enumerate(all_segments)
@@ -116,6 +133,17 @@ class BaseAlaskaExtractor(BaseExtractor):
             and seg
             and self.parse_author_line((seg[0].get("text") or "").strip())
         ]
+        collapsed = []
+        announcements = []
+        for i in cands:
+            if collapsed and i == collapsed[-1] + 1:
+                announcements.append(
+                    (all_segments[i][1][0].get("text") or "").strip()
+                )
+            else:
+                collapsed.append(i)
+        self._alaska_author_announcements = announcements
+        cands = collapsed
         out = []
         for n, i in enumerate(cands):
             end = cands[n + 1] if n + 1 < len(cands) else len(all_segments)
@@ -127,6 +155,27 @@ class BaseAlaskaExtractor(BaseExtractor):
             if has_body:
                 out.append(i)
         return out
+
+    def build_opinion(self, op_start, op_end, **kwargs):
+        opinion = super().build_opinion(op_start, op_end, **kwargs)
+        announcements = set(getattr(self, "_alaska_author_announcements", []))
+        if announcements:
+            opinion.blocks = [
+                block
+                for block in opinion.blocks
+                if not (
+                    block.kind == "p"
+                    and self._plain_inline(block.text).strip() in announcements
+                )
+            ]
+        return opinion
+
+    @staticmethod
+    def _plain_inline(text: str) -> str:
+        """Remove Centralia's small inline emphasis tags for exact comparison."""
+        for tag in ("<strong>", "</strong>", "<em>", "</em>", "<u>", "</u>"):
+            text = text.replace(tag, "")
+        return text
 
     def parse_author_line(self, text):
         """Standard 'PATE, Justice.' (handled by the base) plus the reversed
@@ -256,7 +305,7 @@ class BaseAlaskaExtractor(BaseExtractor):
             "otherdocket": None,
         }
         party_lines = []
-        summary_pos = []  # (top, x0, text) for layout-preserved summary
+        summary_pos = []  # (page, top, x0, text) for layout-preserved summary
         notice_lines = []
         current_block = None  # in-progress labeled block: history/attorneys/judges
 
@@ -278,12 +327,26 @@ class BaseAlaskaExtractor(BaseExtractor):
                 if not seen_banner:
                     if self._is_banner(text):
                         seen_banner = True
-                        summary_pos.append((round(line["top"]), line["x0"], text))
+                        summary_pos.append(
+                            (
+                                self._line_page(line),
+                                round(line["top"]),
+                                line["x0"],
+                                text,
+                            )
+                        )
                     else:
                         notice_lines.append(text)
                     continue
 
-                summary_pos.append((round(line["top"]), line["x0"], text))
+                summary_pos.append(
+                    (
+                        self._line_page(line),
+                        round(line["top"]),
+                        line["x0"],
+                        text,
+                    )
+                )
                 x0 = line["x0"]
 
                 if x0 >= _COLUMN_SPLIT_X:
@@ -291,7 +354,7 @@ class BaseAlaskaExtractor(BaseExtractor):
                     continue
 
                 lt = text.lower()
-                if lt.startswith("appeal from"):
+                if lt.startswith(("appeal from", "petition for hearing from")):
                     out["history"] = self._extend(out.get("history"), text)
                     current_block = "history"
                     continue
@@ -319,6 +382,25 @@ class BaseAlaskaExtractor(BaseExtractor):
             d = self._find_date(out["otherdocket"])
             if d:
                 out["decisiondate"] = d
+
+        # The horizontal rule closing the party caption is headmatter
+        # structure, not a footnote separator. Insert it at its real page-one
+        # position so the rendered order matches the PDF.
+        cap_page = getattr(self, "_caption_pno", 1)
+        divider_tops = list(page1_rules or [])
+        # The Supreme Court caption closes with a left half-width rule meeting
+        # the ')' rail. The generic rule collector can mistake it for an
+        # underline because it sits directly beneath the rail's final glyph;
+        # recover it from the unfiltered page-one rule spans by its caption
+        # measure and left anchor. Short opinion-label underlines and genuine
+        # footnote rules occupy different width bands.
+        for top, x0, x1 in getattr(self, "_p1_rule_spans", []):
+            width = x1 - x0
+            if x0 < 100 and page1_rules is not None and 200 <= width <= 270:
+                if not any(abs(top - seen) < 3 for seen in divider_tops):
+                    divider_tops.append(top)
+        for top in sorted(divider_tops):
+            summary_pos.append((cap_page, round(top), 72.0, self.HEADMATTER_DIVIDER))
 
         out["parties"] = party_lines
         out["summary"] = self._layout_rows(summary_pos)
@@ -372,12 +454,13 @@ class BaseAlaskaExtractor(BaseExtractor):
         """Reconstruct the caption's visual layout: lines sharing a row (same
         ``top``) are placed on one text line, each at a column derived from its
         x0, so the two-column caption lines up when rendered in a whitespace-
-        preserving block."""
+        preserving block. Page number is the primary key; sorting by ``top``
+        alone moves a page-two continuation above page-one caption material."""
         if not items:
             return []
-        items.sort(key=lambda r: (r[0], r[1]))
+        items.sort(key=lambda r: (r[0], r[1], r[2]))
         char_w = 6.2  # approx caption glyph advance (pt)
-        rows, segs, cur_top = [], [], None
+        rows, segs, cur_page, cur_top = [], [], None, None
 
         def emit(parts):
             line = ""
@@ -386,12 +469,15 @@ class BaseAlaskaExtractor(BaseExtractor):
                 line += " " * (col - len(line)) + text
             return line
 
-        for top, x0, text in items:
-            if cur_top is not None and abs(top - cur_top) > 3:
+        for page, top, x0, text in items:
+            page_changed = cur_page is not None and page != cur_page
+            if cur_top is not None and (page_changed or abs(top - cur_top) > 3):
                 rows.append(emit(segs))
                 segs = []
+                if page_changed:
+                    rows.append("")
             segs.append((x0, text))
-            cur_top = top
+            cur_page, cur_top = page, top
         if segs:
             rows.append(emit(segs))
         return rows

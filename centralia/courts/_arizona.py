@@ -64,9 +64,13 @@ def _strip_tags(s: str) -> str:
 
 
 def _is_bold_only(text: str) -> bool:
-    """True if the whole line is a single bold run with no other markup —
-    a candidate heading row, not a paragraph that merely opens bold."""
+    """True if the whole line is bold, allowing italic text inside it."""
     t = text.strip()
+    t = t.replace("<em>", "").replace("</em>", "")
+    # PDF font runs can produce adjacent strong spans on one visually uniform
+    # heading (roman + italic case name + roman suffix).
+    while "</strong><strong>" in t or "</strong> <strong>" in t:
+        t = t.replace("</strong><strong>", "").replace("</strong> <strong>", " ")
     if not (t.startswith("<strong>") and t.endswith("</strong>")):
         return False
     return "<" not in t[len("<strong>") : -len("</strong>")]
@@ -151,6 +155,37 @@ class ArizonaStyle:
         if t:
             op.type = t
         return op
+
+    def split_body_paragraphs(self, seg) -> list:
+        """Split Arizona's numbered paragraphs before applying indentation.
+
+        Division One often places a real ``¶N`` at the margin and starts the
+        prose farther right on that same PDF line. The line's reported x0 is
+        therefore the marker column, not the prose indent, so indentation alone
+        cannot see the paragraph boundary. Division Two's raster markers are
+        converted to the same line-leading form by ``arizctapp``.
+
+        Requiring the digit to immediately follow the pilcrow distinguishes a
+        structural marker (``¶10``) from a wrapped citation (``¶ 10``).
+        """
+        chunks = []
+        current = []
+        for line in seg:
+            text = (line.get("text") or "").lstrip()
+            numbered_start = (
+                len(text) > 1 and text[0] == "¶" and text[1].isdigit()
+            )
+            if numbered_start and current:
+                chunks.append(current)
+                current = []
+            current.append(line)
+        if current:
+            chunks.append(current)
+
+        paragraphs = []
+        for chunk in chunks:
+            paragraphs.extend(super().split_body_paragraphs(chunk))
+        return paragraphs
 
     # ----------------------------------------------------------- headmatter
     def extract_headmatter(self, headmatter_segs, page1_rules=None) -> dict:
