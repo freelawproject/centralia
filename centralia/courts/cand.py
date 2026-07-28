@@ -11,6 +11,13 @@ from ._district import DistrictBase
 
 
 class NorthernDistrictOfCalifornia(DistrictBase):
+    # 28-line pleading paper runs the last numbered line to top≈730-739, past
+    # the 725 default — so the final line of EVERY page was being discarded as
+    # footer, mid-sentence ('...its membership database does not have entry').
+    # The page number sits at 750+ with an empty band between, so 745 keeps the
+    # body whole and still drops the folio.
+    margin_bottom = 745
+
     def page_lines(self, page):
         if not hasattr(self, "_cand_dropped"):
             self._cand_dropped = []
