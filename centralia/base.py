@@ -241,6 +241,18 @@ class BaseExtractor:
                 return True
         return False
 
+    def footnote_sep_min_width(self, page) -> float:
+        """Narrowest rule that can be a footnote separator, in points.
+
+        Scaled to the sheet rather than fixed at 100pt, which silently assumed
+        a 612pt letter page. Six courts print on a narrow reporter sheet —
+        neb/nebctapp/or/orctapp/ca9 at 396pt, olc at 423 — where the separator
+        is drawn ~96pt wide. That is proportionally WIDER than a letter-page
+        rule (24% of the sheet against 16%), yet it fell just under the fixed
+        minimum, so every footnote in those volumes was lost. On a letter page
+        this returns ~98, so nothing already working moves."""
+        return max(60.0, (getattr(page, "width", 612.0) or 612.0) * 0.16)
+
     def cid_unreadable(self, pdf) -> tuple[bool, int]:
         """Whether the text layer is mostly unmapped glyphs, and how many.
 
@@ -1010,12 +1022,14 @@ class BaseExtractor:
         x0_max = self.body_baseline_x0 + 4
         divider = self.find_caption_divider(page)
         cap_bot = divider[2] if divider else None
+        min_w = self.footnote_sep_min_width(page)
+
         def scan(objs):
             out = []
             for r in objs:
                 if not (
                     abs(r.get("height", 0)) < 2
-                    and (r["x1"] - r["x0"]) >= 100
+                    and (r["x1"] - r["x0"]) >= min_w
                     and r["x0"] <= x0_max
                     and r["top"] > cutoff
                 ):

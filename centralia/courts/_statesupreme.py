@@ -792,15 +792,27 @@ class StateSupreme(GenericExtractor):
         # Optional per-court width cap (a court whose separator is a fixed short
         # rule, e.g. iowa's ~2-inch). None = any rule >=100pt.
         wmax = self.footnote_sep_max_width
-        rules = [
-            r
-            for r in page.rects
-            if r["height"] < 2
-            and (r["x1"] - r["x0"]) >= 100
-            and (wmax is None or (r["x1"] - r["x0"]) <= wmax)
-            and r["top"] > cutoff
-            and r["x0"] < left_max
-        ]
+        min_w = self.footnote_sep_min_width(page)
+
+        def scan(objs):
+            return [
+                r
+                for r in objs
+                if abs(r.get("height", 0)) < 2
+                and (r["x1"] - r["x0"]) >= min_w
+                and (wmax is None or (r["x1"] - r["x0"]) <= wmax)
+                and r["top"] > cutoff
+                and r["x0"] < left_max
+            ]
+
+        rules = scan(page.rects)
+        if not rules:
+            # Some courts STROKE the separator as a vector line instead of
+            # filling a thin rect, leaving page.rects empty — every footnote in
+            # the volume is then lost (neb: 594 references, none recovered).
+            # Consulted only when the rects found nothing, so a court that
+            # already resolves via rects is untouched.
+            rules = scan(page.lines)
         if not rules:
             return self._footnote_sep_text(page)
         text_lines = page.extract_text_lines()
