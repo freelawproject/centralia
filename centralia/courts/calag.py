@@ -61,6 +61,23 @@ class CaliforniaAttorneyGeneral(StateSupreme):
 
     def find_footnote_separator(self, page):
         sep = super().find_footnote_separator(page)
+        if sep is None and page.page_number > 1:
+            # Long footnotes can occupy most of a page in Attorney General
+            # opinions. Their separator then sits well above the generic
+            # bottom-page footnote band (page 10 of 23-1001: y≈236), but its
+            # geometry remains distinctive: a thin 144pt rule beginning at the
+            # 72pt text margin. Use that printed rule directly instead of a
+            # vertical-position cutoff.
+            rules = [
+                rect
+                for rect in page.rects
+                if rect["height"] < 2
+                and page.width * 0.18 <= rect["width"] <= page.width * 0.30
+                and abs(rect["x0"] - 72) <= 8
+                and 100 < rect["top"] < page.height - 60
+            ]
+            if rules:
+                return min(rect["top"] for rect in rules)
         if sep is None or page.page_number != 1:
             return sep
         # A low-sitting boundary rule (one file draws it at y=430, past the
@@ -75,7 +92,21 @@ class CaliforniaAttorneyGeneral(StateSupreme):
         lines = super().page_lines(page)
         if page.page_number == 1:
             self._split_y = self._boundary_y(page)
-        return lines
+        # Centered bottom folios otherwise become the last line of a footnote
+        # whenever that page's notes extend to the bottom margin.
+        return [
+            line
+            for line in lines
+            if not (
+                (
+                    (line.get("text") or "").strip() == str(page.page_number)
+                    and line["top"] > page.height - 80
+                    and abs((line["x0"] + line["x1"]) / 2 - page.width / 2) < 15
+                )
+                or (line.get("text") or "").strip()
+                in {"(continued…)", "(continued...)"}
+            )
+        ]
 
     # ------------------------------------------------------------- authors
     def find_authors(self, all_segments) -> list:
@@ -145,4 +176,3 @@ class CaliforniaAttorneyGeneral(StateSupreme):
                 if run:
                     labels.add(run)
         return labels
-

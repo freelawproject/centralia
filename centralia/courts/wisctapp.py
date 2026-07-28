@@ -65,10 +65,66 @@ class WisconsinCourtOfAppeals(StateAppellate):
 
     def extract(self, pdf_path):
         self._notice_runs = []
+        self._caption_appeal_numbers = set()
         doc = super().extract(pdf_path)
         if self._notice_runs:
             doc.dropped = list(doc.dropped) + [" ".join(self._notice_runs)]
         return doc
+
+    @staticmethod
+    def _appeal_number(text):
+        """Return a bare Wisconsin appellate docket token, or ``None``."""
+        token = (text or "").strip().strip(",;")
+        upper = token.upper()
+        if "AP" not in upper or not any(ch.isdigit() for ch in upper):
+            return None
+        if any(ch.isspace() for ch in token):
+            return None
+        allowed = set("ABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789-")
+        return token if all(ch in allowed for ch in upper) else None
+
+    @staticmethod
+    def _circuit_number(text):
+        token = (text or "").strip().strip(",;")
+        upper = token.upper()
+        if not any(tag in upper for tag in ("CM", "CF", "CV", "JV", "FA")):
+            return None
+        if not any(ch.isdigit() for ch in upper) or any(ch.isspace() for ch in token):
+            return None
+        allowed = set("ABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789-")
+        return token if all(ch in allowed for ch in upper) else None
+
+    def _caption_dockets(self, lines):
+        """Read the two docket columns between their printed caption labels."""
+        ordered = sorted(lines, key=lambda line: (line.get("top", 0), line.get("x0", 0)))
+        start = None
+        stop = None
+        for i, line in enumerate(ordered):
+            text = " ".join(self.line_plain_text(line).split()).lower()
+            if start is None and (
+                text.startswith("appeal no.") or text.startswith("appeal nos.")
+            ):
+                start = i
+                continue
+            if start is not None and text.startswith("state of wisconsin"):
+                stop = i
+                break
+        if start is None:
+            return [], []
+        band = ordered[start : stop if stop is not None else len(ordered)]
+        pw = getattr(self, "_page1_width", 612.0) or 612.0
+        appeals, circuits = [], []
+        for line in band:
+            for token in self.line_plain_text(line).split():
+                if line.get("x0", 0) < pw / 2:
+                    number = self._appeal_number(token)
+                    if number and number not in appeals:
+                        appeals.append(number)
+                else:
+                    number = self._circuit_number(token)
+                    if number and number not in circuits:
+                        circuits.append(number)
+        return appeals, circuits
 
     def _masthead_bottom(self, page) -> float:
         """The masthead ends at the caption band's first full-width rule."""
@@ -99,6 +155,28 @@ class WisconsinCourtOfAppeals(StateAppellate):
         """Split the masthead's two columns and route the notice column to
         ``dropped``, keeping the clerk's filing stamp beside it as headmatter."""
         lines = super().page_lines(page)
+        if not hasattr(self, "_caption_appeal_numbers"):
+            self._caption_appeal_numbers = set()
+
+        # Learn every docket in the page-one consolidated-caption band.  On
+        # continuation pages Wisconsin prints one of those bare numbers at the
+        # extreme upper-right.  Remove only that repeated geometric header;
+        # docket citations in body text remain untouched.
+        caption_appeals, _caption_circuits = self._caption_dockets(lines)
+        if caption_appeals:
+            self._caption_appeal_numbers.update(caption_appeals)
+        elif self._caption_appeal_numbers:
+            filtered = []
+            for line in lines:
+                text = self.line_plain_text(line).strip()
+                if (
+                    line.get("top", 0) < 70
+                    and line.get("x0", 0) > page.width * 0.7
+                    and text in self._caption_appeal_numbers
+                ):
+                    continue
+                filtered.append(line)
+            lines = filtered
         # The masthead is NOT always page 1: a published opinion carries a
         # reporter cover sheet (the citation, 'Complete Title of Case',
         # counsel, panel) ahead of it, so the decision masthead can land on
@@ -158,6 +236,32 @@ class WisconsinCourtOfAppeals(StateAppellate):
                 continue
             out.extend(self._split_columns({**line, "chars": keep}))
         return out
+
+    def extract_headmatter(self, headmatter_segs, page1_rules=None):
+        """Populate both consolidated appeal and circuit-court dockets."""
+        result = super().extract_headmatter(headmatter_segs, page1_rules)
+        appeals, circuits = [], []
+        pages = {}
+        for seg in headmatter_segs:
+            for line in seg:
+                chars = line.get("chars") or []
+                pno = (
+                    chars[0].get("page_number") if chars else line.get("page_number")
+                ) or 1
+                pages.setdefault(pno, []).append(line)
+        for lines in pages.values():
+            page_appeals, page_circuits = self._caption_dockets(lines)
+            for number in page_appeals:
+                if number not in appeals:
+                    appeals.append(number)
+            for number in page_circuits:
+                if number not in circuits:
+                    circuits.append(number)
+        if appeals:
+            result["docketnumber"] = ", ".join(appeals)
+        if circuits:
+            result["otherdocket"] = ", ".join(circuits)
+        return result
 
     def _split_columns(self, line) -> list:
         """Emit one line per COLUMN of a masthead row.

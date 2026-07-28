@@ -34,6 +34,60 @@ class NewJerseySupreme(ReversedJusticeSupreme):
     # paragraph that a page break split back together with a <pagenumber> mark).
     fold_page_numbers = True
 
+    _ROMAN_OUTLINE = {
+        "I",
+        "II",
+        "III",
+        "IV",
+        "V",
+        "VI",
+        "VII",
+        "VIII",
+        "IX",
+        "X",
+    }
+
+    def _is_outline_label(self, line) -> bool:
+        """A centered standalone hierarchy label: ``II.``, ``A.``, ``1.``."""
+        text = (line.get("text") or "").strip()
+        if not text.endswith(".") or " " in text:
+            return False
+        core = text[:-1]
+        label = (
+            core in self._ROMAN_OUTLINE
+            or (len(core) == 1 and core.isalpha() and core.isupper())
+            or (core.isdigit() and len(core) <= 2)
+        )
+        if not label:
+            return False
+        pw = getattr(self, "_page1_width", 612.0) or 612.0
+        center = (line["x0"] + line["x1"]) / 2
+        return abs(center - pw / 2) <= 20 and line["x1"] - line["x0"] <= 40
+
+    def split_body_paragraphs(self, seg) -> list:
+        # NJ stacks outline levels on separate centered rows with ordinary
+        # body leading. The generic splitter otherwise folds the whole stack
+        # and following prose into one paragraph ("II. A. 1."). Split those
+        # structural rows before applying normal indentation logic.
+        out = []
+        current = []
+        for line in seg:
+            if self._is_outline_label(line):
+                if current:
+                    out.extend(super().split_body_paragraphs(current))
+                    current = []
+                out.append([line])
+            else:
+                current.append(line)
+        if current:
+            out.extend(super().split_body_paragraphs(current))
+        return out
+
+    def classify_paragraph(self, lines) -> str:
+        if len(lines) == 1 and self._is_outline_label(lines[0]):
+            return "heading"
+        return super().classify_paragraph(lines)
+
     def find_footnote_separator(self, page):
         """NJ draws a FULL-WIDTH rule between the counsel block and the opinion
         byline. The width-based finder mistakes that divider for a footnote
