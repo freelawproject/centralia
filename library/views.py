@@ -132,7 +132,7 @@ _MISC = set((
     "acca afcca armfor asbca bia bap1 bap6 bap8 bap9 bap10 cavc cit guam mspb "
     "nmariana nmcca olc tax ttab uscfc uscgcoca virginislands "
     "nyfamct nycivct nysupct nysurct njtaxct vtsuperct pacommwct "
-    "ortc pasuperct minnag mdag").split())
+    "ortc pasuperct minnag mdag texag").split())
 
 
 def _group(cid):
