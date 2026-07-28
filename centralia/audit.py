@@ -18,7 +18,7 @@ from dataclasses import dataclass, field
 
 import pdfplumber
 
-from .models import ExtractedDocument
+from .models import Block, ExtractedDocument
 
 
 @dataclass
@@ -90,7 +90,10 @@ def _norm(s: str) -> str:
 def _chunk(x):
     """Yield text from a value that may be a str, a caption-columns dict, or a
     styled headmatter row ({'__hm__': True, 'html': ...})."""
-    if isinstance(x, dict):
+    if isinstance(x, Block):
+        if x.text:
+            yield _strip_tags(x.text)
+    elif isinstance(x, dict):
         if x.get("html"):
             yield _strip_tags(str(x["html"]))
         for key in ("left", "right"):
@@ -113,7 +116,8 @@ def _doc_chunks(doc: ExtractedDocument):
     removed text against separate haystacks and tell them apart."""
     for s in doc.summary:
         yield from _chunk(s)
-    yield from doc.trailer
+    for s in doc.trailer:
+        yield from _chunk(s)
     for s in getattr(doc, "signature", []) or []:
         if not isinstance(s, dict):  # image rows carry no text
             yield _strip_tags(str(s))
@@ -143,7 +147,13 @@ def _doc_chunks(doc: ExtractedDocument):
     def from_footnotes(fns):
         for fn in fns:
             yield fn.label
-            for _tag, text in fn.paragraphs:
+            for i, (_tag, text) in enumerate(fn.paragraphs):
+                # Same-size footnotes often print a dotted label as part of
+                # the first source line (`12. Text`).  The model stores the
+                # label separately because renderers draw it in their own
+                # column; include the reconstructed line for coverage checks.
+                if i == 0:
+                    yield f"{fn.label}. {text}"
                 yield text
 
     yield from from_footnotes(doc.headmatter_footnotes)

@@ -56,10 +56,10 @@ class DocType:
 class Block:
     """One block-level element inside an opinion or order body.
 
-    ``kind`` is one of: ``p`` | ``blockquote`` | ``heading`` | ``image`` |
-    ``table``. For ``p``/``blockquote``/``heading`` the content is in
-    ``text`` (inline-marked-up). For ``image``/``table`` the content is in
-    ``payload``.
+    ``kind`` is one of: ``p`` | ``blockquote`` | ``heading`` | ``list-item`` |
+    ``ordered-list-item`` | ``image`` | ``table``. For textual blocks the
+    content is in ``text`` (inline-marked-up). Consecutive list-item blocks form
+    one list. For ``image``/``table`` the content is in ``payload``.
     """
 
     kind: str

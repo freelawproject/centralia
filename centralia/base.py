@@ -84,10 +84,10 @@ class BaseExtractor:
     # ====================================================================
     margin_top: float = 39
     margin_bottom: float = 725
-    # When True, a body "paragraph" that is just a bare page number ('4' /
-    # '- 12 -') is dropped from the body; the cross-page paragraph merge then
-    # rejoins the split paragraph with a <pagenumber> marker. Default False so
-    # courts whose page numbers already sit in the margin are unaffected.
+    # When True, printed folios are captured as page metadata, removed from the
+    # text stream, and emitted exactly once at their reading-order boundary.
+    # The court's printed value wins over the physical PDF page index (covers
+    # and separate writings can offset/reset numbering).
     fold_page_numbers: bool = False
     body_baseline_x0: float = 72.0
     # A body line whose x0 exceeds ``body_baseline_x0 + para_indent_min`` starts a
@@ -289,6 +289,10 @@ class BaseExtractor:
         tables_by_page = {}
         page1_rules = []
         layout_ok = True
+        # Physical PDF page -> court-printed folio. Populated before margin
+        # furniture is discarded; a court may override ``detect_printed_folio``
+        # for a folio embedded in a running header.
+        self._printed_folio_by_page = {}
         source_pages = []  # (page_number, [text lines]) — ground truth for the residual sweep
         with pdfplumber.open(pdf_path) as pdf:
             n_pages = len(pdf.pages)
@@ -352,6 +356,9 @@ class BaseExtractor:
                     # as a spurious full-width rule at the bottom.
                     page1_rules = [t for t in page1_rules if t < sep_y - 1]
                 lines = self.page_lines(page)  # also applies correct_page_geometry
+                folio = self.detect_printed_folio(page, lines)
+                if folio is not None:
+                    self._printed_folio_by_page[page.page_number] = folio
                 # Capture the upright ground-truth text for the residual sweep,
                 # the same way audit.py reads it (geometry already corrected).
                 gt = page.filter(lambda o: o.get("upright", True) is not False)
@@ -966,6 +973,101 @@ class BaseExtractor:
         core = t.strip("-–—  ")
         return core.isdigit() and len(core) <= 4
 
+    @staticmethod
+    def _page_number_value(text: str) -> str | None:
+        """Normalized value from a standalone printed folio."""
+        t = str(text or "").strip()
+        low = t.lower()
+        if low.startswith("page "):
+            t = t[5:].strip()
+        core = t.strip("-–—  ")
+        return core if core.isdigit() and len(core) <= 4 else None
+
+    def detect_printed_folio(self, page, lines) -> str | None:
+        """Return the court-printed folio for ``page`` when geometrically clear.
+
+        The raw page is inspected because a real folio normally sits outside
+        ``margin_top``/``margin_bottom`` and has already disappeared from
+        ``page_lines``. A candidate must be a standalone numeric line in a
+        shallow top/bottom margin. As a compatibility path for courts that
+        intentionally retain inter-paragraph folios, similarly isolated lines
+        from ``page_lines`` are considered too.
+        """
+        candidates = []
+        try:
+            raw_lines = page.filter(
+                lambda obj: obj.get("upright", True) is not False
+            ).extract_text_lines()
+        except Exception:
+            raw_lines = []
+        numeric_lines = []
+        for line in raw_lines:
+            value = self._page_number_value(line.get("text") or "")
+            if value is not None:
+                numeric_lines.append((line, value))
+
+        # Pleading paper prints a complete 1..28 (or similar) line-number
+        # rail down one side.  Its first and last entries sit inside the page
+        # margins and otherwise look exactly like folios.  Identify the rail
+        # from its repeated x-position and tall vertical span, then exclude
+        # every member; a real centered/right footer on the same page remains.
+        rail_ids = set()
+        for line, _value in numeric_lines:
+            xmid = (line.get("x0", 0) + line.get("x1", 0)) / 2
+            same_rail = [
+                other
+                for other, _v in numeric_lines
+                if abs(
+                    ((other.get("x0", 0) + other.get("x1", 0)) / 2) - xmid
+                )
+                <= 10
+            ]
+            if (
+                len(same_rail) >= 8
+                and max(x.get("top", 0) for x in same_rail)
+                - min(x.get("top", 0) for x in same_rail)
+                > page.height * 0.5
+            ):
+                rail_ids.update(id(x) for x in same_rail)
+
+        for line, value in numeric_lines:
+            if id(line) in rail_ids:
+                continue
+            top = line.get("top", 0)
+            if top < 85 or top > page.height - 85:
+                edge_distance = min(top, max(0, page.height - line.get("bottom", top)))
+                candidates.append((edge_distance, value))
+        if candidates:
+            candidates.sort(key=lambda item: item[0])
+            return candidates[0][1]
+
+        # Some reporters place a bare folio between the last line and the next
+        # page's continued paragraph, still inside the configured body margin.
+        for line in lines:
+            value = self._page_number_value(self.line_plain_text(line))
+            if value is None:
+                continue
+            align = self.line_alignment(line, page.width)
+            if align in ("C", "R") and (
+                line.get("top", 0) < 100
+                or line.get("top", 0) > page.height - 120
+            ):
+                return value
+        return None
+
+    def printed_folio(self, physical_page: int) -> str | None:
+        """Folio at a physical page, using PDF order only as a true fallback."""
+        folios = getattr(self, "_printed_folio_by_page", {})
+        if folios:
+            # Once a document demonstrates printed numbering, never invent a
+            # number for its unnumbered cover/notice pages.
+            return folios.get(physical_page)
+        return str(physical_page)
+
+    def page_marker(self, physical_page: int) -> str:
+        value = self.printed_folio(physical_page)
+        return f'<pagenumber value="{value}"/>' if value is not None else ""
+
     def _tag_underlined_chars(self, page, lines) -> None:
         """Mark chars whose glyph is underlined by a hairline rect near the
         baseline. Sets ``_underline=True`` on the char dicts."""
@@ -1468,6 +1570,20 @@ class BaseExtractor:
         right_edge = pw - self.body_baseline_x0
         return line["x1"] < right_edge - 0.06 * (right_edge - self.body_baseline_x0)
 
+    @staticmethod
+    def _line_all_emphasized(line) -> bool:
+        """True when every alphanumeric glyph is bold or italic/oblique."""
+        seen = False
+        for char in line.get("chars") or []:
+            text = char.get("text") or ""
+            if not any(ch.isalnum() for ch in text):
+                continue
+            seen = True
+            font = char.get("fontname", "") or ""
+            if not any(style in font for style in ("Bold", "Italic", "Oblique")):
+                return False
+        return seen
+
     def line_alignment(self, line, page_width) -> str:
         x0 = line["x0"]
         x1 = line["x1"]
@@ -1730,7 +1846,35 @@ class BaseExtractor:
     # PARAGRAPH SPLITTING (within a segment)
     # ====================================================================
     def classify_paragraph(self, lines) -> str:
-        """Return the tag for a paragraph: 'p' or 'blockquote'."""
+        """Return the semantic block tag from paragraph geometry.
+
+        Across reporters, a short centered row (occasionally a tight wrapped
+        pair) set wholly in bold or uppercase is a section heading.  Recognize
+        that shared visual grammar here so ``CONCLUSION`` / ``STANDARD OF
+        REVIEW`` does not require a court-by-court word list.
+        """
+        if lines and len(lines) <= 3:
+            pw = getattr(self, "_page1_width", None) or 612.0
+            centered = all(self.line_alignment(line, pw) == "C" for line in lines)
+            texts = [(line.get("text") or "").strip() for line in lines]
+            compact = sum(len(text) for text in texts) <= 180
+            emphasized = all(self._line_all_emphasized(line) for line in lines)
+            letters = "".join(ch for text in texts for ch in text if ch.isalpha())
+            all_caps = bool(letters) and letters.upper() == letters
+            ornament = "".join(texts).replace(" ", "")
+            ornamental_break = (
+                len(ornament) >= 3 and all(ch in "*•·" for ch in ornament)
+            )
+            plain = " ".join(texts).strip()
+            short_section_row = (
+                len(plain) <= 100
+                and len(plain.split()) <= 14
+                and not plain.endswith((".", "?", "!"))
+            )
+            if centered and compact and (
+                emphasized or all_caps or ornamental_break or short_section_row
+            ):
+                return "heading"
         return "p"
 
     def split_body_paragraphs(self, seg) -> list:
@@ -2124,8 +2268,11 @@ class BaseExtractor:
             txt = self.paragraph_text(lines)
             if not txt.strip():
                 return
-            if self.fold_page_numbers and self._is_page_number_text(txt):
-                return  # bare page number — drop; merge spans the gap
+            if self._is_page_number_text(txt):
+                value = self._page_number_value(txt)
+                registered = getattr(self, "_printed_folio_by_page", {}).get(page_no)
+                if registered is not None and value == registered:
+                    return  # registered folio furniture, never body text
             first_x0 = lines[0]["x0"]
             # re-base the court's continuation slop on THIS opinion's body
             # column so a shifted column (caed x0≈104) folds page-top
@@ -2144,7 +2291,9 @@ class BaseExtractor:
                 and first_x0 < wrap_max
                 and not self._begins_paragraph_block(lines)
             ):
-                blocks[-1].text += f' <pagenumber value="{page_no}"/> {txt}'
+                marker = self.page_marker(page_no)
+                middle = f" {marker}" if marker else ""
+                blocks[-1].text += f"{middle} {txt}"
             else:
                 blocks.append(Block(kind=tag, text=txt, page=page_no))
             if tag == "p":
@@ -2235,10 +2384,39 @@ class BaseExtractor:
                 add_para(kind_, payload, page_no)
 
         op.blocks = blocks
+        self._ensure_opinion_page_markers(op, op_pages)
         op.footnotes = self.build_footnotes(
             op_pages, footnote_lines_by_page, seen_labels=set()
         )
         return op
+
+    def _ensure_opinion_page_markers(self, op: Opinion, op_pages: set) -> None:
+        """Ensure one printed-folio marker for every substantive opinion page.
+
+        A cross-page paragraph merge may already have placed the marker inside
+        the previous page's block. If the new page instead starts a paragraph,
+        prepend its marker to that page's first textual block. This makes marker
+        presence independent of paragraph grouping.
+        """
+        rendered = " ".join(str(block.text or "") for block in op.blocks)
+        for physical_page in sorted(op_pages):
+            marker = self.page_marker(physical_page)
+            if not marker or marker in rendered:
+                continue
+            first = next(
+                (
+                    block
+                    for block in op.blocks
+                    if block.page == physical_page
+                    and block.kind not in ("image", "table")
+                    and str(block.text or "").strip()
+                ),
+                None,
+            )
+            if first is None:
+                continue
+            first.text = f"{marker} {first.text}"
+            rendered += " " + marker
 
     def build_footnotes(self, pages, footnote_lines_by_page, seen_labels=None) -> list:
         """Group footnote lines for ``pages`` into ``Footnote`` objects.

@@ -18,7 +18,7 @@ from __future__ import annotations
 from pathlib import Path
 from xml.sax.saxutils import escape
 
-from ..models import ExtractedDocument, Footnote, Opinion
+from ..models import Block, ExtractedDocument, Footnote, Opinion
 
 
 _CSS = """
@@ -581,7 +581,24 @@ def _render_trailer(doc: ExtractedDocument) -> list:
         '<div class="raw">',
     ]
     for line in doc.trailer:
-        out.append(f'<div class="rawline">{_inline_to_html(str(line))}</div>')
+        if isinstance(line, Block):
+            if line.kind == "image":
+                w = line.payload.get("width")
+                size = (
+                    f' style="width:{round(w)}pt;max-width:100%;height:auto"'
+                    if w
+                    else ""
+                )
+                out.append(
+                    f'<img src="{escape(str(line.payload.get("src", "")))}" '
+                    f'alt="figure on page {line.page}"{size}>'
+                )
+            else:
+                out.append(
+                    f'<div class="rawline">{_inline_to_html(line.text)}</div>'
+                )
+        else:
+            out.append(f'<div class="rawline">{_inline_to_html(str(line))}</div>')
     out.append("</div></section>")
     return out
 
@@ -664,7 +681,9 @@ def _render_headmatter(doc: ExtractedDocument) -> list:
     ):
         # Style/whitespace-preserving facsimile (exact x/y, size, weight);
         # the plain rows behind the sentinel exist for the audit and DB.
+        out.append('<div class="raw">')
         out.extend(_render_headmatter_facsimile(doc))
+        out.append("</div>")
     elif not doc.summary:
         out.append('<div class="empty">(none)</div>')
     else:
@@ -820,7 +839,24 @@ def _render_opinion(op: Opinion) -> list:
         f'<div class="optype-badge t-{escape(op.type)}">' f"{escape(op.type)}</div>"
     )
     out.append(f'<div class="author">{escape(op.author)}</div>')
+    list_tag = None
     for b in op.blocks:
+        if b.kind in ("list-item", "ordered-list-item"):
+            wanted_tag = "ol" if b.kind == "ordered-list-item" else "ul"
+            if list_tag != wanted_tag:
+                if list_tag is not None:
+                    out.append(f"</{list_tag}>")
+                out.append(f"<{wanted_tag}>")
+                list_tag = wanted_tag
+            text = b.text
+            if b.kind == "ordered-list-item":
+                _marker, _separator, text = text.lstrip().partition(" ")
+                text = text.lstrip()
+            out.append(f"<li>{_inline_to_html(text)}</li>")
+            continue
+        if list_tag is not None:
+            out.append(f"</{list_tag}>")
+            list_tag = None
         if b.kind == "image":
             # Render at the figure's true size on the page — the payload
             # carries the PDF-point box, and CSS pt maps 1:1 to it (the PNG
@@ -847,6 +883,8 @@ def _render_opinion(op: Opinion) -> list:
             out.append(f"<blockquote>{_inline_to_html(b.text)}</blockquote>")
         else:
             out.append(f"<p>{_inline_to_html(b.text)}</p>")
+    if list_tag is not None:
+        out.append(f"</{list_tag}>")
     if op.footnotes:
         out.append('<div class="footnotes">')
         for fn in op.footnotes:

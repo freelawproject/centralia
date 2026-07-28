@@ -103,7 +103,24 @@ def _render_opinion(op: Opinion) -> list:
         f'  <opinion type="{op.type}">',
         f"    <author>{escape(op.author)}</author>",
     ]
+    list_type = None
     for b in op.blocks:
+        if b.kind in ("list-item", "ordered-list-item"):
+            wanted_type = "ordered" if b.kind == "ordered-list-item" else "bullet"
+            if list_type != wanted_type:
+                if list_type is not None:
+                    out.append("    </list>")
+                out.append(f'    <list type="{wanted_type}">')
+                list_type = wanted_type
+            text = b.text
+            if b.kind == "ordered-list-item":
+                _marker, _separator, text = text.lstrip().partition(" ")
+                text = text.lstrip()
+            out.append(f"      <item>{text}</item>")
+            continue
+        if list_type is not None:
+            out.append("    </list>")
+            list_type = None
         if b.kind == "image":
             out.append(
                 f'    <image src="{b.payload["src"]}" '
@@ -114,6 +131,8 @@ def _render_opinion(op: Opinion) -> list:
             out.extend(_render_table(b.payload.get("rows") or [], b.page))
         else:
             out.append(f"    <{b.kind}>{b.text}</{b.kind}>")
+    if list_type is not None:
+        out.append("    </list>")
     if op.footnotes:
         out.append("    <footnotes>")
         for fn in op.footnotes:
