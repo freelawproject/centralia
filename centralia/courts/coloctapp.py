@@ -133,6 +133,30 @@ class ColoradoCourtOfAppeals(StateAppellate):
             return "", [line]
         return super().split_author_line(line)
 
+    @staticmethod
+    def _numbered_paragraph_line(line):
+        text = (line.get("text") or "").lstrip()
+        if not text.startswith("¶"):
+            return False
+        tail = text[1:].lstrip()
+        number = tail.split(None, 1)[0].rstrip(".") if tail else ""
+        return number.isdigit()
+
+    def split_body_paragraphs(self, seg):
+        """Split on Colorado's hanging ``¶ N`` marker, not right indentation."""
+        if not seg:
+            return []
+        paragraphs = [[seg[0]]]
+        for line in seg[1:]:
+            if self._numbered_paragraph_line(line):
+                paragraphs.append([line])
+            else:
+                paragraphs[-1].append(line)
+        return paragraphs
+
+    def _begins_paragraph_block(self, lines):
+        return bool(lines and self._numbered_paragraph_line(lines[0]))
+
     def build_opinion(self, op_start, op_end, **kwargs):
         op = super().build_opinion(op_start, op_end, **kwargs)
         if self._colo_author:

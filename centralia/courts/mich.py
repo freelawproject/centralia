@@ -49,6 +49,7 @@ from ._abbrevtitle import AbbrevTitleSupreme
 class MichiganSupreme(AbbrevTitleSupreme):
     court_id = "mich"
     court_label = "Michigan Supreme Court."
+    blockquote_by_indent = True
 
     _ORDER_BODY_START = "on order of the court"
     # Michigan footnote TEXT is body-sized (13pt); only the marker is small
@@ -72,6 +73,96 @@ class MichiganSupreme(AbbrevTitleSupreme):
         return self.footnote_sep_fixed_left_rule(page) or (
             self._footnote_sep_small_text_below(page)
         )
+
+    # -------------------------------------------------------- opinion layout
+    def _deep_indent_flags(self, lines) -> list:
+        """Find the sustained inset column used for quoted material.
+
+        Michigan's body is double-spaced and normally has only its first line
+        indented.  Block quotations are single-spaced and keep the next lines
+        one indent step inside the body margin.  Requiring an adjacent inset
+        line at tight leading uses both facts and avoids treating an ordinary
+        paragraph opening as a quote.
+        """
+        inset = self.body_baseline_x0 + self.para_indent_min
+        raw = [
+            line["x0"] >= inset and not self._begins_paragraph_block([line])
+            for line in lines
+        ]
+        return [
+            flag
+            and (
+                (
+                    i > 0
+                    and raw[i - 1]
+                    and lines[i]["top"] - lines[i - 1]["top"]
+                    <= self.gap_tight_max
+                )
+                or (
+                    i + 1 < len(raw)
+                    and raw[i + 1]
+                    and lines[i + 1]["top"] - lines[i]["top"]
+                    <= self.gap_tight_max
+                )
+            )
+            for i, flag in enumerate(raw)
+        ]
+
+    def _is_indented_blockquote(self, seg) -> bool:
+        """Accept Michigan's inset measure, including hanging first lines."""
+        if len(seg) < 2:
+            return False
+        pw = getattr(self, "_page1_width", None) or 612.0
+        left = self.body_baseline_x0 + self.para_indent_min
+        right = pw - self.body_baseline_x0
+        return (
+            min(line["x0"] for line in seg) >= left
+            and min(line["x0"] for line in seg) <= pw * 0.4
+            and max(line["x1"] for line in seg) <= right - 24
+        )
+
+    def classify_segment(self, seg) -> str:
+        kind = super().classify_segment(seg)
+        # Tight leading alone is also used by notices and compact furniture.
+        # It becomes a quotation only when the inset measure confirms it.
+        if kind == "blockquote" and not self._is_indented_blockquote(seg):
+            return "body"
+        return kind
+
+    def classify_paragraph(self, lines) -> str:
+        """Centered short lines in the opinion are section headings."""
+        if lines:
+            pw = getattr(self, "_page1_width", None) or 612.0
+            if all(
+                self.line_alignment(line, pw) == "C"
+                and line["x0"] > self.body_baseline_x0 + 54
+                for line in lines
+            ):
+                return "heading"
+        return super().classify_paragraph(lines)
+
+    def _begins_paragraph_block(self, lines) -> bool:
+        return self.classify_paragraph(lines) == "heading" if lines else False
+
+    def build_opinion(self, op_start, op_end, **kwargs):
+        opinion = super().build_opinion(op_start, op_end, **kwargs)
+        # A quote continued on the next PDF page is one semantic block.  Keep
+        # the page boundary as metadata instead of introducing a false break.
+        merged = []
+        for block in opinion.blocks:
+            if (
+                merged
+                and block.kind == "blockquote"
+                and merged[-1].kind == "blockquote"
+                and block.page != merged[-1].page
+            ):
+                merged[-1].text += (
+                    f' <pagenumber value="{block.page}"/> ' + block.text.lstrip()
+                )
+            else:
+                merged.append(block)
+        opinion.blocks = merged
+        return opinion
 
     def classify_document_type(self, all_segments, author_indices, n_pages) -> str:
         # A clerk's order is authored PER CURIAM (so author_indices is set), but
