@@ -73,6 +73,28 @@ class PuertoRicoSupreme(StateSupreme):
     # cross-page merge spans the page break.
     running_header_docket = True
 
+    def find_footnote_separator(self, page):
+        """PR footnotes use a two-inch rule at the body margin.
+
+        Consolidated-case caption boxes also draw long horizontal shelves in
+        the lower half of a legal-size page.  The generic ``>=100pt`` rule
+        detector can mistake those shelves for footnote separators and swallow
+        the writing below them.  Match the invariant 144pt footnote rule.
+        """
+        return self.footnote_sep_fixed_left_rule(page, x0_max=132)
+
+    def _byline_at(self, line) -> bool:
+        """PR writing markers are Spanish prose bylines or centered writing
+        headings, not the English ``NAME, Justice`` form understood by the
+        shared splitter.
+
+        Detecting them at the line level is important: on legal-size pages a
+        repeated caption and the byline can occupy one loose segment.  Split
+        there before ``find_authors`` so the caption remains headmatter and the
+        complete writing becomes body.
+        """
+        return self._start_kind(self.line_plain_text(line).strip()) is not None
+
     def is_docket_line(self, text) -> bool:
         """A PR docket running header: one '<LL>-<YYYY>-<n>' token (a 2–3 letter
         prefix, 4-digit year, number) optionally flanked by a bare page
@@ -226,6 +248,88 @@ class PuertoRicoSupreme(StateSupreme):
             self._pr_meta[i] = (author, kind)
             out.append(i)
         return out
+
+    def split_body_paragraphs(self, seg):
+        """Keep stacked centered outline labels as separate headings.
+
+        The ordinary paragraph splitter quite reasonably treats consecutive
+        lines at the same deep indent as one indented block.  PR instead uses
+        that exact geometry for two successive outline labels (``II`` / ``i.``),
+        which must not become the synthetic text ``II i.``.
+        """
+        # Cut around short centered labels *before* the generic splitter.  If
+        # they remain in a larger prose group, the group's overall geometry
+        # masks their centered alignment.
+        pw = getattr(self, "_page1_width", None) or 612.0
+        chunks, cur = [], []
+        for line in seg:
+            text = self.line_plain_text(line).strip()
+            is_label = (
+                text
+                and len(text) <= 12
+                # The opinion column is x≈122–547, centered at ≈335 rather
+                # than at the physical legal-size page center (306).
+                and abs((line["x0"] + line["x1"]) / 2 - 335) <= 35
+            )
+            if is_label:
+                if cur:
+                    chunks.append(cur)
+                    cur = []
+                chunks.append([line])
+            else:
+                cur.append(line)
+        if cur:
+            chunks.append(cur)
+        paras = [
+            para
+            for chunk in chunks
+            for para in super().split_body_paragraphs(chunk)
+        ]
+        out = []
+        for para in paras:
+            if (
+                len(para) > 1
+                and all(
+                    len(self.line_plain_text(line).strip()) <= 8
+                    and self.line_alignment(line, pw) == "C"
+                    for line in para
+                )
+            ):
+                out.extend([[line] for line in para])
+            else:
+                out.append(para)
+        return out
+
+    def classify_paragraph(self, lines) -> str:
+        """Classify PR outline headings and indented quotations by geometry."""
+        if not lines:
+            return "p"
+        pw = getattr(self, "_page1_width", None) or 612.0
+        texts = [self.line_plain_text(line).strip() for line in lines]
+        joined = " ".join(texts)
+        marker = joined.rstrip(".")
+        outline = (
+            bool(marker)
+            and (
+                all(c in "IVXLCDM" for c in marker)
+                or all(c in "ivxlcdm" for c in marker)
+                or (len(marker) == 1 and marker.isalpha())
+            )
+        )
+        if (
+            joined
+            and (
+                outline
+                or joined.upper().rstrip(".") in _HEADINGS
+                or joined == "Se dictará Sentencia en conformidad."
+            )
+            and all(
+                abs((line["x0"] + line["x1"]) / 2 - 335) <= 35
+                for line in lines
+            )
+        ):
+            return "heading"
+        return "p"
 
     def split_author_line(self, line):
         # the byline/heading line is the start marker; keep it as body text

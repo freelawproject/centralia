@@ -11,6 +11,12 @@ from ._appellate import StateAppellate
 class NorthCarolinaCourtOfAppeals(StateAppellate):
     court_id = "ncctapp"
     court_label = "North Carolina Court of Appeals."
+    # Like the North Carolina Supreme Court template, ordinary prose is
+    # double-spaced while quoted/list material is single-spaced and inset on
+    # both margins.  The shared detector also requires a stable multi-line
+    # left rail, so a normal first-line paragraph indent is not a blockquote.
+    blockquote_by_indent = True
+    fold_page_numbers = True
 
     def extract(self, pdf_path):
         self._ncc_dropped = []
