@@ -85,7 +85,11 @@ from .courts.tax import USTaxCourt
 from .courts.cit import CourtOfInternationalTrade
 from .courts.uscfc import CourtOfFederalClaims
 from .courts.cavc import VeteransClaimsCourt
+from .courts.bap1 import FirstCircuitBAP
 from .courts.bap6 import SixthCircuitBAP
+from .courts.bap8 import EighthCircuitBAP
+from .courts.bap9 import NinthCircuitBAP
+from .courts.bap10 import TenthCircuitBAP
 from .courts.guam import GuamSupreme
 from .courts.nmariana import NorthernMarianaSupreme
 from .courts.njtaxct import NewJerseyTaxCourt
@@ -241,6 +245,7 @@ from .courts.wvactapp import IntermediateCourtOfAppealsOfWestVirginia
 from .courts.mdctspecapp import AppellateCourtOfMaryland
 from .courts.njsuperctappdiv import NewJerseySuperiorCourtAppellateDivision
 from .courts.utahctapp import UtahCourtOfAppeals
+from .courts.virginislands import VirginIslandsSupreme
 
 
 EXTRACTORS: dict[str, type[BaseExtractor]] = {
@@ -313,7 +318,11 @@ EXTRACTORS: dict[str, type[BaseExtractor]] = {
     "cit": CourtOfInternationalTrade,
     "uscfc": CourtOfFederalClaims,
     "cavc": VeteransClaimsCourt,
+    "bap1": FirstCircuitBAP,
     "bap6": SixthCircuitBAP,
+    "bap8": EighthCircuitBAP,
+    "bap9": NinthCircuitBAP,
+    "bap10": TenthCircuitBAP,
     "guam": GuamSupreme,
     "nmariana": NorthernMarianaSupreme,
     "njtaxct": NewJerseyTaxCourt,
@@ -479,6 +488,7 @@ EXTRACTORS: dict[str, type[BaseExtractor]] = {
     "mdctspecapp": AppellateCourtOfMaryland,
     "njsuperctappdiv": NewJerseySuperiorCourtAppellateDivision,
     "utahctapp": UtahCourtOfAppeals,
+    "virginislands": VirginIslandsSupreme,
 }
 
 

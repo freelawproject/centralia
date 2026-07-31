@@ -55,6 +55,12 @@ _CSS = """
   details.dropped > summary { cursor: pointer; color: var(--accent);
                     font-size: .78rem; font-family: ui-monospace, monospace;
                     letter-spacing: .03em; }
+  /* Unplaced CONTENT is a to-do, not furniture: it gets its own loud box,
+     open by default, so it can never hide behind a 'notices / stamps' count. */
+  details.unplaced { border-style: solid; border-color: #b45309;
+                    background: #fdf6ec; }
+  details.unplaced > summary { color: #92400e; font-weight: 600; }
+  details.unplaced .dropline { color: #7c3f12; }
   .dropline { font-family: ui-monospace, monospace; font-size: .76rem;
               color: #8a6a6a; line-height: 1.5; margin-top: .5rem;
               white-space: pre-wrap; word-break: break-word; }
@@ -78,26 +84,58 @@ _CSS = """
   hr.divider { border: 0; border-top: 1px solid #999; margin: .55rem auto;
                width: 40%; }
   .rawgap { height: .8rem; }
+  /* BAP headmatter uses several small, source-faithful vertical gaps.  Keep
+     them visible, but avoid turning the caption into a long stack of blank
+     space in the review view. */
+  .headmatter.court-bap6 .rawgap { height: .35rem; }
+  .headmatter.court-bap6 .hmline { line-height: 1.05; }
+  .headmatter.court-bap6 .caption-cols .rawline { line-height: 1.05; }
   .empty { color: var(--muted); font-style: italic; }
   .hm-fac { position: relative; font-family: "Times New Roman", Georgia, serif;
             color: var(--ink); margin: .25rem 0 .5rem; }
   .hm-fac .hm-line { position: absolute; white-space: nowrap; line-height: 1; }
   .hm-fac .hm-rule { position: absolute; }
-  section.opinion { margin-top: 2rem; padding-top: 1.25rem;
-                    border-top: 1px solid var(--rule); }
+  /* Each opinion runs behind a colour-keyed rail down its left edge, so a
+     document carrying more than one writing reads as separate opinions at a
+     glance — where the majority ends and the dissent begins is visible without
+     reading. The badge takes its colour from the SAME variable, so the label
+     and the rail can never disagree. */
+  section.opinion { --op-accent: var(--muted);
+                    margin-top: 2rem; padding: 1.25rem 0 .5rem 1.1rem;
+                    border-top: 1px solid var(--rule);
+                    border-left: 4px solid var(--op-accent); }
   section.opinion:first-of-type { border-top: 0; padding-top: 0; margin-top: 0; }
+  section.opinion.t-majority { --op-accent: #2f5d3a; }
+  section.opinion.t-dissent { --op-accent: #7a1f1f; }
+  section.opinion.t-concurrence { --op-accent: #1f4e7a; }
+  section.opinion.t-concurrence-in-result { --op-accent: #6a4a1f; }
+  section.opinion.t-concurring-in-part-and-dissenting-in-part
+                                          { --op-accent: #6b3f8a; }
+  section.opinion.t-order { --op-accent: #55606b; }
+  .opinion-caption { margin: .8rem 0 1.1rem; padding: .7rem 1rem;
+    border-top: 1px solid #bbb; border-bottom: 1px solid #bbb; }
+  .opinion-caption p, .opinion-caption blockquote { margin: .35rem 0; }
+  .opinion-caption h3 { margin: .25rem 0 .7rem; }
+  .opinion-signature { margin: 1rem 0; text-align: center; }
+  .opinion-signature img { max-width: 100%; max-height: 90pt; }
   .author { font-variant: small-caps; font-weight: bold; font-size: 1.05rem;
             margin: .5rem 0 1rem; }
   .optype-badge { display: inline-block; font-family: ui-monospace, monospace;
             font-size: .72rem; font-weight: bold; text-transform: uppercase;
-            letter-spacing: .06em; color: #fff; background: var(--muted);
+            letter-spacing: .06em; color: #fff; background: var(--op-accent);
             padding: .15rem .55rem; border-radius: .25rem; }
-  .optype-badge.t-majority { background: #2f5d3a; }
-  .optype-badge.t-dissent { background: #7a1f1f; }
-  .optype-badge.t-concurrence { background: #1f4e7a; }
-  .optype-badge.t-concurrence-in-result { background: #6a4a1f; }
   p { text-align: justify; margin: .85rem 0; }
   blockquote { margin: .85rem 0 .85rem 2rem; color: #333; }
+  section.opinion table { width: 100%; margin: 1rem 0;
+                          border-collapse: collapse; border: 2px solid #555; }
+  section.opinion table th, section.opinion table td {
+    border: 1px solid #777; padding: .45rem .55rem; vertical-align: top;
+  }
+  section.opinion table th { background: #eee; text-align: left; }
+  .trailer table { width: 100%; margin: 1rem 0; border-collapse: collapse;
+                   border: 2px solid #555; }
+  .trailer table td, .trailer table th { border: 1px solid #777;
+                                        padding: .45rem .55rem; vertical-align: top; }
   h3 { font-size: 1.05rem; margin: 1.4rem 0 .6rem; text-align: center; }
   sup.fn { color: var(--accent); font-weight: bold; padding: 0 .1em; }
   .pagenum { display: inline-block; font-family: ui-monospace, monospace;
@@ -226,6 +264,8 @@ _INDEX_CSS = """
            justify-content: space-between; }
   h2.grp .n { color: #666; font-weight: normal; font-size: .9rem; }
   table { width: 100%; border-collapse: collapse; font-size: .9rem; }
+  .opinion table { margin: 1rem 0; border: 1px solid #999; }
+  .opinion table th, .opinion table td { border: 1px solid #bbb; }
   th { text-align: left; color: #888; font-weight: normal; font-size: .75rem;
        text-transform: uppercase; letter-spacing: .05em; padding: .3rem .5rem; }
   td { padding: .4rem .5rem; border-top: 1px solid #eee; vertical-align: top; }
@@ -415,36 +455,54 @@ def _render_dropped(doc: ExtractedDocument) -> list:
     residual = getattr(doc, "residual", None) or []
     if not doc.dropped and not residual:
         return []
-    total = len(doc.dropped) + len(residual)
-    out = [
-        '<details class="dropped">',
-        f"<summary>Removed before parsing — notices / stamps "
-        f"({total})</summary>",
-    ]
-    for d in doc.dropped:
-        out.append(f'<div class="dropline">{_inline_to_html(str(d))}</div>')
 
-    # Residual: source lines that landed in no section, swept up so nothing is
-    # silently lost. Split so real content (a to-do) stands apart from junk.
+    # Three DIFFERENT things, so three boxes with their own counts. Lumping
+    # them under one 'notices / stamps (41)' total hid the only line that
+    # actually needs work behind forty that don't.
     def _kind(r):
         return r.get("kind") if isinstance(r, dict) else None
 
     content = [r for r in residual if _kind(r) != "furniture"]
     furniture = [r for r in residual if _kind(r) == "furniture"]
+    out: list = []
 
-    def _emit(items, label):
-        if not items:
-            return
-        out.append(f'<div class="dropgroup">{label} ({len(items)})</div>')
-        for r in items:
+    def _box(label, cls="dropped", open_=False):
+        out.append(f'<details class="{cls}"{" open" if open_ else ""}>')
+        out.append(f"<summary>{label}</summary>")
+
+    if content:
+        # Unplaced CONTENT is the review to-do: real text the parse could not
+        # place. Opened by default and styled apart from the junk.
+        _box(
+            f"Unplaced content — needs a home ({len(content)})",
+            cls="dropped unplaced",
+            open_=True,
+        )
+        for r in content:
             txt = r.get("text", "") if isinstance(r, dict) else str(r)
             pg = r.get("page") if isinstance(r, dict) else None
             tag = f'<span class="droppg">p{pg}</span> ' if pg else ""
             out.append(f'<div class="dropline">{tag}{_inline_to_html(str(txt))}</div>')
+        out.append("</details>")
 
-    _emit(content, "Unplaced content — needs a home")
-    _emit(furniture, "Unplaced furniture — confirm &amp; drop")
-    out.append("</details>")
+    if furniture:
+        # Identified junk the sweep caught rather than the parse — a rail glyph,
+        # a folio, a running head. Confirm the call, then it can be dropped.
+        _box(f"Unplaced furniture — confirm &amp; drop ({len(furniture)})")
+        for r in furniture:
+            txt = r.get("text", "") if isinstance(r, dict) else str(r)
+            pg = r.get("page") if isinstance(r, dict) else None
+            tag = f'<span class="droppg">p{pg}</span> ' if pg else ""
+            out.append(f'<div class="dropline">{tag}{_inline_to_html(str(txt))}</div>')
+        out.append("</details>")
+
+    if doc.dropped:
+        # Deliberately removed by the extractor — a publication notice, a seal,
+        # an e-filing stamp. Nothing to do; shown so it is never silent.
+        _box(f"Removed before parsing — notices / stamps ({len(doc.dropped)})")
+        for d in doc.dropped:
+            out.append(f'<div class="dropline">{_inline_to_html(str(d))}</div>')
+        out.append("</details>")
     return out
 
 
@@ -464,8 +522,15 @@ def _render_headnotes(doc: ExtractedDocument) -> list:
             al = {"C": "center", "L": "left", "R": "right"}.get(
                 line.get("align"), "left"
             )
+            ind = line.get("ind")
+            pad = f"padding-left:{ind}pt;" if ind else ""
+            # A first-line indent on a wrapped row (a counsel entry) indents
+            # only its opening line, unlike the whole-row shift of ``ind``.
+            tind = line.get("tind")
+            if tind:
+                pad += f"text-indent:{tind}pt;"
             out.append(
-                f'<div class="hmline" style="text-align:{al};'
+                f'<div class="hmline" style="{pad}text-align:{al};'
                 f'font-size:{line.get("rel", 1)}em">'
                 f'{_inline_to_html(str(line.get("html", "")))}</div>'
             )
@@ -581,7 +646,9 @@ def _render_trailer(doc: ExtractedDocument) -> list:
         '<div class="raw">',
     ]
     for line in doc.trailer:
-        if isinstance(line, Block):
+        if isinstance(line, dict) and line.get("__table__"):
+            out.extend(_render_table(line.get("rows") or []))
+        elif isinstance(line, Block):
             if line.kind == "image":
                 w = line.payload.get("width")
                 size = (
@@ -627,6 +694,50 @@ def _render_headmatter_facsimile(doc: ExtractedDocument) -> list:
     size and weight, with the caption box drawn from the rule geometry. 1px per
     PDF point."""
     lines = _stack_headmatter_pages(doc.headmatter_lines)
+
+    # PDF fonts are often embedded and unavailable to the browser. A fallback
+    # font can therefore be a little wider than the source font and make two
+    # same-row caption lines touch even though their measured PDF x positions
+    # do not. Preserve the source geometry by default, but make the smallest
+    # rightward adjustment needed to prevent a visual collision.
+    def approx_width(line):
+        size = float(line.get("size") or 10)
+        text = str(line.get("text") or "")
+        width = 0.0
+        for ch in text:
+            if ch in " ilI.,'":
+                factor = 0.27
+            elif ch in "MW@%":
+                factor = 0.82
+            else:
+                factor = 0.52
+            width += factor * size
+        return width
+
+    adjusted = []
+    for line in lines:
+        item = dict(line)
+        for prior in adjusted:
+            if prior.get("page", 1) != item.get("page", 1):
+                continue
+            prior_top = float(prior.get("top") or 0)
+            item_top = float(item.get("top") or 0)
+            prior_size = float(prior.get("size") or 10)
+            item_size = float(item.get("size") or 10)
+            if abs(prior_top - item_top) > max(prior_size, item_size) * 0.9:
+                continue
+            prior_x = float(prior.get("x0") or 0)
+            item_x = float(item.get("x0") or 0)
+            if item_x <= prior_x:
+                needed = item_x + approx_width(item) + 10
+                if prior_x < needed:
+                    prior["x0"] = needed
+                continue
+            needed = prior_x + approx_width(prior) + 10
+            if item_x < needed:
+                item["x0"] = needed
+        adjusted.append(item)
+    lines = adjusted
     box = doc.caption_box or {}
     xs = [l["x0"] for l in lines]
     if box.get("vx") is not None:
@@ -669,8 +780,9 @@ def _render_headmatter_facsimile(doc: ExtractedDocument) -> list:
 def _render_headmatter(doc: ExtractedDocument) -> list:
     """Raw, unparsed pre-opinion content, verbatim and at the top. Structured
     caption parsing is deliberately deferred — this is the dump."""
+    court_class = " court-bap6" if doc.court_id == "bap6" else ""
     out = [
-        '<section class="block headmatter">',
+        f'<section class="block headmatter{court_class}">',
         '<h2 class="sec">Headmatter <span class="raw-tag">raw</span></h2>',
     ]
     if (
@@ -790,11 +902,36 @@ def _render_headmatter(doc: ExtractedDocument) -> list:
                 al = {"C": "center", "L": "left", "R": "right"}.get(
                     s.get("align"), "left"
                 )
-                out.append(
-                    f'<div class="hmline" style="text-align:{al};'
-                    f'font-size:{s.get("rel", 1)}em">'
-                    f'{_inline_to_html(str(s.get("html", "")))}</div>'
-                )
+                # 'ind' is the row's offset from the caption block's own left
+                # edge, in PDF points — the same unit as CSS pt — so a role
+                # line stays under its party and a docket number stays out to
+                # the right, exactly as printed.
+                ind = s.get("ind")
+                pad = f"padding-left:{ind}pt;" if ind else ""
+                zones = s.get("zones")
+                if zones and len(zones) > 1:
+                    # The row holds separate COLUMNS on one baseline (a party at
+                    # the left margin, its status flush right). Lay them out so
+                    # each keeps the side it was printed on instead of
+                    # collapsing the gap between them to a single space.
+                    cells = "".join(
+                        '<div style="text-align:{}">{}</div>'.format(
+                            "right" if z.get("align") == "r" else "left",
+                            _inline_to_html(str(z.get("h", ""))),
+                        )
+                        for z in zones
+                    )
+                    out.append(
+                        f'<div class="hmline" style="{pad}display:flex;'
+                        f'justify-content:space-between;column-gap:1rem;'
+                        f'font-size:{s.get("rel", 1)}em">{cells}</div>'
+                    )
+                else:
+                    out.append(
+                        f'<div class="hmline" style="{pad}text-align:{al};'
+                        f'font-size:{s.get("rel", 1)}em">'
+                        f'{_inline_to_html(str(s.get("html", "")))}</div>'
+                    )
             elif isinstance(s, dict):
                 out.append(f'<div class="rawline">{escape(str(s))}</div>')
             elif str(s).strip() == "__RULE__":
@@ -833,11 +970,50 @@ def _render_opinions(doc: ExtractedDocument) -> list:
     return out
 
 
+def _quote_style(payload) -> str:
+    """Inline a block quote's own measure — the page's proportions, not points.
+
+    ``inset_left_pct`` / ``inset_right_pct`` are fractions of the opinion's
+    body measure, so the quote keeps the same relative width whatever the
+    review column's width happens to be; absolute points overshot badly for a
+    quote inset a full inch on a 6.5in page. Falls back to the legacy absolute
+    ``indent`` when the fractions are absent.
+    """
+    if not payload:
+        return ""
+    left = payload.get("inset_left_pct")
+    if left is not None:
+        right = payload.get("inset_right_pct") or 0
+        return f' style="margin-left:{left}%;margin-right:{right}%"'
+    extra = payload.get("indent", 0)
+    return f' style="margin-left:calc(2rem + {extra}pt)"' if extra else ""
+
+
 def _render_opinion(op: Opinion) -> list:
-    out = ['<section class="opinion">']
+    # The type rides on the SECTION, not just the badge — it keys the rail
+    # colour for the whole writing, footnotes included.
+    out = [f'<section class="opinion t-{escape(op.type)}">']
     out.append(
         f'<div class="optype-badge t-{escape(op.type)}">' f"{escape(op.type)}</div>"
     )
+    if getattr(op, "caption", None):
+        out.append('<div class="opinion-caption">')
+        for b in op.caption:
+            if b.kind == "heading":
+                out.append(f"<h3>{_inline_to_html(b.text)}</h3>")
+            elif b.kind == "blockquote":
+                out.append(
+                    f"<blockquote{_quote_style(b.payload)}>"
+                    f"{_inline_to_html(b.text)}</blockquote>"
+                )
+            elif b.kind == "image":
+                out.append(
+                    f'<img src="{escape(str(b.payload.get("src", "")))}" '
+                    f'alt="caption figure on page {b.page}">'
+                )
+            else:
+                out.append(f"<p>{_inline_to_html(b.text)}</p>")
+        out.append("</div>")
     out.append(f'<div class="author">{escape(op.author)}</div>')
     list_tag = None
     for b in op.blocks:
@@ -880,11 +1056,25 @@ def _render_opinion(op: Opinion) -> list:
             # full-width line under the document-type title)
             out.append('<hr class="divider">')
         elif b.kind == "blockquote":
-            out.append(f"<blockquote>{_inline_to_html(b.text)}</blockquote>")
+            out.append(
+                f"<blockquote{_quote_style(b.payload)}>"
+                f"{_inline_to_html(b.text)}</blockquote>"
+            )
         else:
             out.append(f"<p>{_inline_to_html(b.text)}</p>")
     if list_tag is not None:
         out.append(f"</{list_tag}>")
+    if getattr(op, "signature", None):
+        out.append('<div class="opinion-signature">')
+        for item in op.signature:
+            if isinstance(item, dict) and item.get("__image__"):
+                out.append(
+                    f'<img src="{escape(str(item.get("src", "")))}" '
+                    'alt="opinion signature">'
+                )
+            else:
+                out.append(f"<div>{_inline_to_html(str(item))}</div>")
+        out.append("</div>")
     if op.footnotes:
         out.append('<div class="footnotes">')
         for fn in op.footnotes:
@@ -895,14 +1085,16 @@ def _render_opinion(op: Opinion) -> list:
 
 
 def _render_footnote(fn: Footnote) -> str:
-    body = "".join(
-        (
-            f"<blockquote>{_inline_to_html(text)}</blockquote>"
-            if tag == "blockquote"
-            else f"<span>{_inline_to_html(text)}</span> "
-        )
-        for tag, text in fn.paragraphs
-    )
+    def piece(tag, text):
+        if tag == "table":
+            # Already-escaped markup built by the extractor: a table printed
+            # inside the footnote itself, emitted verbatim.
+            return str(text)
+        if tag == "blockquote":
+            return f"<blockquote>{_inline_to_html(text)}</blockquote>"
+        return f"<span>{_inline_to_html(text)}</span> "
+
+    body = "".join(piece(tag, text) for tag, text in fn.paragraphs)
     return (
         f'<div class="footnote">'
         f'<span class="label">{escape(fn.label)}</span>{body}</div>'

@@ -71,7 +71,9 @@ class Block:
 @dataclass
 class Footnote:
     label: str
-    # Each paragraph is (tag, text) where tag is "p" or "blockquote".
+    # Each paragraph is (tag, text) where tag is "p", "blockquote", or
+    # "table" — the last carrying already-escaped table markup for a table
+    # printed inside the footnote itself (see build_footnote_with_tables).
     paragraphs: list[tuple[str, str]] = field(default_factory=list)
 
 
@@ -81,6 +83,13 @@ class Opinion:
     author: str  # raw author byline, e.g. "BRYAN, Justice."
     blocks: list[Block] = field(default_factory=list)
     footnotes: list[Footnote] = field(default_factory=list)
+    # A stapled multi-writing decision may repeat the case caption before a
+    # later writing. Keep that caption with the writing it introduces rather
+    # than leaving it at the end of the preceding opinion's body.
+    caption: list[Block] = field(default_factory=list)
+    # Per-writing signature graphics/text, distinct from document-level
+    # trailing signatures and panel sign-offs.
+    signature: list = field(default_factory=list)
 
 
 # ---------------------------------------------------------------------------

@@ -69,6 +69,209 @@ _NOTICE_CUES = (
 )
 
 
+def _snap_displaced_fragments(chars: list) -> None:
+    """Snap a short run of glyphs drawn far off its own baseline back onto the
+    row it belongs to — in place, before any line clustering.
+
+    A glyph the body face lacks is fetched from a substitute font, and the
+    substitution can carry a large vertical offset. Arizona sets the '¶' of a
+    pin cite from Cambria a full 26pt BELOW its line, which is close enough to
+    the NEXT row for pdfplumber to cluster it there — and because a row is
+    rebuilt in x order, the fragment lands *inside a word*: 'subsection' came
+    out 'sub¶se 1c7ti.o n'. That is silent corruption of opinion text, so it
+    has to be corrected at char level; by the time lines exist the damage is
+    done.
+
+    The hole is the proof. The row the fragment came FROM still has a gap at
+    exactly the fragment's x-span, because the glyphs were lifted out of it.
+    Requiring the fragment to sit inside that gap and fill most of it — in a
+    font the host row does not otherwise use, a real distance away — leaves
+    ordinary baseline jitter (an italic run 1pt high, a superscript mark) to
+    the line-level merge, which already handles it correctly."""
+    printable = [c for c in chars if (c.get("text") or "").strip()]
+    if len(printable) < 12:
+        return
+    rows: dict = {}
+    for c in printable:
+        rows.setdefault(round(c["top"], 1), []).append(c)
+    hosts = {t: v for t, v in rows.items() if len(v) >= 10}
+    if not hosts:
+        return
+
+    def fonts(cs):
+        return {(c.get("fontname") or "").split("+")[-1] for c in cs}
+
+    for top, frag in rows.items():
+        if not (1 <= len(frag) <= 6):
+            continue
+        # The fragment already HAS a line: a bold speaker name set a fraction
+        # of a point below the roman text it belongs to. Ordinary line
+        # clustering owns that; snapping it would hand it to whichever row's
+        # hole it happens to fit, which in a transcript is the NEXT speaker's
+        # ('Brown' + 'Tucker' → 'BTruocwkner').
+        if any(abs(htop - top) < 4.0 for htop in hosts):
+            continue
+        f_fonts = fonts(frag)
+        fx0 = min(c["x0"] for c in frag)
+        fx1 = max(c["x1"] for c in frag)
+        best = None
+        for htop, hcs in hosts.items():
+            gap = abs(htop - top)
+            # A REAL displacement, not baseline jitter: an italic run or a
+            # superscript sits within a point or two of its row, and the
+            # line-level merge already reunites those correctly.
+            if not (4.0 <= gap <= 32.0):
+                continue
+            if f_fonts & fonts(hcs):
+                continue
+            cs = sorted(hcs, key=lambda c: c["x0"])
+            spaces = sorted(
+                g for g in (b["x0"] - a["x1"] for a, b in zip(cs, cs[1:])) if g > 0.5
+            )
+            if not spaces:
+                continue
+            word_gap = spaces[len(spaces) // 2]
+            for a, b in zip(cs, cs[1:]):
+                hole = b["x0"] - a["x1"]
+                if hole < 2.0 * word_gap:
+                    continue
+                if fx0 < a["x1"] - 1.5 or fx1 > b["x0"] + 1.5:
+                    continue
+                if (fx1 - fx0) < 0.5 * hole:
+                    continue
+                if best is None or gap < best[0]:
+                    best = (gap, hcs)
+                break
+        if best is None:
+            continue
+        host = best[1][0]
+        dt = host["top"] - top
+        # Move the WHOLE run, blanks included. The fragment's own spaces ('¶ 17.'
+        # carries one) share its baseline; leaving them behind reopens the hole
+        # the glyphs came out of and the word breaks there instead
+        # ('subsection' → 'subse ctio n').
+        move = list(frag)
+        for c in chars:
+            if (c.get("text") or "").strip():
+                continue
+            if abs(round(c["top"], 1) - top) > 0.05:
+                continue
+            # Keyed on the FONT, not an x-window: a blank set in the substitute
+            # face on the fragment's own baseline is the fragment's own space,
+            # wherever its advance width happens to end.
+            if (c.get("fontname") or "").split("+")[-1] in f_fonts:
+                move.append(c)
+        for c in move:
+            c["top"] = host["top"]
+            c["bottom"] = host["bottom"]
+            if "doctop" in c:
+                c["doctop"] = c["doctop"] + dt
+
+
+def _reunite_offset_glyphs(lines: list) -> list:
+    """Put a stray glyph drawn off its own baseline back into the hole it came
+    from.
+
+    A glyph the body face lacks is set from a substitute font, and the
+    substitute can carry its own vertical offset: ca7's '3 ½ inches' draws the
+    '½' from Cambria a full 26pt BELOW the line it belongs to, where it lands
+    between two later rows. It is too far away to overlap its own line, and
+    close enough to the wrong one to be merged into it mid-word ('Th½e
+    statute'), which corrupts that row and orphans the two real ones.
+
+    The hole is the proof: the host line has a gap at exactly the stray
+    glyph's x-span, because the glyph was cut out of it. Match on that — a
+    lone glyph, no line of its own, and a gap it fits to the point — and no
+    ordinary short line (a caption's 'v.', a page number) can be captured."""
+    if len(lines) < 2:
+        return lines
+
+    def printable(l):
+        return [c for c in (l.get("chars") or []) if (c.get("text") or "").strip()]
+
+    strays, hosts = [], []
+    for l in lines:
+        (strays if len(printable(l)) <= 2 else hosts).append(l)
+    if not strays or not hosts:
+        return lines
+
+    def fonts(l):
+        return {
+            (c.get("fontname") or "")
+            for c in (l.get("chars") or [])
+            if (c.get("text") or "").strip()
+        }
+
+    absorbed = set()
+    for s in strays:
+        height = max(s["bottom"] - s["top"], 1.0)
+        s_fonts = fonts(s)
+        # If the fragment sits on ITS OWN line already — a bold speaker name
+        # set 0.6pt below the roman text it belongs to — leave it alone. The
+        # ordinary line merge owns that case. Without this the ≥4pt
+        # 'real displacement' guard below excludes the correct host and lets
+        # the fragment be claimed by the NEXT line down, whose hole it also
+        # happens to fit: Kentucky's transcript turned 'Brown' and 'Tucker'
+        # into 'BTruocwkner'.
+        if any(
+            o is not s and abs(o["top"] - s["top"]) < 4.0 and len(printable(o)) > 2
+            for o in lines
+        ):
+            continue
+        best = None
+        for h in hosts:
+            if abs(h["top"] - s["top"]) > 2.5 * height:
+                continue
+            # The displaced glyph is one the body face LACKS, fetched from a
+            # substitute font — that substitution is what carries the rogue
+            # vertical offset in the first place. A page folio is set in the
+            # body's own face, so requiring a different font keeps the folio
+            # out even when it happens to fit a hole.
+            if s_fonts & fonts(h) or not s_fonts:
+                continue
+            cs = sorted(printable(h), key=lambda c: c["x0"])
+            # The hole has to be a HOLE — far wider than the line's own word
+            # space. A page folio ('6') is one glyph too, and it will fit an
+            # ordinary space between two words if nothing rules that out; it
+            # then reads as 'had6 negotiated'. Measured: a real hole runs ~3.4×
+            # the line's word gap, a coincidental fit ~1.0×.
+            spaces = sorted(
+                g for g in (b["x0"] - a["x1"] for a, b in zip(cs, cs[1:])) if g > 0.5
+            )
+            if not spaces:
+                continue
+            word_gap = spaces[len(spaces) // 2]
+            for a, b in zip(cs, cs[1:]):
+                if (b["x0"] - a["x1"]) < 2.0 * word_gap:
+                    continue
+                # The glyph has to SIT IN the hole: inside the gap, and filling
+                # nearly all of it — a word space's worth of slack, no more.
+                slack = (b["x0"] - a["x1"]) - (s["x1"] - s["x0"])
+                if (
+                    0 <= slack <= 6
+                    and s["x0"] >= a["x1"] - 1.5
+                    and s["x1"] <= b["x0"] + 1.5
+                ):
+                    d = abs(h["top"] - s["top"])
+                    if best is None or d < best[0]:
+                        best = (d, h)
+                    break
+        if best is None:
+            continue
+        h = best[1]
+        h["chars"] = sorted(
+            list(h.get("chars") or []) + list(s.get("chars") or []),
+            key=lambda c: c["x0"],
+        )
+        h["x0"] = min(h["x0"], s["x0"])
+        h["x1"] = max(h["x1"], s["x1"])
+        h["text"] = "".join(c["text"] for c in h["chars"])
+        absorbed.add(id(s))
+    if not absorbed:
+        return lines
+    return [l for l in lines if id(l) not in absorbed]
+
+
 class BaseExtractor:
     # ====================================================================
     # CLASS CONFIG (each court subclass overrides these)
@@ -78,6 +281,10 @@ class BaseExtractor:
     author_titles: tuple = ("Justice",)  # ("Judge", "Presiding Judge") ...
     # Document styles that are classified but not parsed into opinions.
     SKIP_BODY_TYPES: tuple = ()
+    # Most documents use one footnote sequence per opinion. A separate
+    # writing can restart numbering inside the same extracted opinion, so a
+    # court may opt to preserve duplicate labels rather than discard them.
+    dedupe_footnote_labels: bool = True
 
     # ====================================================================
     # LAYOUT DEFAULTS (override per-court if layout differs)
@@ -281,10 +488,14 @@ class BaseExtractor:
         divider on page 1). Used to flag non-standard documents."""
         return True
 
+    def prepare_document(self, pdf) -> None:
+        """Collect optional document-wide signals before page extraction."""
+
     def extract(self, pdf_path: str) -> ExtractedDocument:
         """Convert a PDF into a structured ``ExtractedDocument``."""
         all_segments = []
         footnote_lines_by_page = {}
+        footnote_tables_by_page = {}
         images_by_page = {}
         tables_by_page = {}
         page1_rules = []
@@ -293,6 +504,14 @@ class BaseExtractor:
         # furniture is discarded; a court may override ``detect_printed_folio``
         # for a folio embedded in a running header.
         self._printed_folio_by_page = {}
+        # Measured per-document body geometry (see _measure_doc_geometry);
+        # None until the whole document has been read, and stays None when the
+        # document is too small to measure confidently.
+        self._doc_geom = None
+        # Folios ``build_opinion`` removes from the body (see ``add_para``),
+        # kept so the Removed box can show them instead of the sweep reporting
+        # them unplaced.
+        self._folio_dropped = []
         source_pages = []  # (page_number, [text lines]) — ground truth for the residual sweep
         with pdfplumber.open(pdf_path) as pdf:
             n_pages = len(pdf.pages)
@@ -325,6 +544,7 @@ class BaseExtractor:
                     "PDF's font declares no character mapping; not processed"
                 )
                 return doc
+            self.prepare_document(pdf)
             layout_ok = self.matches_expected_layout(pdf)
             self._hm_caption_box = None
             cap_page = self.caption_page(pdf)
@@ -359,11 +579,31 @@ class BaseExtractor:
                 folio = self.detect_printed_folio(page, lines)
                 if folio is not None:
                     self._printed_folio_by_page[page.page_number] = folio
-                # Capture the upright ground-truth text for the residual sweep,
-                # the same way audit.py reads it (geometry already corrected).
-                gt = page.filter(lambda o: o.get("upright", True) is not False)
+
+                def is_registered_folio(line):
+                    if folio is None:
+                        return False
+                    value = self._page_number_value(self.line_plain_text(line))
+                    if value != folio:
+                        return False
+                    near_edge = (
+                        line.get("top", 0) < 100
+                        or line.get("top", 0) > page.height - 120
+                    )
+                    return near_edge and self.line_alignment(line, page.width) in (
+                        "C",
+                        "R",
+                    )
+                # Capture ground-truth text from the corrected line objects,
+                # not raw ``page.extract_text()``. Some PDFs emit overlapping
+                # glyphs twice (e.g. ``TTuucckkeerr`` in Kentucky transcripts)
+                # while the line builder correctly de-duplicates them. Using
+                # raw text here made real rendered content appear unplaced.
                 source_pages.append(
-                    (page.page_number, (gt.extract_text() or "").splitlines())
+                    (
+                        page.page_number,
+                        [self.line_plain_text(line).strip() for line in lines if self.line_plain_text(line).strip()],
+                    )
                 )
                 tables = self.extract_page_tables(page)
                 table_bboxes = [t["bbox"] for t in tables]
@@ -379,10 +619,23 @@ class BaseExtractor:
                             return True
                     return False
 
+                # RECORD the folio rows this page removes. A folio normally
+                # rides along in a cross-page paragraph merge as a
+                # <pagenumber/> marker, which is why most pages leave no trace
+                # of it — but a page that opens a FRESH paragraph has no merge
+                # to carry it, and removing it here silently left that page's
+                # number reading as unplaced content.
+                for l in lines:
+                    if is_registered_folio(l):
+                        t = self.line_plain_text(l).strip()
+                        if t:
+                            self._folio_dropped.append(t)
                 body_lines = [
                     l
                     for l in lines
-                    if (sep_y is None or l["top"] < sep_y) and not in_any_table(l)
+                    if (sep_y is None or l["top"] < sep_y)
+                    and not in_any_table(l)
+                    and not is_registered_folio(l)
                 ]
                 fn_lines = [
                     l
@@ -391,19 +644,45 @@ class BaseExtractor:
                     and l["top"] >= sep_y
                     and not in_any_table(l)
                     and not self._is_separator_text(l)
+                    and not is_registered_folio(l)
                 ]
                 for seg in self.segment_lines(body_lines, pw):
-                    all_segments.append(
-                        (page.page_number, seg, self.classify_segment(seg))
-                    )
+                    # Classification is deferred until every page's lines are
+                    # in: classify_segment judges indents against the
+                    # document's own measured body column (``_doc_geom``),
+                    # which can only be measured once the whole document has
+                    # been read.
+                    all_segments.append((page.page_number, seg, None))
                 if fn_lines:
                     footnote_lines_by_page[page.page_number] = fn_lines
                 imgs = self.extract_page_images(page)
                 if imgs:
                     images_by_page[page.page_number] = imgs
+                # A table drawn BELOW the footnote separator belongs to the
+                # footnote, not the opinion body. Its rows are already kept out
+                # of ``fn_lines`` by ``in_any_table``, so emitting it as a body
+                # block put the table in a different section from the sentence
+                # that introduces it (hawapp/yang_1 footnote 7: 'the sum of the
+                # subtotals for each … category:' and then the table, three
+                # sections apart). Split them here so each half goes home.
+                # Only when the page also has footnote PROSE. A table that
+                # fills the whole zone on its own (md/kapneck p24) leaves no
+                # footnote to attach to, and moving it out of the body would
+                # lose it outright — so that one stays a body table.
+                if tables and sep_y is not None and fn_lines:
+                    body_tbl = [t for t in tables if t["bbox"][1] < sep_y]
+                    fn_tbl = [t for t in tables if t["bbox"][1] >= sep_y]
+                    if fn_tbl:
+                        footnote_tables_by_page[page.page_number] = fn_tbl
+                    tables = body_tbl
                 if tables:
                     tables_by_page[page.page_number] = tables
 
+        self._measure_doc_geometry(all_segments)
+        all_segments = [
+            (page_no, seg, self.classify_segment(seg))
+            for page_no, seg, _ in all_segments
+        ]
         all_segments = self._split_segments_at_bylines(all_segments)
         author_indices = self.find_authors(all_segments)
         doc_type = self.classify_document_type(all_segments, author_indices, n_pages)
@@ -454,7 +733,10 @@ class BaseExtractor:
             hm_pages = {pno for pno in footnote_lines_by_page if pno < first_op_page}
             if hm_pages:
                 doc.headmatter_footnotes = self.build_footnotes(
-                    hm_pages, footnote_lines_by_page, seen_labels=seen_labels
+                    hm_pages,
+                    footnote_lines_by_page,
+                    seen_labels=seen_labels,
+                    footnote_tables_by_page=footnote_tables_by_page,
                 )
         elif footnote_lines_by_page:
             # No authored opinion (an order / notice): the footnote-zone text
@@ -464,6 +746,7 @@ class BaseExtractor:
                 set(footnote_lines_by_page),
                 footnote_lines_by_page,
                 seen_labels=seen_labels,
+                footnote_tables_by_page=footnote_tables_by_page,
             )
 
         # Exclusive page ownership so shared-page footnotes aren't duplicated.
@@ -489,6 +772,11 @@ class BaseExtractor:
                     footnote_lines_by_page=owned_fn,
                     images_by_page=images_by_page,
                     tables_by_page=tables_by_page,
+                    footnote_tables_by_page={
+                        p: t
+                        for p, t in footnote_tables_by_page.items()
+                        if p in owned_pages
+                    },
                 )
             )
 
@@ -505,6 +793,12 @@ class BaseExtractor:
         """Completeness safety net: any source line the pipeline placed in no
         rendered section lands in ``doc.residual`` (tagged content/furniture),
         so nothing is silently lost — it surfaces in the Removed box."""
+        folios = [f for f in (getattr(self, "_folio_dropped", None) or []) if f]
+        if folios:
+            have = set(doc.dropped)
+            doc.dropped = list(doc.dropped) + [
+                f for f in dict.fromkeys(folios) if f not in have
+            ]
         try:
             from .audit import sweep_unplaced
 
@@ -537,6 +831,8 @@ class BaseExtractor:
         doc.dropped = hm.get("dropped") or []
         if hm.get("syllabus"):
             doc.syllabus = hm["syllabus"]
+        if hm.get("headnotes"):
+            doc.headnotes = hm["headnotes"]
 
     # ====================================================================
     # DOCUMENT-TYPE IDENTIFIER
@@ -796,6 +1092,7 @@ class BaseExtractor:
         roman host line) and would sort mid-sentence. Two lines whose
         vertical extents overlap strongly and whose glyphs interleave
         without colliding are ONE visual row — merge them in x order."""
+        lines = _reunite_offset_glyphs(lines)
         if len(lines) < 2:
             return lines
         lines = sorted(lines, key=lambda l: (l["top"], l["x0"]))
@@ -872,6 +1169,7 @@ class BaseExtractor:
                 anchor = c
         for i in sorted(dupes, reverse=True):
             del chars[i]
+        _snap_displaced_fragments(chars)
 
     def page_lines(self, page) -> list:
         """Return text lines after filtering header/footer margins. If the
@@ -932,11 +1230,24 @@ class BaseExtractor:
         over several lines), so anchor on the docket predicate and stop at the
         first non-docket line."""
         drop = set()
+        previous = None
         for ln in sorted(lines, key=lambda l: l.get("top", 0)):
             if ln.get("top", 0) > self.running_header_max_top:
                 break
+            if previous is not None:
+                height = max(
+                    previous.get("bottom", previous.get("top", 0))
+                    - previous.get("top", 0),
+                    1,
+                )
+                # "Contiguous" is geometric as well as textual. A citation
+                # near the top of the page can contain a valid docket token
+                # but sit a full paragraph lead below the real running header.
+                if ln.get("top", 0) - previous.get("top", 0) > max(30, 2 * height):
+                    break
             if self.is_docket_line(ln.get("text") or ""):
                 drop.add(id(ln))
+                previous = ln
             else:
                 break
         if not drop:
@@ -1482,7 +1793,19 @@ class BaseExtractor:
 
     def classify_segment(self, seg) -> str:
         """notice / blockquote / body / single / spaced."""
+        # Some courts (notably Kentucky) set an entire quoted exhibit at a
+        # deeper left margin. Font changes inside that exhibit—section titles,
+        # numbered headings, ellipses—can split it into one-line segments, so
+        # apply the quote geometry before the length/gap classification.
+        if self.blockquote_by_indent and self._is_quote_like_segment(seg):
+            return "blockquote"
         if len(seg) == 1:
+            # A standalone ellipsis is commonly an omitted portion inside a
+            # quoted statute, rule, transcript, or record excerpt. It is a
+            # structural quote line even though segmentation gives it no
+            # neighboring lines from which to infer that context.
+            if self.line_plain_text(seg[0]).strip() in ("...", "…", ". . ."):
+                return "blockquote"
             return "single"
         gaps = [seg[i + 1]["top"] - seg[i]["top"] for i in range(len(seg) - 1)]
         med = median(gaps)
@@ -1496,13 +1819,68 @@ class BaseExtractor:
             kind = "spaced"
         # A both-margins-indented run is a block quote regardless of which tight
         # gap band its (often sub-body) leading lands in — geometry, not gaps.
-        if (
-            self.blockquote_by_indent
-            and kind in ("notice", "body")
-            and self._is_indented_blockquote(seg)
-        ):
+        if kind in ("notice", "body") and self._is_indented_blockquote(seg):
             kind = "blockquote"
         return kind
+
+    def _is_quote_like_segment(self, seg) -> bool:
+        """True for any segment wholly inside a court's quote measure.
+
+        Unlike ``_is_indented_blockquote`` this also accepts one-line and
+        bold-heading segments, allowing a multi-line quoted statute or policy
+        excerpt to keep one semantic container across internal typography.
+        """
+        if not seg:
+            return False
+        pw = getattr(self, "_page1_width", None) or 612.0
+        quote_left = self.body_baseline_x0 + 1.5 * self.para_indent_min
+        quote_right = pw - self.body_baseline_x0 - 24
+        left = min(line["x0"] for line in seg)
+        # A centered section heading can also fit inside both numerical
+        # margins. A real quotation starts near the body column and moves
+        # inward; reject lines whose entire segment lives in the centered
+        # half of the page.
+        if left > pw * 0.4:
+            return False
+        if all(self._line_all_bold(line) for line in seg):
+            return False
+        return (
+            left >= quote_left
+            and max(line["x1"] for line in seg) <= quote_right
+        )
+
+    def _measure_doc_geometry(self, all_segments) -> None:
+        """Measure THIS document's body column from its own lines.
+
+        ``body_baseline_x0`` is a per-court constant — a guess about where a
+        court usually sets its body margin. Judged against that guess, a court
+        whose real column sits further right (a federal circuit at x0≈108, the
+        body running to x1≈504 on 612pt paper) reads as "indented on both
+        margins" and its entire body classifies as one long block quote. The
+        cure is to measure, not tune: take the lines that RUN TO the right
+        measure — wrapped continuations, the one population that always sits on
+        the true body margin — and read the column off their modal x0.
+
+        Sets ``self._doc_geom = {"body_x0", "right_x1"}``, or leaves it None
+        when the document is too small to measure confidently (a 1-page order):
+        callers fall back to the constants.
+        """
+        lines = [l for _, seg, _ in all_segments for l in seg]
+        if len(lines) < 12:
+            return
+        x1s = sorted(l["x1"] for l in lines)
+        # The right measure, read robustly: the 95th-percentile x1 rather than
+        # the max, so one stray wide line (a stamp, a rotated margin note the
+        # geometry fix missed) can't stretch it.
+        right_x1 = x1s[int(0.95 * (len(x1s) - 1))]
+        # Full lines: those reaching within half an inch of the right measure.
+        # Quotes and headings stop short by construction; these are the body's
+        # wrapped continuation lines, which sit ON the left body margin.
+        full = [l for l in lines if l["x1"] >= right_x1 - 36]
+        if len(full) < 6:
+            return
+        body_x0 = Counter(round(l["x0"]) for l in full).most_common(1)[0][0]
+        self._doc_geom = {"body_x0": float(body_x0), "right_x1": float(right_x1)}
 
     def _is_indented_blockquote(self, seg) -> bool:
         """True if ``seg`` is a multi-line run indented on BOTH margins — the
@@ -1511,12 +1889,23 @@ class BaseExtractor:
         paragraph runs flush), AND a consistent flush-left edge (≥2 lines share
         the block's left column). The last requirement rejects centered/short
         headings, which are also both-margins-indented but vary their left edge
-        line-to-line."""
+        line-to-line.
+
+        Margins come from the document itself when it was big enough to
+        measure (``_doc_geom``), floored/capped by the class constants so a
+        hand-tuned court is never judged against LOOSER margins than its own:
+        the measured column can only pull the thresholds inward, toward the
+        text that is actually on the page."""
         if len(seg) < 2:
             return False
         pw = getattr(self, "_page1_width", None) or 612.0
-        left = self.body_baseline_x0 + self.para_indent_min
+        geom = getattr(self, "_doc_geom", None)
+        base_left = self.body_baseline_x0
         right = pw - self.body_baseline_x0
+        if geom:
+            base_left = max(base_left, geom["body_x0"])
+            right = min(right, geom["right_x1"])
+        left = base_left + self.para_indent_min
         x0s = [l["x0"] for l in seg]
         x1s = [l["x1"] for l in seg]
         # Indented in from the left, longest line short of the right — and the
@@ -1941,13 +2330,20 @@ class BaseExtractor:
         if not self.split_line_stacks:
             return paras
         pw = getattr(self, "_page1_width", None) or 612.0
-        right_edge = pw - self.body_baseline_x0
-        measure = right_edge - self.body_baseline_x0
-        wrap_min = right_edge - 0.15 * measure
-        right_col = self.body_baseline_x0 + 0.35 * measure
+        page_right = pw - self.body_baseline_x0
 
         out = []
         for grp in paras:
+            # Measure a run in ITS OWN column, not the page's. A block set in
+            # from the body margin (a quote, a quoted rule) has a narrower
+            # measure — inset from the right by the same step it is inset from
+            # the left — so judging its wrap against the PAGE measure reads
+            # every one of its lines as 'never reached the margin' and
+            # explodes a wrapped quote into one paragraph per line.
+            left, right_edge = self._run_measure(grp, pw, page_right)
+            measure = right_edge - left
+            wrap_min = right_edge - 0.15 * measure
+            right_col = left + 0.35 * measure
             for run in self._split_at_column_change(grp, right_col):
                 # An all-centered run is a wrapped centered heading — one
                 # heading, never a stack. A MIXED run (name off-axis over a
@@ -1964,6 +2360,62 @@ class BaseExtractor:
                 else:
                     out.append(run)
         return out
+
+    def _quote_insets(self, lines, op_body_left) -> dict:
+        """A block quote's own measure, as a fraction of the body measure.
+
+        A quote is set in from BOTH margins, and the review column is narrower
+        than the printed page, so reproducing the inset in absolute points
+        overshoots — badly, for a quote inset a full inch. Fractions of the
+        opinion's measure reproduce the page's proportions at any column
+        width. The left edge comes from the quote's own column (its leftmost
+        line), not its first line, which may carry a paragraph indent of its
+        own. The right inset is measured from the quote's longest line and
+        capped at the left inset: a quote is inset roughly symmetrically, and a
+        run of short ragged lines must not read as a deeply inset measure.
+        """
+        pw = getattr(self, "_page1_width", None) or 612.0
+        page_right = pw - self.body_baseline_x0
+        measure = page_right - op_body_left
+        if measure <= 0 or not lines:
+            return {}
+        left_inset = max(0.0, min(l["x0"] for l in lines) - op_body_left)
+        right_inset = min(
+            max(0.0, page_right - max(l["x1"] for l in lines)), left_inset
+        )
+        if left_inset < 6:
+            return {}
+        return {
+            "inset_left_pct": round(100.0 * left_inset / measure, 2),
+            "inset_right_pct": round(100.0 * right_inset / measure, 2),
+        }
+
+    def _run_measure(self, grp, pw, page_right) -> tuple:
+        """The left and right edges of the column ``grp`` is actually set in.
+
+        Default: the page's body measure. But a run indented in from the body
+        margin on BOTH sides — a block quote or a quoted subdivision, holding
+        one left edge for at least two lines — is set in its own narrower
+        column, and that is where its lines wrap. Typesetting insets such a
+        block from the right by the same step it is inset from the left, so the
+        left indent gives the right edge without having to trust the longest
+        line. A run whose text runs on past that symmetric edge is not a
+        symmetric block (a hanging indent, a shifted column), and keeps the
+        page measure.
+        """
+        base = self.body_baseline_x0
+        if len(grp) < 2:
+            return base, page_right
+        x0s = [l["x0"] for l in grp]
+        left = min(x0s)
+        inset = left - base
+        if inset < self.para_indent_min or left > pw * 0.4:
+            return base, page_right
+        if sum(1 for x in x0s if abs(x - left) <= 3) < 2:
+            return base, page_right
+        if max(l["x1"] for l in grp) > page_right - inset + 6:
+            return base, page_right
+        return left, page_right - inset
 
     @staticmethod
     def _split_at_column_change(grp, right_col) -> list:
@@ -1992,7 +2444,14 @@ class BaseExtractor:
         return False
 
     def split_blockquote_paragraphs(self, seg) -> list:
-        """In a blockquote segment, a gap > 1.4x median splits paragraphs."""
+        """Split a block quote without destroying meaningful internal form.
+
+        A tight line run is not always one paragraph. Transcripts use a new
+        speaker label for each turn, and quoted statutes/rules use numbered or
+        lettered subdivisions. Those boundaries are structural even when the
+        PDF gives every line identical leading. Ordinary wrapped prose keeps
+        the existing gap-based behavior.
+        """
         if not seg:
             return []
         paras = [[seg[0]]]
@@ -2001,11 +2460,89 @@ class BaseExtractor:
         for i in range(1, len(seg)):
             line = seg[i]
             gap_b = line["top"] - seg[i - 1]["top"]
-            if gap_b > med_gap * 1.4:
+            if gap_b > med_gap * 1.4 or self._structured_quote_start(line):
                 paras.append([line])
             else:
                 paras[-1].append(line)
         return self._explode_line_stacks(paras)
+
+    def _structured_quote_start(self, line) -> bool:
+        """Whether a quote line opens a transcript turn or rule subdivision.
+
+        Speaker labels are recognized from a short label ending in a colon
+        whose label glyphs are bold/emphasized in the source PDF. Requiring
+        that visual cue avoids mistaking ordinary quoted prose such as
+        ``Note: ...`` for a transcript. Numbered/lettered starts are useful
+        for statutes, regulations, jury instructions, and quoted rules; they
+        are deliberately limited to the conventional subdivision shapes.
+        """
+        text = self.line_plain_text(line).strip()
+        if not text:
+            return False
+        # Transcript exhibits often identify each turn by time rather than a
+        # bold role label: ``[7:13 p.m.] Brown: ...``. The speaker may be
+        # omitted (``[6:11 p.m.] : ...``), but the timestamp still marks a
+        # new turn. Wrapped continuation lines do not begin with this shape
+        # and therefore remain attached to the preceding turn.
+        close = text.find("]") if text.startswith("[") else -1
+        if close > 0 and self._is_timestamp_turn(text, close):
+            return True
+        if self._is_subdivision_start(text):
+            return True
+        colon = text.find(":")
+        if colon <= 0 or colon > 60 or colon + 1 >= len(text):
+            return False
+        if not text[colon + 1].isspace():
+            return False
+        label = text[:colon].strip()
+        if not label or len(label.split()) > 8:
+            return False
+        chars = line.get("chars") or []
+        colon_i = next(
+            (i for i, char in enumerate(chars) if (char.get("text") or "") == ":"),
+            None,
+        )
+        if colon_i is None:
+            return False
+        label_chars = [c for c in chars[:colon_i] if (c.get("text") or "").isalnum()]
+        if not label_chars:
+            return False
+        emphasized = sum(
+            1
+            for c in label_chars
+            if any(style in (c.get("fontname") or "") for style in ("Bold", "Italic", "Oblique"))
+        )
+        return emphasized / len(label_chars) >= 0.75
+
+    @staticmethod
+    def _is_timestamp_turn(text: str, close: int) -> bool:
+        """Parse ``[h:mm a.m.] Speaker: text`` without text-pattern regexes."""
+        stamp = "".join(text[1:close].lower().split())
+        if len(stamp) < 7 or ":" not in stamp:
+            return False
+        if not (stamp.endswith("a.m.") or stamp.endswith("p.m.")):
+            return False
+        hour, minute_and_meridiem = stamp.split(":", 1)
+        minute = minute_and_meridiem[:2]
+        if not (hour.isdigit() and minute.isdigit() and len(minute) == 2):
+            return False
+        colon = text.find(":", close + 1)
+        return colon > close + 1 and colon < close + 62 and colon + 1 < len(text) and text[colon + 1].isspace()
+
+    @staticmethod
+    def _is_subdivision_start(text: str) -> bool:
+        """Recognize common statute/rule subdivision markers structurally."""
+        t = text.lstrip()
+        if not t:
+            return False
+        if t.startswith("("):
+            end = t.find(")")
+            if end > 1 and (t[1:end].isdigit() or (len(t[1:end]) == 1 and t[1:end].isalpha())):
+                return end + 1 < len(t) and t[end + 1].isspace()
+        dot = t.find(".")
+        if dot == 1 and (t[0].isalpha() or t[0].lower() in "ivxlcdm"):
+            return dot + 1 < len(t) and t[dot + 1].isspace()
+        return False
 
     def split_footnote_paragraphs(self, lines) -> tuple:
         """Split footnote lines into paragraphs. Returns (paras, fn_baseline).
@@ -2048,9 +2585,26 @@ class BaseExtractor:
         'Cir. Ct. No.  2024CV549' at 9pt beside a 13pt 'Appeal No.  2025AP825',
         and on size alone its digits read as a string of footnote references.
         """
+        # A mark is RAISED. A small glyph sitting BELOW the line's own baseline
+        # is a subscript — the digits of a chemical formula (C₁₀H₁₅N), which
+        # read out as 'C H N' once the digits are taken for footnote
+        # references and dropped from the text.
+        full_tops = [
+            c.get("top")
+            for c in chars
+            if round(c.get("size", 0), 1) > body_size - 1.5
+            and (c.get("text") or "").strip()
+            and c.get("top") is not None
+        ]
+        base_top = min(full_tops) if full_tops else None
         small = [
             round(c.get("size", 0), 1) <= body_size - 1.5
             and bool((c.get("text") or "").strip())
+            and (
+                base_top is None
+                or c.get("top") is None
+                or c["top"] <= base_top + 1.0
+            )
             for c in chars
         ]
         out = [False] * len(chars)
@@ -2228,8 +2782,10 @@ class BaseExtractor:
         footnote_lines_by_page,
         images_by_page=None,
         tables_by_page=None,
+        footnote_tables_by_page=None,
     ) -> Opinion:
         images_by_page = images_by_page or {}
+        footnote_tables_by_page = footnote_tables_by_page or {}
         tables_by_page = tables_by_page or {}
         author_seg = all_segments[op_start][1]
         author_text, inline_body_lines = self.split_author_line(author_seg[0])
@@ -2261,6 +2817,13 @@ class BaseExtractor:
             if all_segments[k][2] == "body"
         ]
         op_body_left = min(body_xs) if body_xs else self.body_baseline_x0
+        quote_xs = [
+            l["x0"]
+            for k in range(op_start, op_end)
+            for l in all_segments[k][1]
+            if all_segments[k][2] == "blockquote"
+        ]
+        quote_left = min(quote_xs) if quote_xs else self.body_baseline_x0
 
         def add_para(tag, lines, page_no):
             if not lines:
@@ -2268,6 +2831,8 @@ class BaseExtractor:
             txt = self.paragraph_text(lines)
             if not txt.strip():
                 return
+            if tag == "p" and txt.strip() in ("...", "…", ". . ."):
+                tag = "blockquote"
             if self._is_page_number_text(txt):
                 value = self._page_number_value(txt)
                 registered = getattr(self, "_printed_folio_by_page", {}).get(page_no)
@@ -2295,7 +2860,17 @@ class BaseExtractor:
                 middle = f" {marker}" if marker else ""
                 blocks[-1].text += f"{middle} {txt}"
             else:
-                blocks.append(Block(kind=tag, text=txt, page=page_no))
+                payload = {}
+                if tag == "blockquote":
+                    # Preserve the quote's absolute inset from the opinion's
+                    # body margin. Measuring from quote_left made every
+                    # quote's first line appear to have zero indent whenever
+                    # the quote was internally flush-left.
+                    indent = max(0.0, first_x0 - op_body_left)
+                    if indent >= 6:
+                        payload["indent"] = round(indent, 1)
+                    payload.update(self._quote_insets(lines, op_body_left))
+                blocks.append(Block(kind=tag, text=txt, page=page_no, payload=payload))
             if tag == "p":
                 last_body_page[0] = page_no
 
@@ -2385,8 +2960,17 @@ class BaseExtractor:
 
         op.blocks = blocks
         self._ensure_opinion_page_markers(op, op_pages)
+        # A long footnote can consume an entire intervening page. Such a page
+        # contributes no body segment, so it is absent from ``op_pages`` even
+        # though extraction correctly placed its lines in this opinion's
+        # already ownership-filtered footnote mapping. Include those keys or
+        # the middle page of a cross-page footnote silently disappears.
+        footnote_pages = op_pages | set(footnote_lines_by_page)
         op.footnotes = self.build_footnotes(
-            op_pages, footnote_lines_by_page, seen_labels=set()
+            footnote_pages,
+            footnote_lines_by_page,
+            seen_labels=set(),
+            footnote_tables_by_page=footnote_tables_by_page,
         )
         return op
 
@@ -2418,39 +3002,82 @@ class BaseExtractor:
             first.text = f"{marker} {first.text}"
             rendered += " " + marker
 
-    def build_footnotes(self, pages, footnote_lines_by_page, seen_labels=None) -> list:
+    def build_footnotes(
+        self,
+        pages,
+        footnote_lines_by_page,
+        seen_labels=None,
+        footnote_tables_by_page=None,
+    ) -> list:
         """Group footnote lines for ``pages`` into ``Footnote`` objects.
         Cross-page continuation: lines without a leading small-digit label
         belong to the previous footnote."""
         if seen_labels is None:
             seen_labels = set()
-        grouped = []  # [(label, [lines])]
+        footnote_tables_by_page = footnote_tables_by_page or {}
+        grouped = []  # [(label, [lines], opens_a_zone)]
         current = []
         current_label = None
+        opens = False
+        first_on_page = True
         for page_no in sorted(pages):
+            first_on_page = True
             for line in footnote_lines_by_page.get(page_no, []):
                 label = self.detect_footnote_label(line)
                 if label is not None:
                     if current:
-                        grouped.append((current_label, current))
+                        grouped.append((current_label, current, opens))
                     current_label = label
                     current = [line]
+                    # Does this group stand at the HEAD of this page's footnote
+                    # zone? That position is what identifies a carry-over.
+                    opens = first_on_page
+                    first_on_page = False
                 else:
                     if current:
                         current.append(line)
                     else:
                         current = [line]
                         current_label = "?"
+                        opens = first_on_page
+                        first_on_page = False
         if current:
-            grouped.append((current_label, current))
+            grouped.append((current_label, current, opens))
 
         out = []
-        for label, lines in grouped:
-            if label in seen_labels:
+        by_label: dict = {}
+        for label, lines, opens in grouped:
+            if label in seen_labels and self.dedupe_footnote_labels:
+                # A footnote too long for one page RESUMES on the next under its
+                # own label. That is the same footnote, not a repeat, so
+                # dropping it as a duplicate silently discarded the rest of it —
+                # a whole page of quoted statute in hawapp/elizares.
+                #
+                # Identified by POSITION, not by the printed '(...continued)'
+                # marker: only a carry-over can stand at the HEAD of a page's
+                # footnote zone under a label already used, because labels run
+                # in order through the document. A repeat further down a zone is
+                # a genuine duplicate and still deduped.
+                if opens:
+                    fn = self.build_footnote_with_tables(
+                        label, lines, footnote_tables_by_page
+                    )
+                    if fn.paragraphs:
+                        prev = by_label.get(label)
+                        if prev is not None:
+                            prev.paragraphs = list(prev.paragraphs) + list(
+                                fn.paragraphs
+                            )
+                            continue
+                        out.append(fn)
+                        by_label[label] = fn
                 continue
-            fn = self.build_footnote(label, lines)
+            fn = self.build_footnote_with_tables(
+                label, lines, footnote_tables_by_page
+            )
             if fn.paragraphs:
                 out.append(fn)
+                by_label[label] = fn
                 seen_labels.add(label)
         return out
 
@@ -2459,6 +3086,18 @@ class BaseExtractor:
         chars = line.get("chars") or []
         if not chars:
             return None
+        plain = self.line_plain_text(line).strip()
+        # Some courts place the raised label on a line by itself above
+        # body-sized footnote prose. There is then no larger glyph on the same
+        # line against which to prove superscripting, but inside a
+        # separator-delimited footnote zone a short label-only line is
+        # structurally unambiguous.
+        if (
+            plain
+            and len(plain) <= 3
+            and all(char in self.FOOTNOTE_LABEL_CHARS for char in plain)
+        ):
+            return plain
         body_size = max(round(c["size"], 1) for c in chars)
         first = chars[0]
         first_small = round(first["size"], 1) <= body_size - 1.5
@@ -2475,23 +3114,117 @@ class BaseExtractor:
                 break
         return "".join(label_chars) or "?"
 
+    @staticmethod
+    def _footnote_table_html(rows) -> str:
+        """A footnote's table as inline markup.
+
+        ``Footnote.paragraphs`` carries ``(tag, text)`` pairs, so a table is
+        stored as one ``('table', markup)`` paragraph. Cells are escaped here,
+        exactly as the body-table renderer does, so the string is safe to emit
+        verbatim and the audit can read the cell text straight out of it."""
+        if not rows:
+            return ""
+        out = ["<table>"]
+        for ri, row in enumerate(rows):
+            cell = "th" if ri == 0 else "td"
+            out.append("<tr>")
+            for c in row:
+                out.append(f"<{cell}>{escape(str(c or ''))}</{cell}>")
+            out.append("</tr>")
+        out.append("</table>")
+        return "".join(out)
+
+    def _footnote_zone_tables(self, lines, footnote_tables_by_page) -> list:
+        """Footnote-zone tables that fall within ``lines``' vertical span."""
+        if not footnote_tables_by_page or not lines:
+            return []
+        pnos = set()
+        for l in lines:
+            chars = l.get("chars") or []
+            pnos.add(
+                (chars[0].get("page_number") if chars else l.get("page_number")) or 1
+            )
+        lo = min(l["top"] for l in lines)
+        hi = max((l.get("bottom") or l["top"]) for l in lines)
+        cand = [
+            t
+            for pno, tbls in footnote_tables_by_page.items()
+            if pno in pnos
+            for t in tbls
+            if lo - 60 <= t["bbox"][1] <= hi + 60
+        ]
+        return sorted(cand, key=lambda t: t["bbox"][1])
+
+    def build_footnote_with_tables(
+        self, label, lines, footnote_tables_by_page
+    ) -> Footnote:
+        """Build a footnote whose zone also contains one or more TABLES.
+
+        The table's own rows never reach ``lines`` — ``in_any_table`` filters
+        them out — so the prose above and below a table would otherwise fuse
+        into one paragraph and the table would have nowhere to sit. Split the
+        lines at each table's bounding box instead, so the footnote reads
+        prose / table / prose exactly as printed (hawapp/yang_1 footnote 7:
+        'the sum of the subtotals for each … category:', the HRS table, then
+        the arithmetic that totals it)."""
+        tables = self._footnote_zone_tables(lines, footnote_tables_by_page)
+        if not tables:
+            return self.build_footnote(label, lines)
+        fn = Footnote(label=label)
+        rest = list(lines)
+        for t in tables:
+            btop = t["bbox"][1]
+            above = [l for l in rest if (l.get("bottom") or l["top"]) <= btop + 2]
+            rest = [l for l in rest if (l.get("bottom") or l["top"]) > btop + 2]
+            if above:
+                fn.paragraphs.extend(self.build_footnote(label, above).paragraphs)
+            markup = self._footnote_table_html(t.get("rows") or [])
+            if markup:
+                fn.paragraphs.append(("table", markup))
+        if rest:
+            fn.paragraphs.extend(self.build_footnote(label, rest).paragraphs)
+        return fn
+
     def build_footnote(self, label, lines) -> Footnote:
         fn = Footnote(label=label)
         if not lines:
             return fn
         paras, fn_baseline = self.split_footnote_paragraphs(lines)
         for i, plines in enumerate(paras):
-            txt = " ".join(self.line_inline_text(l) for l in plines).strip()
-            if i == 0 and txt.startswith("<footnotemark>"):
-                end = txt.find("</footnotemark>")
-                if end != -1:
-                    txt = txt[end + len("</footnotemark>") :].lstrip()
-            if not txt:
-                continue
-            first_text = (plines[0].get("text") or "").lstrip()
-            deeper = fn_baseline is not None and plines[0]["x0"] > fn_baseline + 10
-            tag = (
-                "blockquote" if (first_text.startswith(('"', "“")) and deeper) else "p"
-            )
-            fn.paragraphs.append((tag, txt))
+            groups = self._split_footnote_structure(plines, fn_baseline)
+            for group_i, (group, is_quote) in enumerate(groups):
+                txt = " ".join(self.line_inline_text(l) for l in group).strip()
+                if i == 0 and group_i == 0 and txt.startswith("<footnotemark>"):
+                    end = txt.find("</footnotemark>")
+                    if end != -1:
+                        txt = txt[end + len("</footnotemark>") :].lstrip()
+                if not txt:
+                    continue
+                first_text = (group[0].get("text") or "").lstrip()
+                tag = "blockquote" if (is_quote or (first_text.startswith(('"', "“")) and fn_baseline is not None and group[0]["x0"] > fn_baseline + 10)) else "p"
+                fn.paragraphs.append((tag, txt))
         return fn
+
+    def _split_footnote_structure(self, lines, fn_baseline):
+        """Keep indented quoted rules/statutes structured inside footnotes."""
+        if not lines:
+            return []
+        out = []
+        current = [lines[0]]
+        quoted = False
+        for line in lines[1:]:
+            text = (line.get("text") or "").strip()
+            deeper = fn_baseline is not None and line["x0"] > fn_baseline + 10
+            subdivision = self._is_subdivision_start(text)
+            if subdivision or (deeper and not quoted):
+                out.append((current, quoted))
+                current = [line]
+                quoted = True
+            elif quoted and not deeper:
+                out.append((current, True))
+                current = [line]
+                quoted = False
+            else:
+                current.append(line)
+        out.append((current, quoted))
+        return out

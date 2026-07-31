@@ -15,6 +15,7 @@ returned text.
 from __future__ import annotations
 
 from dataclasses import dataclass, field
+import re
 
 import pdfplumber
 
@@ -35,7 +36,11 @@ class AuditResult:
 
 
 _KNOWN_TAGS = frozenset(
-    ("em", "strong", "u", "footnotemark", "pagenumber", "sup", "sub")
+    # 'table'/'tr'/'th'/'td' appear when a footnote carries a table printed
+    # inside it: the extractor stores that as one ('table', markup) paragraph,
+    # so the cell text has to be readable through the markup here.
+    ("em", "strong", "u", "footnotemark", "pagenumber", "sup", "sub",
+     "table", "tr", "th", "td")
 )
 
 
@@ -75,12 +80,48 @@ def _unescape_xml(s: str) -> str:
 
 _LIGATURES = (("ﬀ", "ff"), ("ﬁ", "fi"), ("ﬂ", "fl"), ("ﬃ", "ffi"), ("ﬄ", "ffl"))
 
+# The Hawaiian ʻokina has no single encoding across the corpus: the extractor
+# keeps 'HAWAIʻI' while ``extract_text`` reports the same glyph as a SPACE
+# ('HAWAI I'), and other files spell it '‘', '#' or the unmapped '(cid:35)'.
+# Since ``_norm`` already removes whitespace, deleting the mark makes every
+# spelling converge on 'HAWAII' — applied to both sides, so it only ever
+# reconciles the same word with itself.
+_OKINA = ("(cid:35)", "ʻ", "‘", "ʼ", "`")
+
 
 def _norm(s: str) -> str:
     """Whitespace-removed, tag-stripped, unescaped, ligature-expanded,
     lowercased — one extractor keeps 'Plaintiﬀ' where extract_text says
     'Plaintiff', so both sides expand."""
     s = _unescape_xml(_strip_tags(s))
+    for mark in _OKINA:
+        if mark in s:
+            s = s.replace(mark, "")
+    # A few embedded PDF fonts expose spaced letterforms as ``a-n-y-`` while
+    # the page text layer reports ``any``. Treat repeated single-letter
+    # hyphens as the same word; ordinary compounds such as ``Title IX`` and
+    # ``work-around`` are unaffected.
+    s = re.sub(
+        r"\b(?:[a-z]-){2,}[a-z]-?",
+        lambda m: m.group(0).replace("-", ""),
+        s,
+        flags=re.IGNORECASE,
+    )
+    # PDF text layers also disagree about ordinary discretionary hyphenation:
+    # ``out-of-state`` vs ``outofstate`` and ``wage-payment`` vs
+    # ``wagepayment``. Hyphens are not significant for coverage matching.
+    #
+    # The DASHES matter for a second reason. An inline byline separates the
+    # author from the opinion's first sentence with an em-dash — 'FELDMAN, J. —
+    # Austin Stone appeals …' — and the extractor stores those two halves in
+    # different fields (``Opinion.author`` and the first block). The source
+    # line is the two joined BY the dash, so the dash is the only thing left
+    # between them that the output never renders. Dropped here for the same
+    # reason as the hyphen: it is punctuation, not content, and the rule is
+    # applied to both sides.
+    for dash in ("-", "—", "–", "―", "‒"):
+        if dash in s:
+            s = s.replace(dash, "")
     for lig, exp in _LIGATURES:
         if lig in s:
             s = s.replace(lig, exp)
@@ -96,12 +137,22 @@ def _chunk(x):
     elif isinstance(x, dict):
         if x.get("html"):
             yield _strip_tags(str(x["html"]))
+        for row in x.get("rows", []) or []:
+            for cell in row or []:
+                if cell:
+                    yield _strip_tags(str(cell))
         for key in ("left", "right"):
             for line in x.get(key, []) or []:
                 if isinstance(line, dict):  # faithful cell: {'h': html, ...}
                     yield _strip_tags(str(line.get("h", "")))
                 elif line:
                     yield _strip_tags(str(line))
+        # Some caption renderers replace source rail glyphs with CSS rules.
+        # Keep those original rows in the audit haystack even though the
+        # glyphs themselves are represented visually by the rule.
+        for line in x.get("source", []) or []:
+            if line:
+                yield _strip_tags(str(line))
         if x.get("__hmrow__"):  # three-zone flush-right row
             for key in ("l", "c", "r"):
                 if x.get(key):
@@ -148,10 +199,19 @@ def _doc_chunks(doc: ExtractedDocument):
         for fn in fns:
             yield fn.label
             for i, (_tag, text) in enumerate(fn.paragraphs):
-                # Same-size footnotes often print a dotted label as part of
-                # the first source line (`12. Text`).  The model stores the
-                # label separately because renderers draw it in their own
-                # column; include the reconstructed line for coverage checks.
+                # The model stores a footnote label separately because
+                # renderers draw it in their own column. Source extraction can
+                # fuse that label directly to the first word (`1The ...` /
+                # `*Pursuant ...`) or retain a dotted form (`12. Text`).
+                # Include both reconstructed first-line forms so the residual
+                # sweep does not report correctly returned footnotes as
+                # unplaced content.
+                # A footnote that RESUMES on a later page reprints its label
+                # against the continuation paragraph too ('2(...continued)'),
+                # so the fused form has to be offered for every paragraph, not
+                # only the first — otherwise the continuation marker reads as
+                # unplaced content even though the footnote carries it.
+                yield f"{fn.label}{text}"
                 if i == 0:
                     yield f"{fn.label}. {text}"
                 yield text
@@ -159,6 +219,27 @@ def _doc_chunks(doc: ExtractedDocument):
     yield from from_footnotes(doc.headmatter_footnotes)
     for op in doc.opinions:
         yield op.author
+        # Washington and a few other courts put the first sentence on the
+        # same physical line as the byline. The renderer splits those fields,
+        # but the source-line audit should still recognize the original line
+        # as covered.
+        first_text = next(
+            (
+                b.text
+                for b in op.blocks
+                if b.kind not in ("image", "table") and str(b.text or "").strip()
+            ),
+            "",
+        )
+        if first_text:
+            yield f"{op.author} {first_text}"
+        for b in getattr(op, "caption", []) or []:
+            yield b.text
+            if b.payload:
+                for row in b.payload.get("rows", []) or []:
+                    for cell in row:
+                        if cell:
+                            yield str(cell)
         for b in op.blocks:
             yield b.text
             if b.payload:
@@ -166,6 +247,9 @@ def _doc_chunks(doc: ExtractedDocument):
                     for cell in row:
                         if cell:
                             yield str(cell)
+        for s in getattr(op, "signature", []) or []:
+            if not isinstance(s, dict):
+                yield str(s)
         yield from from_footnotes(op.footnotes)
 
 
@@ -305,7 +389,11 @@ def _is_furniture(raw: str) -> bool:
     return False
 
 
-def _matches(raw: str, haystack: str) -> bool:
+def _digitless(s: str) -> str:
+    return "".join(c for c in s if not c.isdigit())
+
+
+def _matches(raw: str, haystack: str, hay_nodigits: str | None = None) -> bool:
     """Whether source line ``raw`` is present in ``haystack`` (one normalized
     blob of output text). Tolerates a leading pleading-paper line number
     ('1 ...', '23 ...'): such gutter numbers are merged into the row by
@@ -316,6 +404,15 @@ def _matches(raw: str, haystack: str) -> bool:
         return True
     if needle in haystack:
         return True
+    # SUBSCRIPTS the ground truth dropped. A chemical formula sets its digits
+    # below the baseline (C₁₀H₁₅N), and ``extract_text`` clusters them onto a
+    # row of their own — so the source line reads 'mula C H N.' while the
+    # extractor, which keeps them inline, wrote 'mula C10H15N.'. Only a needle
+    # with NO digits of its own can take this path, so two lines that differ in
+    # a citation's numbers still can't match each other.
+    if hay_nodigits is not None and not any(c.isdigit() for c in needle):
+        if needle in hay_nodigits:
+            return True
     # A ':'-gutter caption line, right-column only ('  : Superior Court ...'):
     # the extractor keeps the text without the gutter colon.
     if ":" in needle and needle.strip(":") and needle.strip(":") in haystack:
@@ -488,6 +585,7 @@ def sweep_unplaced(doc: ExtractedDocument, pages_lines) -> list:
     render there already); everything else is tagged 'furniture' (identifiable
     junk) or 'content' (real text needing a home)."""
     kept = _norm(" ".join(c for c in _doc_chunks(doc) if c))
+    kept_nodigits = _digitless(kept)
     dropped_hay = _norm(" ".join(c for c in doc.dropped if c))
     table_pages = {
         b.page
@@ -501,7 +599,7 @@ def sweep_unplaced(doc: ExtractedDocument, pages_lines) -> list:
         for raw in lines:
             if not raw.strip():
                 continue
-            if _matches(raw, kept):
+            if _matches(raw, kept, kept_nodigits):
                 continue
             if pno in table_pages and all(
                 _norm(t) in kept for t in raw.split() if _norm(t)
@@ -527,6 +625,7 @@ def audit_coverage(
     if doc.non_digital:
         return AuditResult(total=0, covered=0, missing=[])
     kept = _norm(" ".join(c for c in _doc_chunks(doc) if c))
+    kept_nodigits = _digitless(kept)
     dropped_hay = _norm(" ".join(c for c in doc.dropped if c))
 
     # Pages where the output carries a table block: a multi-line table row
@@ -571,7 +670,7 @@ def audit_coverage(
             total += 1
             # Kept content takes precedence: a line that is real content AND
             # happens to recur in the Removed box counts as kept.
-            if _matches(raw, kept):
+            if _matches(raw, kept, kept_nodigits):
                 continue
             if pno in table_pages and all(
                 _norm(t) in kept for t in raw.split() if _norm(t)
