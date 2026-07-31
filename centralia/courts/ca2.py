@@ -6,6 +6,7 @@ from collections import Counter
 
 import pdfplumber
 
+from ..base import BaseExtractor
 from ._circuit import FederalCircuitBase
 
 
@@ -110,6 +111,42 @@ class SecondCircuit(FederalCircuitBase):
             self.gap_single_max = max(self.gap_tight_max + 1, leading - 7)
             self.gap_double_max = leading + 8
 
+    def prepare_document(self, pdf):
+        """Enable the continuation-page header filter only when present.
+
+        Many Second Circuit opinions begin body text around y=76 on pages 2+
+        and have no running docket header. The circuit base assumes the
+        opposite and drops those lines. A repeated ``No.``/``Case No.`` line
+        on continuation pages is the positive signal that the reservation is
+        actually needed.
+        """
+        self._drop_page2_header = False
+        self._ca2_notice_furniture = []
+        headers = []
+        for page in pdf.pages[1:]:
+            for line in page.extract_text_lines():
+                if line.get("top", 0) >= self.page2_header_cutoff:
+                    break
+                text = " ".join((line.get("text") or "").split()).lower()
+                if text.startswith(("no. ", "case no. ", "docket no. ")):
+                    headers.append(text)
+                    break
+        self._drop_page2_header = len(headers) >= 2 and len(set(headers)) == 1
+
+    def _sweep_residual(self, doc, source_pages):
+        if getattr(self, "_ca2_notice_furniture", None):
+            doc.dropped = list(doc.dropped) + self._ca2_notice_furniture
+        super()._sweep_residual(doc, source_pages)
+
+    def filter_margins(self, obj):
+        if (
+            obj.get("page_number", 1) > 1
+            and obj.get("top", 0) < self.page2_header_cutoff
+            and not getattr(self, "_drop_page2_header", False)
+        ):
+            return BaseExtractor.filter_margins(self, obj)
+        return super().filter_margins(obj)
+
     # ------------------------------------------------------------- summary order
     def find_authors(self, all_segments) -> list:
         """A summary order is per curiam with NO byline; force the body-opener
@@ -159,6 +196,23 @@ class SecondCircuit(FederalCircuitBase):
                 return j
         return None
 
+    def skip_headmatter_segment(self, seg) -> bool:
+        """Route CA2's standard summary-order advisory to ``dropped``.
+
+        The advisory is printed as several left-aligned segments, not one
+        notice block: the final ``COUNSEL.`` and Rule 25(a)(5) lines otherwise
+        fall through the headmatter parser and become apparent unplaced prose.
+        """
+        text = " ".join(self.line_plain_text(line) for line in seg).strip().lower()
+        if getattr(self, "_style", "").startswith("summary_order"):
+            if (
+                "rulings by summary order" in text
+                or text == "counsel."
+                or "appellate procedure 25(a)(5)" in text
+            ):
+                return True
+        return super().skip_headmatter_segment(seg)
+
     # CA2 sets its summary orders (and some opinions) on numbered paper: a left
     # column of sequential line numbers (x0≈44, the body at x0≈86) that, left in
     # place, pdfplumber merges onto each line ('10 PER CURIAM:', '8 DAVID JOHN
@@ -166,9 +220,29 @@ class SecondCircuit(FederalCircuitBase):
     # margin rule, so the gutter is found by CONTENT: a far-left column of bare
     # integers. Gated on detection, so un-numbered filings are untouched.
     def page_lines(self, page):
+        if getattr(self, "_ca2_notice_furniture", None) is not None and page.page_number == 1:
+            for line in page.extract_text_lines():
+                text = " ".join((line.get("text") or "").split())
+                if "Appellate Procedure 25(a)(5)" in text and text not in self._ca2_notice_furniture:
+                    self._ca2_notice_furniture.append(text)
         gx = self._linenum_gutter_x(page)
         if gx is not None:
-            page = page.filter(lambda c: c.get("x0", 0) >= gx)
+            gutter_start = 0.0
+            if page.page_number == 1:
+                # Summary-order advisories precede the numbered caption/body
+                # on page 1. Filtering the whole page clips their first
+                # letters because the advisory itself starts at x≈45, just
+                # like the real gutter. Begin filtering at the first line
+                # whose text actually carries a gutter number.
+                for line in page.extract_text_lines():
+                    chars = [c for c in line.get("chars", []) if c.get("text", "").strip()]
+                    if chars and chars[0].get("text", "").isdigit() and chars[0].get("x0", 99) < 65:
+                        gutter_start = line.get("top", 0)
+                        break
+            page = page.filter(
+                lambda c: c.get("top", 0) < gutter_start
+                or c.get("x0", 0) >= gx
+            )
         return super().page_lines(page)
 
     def find_footnote_separator(self, page):
@@ -218,6 +292,13 @@ class SecondCircuit(FederalCircuitBase):
         if len(digits) < 5:
             return None
         mode = Counter(round(c["x0"]) for c in digits).most_common(1)[0][0]
+        # Ordinary CA2 body text starts at x≈72. A sentence beginning with a
+        # digit can therefore create a convincing-looking cluster of digits at
+        # the body margin, but a real numbered-paper gutter is materially
+        # farther left (≈44–48pt). Do not clip the first character of normal
+        # prose merely because several paragraphs start with citations.
+        if mode >= 65:
+            return None
         col = [c for c in digits if abs(c["x0"] - mode) <= 12]
         if len(col) < 5:
             return None

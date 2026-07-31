@@ -76,14 +76,94 @@ class FederalCircuitBase(GenericExtractor):
     efile_stamp_font = None
     efile_stamp_size = None
 
+    # The RUNNING HEAD on continuation pages ('No. 25-1802 Ross v. Robinson …
+    # Page 2' on CA6, '2 USA V. SANCHEZ' on CA9) is identified furniture, so it
+    # belongs in ``dropped`` — not deleted by ``page2_header_cutoff``, which is a
+    # blanket y bound that also eats the first real line of the page whenever a
+    # circuit's head sits higher than the family default assumes.
+    #
+    # A circuit opts in by naming the band the head occupies (and, if its type is
+    # distinctively small, the maximum size). ``page2_header_cutoff`` can then be
+    # dropped to the page edge, so the only thing removed above the body is the
+    # head itself — and it is recorded. Left None = off (the family default
+    # cutoff still applies, unchanged for every circuit that does not opt in).
+    running_head_max_top = None
+    running_head_max_size = None  # None = any size within the band
+    running_head_first_page = 2  # 1 where the head is printed on page 1 too
+
     def extract(self, pdf_path):
-        self._efile_stamp_dropped = []
+        self._furniture_dropped = []
+        self._furniture_merged = None
         doc = super().extract(pdf_path)
+        self._merge_furniture(doc)
+        return doc
+
+    def _merge_furniture(self, doc) -> None:
+        """Append the recorded page furniture to ``doc.dropped`` — once."""
+        if getattr(self, "_furniture_merged", None) is doc:
+            return
+        self._furniture_merged = doc
         # de-dup, preserve first-seen order
-        extra = list(dict.fromkeys(self._efile_stamp_dropped))
+        extra = list(dict.fromkeys(getattr(self, "_furniture_dropped", None) or []))
         if extra:
             doc.dropped = list(doc.dropped) + extra
-        return doc
+
+    def _sweep_residual(self, doc, source_pages) -> None:
+        """Surface the recorded furniture BEFORE the completeness sweep.
+
+        The sweep builds its 'already placed' haystack from the document as it
+        stands, and ``doc.dropped`` was only being filled after ``extract``
+        returned — so every running head the filter had correctly removed AND
+        recorded still came back as unplaced content ('Nos. 24-2489 & 24-2672
+        3' on each odd page)."""
+        self._merge_furniture(doc)
+        super()._sweep_residual(doc, source_pages)
+
+    def _record_dropped(self, text: str) -> None:
+        """Register a line of identified page furniture removed during line
+        filtering, so it surfaces in the Removed box instead of vanishing."""
+        if not text:
+            return
+        if getattr(self, "_furniture_dropped", None) is None:
+            self._furniture_dropped = []
+        self._furniture_dropped.append(text)
+
+    def _is_running_head(self, page, line) -> bool:
+        if self.running_head_max_top is None:
+            return False
+        if page.page_number < self.running_head_first_page:
+            return False
+        if line.get("top", 1e9) >= self.running_head_max_top:
+            return False
+        if self.running_head_max_size is None:
+            return True
+        chars = line.get("chars") or []
+        if not chars:
+            return False
+        return max(c.get("size", 0) for c in chars) <= self.running_head_max_size
+
+    def _drop_running_header(self, lines):
+        """Record whatever the base's docket-header sweep removes, so the
+        running header surfaces in the Removed box instead of vanishing."""
+        kept = super()._drop_running_header(lines)
+        if len(kept) != len(lines):
+            keep = {id(l) for l in kept}
+            for ln in lines:
+                if id(ln) not in keep:
+                    self._record_dropped(self.line_plain_text(ln).strip())
+        return kept
+
+    def _drop_head_band(self, page, lines):
+        """Remove (and record) the running-head lines from ``lines``."""
+        if self.running_head_max_top is None:
+            return lines
+        kept = []
+        for ln in lines:
+            if self._is_running_head(page, ln):
+                self._record_dropped(self.line_plain_text(ln).strip())
+                continue
+            kept.append(ln)
+        return kept
 
     def _is_stamp_char(self, c) -> bool:
         if self.efile_stamp_font is None or self.efile_stamp_size is None:
@@ -97,8 +177,6 @@ class FederalCircuitBase(GenericExtractor):
         lines = super()._maybe_drop_running_header(page, lines)
         if page.page_number != 1 or self.efile_stamp_font is None:
             return lines
-        if getattr(self, "_efile_stamp_dropped", None) is None:
-            self._efile_stamp_dropped = []
         kept = []
         for ln in lines:
             chars = ln.get("chars") or []
@@ -106,9 +184,7 @@ class FederalCircuitBase(GenericExtractor):
             if not stamp:
                 kept.append(ln)
                 continue
-            dropped = self.line_plain_text({"chars": stamp}).strip()
-            if dropped:
-                self._efile_stamp_dropped.append(dropped)
+            self._record_dropped(self.line_plain_text({"chars": stamp}).strip())
             rest = [c for c in chars if not self._is_stamp_char(c)]
             if rest:  # a mixed line (banner + stamp tail): keep the banner part
                 kept.append(self._rebuild_line(ln, rest))
@@ -205,6 +281,13 @@ class FederalCircuitBase(GenericExtractor):
         text = (line.get("text") or "").strip()
         if not text:
             return None
+        # A byline never OPENS with a lowercase letter. Without this, a wrapped
+        # body line that happens to break at the right word reads as a per
+        # curiam byline and starts a phantom opinion mid-paragraph — CA9's
+        # 'by the Court in that case. Compare Terry Williams, 529 U.S. ...'
+        # matched the 'BY THE COURT' form once uppercased.
+        if text[:1].islower():
+            return None
         up = text.upper()
         for bad in _NON_AUTHOR:
             if up.startswith(bad):
@@ -221,7 +304,13 @@ class FederalCircuitBase(GenericExtractor):
         if not _is_name(name):
             return None
         for kw in _BENCH:
-            start = 0
+            # The bench title follows the NAME's comma, so search from there.
+            # Searching from 0 let the title be found BEFORE the comma, which
+            # made the continuation of a wrapped byline read as a byline of its
+            # own ('Circuit Judge, joins, concurring:' — the tail of 'BERZON,
+            # Circuit Judge, with whom W. FLETCHER, / Circuit Judge, joins,
+            # concurring:' — parsed as judge 'Circuit Judge').
+            start = comma + 1
             while True:
                 idx = text.find(kw, start)
                 if idx == -1:
@@ -244,8 +333,50 @@ class FederalCircuitBase(GenericExtractor):
                     return text, ""
                 if text[j] in ".:":
                     return text[: j + 1], text[j + 1 :].strip()
+                if text[j] == ",":
+                    k = self._kind_clause_end(text, j)
+                    if k is not None:
+                        return text[: k + 1], text[k + 1 :].strip()
                 start = end
         return None
+
+    def _kind_clause_end(self, text: str, comma: int):
+        """Index of the terminator closing a separate writing's kind clause, or
+        None if what follows the bench title is not one.
+
+        A majority byline puts its terminator straight after the title
+        ('ROTH, Circuit Judge.'), but a concurrence or dissent names its kind
+        there instead, joined by a comma:
+
+            ROTH, Circuit Judge, dissenting.
+            BOVE, Circuit Judge, concurring.
+            SMITH, Circuit Judge, with whom JONES joins, dissenting in part.
+            MASCOTT, Circuit Judge, dissenting sur denial of rehearing en banc.
+
+        Requiring the '.'/':' immediately reads that comma as ordinary sentence
+        text, so the writing is never detected as an opinion start at all — it
+        is swept into whatever precedes it (on CA3, into the majority, and from
+        there into the counsel trailer). ``_has_byline_form`` already documents
+        this shape for the font-keyed circuits; this is the form-keyed half.
+
+        Kept tight so a body line can never reach here: the clause must NAME a
+        kind (a concur/dissent stem) and stay short. The name and the title run
+        have already been vetted by the caller."""
+        stop = len(text)
+        for i in range(comma + 1, len(text)):
+            if text[i] in ".:":
+                stop = i
+                break
+        span = text[comma + 1 : stop]
+        low = span.lower()
+        if "concur" not in low and "dissent" not in low:
+            return None
+        # Long enough for the fullest real form — 'joined by RESTREPO and
+        # FREEMAN, Circuit Judges, dissenting from the denial of rehearing en
+        # banc' is 15 words — and still far short of a sentence.
+        if len(span.split()) > 20:
+            return None
+        return min(stop, len(text) - 1)
 
     # Words that may sit between a judge's name and the bench title ('Senior
     # Circuit Judge', 'United States District Judge'), plus name suffixes

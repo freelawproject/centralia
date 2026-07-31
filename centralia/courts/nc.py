@@ -52,6 +52,40 @@ class NorthCarolinaSupreme(StateSupreme):
             return (name, title, kind)
         return None
 
+    def _has_body_between(self, all_segments, start, end) -> bool:
+        """Also accept a disposition that shares the byline's own segment.
+
+        North Carolina's shortest published style is a one-line per curiam
+        disposition — 'PER CURIAM.' / 'AFFIRMED.', or 'RIGGS, Justice.' /
+        'Having considered … improvidently allowed.' / 'DISCRETIONARY REVIEW
+        IMPROVIDENTLY ALLOWED.' — set tight enough that the byline and the
+        disposition segment together. The shared base looks for the body in a
+        LATER segment, finds none, and reads the byline as a sign-off, so the
+        filing came back with no opinion at all and its disposition stranded in
+        the headmatter. The byline's own trailing lines are that body."""
+        if super()._has_body_between(all_segments, start, end):
+            return True
+        seg = all_segments[start][1] if start < len(all_segments) else []
+        if not seg:
+            return False
+        # A BARE signature ('NEWBY, Chief Justice' — no terminator, no kind) with
+        # nothing after it is the author signing off; only a terminated byline
+        # ('PER CURIAM.' / 'RIGGS, Justice.' / '… concurring.') opens a writing.
+        if self._is_bare_signature(
+            self.line_plain_text(seg[0]).strip(), self._byline_split(seg[0])
+        ):
+            return False
+        for line in seg[1:]:
+            text = self.line_plain_text(line).strip()
+            if not text or text.lower().rstrip(":").startswith(
+                ("we concur", "i concur", "we dissent", "i dissent")
+            ):
+                continue
+            if self._byline_split(line) or self.parse_author_line(text):
+                continue
+            return True
+        return False
+
     def extract_headmatter(self, headmatter_segs, page1_rules=None) -> dict:
         """Group wrapped headmatter lines into paragraphs: the procedural
         block ('On discretionary review …') and each counsel entry read as one
@@ -155,6 +189,42 @@ class NorthCarolinaSupreme(StateSupreme):
             sizes = [c["size"] for c in (ln.get("chars") or []) if c.get("size")]
             if sizes and median(sizes) < 11.5:
                 drop.add(id(ln))
+                text = self.line_plain_text(ln).strip()
+                if text:
+                    self._nc_running_head.append(text)
             else:
                 break
         return [l for l in lines if id(l) not in drop]
+
+    # The header's second row names the writing ('Opinion of the Court',
+    # 'Dietz, J., dissenting'), so on a two-page separate writing it repeats
+    # only twice — under the completeness sweep's repeated-in-the-margin
+    # threshold, which reported it as unplaced content. Record what is dropped
+    # and surface it in the Removed box instead.
+    _nc_running_head: list = []
+
+    def extract(self, pdf_path):
+        self._nc_running_head = []
+        doc = super().extract(pdf_path)
+        doc.dropped = _dedupe(list(doc.dropped) + list(self._nc_running_head))
+        return doc
+
+    def _sweep_residual(self, doc, source_pages):
+        head = [t for t in getattr(self, "_nc_running_head", None) or [] if t]
+        if head:
+            doc.dropped = _dedupe(list(doc.dropped) + head)
+        super()._sweep_residual(doc, source_pages)
+
+
+def _dedupe(rows):
+    """Order-preserving de-duplication tolerant of unhashable rows."""
+    seen, out = set(), []
+    for r in rows:
+        try:
+            if r in seen:
+                continue
+            seen.add(r)
+        except TypeError:  # image/dict rows are never repeated
+            pass
+        out.append(r)
+    return out

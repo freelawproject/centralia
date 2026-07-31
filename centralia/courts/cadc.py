@@ -16,5 +16,15 @@ class DCCircuit(FederalCircuitBase):
     gap_single_max = 12.0
     gap_double_max = 22.0
 
+    # The D.C. Circuit prints NO running header on continuation pages. Most of
+    # its opinions set a deep top margin (nothing above ~130pt), but its
+    # unpublished dispositions and its bound opinions open real text at top~73-75
+    # — a '* * *' section break, a body paragraph, an 'A' subheading — and the
+    # family's blanket 95pt cutoff deleted it. Where a page 2+ DOES carry the
+    # 'United States Court of Appeals / FOR THE DISTRICT OF COLUMBIA CIRCUIT'
+    # banner from top~39, that is a second order's COVER page, i.e. content, not
+    # furniture. Lower the cutoff to the page edge and let ``margin_top`` bound it.
+    page2_header_cutoff = 30.0
+
     def find_footnote_separator(self, page):
         return self._sep_at(page, 150, 165)

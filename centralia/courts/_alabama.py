@@ -15,6 +15,9 @@ plain string scans.
 
 from __future__ import annotations
 
+from collections import Counter, defaultdict
+from statistics import median
+
 from ..base import BaseExtractor
 from ..models import DocType
 
@@ -40,6 +43,101 @@ class AlabamaAppellate(BaseExtractor):
     skip_notice_headmatter = True
 
     SKIP_BODY_TYPES = (DocType.CERTIFICATE,)
+
+    @staticmethod
+    def _header_key(text: str) -> str:
+        return " ".join((text or "").split()).lower()
+
+    def prepare_document(self, pdf) -> None:
+        """Identify docket headers by repetition in the physical top band."""
+        counts = Counter()
+        for page in pdf.pages[1:]:
+            for line in page.extract_text_lines():
+                if line.get("top", 0) >= 100:
+                    continue
+                text = line.get("text") or ""
+                if self.is_docket_line(text):
+                    counts[self._header_key(text)] += 1
+        self._repeated_docket_headers = {
+            key for key, count in counts.items() if count >= 2
+        }
+
+    def correct_page_geometry(self, page) -> None:
+        """Put CambriaMath hyphens back on their surrounding text row.
+
+        Some Alabama PDFs use a CambriaMath U+2010 glyph for a visible
+        intra-word hyphen (``four-year`` / ``Maxwell-Evans``). Its declared
+        bounding box is displaced downward by almost one full line even
+        though its text matrix has the correct baseline. pdfplumber therefore
+        emits the hyphen as a standalone line, splitting an otherwise coherent
+        block quotation and stranding the intervening prose.
+
+        Derive the normal top coordinate from the page's majority font at the
+        same size and move only these demonstrably misboxed hyphen glyphs.
+        """
+        super().correct_page_geometry(page)
+        chars = page.chars
+        row_constants = defaultdict(list)
+        for char in chars:
+            matrix = char.get("matrix")
+            if matrix and "CambriaMath" not in (char.get("fontname") or ""):
+                row_constants[round(char["size"], 1)].append(
+                    char["top"] + matrix[5]
+                )
+        normal = {
+            size: median(values) for size, values in row_constants.items()
+        }
+        for char in chars:
+            matrix = char.get("matrix")
+            size = round(char.get("size", 0), 1)
+            if (
+                not matrix
+                or char.get("text") != "‐"
+                or "CambriaMath" not in (char.get("fontname") or "")
+                or size not in normal
+            ):
+                continue
+            delta = (normal[size] - matrix[5]) - char["top"]
+            if abs(delta) <= 1:
+                continue
+            char["top"] += delta
+            char["bottom"] += delta
+            char["doctop"] = char.get("doctop", char["top"]) + delta
+            if "y0" in char:
+                char["y0"] -= delta
+            if "y1" in char:
+                char["y1"] -= delta
+
+    def _drop_running_header(self, lines) -> list:
+        """Drop only repeated top-band dockets (or an unmistakably high one)."""
+        ordered = sorted(lines, key=lambda line: line.get("top", 0))
+        if not ordered:
+            return lines
+        repeated = getattr(self, "_repeated_docket_headers", set())
+        drop = set()
+        previous = None
+        for line in ordered:
+            text = line.get("text") or ""
+            key = self._header_key(text)
+            true_header = key in repeated or (
+                line.get("top", 0) < 60
+                and line.get("x0", 0) <= self.body_baseline_x0 + 6
+            )
+            if not (true_header and self.is_docket_line(text)):
+                break
+            if previous is not None:
+                height = max(
+                    previous.get("bottom", previous.get("top", 0))
+                    - previous.get("top", 0),
+                    1,
+                )
+                if line.get("top", 0) - previous.get("top", 0) > max(
+                    30, 2 * height
+                ):
+                    break
+            drop.add(id(line))
+            previous = line
+        return [line for line in lines if id(line) not in drop]
 
     # ====================================================================
     # DOCKET MATCHING (no regex) — '<PREFIX>-YYYY-NNNN'

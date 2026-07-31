@@ -69,6 +69,9 @@ class BaseAlaskaExtractor(BaseExtractor):
     gap_tight_max = 13.5
     gap_single_max = 18.0
     gap_double_max = 28.0
+    # Alaska uses tightly set body text for statutory lists and quotations.
+    # Those runs are content, not publication notices.
+    drop_notice_in_body = False
 
     @staticmethod
     def _line_page(line) -> int:
@@ -90,25 +93,165 @@ class BaseAlaskaExtractor(BaseExtractor):
             doc.summary = list(doc.summary) + list(self._alaska_author_announcements)
         for op in doc.opinions:
             op.blocks = [self._maybe_heading(b) for b in op.blocks]
+            op.blocks = self._normalize_section_blocks(op.blocks)
         return doc
+
+    @staticmethod
+    def _merge_interleaved(lines):
+        """Alaska's italic glyphs can sit about 1pt above roman glyphs on
+        the same visual row.  The base merger's very strict overlap test then
+        splits words such as ``Alaska`` into separate line objects."""
+        if len(lines) < 2:
+            return lines
+        lines = sorted(lines, key=lambda l: (l["top"], l["x0"]))
+        out = [lines[0]]
+        for ln in lines[1:]:
+            prev = out[-1]
+            overlap = min(prev["bottom"], ln["bottom"]) - max(
+                prev["top"], ln["top"]
+            )
+            min_h = max(
+                min(prev["bottom"] - prev["top"], ln["bottom"] - ln["top"]),
+                1.0,
+            )
+            chars = sorted(
+                list(prev.get("chars") or []) + list(ln.get("chars") or []),
+                key=lambda c: c["x0"],
+            )
+            if chars and overlap > 0.45 * min_h:
+                union = max(c["x1"] for c in chars) - min(c["x0"] for c in chars)
+                glyphs = sum(c["x1"] - c["x0"] for c in chars)
+                if glyphs <= union * 1.16:
+                    merged = dict(prev)
+                    merged["chars"] = chars
+                    merged["x0"] = min(prev["x0"], ln["x0"])
+                    merged["x1"] = max(prev["x1"], ln["x1"])
+                    merged["top"] = min(prev["top"], ln["top"])
+                    merged["bottom"] = max(prev["bottom"], ln["bottom"])
+                    merged["text"] = "".join(c["text"] for c in chars)
+                    out[-1] = merged
+                    continue
+            out.append(ln)
+        return out
+
+    @staticmethod
+    def _strong_runs(text):
+        """Return strong-text runs when the whole block is heading markup."""
+        t = text.strip()
+        if t.startswith("<pagenumber "):
+            end = t.find("/>")
+            if end < 0:
+                return None
+            prefix, t = t[: end + 2], t[end + 2 :].strip()
+        else:
+            prefix = ""
+        runs = []
+        while t:
+            if not t.startswith("<strong>"):
+                return None
+            end = t.find("</strong>")
+            if end < 0:
+                return None
+            runs.append(t[8:end])
+            t = t[end + 9 :].strip()
+        return prefix, runs
+
+    @classmethod
+    def _heading_markup(cls, prefix, runs, number=None):
+        parts = []
+        if prefix:
+            parts.append(prefix)
+        if number is not None:
+            runs = list(runs)
+            runs[0] = f"{number}. {runs[0]}"
+        parts.extend(f"<strong>{run}</strong>" for run in runs)
+        return " ".join(parts)
+
+    @classmethod
+    def _normalize_section_blocks(cls, blocks):
+        """Promote tiny Roman numeral figures into the section heading they
+        precede, and recognize long all-bold headings that segmentation tagged
+        as blockquotes."""
+        out = []
+        roman = 0
+        for block in blocks:
+            if block.kind == "image":
+                width = (block.payload or {}).get("width", 0)
+                height = (block.payload or {}).get("height", 0)
+                if width <= 24 and height <= 16:
+                    out.append(block)
+                    continue
+            runs = cls._strong_runs(block.text or "") if block.kind in ("p", "blockquote", "heading") else None
+            if (
+                runs
+                and block.kind in ("p", "blockquote")
+                and not cls._plain_inline(block.text or "").strip().startswith("(")
+            ):
+                block.kind = "heading"
+            if out and out[-1].kind == "image" and runs:
+                prev = out.pop()
+                width = (prev.payload or {}).get("width", 0)
+                height = (prev.payload or {}).get("height", 0)
+                if width <= 24 and height <= 16:
+                    roman += 1
+                    prefix, strong = runs
+                    numeral = [
+                        "I", "II", "III", "IV", "V", "VI", "VII", "VIII", "IX", "X",
+                    ][roman - 1] if roman <= 10 else None
+                    block.text = cls._heading_markup(prefix, strong[:1], numeral)
+                    out.append(block)
+                    for extra in strong[1:]:
+                        out.append(
+                            Block(
+                                kind="heading",
+                                text=f"<strong>{extra}</strong>",
+                                page=block.page,
+                            )
+                        )
+                    continue
+                else:
+                    out.append(prev)
+            if out and out[-1].kind == "heading" and block.kind == "p":
+                plain = cls._plain_inline(block.text or "").strip()
+                if plain.startswith("Law.") and cls._strong_runs(block.text or ""):
+                    out[-1].text += " " + block.text
+                    continue
+            if out and out[-1].kind == "heading" and block.kind == "heading":
+                plain = cls._plain_inline(block.text or "").strip()
+                if plain == "Law.":
+                    out[-1].text += " " + block.text
+                    continue
+            out.append(block)
+        # NB: no numbered-item re-splitting here. Alaska prints statutory
+        # factor lists as ONE flowing indented quotation (see the Evidence
+        # Rule 803(6) quote in portfolio_recovery p32: '... testified that:
+        # (1) The records ... ; and (2) the witness ...' runs continuously
+        # across ten single-spaced lines). Cutting a block at '(n)' markers
+        # invents layout the PDF never drew, and a marker-position slice
+        # silently discards everything ahead of the first marker — which is
+        # how the lead-in of that quotation, and whole footnote bodies that
+        # merely cite '12(b)(6)' or 'AS 33.16.215(f)(2)', went missing.
+        return out
 
     @staticmethod
     def _maybe_heading(block):
         if block.kind != "p" or not block.text:
             return block
         t = block.text.strip()
-        words = t.split()
+        plain = BaseAlaskaExtractor._plain_inline(t).strip()
+        words = plain.split()
         caps = (
-            t.upper() == t
-            and any(c.isalpha() for c in t)
+            plain.upper() == plain
+            and any(c.isalpha() for c in plain)
             and 1 <= len(words) <= 7
-            and not t.endswith(".")
+            and not plain.endswith(".")
+            and not plain.startswith("(")
         )
         sub = (
-            len(t) >= 3
-            and "A" <= t[0] <= "Z"
-            and t[1] == "."
-            and t[2:3] == " "
+            len(plain) >= 3
+            and "A" <= plain[0] <= "Z"
+            and plain[1] == "."
+            and plain[2:3] == " "
             and len(words) <= 10
         )
         if caps or sub:
@@ -237,9 +380,21 @@ class BaseAlaskaExtractor(BaseExtractor):
     def page_lines(self, page):
         """Extract lines, column-splitting caption rows that span a vertical
         column divider."""
-        divider = self.find_caption_divider(page)
+        self.correct_page_geometry(page)
+        # Parenthesized statutory lists and quoted pleadings on later pages
+        # can resemble the caption's ``)`` divider.  Only page 1 is caption
+        # geometry; splitting later pages manufactures missing letters and
+        # corrupts footnotes.
+        divider = (
+            self.find_caption_divider(page)
+            if page.page_number == getattr(self, "_caption_pno", 1)
+            else None
+        )
         if divider is None:
-            return super().page_lines(page)
+            lines = self._text_lines(page.filter(self.filter_margins))
+            lines = self._merge_interleaved(lines)
+            self._tag_underlined_chars(page, lines)
+            return self._maybe_drop_running_header(page, lines)
 
         div_x, div_top, div_bot = divider
         m_top, m_bot = self.margin_top, self.margin_bottom
@@ -265,29 +420,46 @@ class BaseAlaskaExtractor(BaseExtractor):
             )
 
         lines = []
-        lines += page.filter(outside_caption).extract_text_lines()
-        lines += page.filter(left_of_divider).extract_text_lines()
-        lines += page.filter(right_of_divider).extract_text_lines()
+        lines += self._text_lines(page.filter(outside_caption))
+        lines += self._text_lines(page.filter(left_of_divider))
+        lines += self._text_lines(page.filter(right_of_divider))
         lines.sort(key=lambda l: (l["top"], l["x0"]))
-        return lines
+        lines = self._merge_interleaved(lines)
+        self._tag_underlined_chars(page, lines)
+        return self._maybe_drop_running_header(page, lines)
 
     # ---------------------------------------------------------------- footnote
     def find_footnote_separator(self, page) -> Optional[float]:
-        """Hairline rect = footnote separator. Left-anchored rect, width >= 100,
-        height < 2, in the bottom ~45% of the page (so the caption underline up
-        top isn't mis-classified)."""
-        cutoff = page.height * 0.55
-        candidates = [
-            r
-            for r in page.rects
-            if r["height"] < 2
-            and (r["x1"] - r["x0"]) >= 100
-            and r["x0"] < 100
-            and r["top"] > cutoff
-        ]
+        """Recognize the Alaska appellate template's two footnote-rule measures.
+
+        Both Alaska courts draw the footnote rule left-anchored on the body
+        baseline in one of exactly two widths: the full body measure (468pt on
+        a 612pt page) for merits opinions, and a two-inch (144pt) rule for the
+        Court of Appeals template and Supreme Court orders. The page-one
+        caption closure is a half-column measure (about 229-237pt) and must
+        stay in headmatter.
+
+        The measure, not the vertical position, is the discriminator. A
+        footnote-heavy page carries its rule high — james_clarke p5 rules at
+        top=384 of 792, 48% down the page — so a "bottom 45% only" test loses
+        the whole footnote zone and spills the notes into the body as
+        paragraphs and blockquotes.
+        """
+        body_width = page.width - 2 * self.body_baseline_x0
+        candidates = []
+        for rect in page.rects:
+            width = rect["x1"] - rect["x0"]
+            full_measure = abs(width - body_width) <= 12
+            short_measure = abs(width - 144) <= 18
+            if (
+                rect["height"] < 2
+                and rect["x0"] < self.body_baseline_x0 + 6
+                and (full_measure or short_measure)
+            ):
+                candidates.append(rect)
         if not candidates:
             return None
-        return min(candidates, key=lambda r: r["top"])["top"]
+        return min(candidates, key=lambda rect: rect["top"])["top"]
 
     # ---------------------------------------------------------------- headmatter
     def extract_headmatter(self, headmatter_segs, page1_rules=None) -> dict:

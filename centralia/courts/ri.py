@@ -80,6 +80,19 @@ class RhodeIslandSupreme(StateSupreme):
             name = name.strip()
             if not _is_title_name(name):
                 return None
+            # A separate writing can name its joiners between the author and the
+            # role: 'Justice Long, with whom Justice Lynch Prata joins,
+            # dissenting.' Step over that clause so the role is read from the
+            # clause that actually carries it. Without this the whole dissent was
+            # missed, and its footnotes — numbered from 1 again — collided with
+            # the majority's and were lost.
+            while True:
+                clause, sep, tail = after.partition(",")
+                cl = clause.strip().lower()
+                if sep and (cl.startswith("with whom") or " join" in " " + cl):
+                    after = tail
+                    continue
+                break
             low = after.strip().lower()
             if low.startswith("for the court"):
                 kind = None

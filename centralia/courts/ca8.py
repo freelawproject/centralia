@@ -11,3 +11,10 @@ class EighthCircuit(FederalCircuitBase):
     gap_tight_max = 10.0
     gap_single_max = 17.0
     gap_double_max = 28.0
+
+    # The Eighth prints NO running header: every continuation page opens with
+    # real text at top~73-75 (and the second line at ~91-95), and the folio sits
+    # in the bottom margin. The family's blanket 95pt page-2 cutoff therefore
+    # deleted the first — often the first TWO — lines of every page after the
+    # first, which is where nearly all of this circuit's unplaced text came from.
+    page2_header_cutoff = 0.0

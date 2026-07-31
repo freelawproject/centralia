@@ -21,6 +21,7 @@ from __future__ import annotations
 
 import re
 from collections import Counter
+from statistics import median
 
 from ..models import Block
 
@@ -113,10 +114,78 @@ class ArizonaStyle:
     def extract(self, pdf_path: str):
         self._page_header = {}  # page_number -> opinion identifier text
         self._op_type = {}  # all_segments index -> opinion type
+        self._header_dropped = []  # running-header lines, for the Removed box
         doc = super().extract(pdf_path)
         for op in doc.opinions:
             op.blocks = self._regroup_body(op.blocks)
         return doc
+
+    def _sweep_residual(self, doc, source_pages):
+        """Surface the running header instead of discarding it.
+
+        ``page_lines`` filters the header band off every continuation page but
+        used to drop it on the floor, leaving the completeness sweep to decide
+        what it was. The sweep only recognises a repeated line as furniture
+        once it appears on enough pages, so a header belonging to a SHORT
+        separate writing falls under the threshold and reads as lost content —
+        'CHIEF JUSTICE TIMMER, Concurring' runs on two pages of
+        state_v._fuster_melendez and is reported unplaced, while
+        'JUSTICE BOLICK, Concurring' on five pages is not. Recording the band
+        here makes it identified junk on every page, independent of how many
+        times it happens to repeat (CLAUDE.md 3). Flushed before the sweep so
+        it counts as placed."""
+        extra = list(dict.fromkeys(getattr(self, "_header_dropped", []) or []))
+        if extra:
+            doc.dropped = list(doc.dropped) + extra
+        super()._sweep_residual(doc, source_pages)
+
+    def correct_page_geometry(self, page) -> None:
+        """Snap a glyph run drawn on its OWN offset baseline onto the row it
+        belongs to.
+
+        Arizona's PDFs occasionally emit a fragment on a baseline of its own:
+        an 8pt hyphenation dash 3.8pt below its line (arizctapp
+        judicial_watch p.3, splitting 'work-product'), or a stray '¶ 17.' cite
+        set in a different face 4pt above the next line (ariz marner/haniffa
+        p.13). Against a ~15pt body lead nothing that close is a line of its
+        own — but left standing it splits the paragraph's segment, and the REAL
+        line beside it is dropped along with it.
+
+        Done here rather than in ``page_lines`` because the completeness audit
+        reads the page through this hook too. Correcting it downstream leaves
+        the audit comparing against the uncorrected split rows, so the repaired
+        line matches nothing and still reads as lost. Measured against the
+        page's own leading, since the two courts set different measures."""
+        super().correct_page_geometry(page)
+        rows = {}
+        for char in page.chars:
+            rows.setdefault(round(char.get("top", 0), 1), []).append(char)
+        tops = sorted(rows)
+        if len(tops) < 3:
+            return
+        gaps = [b - a for a, b in zip(tops, tops[1:]) if b - a > 5]
+        if not gaps:
+            return
+        limit = median(gaps) * 0.45
+        for above, below in zip(tops, tops[1:]):
+            if below - above >= limit:
+                continue
+            # The smaller run is the stray; move it onto the larger row.
+            src, dst = (
+                (below, above)
+                if len(rows[below]) <= len(rows[above])
+                else (above, below)
+            )
+            anchor = rows[dst][0]
+            delta = anchor["top"] - rows[src][0]["top"]
+            for char in rows[src]:
+                char["top"] += delta
+                char["bottom"] += delta
+                char["doctop"] = char.get("doctop", char["top"]) + delta
+                if "y0" in char:
+                    char["y0"] -= delta
+                if "y1" in char:
+                    char["y1"] -= delta
 
     def page_lines(self, page):
         lines = super().page_lines(page)
@@ -146,6 +215,9 @@ class ArizonaStyle:
         )
         if hid:
             self._page_header[page.page_number] = hid
+        if getattr(self, "_header_dropped", None) is None:
+            self._header_dropped = []
+        self._header_dropped.extend(texts)
         band_ids = {id(l) for l in band}
         return [l for l in lines if id(l) not in band_ids]
 

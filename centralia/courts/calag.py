@@ -26,6 +26,111 @@ class CaliforniaAttorneyGeneral(StateSupreme):
     court_label = "Office of the Attorney General of California."
     facsimile_headmatter = True  # letterhead + ':'-railed caption table
 
+    def segment_lines(self, lines, page_width) -> list:
+        """Split a mixed-margin tight run when an indented quotation begins.
+        Several AG opinions set a quote at x≈101, only 29 points right of the
+        body margin, so spacing alone merges it with the preceding paragraph."""
+        segments = super().segment_lines(lines, page_width)
+        out = []
+        deep_x = self.body_baseline_x0 + 25
+        for seg in segments:
+            cuts = []
+            start = None
+            for i, line in enumerate(seg):
+                deep = line["x0"] >= deep_x
+                if (
+                    deep
+                    and start is not None
+                    and i > 0
+                    and line["top"] - seg[i - 1]["top"] > self.gap_single_max
+                ):
+                    if i - start >= 2 and start > 0:
+                        cuts.append((start, i))
+                    start = i
+                if deep and start is None:
+                    start = i
+                if (not deep or i == len(seg) - 1) and start is not None:
+                    end = i if not deep else i + 1
+                    if end - start >= 2 and start > 0:
+                        cuts.append((start, end))
+                    start = None
+            if not cuts:
+                out.append(seg)
+                continue
+            cursor = 0
+            for start, end in cuts:
+                if start > cursor:
+                    out.append(seg[cursor:start])
+                out.append(seg[start:end])
+                cursor = end
+            if cursor < len(seg):
+                out.append(seg[cursor:])
+        return out
+
+    def classify_segment(self, seg) -> str:
+        kind = super().classify_segment(seg)
+        # Wrapped lines of an indented statutory bullet can be tight enough
+        # to enter the generic ``notice`` band.  Their shared deep left edge
+        # is decisive: they are quote continuation, not furniture.
+        if kind == "notice" and seg:
+            if min(line["x0"] for line in seg) >= self.body_baseline_x0 + 25:
+                return "blockquote"
+        return kind
+
+    def classify_paragraph(self, lines) -> str:
+        """AG opinions indent quoted statutory lists instead of surrounding
+        them with quotation marks.  A one-line item is a ``single`` segment,
+        so the base classifier needs this narrow geometry-plus-marker check."""
+        if lines:
+            first = self.line_plain_text(lines[0]).lstrip()
+            if lines[0]["x0"] >= self.body_baseline_x0 + 35 and (
+                first.startswith("•")
+                or first.startswith("(1)")
+                or first.startswith("(2)")
+                or first.startswith("(3)")
+            ):
+                return "blockquote"
+        return super().classify_paragraph(lines)
+
+    def split_body_paragraphs(self, seg) -> list:
+        """Keep an indented bullet and its wrapped continuation together,
+        while starting a new block at the next bullet/factor."""
+        if any(
+            self.line_plain_text(line).lstrip().startswith(("•", "(1)", "(2)", "(3)"))
+            for line in seg
+        ):
+            groups = []
+            current = []
+            for line in seg:
+                text = self.line_plain_text(line).lstrip()
+                starts_item = text.startswith(("•", "(1)", "(2)", "(3)"))
+                if starts_item and current:
+                    groups.append(current)
+                    current = []
+                current.append(line)
+            if current:
+                groups.append(current)
+            return groups
+        return super().split_body_paragraphs(seg)
+
+    def split_blockquote_paragraphs(self, seg) -> list:
+        if any(
+            self.line_plain_text(line).lstrip().startswith(("•", "(1)", "(2)", "(3)"))
+            for line in seg
+        ):
+            groups = []
+            current = []
+            for line in seg:
+                text = self.line_plain_text(line).lstrip()
+                if text.startswith(("•", "(1)", "(2)", "(3)")) and current:
+                    groups.append(current)
+                    current = []
+                current.append(line)
+            if current:
+                groups.append(current)
+            return groups
+        return super().split_blockquote_paragraphs(seg)
+
     def extract(self, pdf_path):
         self._split_y = None
         self._ag_author = ""

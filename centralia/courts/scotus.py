@@ -30,15 +30,21 @@ Furniture and geometry:
 
 from __future__ import annotations
 
-from ._reversedjustice import _KIND_ENDINGS, ReversedJusticeSupreme
+from ._reversedjustice import _KIND_ENDINGS, ReversedJusticeSupreme, _allcaps_token
 
 _SECTION_LABELS = ("Syllabus", "Opinion of the Court", "Per Curiam")
 _BYLINE_OPENERS = ("JUSTICE", "CHIEF JUSTICE", "THE CHIEF JUSTICE", "PER CURIAM")
+# Kind words an 'opinion relating to orders' byline closes on.
+_ORDER_KIND_WORDS = ("dissent", "concurr", "respecting")
+_ROMAN_OUTLINE = frozenset(
+    ("I", "II", "III", "IV", "V", "VI", "VII", "VIII", "IX", "X", "XI", "XII")
+)
 
 
 class SupremeCourtUS(ReversedJusticeSupreme):
     court_id = "scotus"
     court_label = "Supreme Court of the United States."
+    _ROMAN_OUTLINE = _ROMAN_OUTLINE
 
     _HEAD_BAND = 150.0  # running heads at y≈115/139; content starts y≈158
     # 9pt body: lines lead ~13.2pt, block quotes ~10.8pt.
@@ -58,14 +64,31 @@ class SupremeCourtUS(ReversedJusticeSupreme):
         self._authors = {}
         self._covers = {}  # op_start (top) → byline segment index for i>0 writings
         self._syllabus_rows = []
+        self._sections_applied = False
         doc = super().extract(pdf_path)
+        self._apply_sections(doc)
+        self._remap_printed_pages(doc)
+        return doc
+
+    def _apply_sections(self, doc) -> None:
+        """Move the collected syllabus rows and the recorded furniture onto the
+        document. Idempotent: it runs from ``_sweep_residual`` (so the
+        completeness sweep can see both) and again after ``super().extract``."""
+        if getattr(self, "_sections_applied", False):
+            return
+        self._sections_applied = True
         if self._syllabus_rows:
             doc.syllabus = self._syllabus_rows
         extra = list(dict.fromkeys(self._notice_dropped + self._head_dropped))
         if extra:
             doc.dropped = list(doc.dropped) + extra
-        self._remap_printed_pages(doc)
-        return doc
+
+    def _sweep_residual(self, doc, source_pages) -> None:
+        # The syllabus section and the recorded running heads / notices are
+        # attached by this court AFTER the base pipeline finishes — flush them
+        # first or the sweep reads every one of those lines as unplaced.
+        self._apply_sections(doc)
+        super()._sweep_residual(doc, source_pages)
 
     def _remap_printed_pages(self, doc):
         """Blocks carry the slip's PRINTED page number (which restarts for
@@ -91,14 +114,59 @@ class SupremeCourtUS(ReversedJusticeSupreme):
                     b.text = "".join(out)
 
     # ---------------------------------------------------- page furniture
+    def prepare_document(self, pdf) -> None:
+        """Measure each page's running-head cut.
+
+        Every slip page opens with two head lines — the folio line and the
+        centered section label — and the label is the SAME text on every page
+        of a writing. Most pages sit them at y≈115/139, but a page can be
+        nudged down a line (chiles p3 puts 'Syllabus' at y=152). A fixed band
+        then reads the label as body text and the page loses its section, so
+        the cut is measured per page: the nominal band, extended past a second
+        line that is a short centered label recurring elsewhere in this same
+        document's head band."""
+        super().prepare_document(pdf)
+        from collections import Counter
+
+        self._head_cut = {}
+        per_page = []
+        for page in pdf.pages:
+            lines = [
+                l
+                for l in sorted(page.extract_text_lines(), key=lambda x: x["top"])
+                if (l.get("text") or "").strip()
+            ]
+            per_page.append((page.page_number, page.width, lines))
+        vocab = Counter(
+            lines[1]["text"].strip()
+            for _pno, _w, lines in per_page
+            if len(lines) >= 2 and lines[1]["top"] < self._HEAD_BAND
+        )
+        labels = {t for t, n in vocab.items() if n >= 2 and t}
+        for pno, width, lines in per_page:
+            cut = self._HEAD_BAND
+            if (
+                len(lines) >= 3
+                and lines[0]["top"] < cut <= lines[1]["top"]
+                and lines[1]["text"].strip() in labels
+                and (lines[1]["x1"] - lines[1]["x0"]) < 0.35 * width
+                and abs((lines[1]["x0"] + lines[1]["x1"]) / 2 - width / 2) < 20
+                and lines[2]["top"] > lines[1]["bottom"]
+            ):
+                cut = lines[1]["bottom"] + 1
+            self._head_cut[pno] = cut
+
     def page_lines(self, page):
         lines = super().page_lines(page)
         for attr in ("_head_dropped", "_notice_dropped"):
             if getattr(self, attr, None) is None:
                 setattr(self, attr, [])
+        head_band = getattr(self, "_head_cut", {}).get(
+            page.page_number, self._HEAD_BAND
+        )
         kept, head_texts = [], []
         for ln in lines:
-            if ln["top"] < self._HEAD_BAND:
+            if ln["top"] < head_band:
                 txt = self.line_plain_text(ln).strip()
                 if txt:
                     head_texts.append(txt)
@@ -166,6 +234,37 @@ class SupremeCourtUS(ReversedJusticeSupreme):
         return best
 
     # ------------------------------------------------------------ writings
+    def _wrapped_byline_at(self, seg, j) -> bool:
+        """True when the byline clause STARTS at ``seg[j]`` but only closes on a
+        later line — the single-line byline test cannot see it."""
+        texts = [self.line_plain_text(l).strip() for l in seg[j:]]
+        if not texts or not self._opens_byline(texts[0]):
+            return False
+        if self.parse_author_line(texts[0]) is not None:
+            return False  # the single-line test already cuts here
+        clause, _used = self._assemble_byline(texts + [""])
+        return bool(clause) and self.parse_author_line(clause) is not None
+
+    def _split_segments_at_bylines(self, all_segments) -> list:
+        """Cut at WRAPPED bylines too, then let the base cut at single-line
+        ones. A writing that hangs off an order shares its segment with the
+        disposition above it ('The petition for a writ of certiorari is
+        denied.' / 'Statement of JUSTICE SOTOMAYOR respecting the denial' / 'of
+        certiorari.'), so without this the disposition opens the writing's body
+        instead of closing the cover."""
+        pre = []
+        for page_no, seg, kind in all_segments:
+            cuts = [j for j in range(1, len(seg)) if self._wrapped_byline_at(seg, j)]
+            if not cuts:
+                pre.append((page_no, seg, kind))
+                continue
+            bounds = [0] + cuts + [len(seg)]
+            for a, b in zip(bounds, bounds[1:]):
+                sub = seg[a:b]
+                if sub:
+                    pre.append((page_no, sub, self.classify_segment(sub)))
+        return super()._split_segments_at_bylines(pre)
+
     def find_authors(self, all_segments) -> list:
         byline_idx = super().find_authors(all_segments)
         self._authors = {}
@@ -189,7 +288,7 @@ class SupremeCourtUS(ReversedJusticeSupreme):
                 for l in all_segments[j][1]
             ][:24]
             for k, (j, t) in enumerate(lines):
-                if not t.upper().startswith(_BYLINE_OPENERS):
+                if not self._opens_byline(t):
                     continue
                 texts = [x for _j, x in lines[k:]]
                 clause, used = self._assemble_byline(texts)
@@ -216,13 +315,35 @@ class SupremeCourtUS(ReversedJusticeSupreme):
                 self._covers[top] = b  # cover runs from top to b-1; body starts at b
         return starts
 
-    @staticmethod
-    def _assemble_byline(texts) -> tuple:
+    def _title_at(self, toks) -> str | None:
+        """The reversed-justice title this token run leads with, or None."""
+        up = " ".join(toks).upper()
+        return next((t for t in self.rev_titles if up.startswith(t + " ")), None)
+
+    def _opens_byline(self, text: str) -> bool:
+        """A line that can start a byline clause: the title itself, PER CURIAM,
+        or a short prose lead-in ahead of the title — 'Statement of JUSTICE
+        SOTOMAYOR respecting the denial of certiorari.' The clause still has to
+        parse before it is accepted as an author."""
+        if text.upper().startswith(_BYLINE_OPENERS):
+            return True
+        toks = text.split()
+        return any(
+            self._title_at(toks[i:]) is not None
+            and all(w.isalpha() for w in toks[:i])
+            for i in range(1, min(len(toks), 4))
+        )
+
+    def _assemble_byline(self, texts) -> tuple:
         """Join up to 5 lines starting at the byline opener into one clause:
         hyphenated wraps rejoin ('con-' + 'curring'), and a kind-ending only
         closes the clause when the NEXT line doesn't continue it lowercase
-        ('... concurring in part and' / 'dissenting in part.'). Returns
-        (clause, lines_used) or (None, 0) if the clause never closes."""
+        ('... concurring in part and' / 'dissenting in part.'). An
+        orders-byline clause names the disposition it attaches to and so ends
+        on a word no fixed list can hold ('... dissenting from the denial of
+        motion for leave to file complaint.') — it closes on the sentence stop
+        once the clause parses. Returns (clause, lines_used) or (None, 0) if
+        the clause never closes."""
         out = ""
         for i, t in enumerate(texts[:5]):
             if out.endswith("-"):
@@ -234,7 +355,83 @@ class SupremeCourtUS(ReversedJusticeSupreme):
                 if nxt[:1].islower():
                     continue
                 return out, i
+            if out.rstrip().endswith(".") and self._orders_byline(out) is not None:
+                return out, i
         return None, 0
+
+    # ------------------------------------------- opinions relating to orders
+    def parse_author_line(self, text):
+        r = super().parse_author_line(text)
+        if r is not None:
+            return r
+        return self._orders_byline(text)
+
+    def _orders_byline(self, text: str):
+        """Parse an 'opinion relating to orders' byline -> (name, title, kind).
+
+        These writings hang off a disposition rather than a merits judgment, so
+        the kind clause names that disposition and cannot be closed by a fixed
+        ending word:
+
+            'JUSTICE THOMAS, with whom JUSTICE ALITO joins, dissenting from
+             the denial of motion for leave to file complaint.'
+            'Statement of JUSTICE SOTOMAYOR respecting the denial of
+             certiorari.'
+
+        Accepted only when the clause is a complete sentence whose CLOSING
+        clause is the kind clause. A syllabus sentence ('JUSTICE THOMAS,
+        dissenting, argues that ...') keeps going past the kind and is
+        rejected, which is what keeps this from claiming prose."""
+        t = " ".join(text.split())
+        if not t.endswith("."):
+            return None
+        toks = t.split()
+        start = next(
+            (
+                i
+                for i in range(min(len(toks), 4))
+                if self._title_at(toks[i:]) is not None
+                and all(w.isalpha() for w in toks[:i])
+            ),
+            None,
+        )
+        if start is None:
+            return None
+        rest = toks[start:]
+        title = self._title_at(rest)
+        rest = rest[len(title.split()) :]
+        name_toks = []
+        for tok in rest:
+            if not _allcaps_token(tok):
+                break
+            name_toks.append(tok.rstrip(",:"))
+            if tok.endswith(","):
+                break
+        if not name_toks:
+            return None
+        after = " ".join(rest[len(name_toks) :]).lower()
+        words = after.split()
+        last = None
+        for i, w in enumerate(words):
+            if w.strip(",.;").startswith(_ORDER_KIND_WORDS):
+                last = i
+        if last is None:
+            return None
+        # The kind clause must CLOSE the sentence — no further clause after it.
+        if "," in " ".join(words[last:]):
+            return None
+        clause = " ".join(words[last:])
+        if "concurr" in after and "dissent" in after:
+            kind = "concurring in part and dissenting in part"
+        elif "concurr" in after:
+            kind = "concurring"
+        elif "dissent" in after:
+            kind = "dissenting"
+        elif clause.startswith("respecting"):
+            kind = "statement"
+        else:
+            return None
+        return " ".join(name_toks), title.title(), kind
 
     def _page_byline(self, all_segments, top, b) -> str:
         """The full byline text: from the first JUSTICE/PER CURIAM line on
@@ -244,7 +441,7 @@ class SupremeCourtUS(ReversedJusticeSupreme):
             for l in all_segments[j][1]:
                 texts.append(self.line_plain_text(l).strip())
         start = next(
-            (k for k, t in enumerate(texts) if t.upper().startswith(_BYLINE_OPENERS)),
+            (k for k, t in enumerate(texts) if self._opens_byline(t)),
             None,
         )
         if start is None:
@@ -282,14 +479,94 @@ class SupremeCourtUS(ReversedJusticeSupreme):
         return op
 
     # ------------------------------------------------------ paragraph types
+    def _is_outline_label(self, line) -> bool:
+        """A standalone centered hierarchy label — ``I`` / ``II`` / ``A`` /
+        ``1`` — set on its own short centered row between body paragraphs. The
+        slip style prints them without a trailing period, and it stacks two
+        levels on consecutive rows ('I' then 'A'), so each row has to be cut
+        out before paragraph grouping or the pair joins into 'I A'."""
+        text = self.line_plain_text(line).strip()
+        core = text[:-1] if text.endswith(".") else text
+        if not core or " " in core:
+            return False
+        if not (
+            core in self._ROMAN_OUTLINE
+            or (len(core) == 1 and core.isalpha() and core.isupper())
+            or (core.isdigit() and len(core) <= 2)
+        ):
+            return False
+        pw = getattr(self, "_page1_width", 612.0) or 612.0
+        center = (line["x0"] + line["x1"]) / 2
+        return abs(center - pw / 2) <= 20 and (line["x1"] - line["x0"]) <= 40
+
+    @property
+    def _block_indent_min(self) -> float:
+        """Left edge a run must clear to be a block quotation rather than a
+        paragraph first-line indent: the body baseline plus TWO indent steps
+        (body 156.2, paragraph indent 167.2, block quotation 178.3)."""
+        return self.body_baseline_x0 + 2 * self.para_indent_min
+
+    def split_body_paragraphs(self, seg) -> list:
+        """Cut outline-label rows and indent-LEVEL changes before the generic
+        first-line-indent splitter runs.
+
+        The generic splitter opens a paragraph on an indent but not on the
+        outdent back to the body margin, so the prose paragraph that follows a
+        block quotation is swallowed into the quotation and the whole run then
+        reads as plain body text. Splitting on the level change in both
+        directions keeps the quotation one unit and the prose after it its
+        own."""
+        if not seg:
+            return []
+        out, run = [], []
+        for line in seg:
+            if self._is_outline_label(line):
+                if run:
+                    out.extend(self._split_indent_levels(run))
+                    run = []
+                out.append([line])
+            else:
+                run.append(line)
+        if run:
+            out.extend(self._split_indent_levels(run))
+        return out
+
+    def _split_indent_levels(self, seg) -> list:
+        out, run, run_deep = [], [], None
+        block_min = max(self.body_baseline_x0, min(l["x0"] for l in seg)) + (
+            2 * self.para_indent_min
+        )
+        for line in seg:
+            deep = line["x0"] > block_min
+            if run and deep is not run_deep:
+                out.extend(super().split_body_paragraphs(run))
+                run = []
+            run_deep = deep
+            run.append(line)
+        if run:
+            out.extend(super().split_body_paragraphs(run))
+        return out
+
     def classify_paragraph(self, lines) -> str:
-        """A paragraph where every line sits well inside the body column (all
-        x0 > indent_min and at least two lines) is an indented block-quote."""
-        if len(lines) < 2:
+        """Outline label → heading; a run set wholly inside the block-quotation
+        indent → blockquote; otherwise the shared centered/caps heading grammar
+        decides, falling back to a paragraph."""
+        if not lines:
             return "p"
-        seg_left = min(l["x0"] for l in lines)
-        indent_min = self.body_baseline_x0 + self.para_indent_min
-        return "blockquote" if seg_left > indent_min else "p"
+        if len(lines) == 1 and self._is_outline_label(lines[0]):
+            return "heading"
+        tag = super().classify_paragraph(lines)
+        if tag != "p":
+            return tag
+        if min(l["x0"] for l in lines) <= self._block_indent_min:
+            return "p"
+        # A lone deep line that is set flush RIGHT is the closing line of the
+        # writing ('It is so ordered.'), not a quotation.
+        if len(lines) == 1:
+            pw = getattr(self, "_page1_width", 612.0) or 612.0
+            if self.line_alignment(lines[0], pw) in ("C", "R"):
+                return "p"
+        return "blockquote"
 
     # ---------------------------------------------------------- headmatter
     def extract_headmatter(self, headmatter_segs, page1_rules=None) -> dict:

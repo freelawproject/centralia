@@ -6,7 +6,42 @@ body ('MEYER, Justice.'), so the core pipeline handles the opinions.
 
 from __future__ import annotations
 
-from ._statesupreme import StateSupreme
+from ._statesupreme import StateSupreme, is_caps_name
+
+# The abbreviated titles Idaho uses on a separate-writing byline.
+_SEPARATE_TITLES = {"J": "Justice", "CJ": "Chief Justice"}
+
+
+def _separate_byline(text: str):
+    """Parse an in-body separate-writing byline — 'ZAHN, J., dissenting.' /
+    'MEYER, J., specially concurring.' — into (name, title, kind), else None.
+
+    The lead opinion signs itself with the full title ('BEVAN, Chief Justice.',
+    handled by the shared base); a separate writing uses the ABBREVIATED title
+    and names its kind. Three commas-separated fields, an ALL-CAPS surname and a
+    'concurring'/'dissenting' kind together make this specific enough that
+    ordinary prose and the 'Justices BRODY, MOELLER … concur.' roster line above
+    it cannot match."""
+    t = (text or "").strip()
+    if not t.endswith("."):
+        return None
+    parts = [p.strip() for p in t[:-1].split(",")]
+    if len(parts) < 3:
+        return None
+    title = _SEPARATE_TITLES.get(parts[1].replace(".", "").upper())
+    if not title or not is_caps_name(parts[0]):
+        return None
+    kind_text = " ".join(parts[2:]).lower()
+    has_c, has_d = "concurring" in kind_text, "dissenting" in kind_text
+    if has_c and has_d:
+        kind = "concurring in part and dissenting in part"
+    elif has_d:
+        kind = "dissenting"
+    elif has_c:
+        kind = "concurring"
+    else:
+        return None
+    return parts[0], title, kind
 
 
 class IdahoSupreme(StateSupreme):
@@ -23,6 +58,20 @@ class IdahoSupreme(StateSupreme):
     gap_tight_max = 11
     gap_single_max = 17
 
+    # ------------------------------------------------- separate-writing byline
+    def parse_author_line(self, text):
+        sep = _separate_byline(text)
+        if sep is not None:
+            return sep
+        return super().parse_author_line(text)
+
+    def _byline_split(self, line):
+        text = self.line_plain_text(line).strip()
+        if _separate_byline(text) is not None:
+            # The byline stands alone on its row; no body text follows it.
+            return text, ""
+        return super()._byline_split(line)
+
     def extract_headmatter(self, headmatter_segs, page1_rules=None) -> dict:
         """Fold the ')'-railed caption (like Alaska) into a two-column block
         so the centered rail holds the party / docket columns apart."""
@@ -33,9 +82,56 @@ class IdahoSupreme(StateSupreme):
     # Bullet glyphs Idaho uses to mark list items (hanging-indent lists).
     _BULLET_GLYPHS = "•▪◦‣●○"
 
+    def correct_page_geometry(self, page) -> None:
+        """Blank the bullet MARKER glyph and remember where it sat.
+
+        A bulleted item prints its marker in a column one indent step inside
+        the body margin (x0 90) with the item text hanging at 108. The marker
+        is drawn furniture — the structured list the renderer draws supplies
+        its own marker — so keeping the glyph in the item text would print it
+        twice. Blanking the glyph *here* (rather than stripping it off the
+        paragraph text later) means the coverage sweep and the audit read the
+        page the same way the extractor does, so a list item no longer reads as
+        an unplaced source line. The blank keeps the char in place, so the
+        marker column still measures at x0 90 and the hanging-indent geometry
+        the paragraph splitter relies on is untouched."""
+        super().correct_page_geometry(page)
+        try:
+            chars = page.objects.get("char") or []
+        except Exception:
+            return
+        tops = self._bullet_tops.setdefault(page.page_number, set())
+        for c in chars:
+            if (c.get("text") or "") in self._BULLET_GLYPHS:
+                c["text"] = " "
+                tops.add(round(c.get("top", 0.0), 1))
+
+    # page number -> tops of the rows whose bullet marker was blanked
+    _bullet_tops: dict = {}
+
+    def prepare_document(self, pdf) -> None:
+        # The extractor instance is reused across a corpus; the marker rows are
+        # per document.
+        self._bullet_tops = {}
+        super().prepare_document(pdf)
+
+    def page_lines(self, page):
+        lines = super().page_lines(page)
+        # A bullet glyph's box sits a couple of points below the row's cap
+        # height, so tag the nearest row to each recorded marker rather than
+        # keying on an exact top.
+        for t in self._bullet_tops.get(page.page_number) or ():
+            row = min(
+                (l for l in lines if abs(l.get("top", 0.0) - t) <= 8.0),
+                key=lambda l: abs(l.get("top", 0.0) - t),
+                default=None,
+            )
+            if row is not None:
+                row["_bullet_item"] = True
+        return lines
+
     def _is_bullet_line(self, line) -> bool:
-        t = (line.get("text") or "").lstrip()
-        return bool(t) and t[0] in self._BULLET_GLYPHS
+        return bool(line.get("_bullet_item"))
 
     def _is_numbered_list_line(self, line) -> bool:
         text = (line.get("text") or "").lstrip()

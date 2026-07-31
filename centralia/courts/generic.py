@@ -167,7 +167,7 @@ def _is_name(name: str) -> bool:
         return False
     for tok in toks:
         core = tok.strip(".'-").replace("'", "")
-        clean = core.replace(".", "")  # joined initials 'N.R.' -> 'NR'
+        clean = core.replace(".", "").replace("-", "")  # joined initials / hyphenated names
         if not clean or not core[0].isupper() or not clean.isalpha():
             return False
     return True

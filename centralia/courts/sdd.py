@@ -3,6 +3,9 @@
 CM/ECF filing — a single ruling by one judge. The shared district base takes the
 author from the signature block (or an opening byline / 'Present:' minute line)
 and treats the whole ruling as one opinion; the CM/ECF header band is dropped.
+
+Half of this corpus is flatbed SCANS with no usable text layer; those are
+correctly refused as non-born-digital and are not parsed.
 """
 
 from __future__ import annotations
@@ -13,6 +16,36 @@ from ._district import DistrictBase
 class DistrictOfSouthDakota(DistrictBase):
     court_id = "sdd"
     court_label = "United States District Court, District of South Dakota."
+
+    @staticmethod
+    def _pleading_gutter_by_numbers(page):
+        """A left-margin stack of integers is a pleading LINE-NUMBER RAIL only
+        if it numbers the whole text block: it opens in the top margin band and
+        runs down to the bottom one. This judge footnotes heavily and numbers
+        them continuously, so a page's footnote-label column ('8' … '21') is
+        the same digits at the same x, also sequential — but it sits entirely
+        in the lower part of the page. Without the extent test the labels are
+        taken for a gutter and every char left of their right edge is filtered
+        off the page, eating the first letter of every line (sdd 81136 pp. 2-3).
+        """
+        gx = DistrictBase._pleading_gutter_by_numbers(page)
+        if gx is None:
+            return None
+        tops = [
+            w["top"]
+            for w in page.extract_words()
+            if w["text"].isdigit()
+            and int(w["text"]) <= 40
+            and w["x0"] < 90
+            and (w["x1"] - w["x0"]) < 16
+        ]
+        if not tops:
+            return None
+        if min(tops) > page.height * 0.2:
+            return None  # the stack starts mid-page: footnote labels
+        if (max(tops) - min(tops)) < page.height * 0.5:
+            return None  # too short to be numbering every line
+        return gx
 
     def find_authors(self, all_segments) -> list:
         """The document-type title ('ORDER AWARDING / SANCTIONS FOR

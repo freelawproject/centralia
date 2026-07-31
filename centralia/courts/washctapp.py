@@ -122,6 +122,8 @@ class WashingtonCourtOfAppeals(WashingtonSupreme):
                 merged
                 and merged[-1].author == op.author
                 and merged[-1].type == op.type
+                and not getattr(op, "caption", None)
+                and not getattr(merged[-1], "caption", None)
             ):
                 merged[-1].blocks.extend(op.blocks)
                 merged[-1].footnotes.extend(op.footnotes)

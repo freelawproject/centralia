@@ -36,10 +36,46 @@ class IndianaSupreme(AbbrevTitleSupreme):
     def extract(self, pdf_path):
         self._footer_dropped = []
         doc = super().extract(pdf_path)
+        self._harvest_attorney_tail(doc)
         extra = list(dict.fromkeys(self._footer_dropped))
         if extra:
             doc.dropped = list(doc.dropped) + extra
         return doc
+
+    @staticmethod
+    def _plain_tail_heading(text: str) -> str:
+        """Normalize spaced/marked-up Indiana counsel headings."""
+        for tag in ("<strong>", "</strong>", "<em>", "</em>"):
+            text = text.replace(tag, "")
+        return "".join(ch for ch in text.upper() if ch.isalpha())
+
+    def _harvest_attorney_tail(self, doc) -> None:
+        """Move the final Indiana counsel roster out of the opinion body."""
+        if not doc.opinions:
+            return
+        op = doc.opinions[-1]
+        start = next(
+            (
+                i
+                for i, block in enumerate(op.blocks)
+                if (
+                    "ATTORNEYFOR"
+                    in self._plain_tail_heading(str(block.text or ""))
+                    or "ATTORNEYSFOR"
+                    in self._plain_tail_heading(str(block.text or ""))
+                )
+            ),
+            None,
+        )
+        if start is None:
+            return
+        tail = op.blocks[start:]
+        op.blocks = op.blocks[:start]
+        doc.trailer = [
+            str(block.text or "").strip()
+            for block in tail
+            if str(block.text or "").strip()
+        ]
 
     def page_lines(self, page):
         lines = super().page_lines(page)

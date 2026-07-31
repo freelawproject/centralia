@@ -295,10 +295,20 @@ class MichiganSupreme(AbbrevTitleSupreme):
         self._mich_order = None
         self._mich_furniture = []
         doc = super().extract(pdf_path)
-        if self._mich_furniture:
-            doc.dropped = list(doc.dropped) + self._mich_furniture
         self._split_syllabus(doc)
         return doc
+
+    def _sweep_residual(self, doc, source_pages):
+        """Account for masthead lines before the residual sweep runs.
+
+        ``page_lines`` removes Michigan's repeated masthead, but the base
+        sweep runs before ``extract`` can append that harvested furniture to
+        ``doc.dropped``. Without this hook the harmless masthead is reported
+        as unplaced content.
+        """
+        if self._mich_furniture:
+            doc.dropped = list(doc.dropped) + self._mich_furniture
+        super()._sweep_residual(doc, source_pages)
 
     def find_authors(self, all_segments) -> list:
         self._mich_order = None

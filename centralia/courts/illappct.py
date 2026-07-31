@@ -21,13 +21,142 @@ class IllinoisAppellateCourt(IllinoisStyle, ReversedJusticeSupreme):
     court_id = "illappct"
     court_label = "Illinois Appellate Court."
 
+    _ill_stamp: list = []
+
     # ------------------------------------------- case-information end page
     def extract(self, pdf_path):
         self._ill_endmatter = []
+        self._ill_endmatter_pages = set()
+        self._ill_stamp = []
         doc = super().extract(pdf_path)
         if self._ill_endmatter:
             doc.trailer = list(doc.trailer) + self._ill_endmatter
         return doc
+
+    # --------------------------------------------- page-1 marginal furniture
+    def correct_page_geometry(self, page) -> None:
+        """Lift the clerk's file stamp / advisory notice out of the caption head.
+
+        Page 1 carries up to one marginal block above the caption, set at a
+        size other than the page's own:
+
+          * a flush-right clerk's stamp — 16pt 'FILED' over an 11pt
+            'July 23, 2026 / Carla Bender / 4th District Appellate / Court, IL';
+          * a flush-left 7pt advisory ('NOTICE / Decision filed 07/17/26. The
+            text of this decision may be changed or corrected ...').
+
+        Either one is laid on its own baseline grid, offset from the caption's,
+        so pdfplumber folds its rows into the centered court headings beside
+        them — 'IN THE APPELLATE COURT Court, IL', 'the filing of a Petition
+        for IN THE', and worse, three grids colliding on one row as
+        'NO. 4-25-0384 JCualryl a2 3B,e 2n0d2e6r'. The stamp is furniture, so
+        it is recorded and removed rather than left to corrupt the caption.
+
+        Removed at the geometry hook, not in ``page_lines``, because the
+        completeness sweep and the audit read the page through this same hook —
+        strip it in ``page_lines`` and the raw interleaved row survives as
+        ground truth that nothing in the output can ever match.
+
+        The band is bounded by the caption itself: everything above the first
+        body-size line reaching the left text margin (the first party row, or
+        the underscore rule that opens the caption). Within that band the
+        document sets nothing at any size but its own.
+        """
+        super().correct_page_geometry(page)
+        if page.page_number != 1:
+            return
+        chars = page.chars
+        if not chars:
+            return
+        body = Counter(
+            round(c["size"], 1) for c in chars if not c["text"].isspace()
+        ).most_common(1)
+        if not body:
+            return
+        body_size = body[0][0]
+        left = min((c["x0"] for c in chars if not c["text"].isspace()), default=0)
+        band = min(
+            (
+                c["top"]
+                for c in chars
+                if round(c["size"], 1) == body_size and c["x0"] <= left + 6
+            ),
+            default=None,
+        )
+        if band is None:
+            return
+        marks = [
+            c
+            for c in chars
+            if c["top"] < band - 2 and round(c["size"], 1) != body_size
+        ]
+        if not marks:
+            return
+        text = self._stamp_text(marks)
+        if text and text not in self._ill_stamp:
+            self._ill_stamp = list(self._ill_stamp) + [text]
+        drop = {id(c) for c in marks}
+        chars[:] = [c for c in chars if id(c) not in drop]
+        objs = page.objects.get("char")
+        if objs is not None and objs is not chars:
+            objs[:] = [c for c in objs if id(c) not in drop]
+
+    @staticmethod
+    def _stamp_text(marks) -> str:
+        """The stamp's rows, in reading order, joined into one entry."""
+        rows: dict = {}
+        for c in marks:
+            rows.setdefault(round(c["top"] / 2.0), []).append(c)
+        out = []
+        for key in sorted(rows):
+            row = "".join(
+                c["text"] for c in sorted(rows[key], key=lambda c: c["x0"])
+            )
+            if row.strip():
+                out.append(" ".join(row.split()))
+        return " ".join(out)
+
+    def _sweep_residual(self, doc, source_pages) -> None:
+        """The case-information page has to be on the document BEFORE the
+        completeness sweep runs — it used to be appended in ``extract()`` after
+        ``super().extract()`` returned, i.e. after the sweep had already looked,
+        so the whole closing page (citation, decision under review, both counsel
+        blocks) reported as unplaced content in every file.
+
+        Its two-column rows also need the sweep's table rule. The label column
+        stacks its words down their own baselines ('Attorneys' / 'for' /
+        'Appellee:'), which pdfplumber merges row-major into the counsel text
+        beside them ('Attorneys Ashley M. Worby, State's Attorney, of Galesburg
+        (Patrick'), while the output sets each column whole ('Attorneys for
+        Appellee: Ashley M. Worby, ...'). The text is all there, just not
+        contiguous, so — exactly as ``audit.py`` already does for a table
+        block's page — a row on the case-info page counts as covered when every
+        one of its words appears in the folded output."""
+        if self._ill_endmatter:
+            doc.trailer = list(doc.trailer) + self._ill_endmatter
+            self._ill_endmatter = []
+        if self._ill_stamp:
+            doc.dropped = list(doc.dropped) + [
+                t for t in self._ill_stamp if t not in doc.dropped
+            ]
+        super()._sweep_residual(doc, source_pages)
+        pages = self._ill_endmatter_pages
+        if not (pages and doc.residual):
+            return
+        hay = self._alnum(" ".join(doc.trailer))
+        kept = []
+        for r in doc.residual:
+            if r.get("page") in pages:
+                toks = [self._alnum(t) for t in (r.get("text") or "").split()]
+                toks = [t for t in toks if t]
+                if len(toks) >= 2 and all(t in hay for t in toks):
+                    continue
+            kept.append(r)
+        doc.residual = kept
+
+    @staticmethod
+    def _alnum(s: str) -> str:
+        return "".join(ch for ch in s.lower() if ch.isalnum())
 
     def _case_info_table(self, page):
         """Every Illinois Official Reports opinion closes with a
@@ -125,6 +254,7 @@ class IllinoisAppellateCourt(IllinoisStyle, ReversedJusticeSupreme):
         if not rows:
             return lines
         self._ill_endmatter = self._fold_case_info(rows, seam_x, rule_tops)
+        self._ill_endmatter_pages.add(page.page_number)
         return body
 
     def extract_headmatter(self, headmatter_segs, page1_rules=None) -> dict:

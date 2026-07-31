@@ -18,6 +18,73 @@ class NCBusinessCourt(DistrictBase):
     court_id = "ncbizct"
     court_label = "North Carolina Business Court."
 
+    # Every published NCBC order is headed by its own reporter CITATION line
+    # ('Brock v. Kyryk, 2026 NCBC 62.'), set at body size at the left margin
+    # roughly 28-43pt down — i.e. straddling the shared 39pt top margin, so the
+    # district default clipped it (and clipped only the first of the two rows a
+    # long case name wraps onto). It is the court's own citation, not page
+    # furniture: opening the margin keeps it as the first headmatter row. These
+    # filings carry no CM/ECF strip, so nothing else lives up there.
+    margin_top: float = 24.0
+
+    # ------------------------------------------------- reporter citation head
+    def _citation_head(self, headmatter_segs):
+        """Split the page-1 CITATION rows off the front of the headmatter.
+
+        Every NCBC order opens with its own reporter citation ('Brock v.
+        Kyryk, 2026 NCBC 62.') printed above the caption — one continuous run
+        at the left margin, wrapping onto a second row when the case name is
+        long. The caption proper starts at the first row the page sets in TWO
+        columns (party | court, i.e. a row that splits at a wide x-gap), so
+        every page-1 row above that row is citation. Returns
+        ``(citation_lines, remaining_segments)``; keeping the citation out of
+        ``_styled_caption_rows`` stops the caption block from swallowing it
+        (and, on a wrapped citation, from splitting it across two containers).
+        """
+        flat = []
+        for si, seg in enumerate(headmatter_segs):
+            for li, line in enumerate(seg):
+                chars = line.get("chars") or []
+                pno = (chars[0].get("page_number") if chars else None) or 1
+                flat.append((pno, line.get("top", 0.0), si, li, line))
+        cut = None
+        for pno, top, si, li, line in sorted(flat, key=lambda r: (r[0], r[1])):
+            if pno != 1:
+                break
+            if not self.line_plain_text(line).strip():
+                continue
+            if len(self._caption_char_runs(line)) > 1:
+                cut = top
+                break
+        if cut is None:
+            return [], headmatter_segs
+        cite = [r for r in flat if r[0] == 1 and r[1] < cut]
+        if not cite:
+            return [], headmatter_segs
+        keep_ids = {id(r[4]) for r in cite}
+        rest = []
+        for seg in headmatter_segs:
+            trimmed = [l for l in seg if id(l) not in keep_ids]
+            if trimmed:
+                rest.append(trimmed)
+        return [r[4] for r in sorted(cite, key=lambda r: r[1])], rest
+
+    def extract_headmatter(self, headmatter_segs, page1_rules=None) -> dict:
+        """Emit the reporter citation as the first headmatter row — joined into
+        ONE row when it wraps — then the caption as usual."""
+        cite, rest = self._citation_head(headmatter_segs)
+        out = super().extract_headmatter(rest, page1_rules=page1_rules)
+        if cite:
+            html = " ".join(
+                self.line_inline_text(l) for l in cite
+            ).strip()
+            if html:
+                out["summary"] = [
+                    {"__hm__": True, "html": html, "rel": 1.0, "align": "L"},
+                    "",
+                ] + list(out.get("summary") or [])
+        return out
+
     @staticmethod
     def _numbered_marker_len(text) -> int:
         """Length of a leading 'N. ' paragraph marker (N = 1-3 digits), else 0.

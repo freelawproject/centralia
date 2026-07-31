@@ -103,6 +103,48 @@ class MissouriStyle:
                 return name.strip(), title.strip().title(), None
         return super().parse_author_line(text)
 
+    def _mo_first_body(self, all_segments):
+        """Where the Court's own writing starts — past ALL of the front matter.
+
+        Missouri's caption is a ')' rail, and below it sits the trial-court
+        block ('APPEAL FROM THE CIRCUIT COURT OF ST. LOUIS COUNTY' / 'The
+        Honorable Kristine Kerr, Judge'), centered. Both are headmatter. But
+        the caption's last party row is double-spaced away from the rail rows
+        above it and lands in the same segment as the 'APPEAL FROM' line, so
+        that segment measures as 'body' — and taking it as the opinion start
+        pulled the closing party row and the whole trial-court block into the
+        first paragraph, and left the rail a row short.
+
+        Every front-matter row gives itself away: it carries the rail glyph, or
+        it is centered on the page's axis and stops short of the measure. A
+        paragraph of opinion prose cannot do that — however its first line is
+        indented, the lines that follow run out to the right margin."""
+        pw = getattr(self, "_page1_width", 612.0) or 612.0
+        right = max(
+            (l["x1"] for _p, seg, _k in all_segments for l in seg), default=pw - 72
+        )
+
+        def is_front_matter(line) -> bool:
+            if ")" in self.line_plain_text(line).split():
+                return True
+            centered = abs((line["x0"] + line["x1"]) / 2 - pw / 2) < 25
+            return centered and line["x1"] < right - 20
+
+        first_body = None
+        for i, (_p, seg, kind) in enumerate(all_segments):
+            if kind != "body":
+                continue
+            if first_body is None:
+                first_body = i
+            if all(
+                is_front_matter(l)
+                for l in seg
+                if self.line_plain_text(l).strip()
+            ):
+                continue  # still in the caption / trial-court block
+            return i
+        return first_body
+
     def find_authors(self, all_segments) -> list:
         """Missouri signs the author at the END of each opinion ('NAME, Judge',
         centered), not at the start. So the byline pipeline is inverted: each
@@ -118,9 +160,7 @@ class MissouriStyle:
             txt = self.line_plain_text(seg[0]).strip()
             if self._mo_sig_role(txt) == "author":
                 sigs.append((i, self.parse_author_line(txt)[0]))
-        first_body = next(
-            (i for i, (_p, _s, k) in enumerate(all_segments) if k == "body"), None
-        )
+        first_body = self._mo_first_body(all_segments)
         if not sigs:
             starts = super().find_authors(all_segments)
             if starts:
@@ -182,7 +222,11 @@ class MissouriStyle:
         """Style-preserving headmatter, with the parties/docket caption box
         folded into a clean two-column block and the court seal placed on top."""
         d = self._styled_headmatter(headmatter_segs, page1_rules)
-        d["summary"] = self._mo_fold_caption(d["summary"])
+        # The shared rail fold, not the local one: it keeps ONE rail glyph per
+        # printed row, including the rail-only rows the caption stacks between
+        # party names, so the bracket keeps its true height and the two columns
+        # stay opposite the rows they were printed on.
+        d["summary"] = self._fold_rail_caption(d["summary"], ")")
         if getattr(self, "_mo_logo", None):
             d["summary"] = [{"__image__": True, "src": self._mo_logo}] + d["summary"]
         return d
@@ -244,6 +288,14 @@ class MissouriStyle:
         if not (r and r[1]) or self._is_non_author_byline(text):
             return None
         low = text.lower()
+        # A line naming TWO judges is the panel roster, not a signature — the
+        # 'Before Division Three: Mark D. Pfeiffer, Presiding Judge, / Cynthia
+        # L. Martin, Judge, and Janet Sutton, Judge' line wraps, and its second
+        # row reads as 'NAME, Judge' exactly like a signed opinion. Taking it
+        # closed an opinion that had not started, which handed the Court's
+        # writing to the next judge who signed.
+        if sum(low.count(t) for t in ("judge", "justice")) > 1:
+            return None
         if "opinion author" in low:
             return "author"
         if "concur" in low or "dissent" in low:

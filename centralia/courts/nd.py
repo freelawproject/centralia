@@ -20,6 +20,20 @@ from __future__ import annotations
 from ._statesupreme import StateSupreme
 
 
+def _dedupe(rows):
+    """Order-preserving de-duplication tolerant of unhashable rows."""
+    seen, out = set(), []
+    for r in rows:
+        try:
+            if r in seen:
+                continue
+            seen.add(r)
+        except TypeError:  # image/dict rows are never repeated
+            pass
+        out.append(r)
+    return out
+
+
 def _nd_name(s: str) -> bool:
     """A Title-Case surname byline name ('Bahr', 'Fair McEvers', "O'Brien"),
     1–4 tokens, each opening with a capital."""
@@ -49,20 +63,34 @@ class NorthDakotaSupreme(StateSupreme):
     blockquote_by_indent = True
     indent_step = 22
 
+    # North Dakota's genuine tables are narrow (the fictitious-citation table in
+    # city_of_dickinson has four columns). A JUSTIFIED block quote, though, is
+    # set with wide inter-word gaps, and pdfplumber's whitespace-derived column
+    # finder reads every gap as a column edge — a quoted standard-of-review
+    # passage came back as a 46-column 'table' whose cells were mostly empty,
+    # which swallowed the quote (and lost its closing line, whose final period
+    # fell outside a cell). Cap the plausible column count.
+    _max_table_cols = 8
+
     def extract(self, pdf_path):
         self._nd_dropped = []
         doc = super().extract(pdf_path)
         self._harvest_nd_signature(doc)
         # Record the dropped running headers (deduped) so they are accounted for
-        # rather than silently lost.
-        seen, uniq = set(), []
-        for t in self._nd_dropped:
-            if t not in seen:
-                seen.add(t)
-                uniq.append(t)
-        if uniq:
-            doc.dropped = list(doc.dropped) + uniq
+        # rather than silently lost. _sweep_residual already published them;
+        # this collapses the repeat and catches any recorded after the sweep.
+        doc.dropped = _dedupe(list(doc.dropped) + list(self._nd_dropped))
         return doc
+
+    def _sweep_residual(self, doc, source_pages):
+        """Publish the dropped page-2 running header BEFORE the completeness
+        sweep reads ``doc.dropped`` — the sweep runs inside ``super().extract()``,
+        so appending afterwards left the header ('Alber v. Rodin, et al.')
+        reporting as unplaced content."""
+        head = [t for t in getattr(self, "_nd_dropped", None) or [] if t]
+        if head:
+            doc.dropped = _dedupe(list(doc.dropped) + head)
+        super()._sweep_residual(doc, source_pages)
 
     # ------------------------------------------------------ signature roster
     @staticmethod
@@ -167,8 +195,19 @@ class NorthDakotaSupreme(StateSupreme):
         long vector rules with only sub-body text between them — and the grid
         body at the top of the next. find_tables misses the band (it has no
         vertical lines), so it leaks into the body as one merged paragraph.
-        Detect it geometrically and emit it as its own one-row table block."""
-        tables = super().extract_page_tables(page)
+        Detect it geometrically and emit it as its own one-row table block.
+
+        Candidates with an implausible column count are discarded first: a
+        JUSTIFIED block quote is set with wide inter-word gaps, and
+        pdfplumber's whitespace-derived column finder reads every gap as a
+        column edge, so a quoted standard-of-review passage came back as a
+        47-column 'table' of mostly empty cells. That swallowed the quote and
+        lost its closing line (whose final period fell outside every cell)."""
+        tables = [
+            t
+            for t in super().extract_page_tables(page)
+            if max((len(r) for r in t["rows"]), default=0) <= self._max_table_cols
+        ]
         band = self._table_header_band(page, tables)
         if band:
             tables.append(band)

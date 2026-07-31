@@ -105,6 +105,50 @@ class ArizonaCourtOfAppeals(ArizonaStyle, StateAppellate):
             not in marker_keys
         ]
 
+    def split_author_line(self, line):
+        """Collapse the byline's letter-spaced surname for DISPLAY too.
+
+        ``parse_author_line`` below already folds 'M O R S E' back to 'MORSE'
+        for the parsed name, but the rendered ``Opinion.author`` carries the
+        raw byline text — so every opinion in the corpus reads
+        'M O R S E, Judge:' / 'V Á S Q U E Z, Presiding Judge:'. The court
+        tracks its surnames typographically; the gaps are ~2.9pt at 12pt,
+        just over the shared builder's word-space threshold, so they arrive as
+        real spaces. Whitespace is normalised away by the completeness audit,
+        so joining them changes nothing it measures."""
+        text, extra = super().split_author_line(line)
+        return self._join_tracked_caps(text), extra
+
+    @staticmethod
+    def _join_tracked_caps(text: str) -> str:
+        """Join a run of 3+ single capital letters into one word — the shape
+        letter-spacing leaves behind. Three is the floor so ordinary initials
+        and one-letter words can never be swept up; every tracked surname in
+        the corpus is at least four letters."""
+        out, run = [], []
+
+        def flush(tail=""):
+            if len(run) >= 3:
+                out.append("".join(run) + tail)
+            else:
+                out.extend(run)
+                if tail:
+                    out.append(tail)
+            run.clear()
+
+        for token in text.split(" "):
+            head = token.rstrip(",.:;")
+            tail = token[len(head) :]
+            if len(head) == 1 and head.isalpha() and head.isupper():
+                run.append(head)
+                if tail:  # the run's last letter carries the byline's comma
+                    flush(tail)
+                continue
+            flush()
+            out.append(token)
+        flush()
+        return " ".join(out)
+
     def parse_author_line(self, text):
         r = super().parse_author_line(text)
         if r is not None:

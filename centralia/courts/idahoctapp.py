@@ -25,6 +25,10 @@ class IdahoCourtOfAppeals(StateAppellate):
     # so 14→single (block quote) and 21→body.
     gap_tight_max = 11
     gap_single_max = 17
+    # Idaho's quoted authorities use a one-step inset (x≈108 versus the
+    # x≈72 body margin), not the deeper two-step inset used by many courts.
+    blockquote_by_indent = True
+    para_indent_min = 24
 
     # A centered line at most this fraction of the measure is a bare section
     # number, not the first row of a wrapped heading.

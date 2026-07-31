@@ -58,6 +58,122 @@ class NewJerseySuperiorCourtAppellateDivision(StateSupreme):
             i += 1
         return out
 
+    # The court banner opens the caption proper; the publication advisory is
+    # whatever sits ABOVE it.
+    _BANNER = "SUPERIOR COURT OF NEW JERSEY"
+
+    # The clerk's publication stamp: 10pt bold against the caption's 14pt, the
+    # only sub-12pt text on page 1 anywhere in the corpus.
+    _STAMP_MAX_SIZE = 10.5
+
+    def extract(self, pdf_path):
+        self._nj_stamp = []
+        return super().extract(pdf_path)
+
+    def correct_page_geometry(self, page) -> None:
+        """Lift the clerk's publication stamp off the page before ANY line
+        clustering, and record it.
+
+        Removing it later by size does not work. The stamp's date row is
+        printed between the party rows and overlaps the caption's 'v.'
+        baseline, so the two merge into one line whose dominant size is the
+        stamp's 10pt — routing that line to ``dropped`` took the caption's
+        'v.' with it ('APPROVED FOR PUBLICATION v.July 13, 2026'). Deleting the
+        stamp's own glyphs first leaves 'v.' a line of its own.
+
+        The completeness audit reads through this same hook, so its ground
+        truth and the extractor agree on what the page says."""
+        super().correct_page_geometry(page)
+        if getattr(self, "_nj_stamp", None) is None:
+            self._nj_stamp = []
+        chars = page.chars
+        stamp = [
+            i
+            for i, c in enumerate(chars)
+            if (c.get("text") or "").strip()
+            and (c.get("size") or 99) <= self._STAMP_MAX_SIZE
+            and "Bold" in (c.get("fontname") or "")
+        ]
+        if not stamp:
+            return
+        rows: list = []
+        for i in stamp:
+            c = chars[i]
+            if rows and abs(c["top"] - rows[-1][0]) < 4:
+                rows[-1][1].append(c)
+            else:
+                rows.append((c["top"], [c]))
+        for _top, cs in rows:
+            t = " ".join(
+                self.line_plain_text({"chars": sorted(cs, key=lambda c: c["x0"])}).split()
+            )
+            if t:
+                self._nj_stamp.append(t)
+        for i in sorted(stamp, reverse=True):
+            del chars[i]
+
+    def _sweep_residual(self, doc, source_pages) -> None:
+        """Surface the stamp BEFORE the completeness sweep, so it is matched
+        against ``doc.dropped`` rather than reported as unplaced."""
+        extra = list(dict.fromkeys(getattr(self, "_nj_stamp", None) or []))
+        if extra:
+            doc.dropped = list(doc.dropped) + extra
+        super()._sweep_residual(doc, source_pages)
+
+    def extract_headmatter(self, headmatter_segs, page1_rules=None) -> dict:
+        """Route both pieces of publication furniture out of the caption.
+
+        Two stamps, neither of them case content, and neither removable the
+        same way:
+
+        * the advisory ('NOT FOR PUBLICATION WITHOUT THE / APPROVAL OF THE
+          APPELLATE DIVISION') is set at the caption's own 14pt, so size cannot
+          tell it apart — but it always sits ABOVE the court banner, which no
+          caption content does. Position identifies it;
+        * the clerk's stamp ('APPROVED FOR PUBLICATION / <date> / APPELLATE
+          DIVISION') is 10pt bold, pinned right of centre and interleaved
+          between the party rows. ``notice_max_size`` lifts it out by size.
+
+        Keyed on structure, not the phrases: one file in the corpus prints
+        'APPROVD FOR PUBLICATION', and a phrase test would keep that one stamp
+        while dropping the other nineteen.
+        """
+        banner_top = None
+        for seg in headmatter_segs:
+            for line in seg:
+                if self._BANNER in self.line_plain_text(line):
+                    banner_top = line["top"]
+                    break
+            if banner_top is not None:
+                break
+
+        advisory: list = []
+        if banner_top is not None:
+            kept = []
+            for seg in headmatter_segs:
+                keep_seg = []
+                for line in seg:
+                    chars = line.get("chars") or []
+                    pno = (
+                        chars[0].get("page_number", 1)
+                        if chars
+                        else line.get("page_number", 1)
+                    ) or 1
+                    if pno == 1 and line["top"] < banner_top - 1:
+                        t = self.line_plain_text(line).strip()
+                        if t:
+                            advisory.append(t)
+                        continue
+                    keep_seg.append(line)
+                if keep_seg:
+                    kept.append(keep_seg)
+            headmatter_segs = kept
+
+        d = super().extract_headmatter(headmatter_segs, page1_rules=page1_rules)
+        if advisory:
+            d["dropped"] = list(d.get("dropped") or []) + [" ".join(advisory)]
+        return d
+
     def find_footnote_separator(self, page):
         """This court's separator is the 2-inch (144pt) rule at the left body
         margin — 108 of them across the corpus, against a scatter of other

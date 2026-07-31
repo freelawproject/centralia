@@ -23,6 +23,7 @@ Spanish-language slip opinions on legal-size paper (612x1008):
 
 from __future__ import annotations
 
+from ..models import DocType
 from ._statesupreme import StateSupreme
 
 _HEADINGS = {"RESOLUCIÓN", "SENTENCIA", "OPINIÓN", "PER CURIAM"}
@@ -66,6 +67,17 @@ class PuertoRicoSupreme(StateSupreme):
     # not structure. Don't let a bold line break the paragraph (headings are
     # centered/short and still separate by alignment + gap).
     bold_breaks_segment = False
+
+    # Every writing closes with a two-line sign-off stack — the clerk's
+    # printed name over his title ('Javier O. Sepúlveda Rodríguez' /
+    # 'Secretario del Tribunal Supremo'), a justice's over hers ('Ángel Colón
+    # Pérez' / 'Juez Asociado') — set short and right of the body column.
+    # Joined as if wrapped they read as one run-on name-and-title; nothing in
+    # the Spanish prose here is short enough on BOTH lines to be caught by the
+    # same test, so the stack splitter is safe to switch on. It also keeps the
+    # court's quoted statutory fragments ('[…]', '(i) Actos lascivos …',
+    # '(ii) …') as the separate lines the source sets.
+    split_line_stacks = True
 
     # every continuation page tops with a docket-number running header —
     # 'CC-2025-0671 2' / 'AB-2023-135 2' (PR docket + page number). Drop it as
@@ -158,6 +170,18 @@ class PuertoRicoSupreme(StateSupreme):
         ):
             if any(w in low for w in ("opinión", "opinion", "voto", "sentencia")):
                 return cls._byline_name(t), kind_of("majority")
+        # The same byline in the PRESENT tense ('La Jueza Presidenta ORONOZ
+        # RODRÍGUEZ emite una Opinión de conformidad'). The certification
+        # paragraph that closes every writing announces the separate writings
+        # with the same words ('… El Juez Asociado señor Colón Pérez emite
+        # Opinión Disidente.'), and that sentence must NOT open a writing — so
+        # require the ALL-CAPS surname the court reserves for a real byline.
+        # The announcement always sets the name in title case.
+        if low.startswith(("el juez", "la jueza")) and "emite" in low:
+            if any(w in low for w in ("opinión", "opinion", "voto", "sentencia")):
+                caps = _caps_run(t)
+                if caps:
+                    return caps, kind_of("majority")
         return None
 
     @staticmethod
@@ -170,15 +194,18 @@ class PuertoRicoSupreme(StateSupreme):
             return name
         low = t.lower()
         i = max(low.find(" por "), low.rfind(" por la "), low.rfind(" por el "))
-        if i < 0:
-            return ""
+        # 'El Juez Asociado Señor Candelario López emitió la Opinión' — the
+        # title-first shape, where the name precedes the verb and there is no
+        # 'por' to key on. Read from the head of the line instead: the
+        # honorific run, then the name, then the lowercase verb ends it.
+        rest = t[i + 5 :] if i >= 0 else t
         skip = {
             "la", "el", "jueza", "juez", "asociada", "asociado",
             "presidenta", "presidente", "señor", "señora", "sr", "sra",
             "don", "doña", "interina", "interino",
         }
         out = []
-        for tok in t[i + 5 :].split():
+        for tok in rest.split():
             core = tok.strip(".,;:()")
             if not core:
                 break
@@ -248,6 +275,32 @@ class PuertoRicoSupreme(StateSupreme):
             self._pr_meta[i] = (author, kind)
             out.append(i)
         return out
+
+    def classify_document_type(self, all_segments, author_indices, n_pages) -> str:
+        """This court publishes two distinct styles and the corpus holds both.
+
+        An OPINION carries a named author ('la Jueza Asociada señora Pabón
+        Charneco emitió la Opinión del Tribunal', 'PER CURIAM') and closes
+        with its own SENTENCIA. A RESOLUCIÓN — the administrative and
+        disciplinary docket: the summer-session assignments, the inactive-status
+        approvals, the appointment of the executive director, a denied
+        certiorari — is issued by the Court as a body and has no author at all.
+        Eight of the twenty fixtures are that second style.
+
+        Both reach ``find_authors`` because a centered writing heading opens a
+        writing either way, so the shared 'a byline means an opinion' rule
+        reported all twenty as opinions. The lead writing is the document's
+        style: an unauthored 'order' writing in front means a resolución, even
+        when a justice dissents from it.
+        """
+        kinds = getattr(self, "_pr_meta", {})
+        if author_indices:
+            lead = kinds.get(author_indices[0])
+            if lead is not None:
+                author, kind = lead
+                if kind == "order" and not author:
+                    return DocType.ORDER
+        return super().classify_document_type(all_segments, author_indices, n_pages)
 
     def split_body_paragraphs(self, seg):
         """Keep stacked centered outline labels as separate headings.
@@ -345,14 +398,23 @@ class PuertoRicoSupreme(StateSupreme):
         for op, (author, kind) in zip(doc.opinions, metas):
             op.author = author
             op.type = kind
-        if self._pr_dropped:
-            seen, extra = set(), []
-            for t in self._pr_dropped:
-                if t not in seen:
-                    seen.add(t)
-                    extra.append(t)
-            doc.dropped = list(doc.dropped) + extra
         return doc
+
+    def _sweep_residual(self, doc, source_pages) -> None:
+        """Flush the cover notice and the repeated caption pages onto the
+        document BEFORE the completeness sweep.
+
+        The sweep runs INSIDE ``super().extract()``, so adding this furniture
+        to ``doc.dropped`` after that call returned was too late: the four
+        lines of the cover's compilation notice ('Este documento está sujeto a
+        los cambios y correcciones …') were reported unplaced on every one of
+        the 17 fixtures that carries one — 68 lines — while sitting in the
+        Removed box the whole time.
+        """
+        extra = list(dict.fromkeys(getattr(self, "_pr_dropped", []) or []))
+        if extra:
+            doc.dropped = list(doc.dropped) + extra
+        super()._sweep_residual(doc, source_pages)
 
     # ------------------------------------------------------- page furniture
     def page_lines(self, page):

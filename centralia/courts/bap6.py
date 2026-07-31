@@ -26,6 +26,87 @@ class SixthCircuitBAP(StateSupreme):
     court_label = "Bankruptcy Appellate Panel of the Sixth Circuit."
     author_titles = _TITLES
     drop_notice_in_body = False
+    # BAP6's ordinary body is double-spaced at roughly 20.7pt.  The shared
+    # classifier's 22pt cutoff therefore mistakes nearly every body segment
+    # for a single-spaced blockquote.
+    gap_single_max = 18
+    # True BAP6 block quotes are set in from both margins and single-spaced;
+    # identify those geometrically after the ordinary body leading is fixed.
+    blockquote_by_indent = True
+
+    def _is_indented_blockquote(self, seg):
+        # Issue-list continuations use a deeper hanging indent (x≈144), while
+        # an actual BAP6 block quote begins at the normal quote edge (x≈108).
+        # The shared broad test consequently treated list continuations as
+        # quotes; keep the geometric test but reject that deeper edge.
+        if not super()._is_indented_blockquote(seg):
+            return False
+        return min(line["x0"] for line in seg) <= self.body_baseline_x0 + 40
+
+    def extract_headmatter(self, headmatter_segs, page1_rules=None):
+        result = super().extract_headmatter(headmatter_segs, page1_rules)
+        rows = result.get("summary", [])
+        start = next(
+            (
+                i
+                for i, row in enumerate(rows)
+                if isinstance(row, dict)
+                and row.get("__hm__")
+                and "IN RE:" in str(row.get("html", ""))
+            ),
+            None,
+        )
+        end = next(
+            (
+                i
+                for i, row in enumerate(rows)
+                if i > (start if start is not None else -1)
+                and isinstance(row, dict)
+                and row.get("__hm__")
+                and "Appeal from" in str(row.get("html", ""))
+            ),
+            None,
+        )
+        if start is None or end is None:
+            return result
+
+        left, right, source_rows = [], [], []
+        for row in rows[start:end]:
+            if not isinstance(row, dict) or not row.get("__hm__"):
+                if row == "":
+                    left.append("")
+                    right.append("")
+                continue
+            text = str(row.get("html", ""))
+            source_rows.append(text)
+            marker = "│>" if "│>" in text else None
+            if marker is None:
+                for candidate in ("┐", "┘", "│"):
+                    if candidate in text:
+                        marker = candidate
+                        break
+            if marker is None:
+                left.append(text)
+                right.append("")
+                continue
+            ltext, rtext = text.split(marker, 1)
+            left.append(ltext.strip())
+            right.append(rtext.strip())
+
+        result["summary"] = rows[:start] + [
+            {
+                "__caption__": True,
+                "left": left,
+                "right": right,
+                "rail": "|",
+                "shape": "old-faithful",
+                "rail_rows": len(left),
+                # The drawn border replaces the source rail glyphs visually;
+                # retain the original rows for completeness accounting.
+                "source": source_rows,
+            }
+        ] + rows[end:]
+        return result
 
     def _byline_split(self, line):
         # 'JOHN T. GREGG, Bankruptcy Appellate Panel Judge. <body inline>'

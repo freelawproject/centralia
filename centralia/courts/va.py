@@ -36,9 +36,63 @@ class VirginiaSupreme(StateSupreme):
     court_id = "va"
     court_label = "Supreme Court of Virginia."
 
+    # The convening recital that opens every Virginia ORDER ('VIRGINIA: / In the
+    # Supreme Court of Virginia held at the Supreme Court Building in the / City
+    # of Richmond on Thursday, the 11th day of December, 2025.'). An argued
+    # opinion opens on 'PRESENT: All the Justices' and announces its author with
+    # 'OPINION BY'; an order has neither.
+    _ORDER_RECITAL = "in the supreme court of virginia held at"
+
     def extract(self, pdf_path):
         self._va_meta = {}
-        return super().extract(pdf_path)
+        self._va_is_order = False
+        doc = super().extract(pdf_path)
+        # A per-curiam order's single writing is an order, not a majority
+        # opinion (the delaware.py model).
+        if self._va_is_order:
+            for op in doc.opinions:
+                if op.author == "PER CURIAM":
+                    op.type = "order"
+        return doc
+
+    def classify_document_type(self, all_segments, author_indices, n_pages) -> str:
+        """Virginia publishes two document styles: an argued OPINION (caption
+        announces the author with 'OPINION BY [CHIEF/SENIOR ]JUSTICE NAME') and
+        a per-curiam ORDER (the convening recital, no announced author). The
+        base classifier calls anything with a byline an opinion, so an order —
+        whose writing is attributed 'PER CURIAM' — has to be told apart by its
+        recital."""
+        recital = any(
+            self._ORDER_RECITAL in self.line_plain_text(ln).lower()
+            for _p, seg, _k in all_segments
+            for ln in seg
+        )
+        announced = bool(self._va_author_in(all_segments))
+        self._va_is_order = recital and not announced
+        if self._va_is_order:
+            from ..models import DocType
+
+            return DocType.ORDER
+        return super().classify_document_type(all_segments, author_indices, n_pages)
+
+    def correct_page_geometry(self, page) -> None:
+        """Strip Word's INVISIBLE footnote-anchor ghost.
+
+        Virginia's opinions are set in Word, which writes a sub-visible (~1pt
+        Arial) '0F' / '12F' pair beside the real superscript footnote mark. It
+        sits on its own baseline, so the line rebuild folds it into the body row
+        and the sentence comes out as 'the Government Data Act.0F1' — which no
+        longer matches the printed 'Act.1' and lost a line per footnote anchor.
+        Drop the sub-visible chars from the page's object cache so the extractor
+        and the audit (which reads through this same hook) both see the real
+        superscript only."""
+        super().correct_page_geometry(page)
+        try:
+            objs = page.objects.get("char")
+        except Exception:
+            objs = None
+        if objs:
+            objs[:] = [c for c in objs if (c.get("size") or 9.0) > 1.5]
 
     # ----------------------------------------------------------- opinion starts
     def find_authors(self, all_segments) -> list:
@@ -85,8 +139,20 @@ class VirginiaSupreme(StateSupreme):
 
     @staticmethod
     def _is_appeal_from(text: str) -> bool:
-        t = (text or "").strip().upper()
-        return t.startswith("FROM THE ") or "APPEAL FROM" in t
+        """The ALL-CAPS line that closes the caption and opens the body.
+
+        Three printed forms, all set in capitals on their own line:
+        'FROM THE COURT OF APPEALS OF VIRGINIA' (a plain appeal), and the
+        'UPON …' recitals the Court uses for everything else — 'UPON AN APPEAL
+        FROM A JUDGMENT RENDERED BY …', 'UPON A PETITION UNDER CODE § 8.01-670.2'
+        (interlocutory review), 'UPON A QUESTION OF LAW CERTIFIED BY THE UNITED
+        STATES COURT OF APPEALS …' (a certified question). The capitals are the
+        discriminator: an ordinary sentence opening 'Upon review, …' is not this
+        line."""
+        t = (text or "").strip()
+        if not t or t != t.upper():
+            return False
+        return t.startswith("FROM THE ") or t.startswith("UPON ") or "APPEAL FROM" in t
 
     def _va_author_in(self, segments):
         """The announced majority author: the '[CHIEF/SENIOR ]JUSTICE <NAME>' run

@@ -18,6 +18,8 @@ byline whose kind trails a join clause is left as body.
 
 from __future__ import annotations
 
+import re
+
 from ._abbrevtitle import AbbrevTitleSupreme
 
 
@@ -34,6 +36,75 @@ class WisconsinSupreme(AbbrevTitleSupreme):
     body_baseline_x0 = 108.0
     indent_step = 20.0
     blockquote_by_indent = True
+
+    _running_writing = re.compile(r"^JUSTICE .+?,\s+(?:concurring|dissenting)$", re.I)
+
+    _separate_byline = re.compile(
+        r"^(?P<name>.+?,\s*[A-Z]\.)(?:,\s*with whom .+? joins,)?\s*"
+        r"(?P<kind>concurring|dissenting)\.?$",
+        re.IGNORECASE,
+    )
+
+    def find_authors(self, all_segments) -> list:
+        starts = list(super().find_authors(all_segments))
+        self._wis_extra_authors = {}
+        for i, (_pno, seg, _kind) in enumerate(all_segments):
+            if not seg:
+                continue
+            text = self.line_plain_text(seg[0]).strip()
+            if "with whom" not in text.lower() and not self._separate_byline.match(text):
+                continue
+            candidate = text
+            consumed = []
+            # The court often wraps the final `with whom ... joins,
+            # dissenting.` clause over one or two text lines immediately
+            # before paragraph 1.
+            for j in range(i + 1, min(i + 3, len(all_segments))):
+                nxt = all_segments[j][1]
+                if not nxt:
+                    break
+                first = self.line_plain_text(nxt[0]).strip()
+                candidate += " " + first
+                consumed.append(j)
+                if self._separate_byline.match(candidate):
+                    break
+            match = self._separate_byline.match(candidate)
+            if match and i not in starts:
+                starts.append(i)
+                self._wis_extra_authors[i] = (
+                    candidate,
+                    match.group("kind").lower(),
+                    consumed,
+                )
+        return sorted(starts)
+
+    def build_opinion(self, op_start, op_end, **kwargs):
+        extra = getattr(self, "_wis_extra_authors", {}).get(op_start)
+        removed = []
+        if extra:
+            all_segments = kwargs["all_segments"]
+            for nxt in extra[2]:
+                if nxt >= op_end or not all_segments[nxt][1]:
+                    continue
+                first = all_segments[nxt][1][0]
+                old_kind = all_segments[nxt][2]
+                rest = all_segments[nxt][1][1:]
+                all_segments[nxt] = (
+                    all_segments[nxt][0], rest or [first], old_kind if rest else "notice"
+                )
+                removed.append((nxt, first, old_kind))
+        try:
+            op = super().build_opinion(op_start, op_end, **kwargs)
+        finally:
+            if removed:
+                all_segments = kwargs["all_segments"]
+                for nxt, first, old_kind in reversed(removed):
+                    all_segments[nxt] = (
+                        all_segments[nxt][0], [first] + all_segments[nxt][1], old_kind
+                    )
+        if extra:
+            op.author, op.type = extra[:2]
+        return op
 
     def _begins_paragraph_block(self, lines):
         """A first-line-indented body paragraph — its 144pt indent is a first
@@ -57,15 +128,45 @@ class WisconsinSupreme(AbbrevTitleSupreme):
         paragraph that follows) as a segment boundary so the break isn't glued
         onto the next paragraph by the C→L short-line rule, and the paragraph
         after it starts clean."""
+        furniture = getattr(self, "_wis_furniture", None)
+        if furniture is not None:
+            for raw in page.extract_text_lines():
+                text = self.line_plain_text(raw).strip()
+                if (
+                    raw.get("top", 0) < 75
+                    and self.line_alignment(raw, page.width) == "C"
+                    and self._running_writing.match(text)
+                    and text not in furniture
+                ):
+                    furniture.append(text)
         lines = super().page_lines(page)
-        ordered = sorted(range(len(lines)), key=lambda i: lines[i].get("top", 0))
+        if furniture is None:
+            return lines
+        kept = []
+        for line in lines:
+            text = self.line_plain_text(line).strip()
+            if (
+                line.get("top", 0) < 75
+                and self.line_alignment(line, page.width) == "C"
+                and self._running_writing.match(text)
+            ):
+                if text not in furniture:
+                    furniture.append(text)
+                continue
+            kept.append(line)
+        ordered = sorted(range(len(kept)), key=lambda i: kept[i].get("top", 0))
         for pos, i in enumerate(ordered):
-            t = self.line_plain_text(lines[i]).strip()
+            t = self.line_plain_text(kept[i]).strip()
             if t and set(t.replace(" ", "")) == {"*"}:
-                lines[i]["_seg_break"] = True
+                kept[i]["_seg_break"] = True
                 if pos + 1 < len(ordered):
-                    lines[ordered[pos + 1]]["_seg_break"] = True
-        return lines
+                    kept[ordered[pos + 1]]["_seg_break"] = True
+        return kept
+
+    def _sweep_residual(self, doc, source_pages):
+        if getattr(self, "_wis_furniture", None):
+            doc.dropped = list(doc.dropped) + self._wis_furniture
+        super()._sweep_residual(doc, source_pages)
 
     # ------------------------------------------------------ footnote separator
     def find_footnote_separator(self, page):
@@ -198,6 +299,7 @@ class WisconsinSupreme(AbbrevTitleSupreme):
     def extract(self, pdf_path):
         import pdfplumber
 
+        self._wis_furniture = []
         with pdfplumber.open(pdf_path) as pdf:
             line_h = self._body_line_height(pdf)
         # Single-spaced body (15pt A/C/D · 16.2pt B) must classify as body, not

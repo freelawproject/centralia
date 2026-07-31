@@ -92,8 +92,9 @@ class CaliforniaSupreme(BaseExtractor):
             body_lines, fn_lines = [], []
             for i in idxs:
                 b, f = pages[i]
-                body_lines.extend(self._strip_header(b, id_text))
+                body_lines.extend(self._strip_header(b, doc.dropped))
                 fn_lines.extend(f)
+            title_rows, body_lines = self._split_title(body_lines)
             # Split off ONLY the trailing counsel/address block into the
             # ending-matter box. Everything else — including the signature,
             # 'We Concur:' and the panel of justices — stays in the opinion.
@@ -103,7 +104,9 @@ class CaliforniaSupreme(BaseExtractor):
                     counsel = [ln["text"] for ln in body_lines[cut:]]
                     body_lines = body_lines[:cut]
             self._capture_panel(body_lines, doc)
-            blocks = self._paragraphs(body_lines)
+            blocks = [
+                Block(kind="heading", text=escape(r["text"])) for r in title_rows
+            ] + self._paragraphs(body_lines)
             notes = self._collect_footnotes(fn_lines)
             doc.opinions.append(
                 Opinion(
@@ -224,28 +227,55 @@ class CaliforniaSupreme(BaseExtractor):
                 return op_type, id_text[len(prefix) :].strip()
         return "majority", ""
 
-    def _strip_header(self, body: list, id_text: str) -> list:
-        """Drop the running-header lines (caption / docket / id) from the top
-        of a page, plus bare page numbers."""
+    # The running header block sits in the top margin, above this y.
+    _RUN_BAND = 80.0
+
+    def _strip_header(self, body: list, dropped: list) -> list:
+        """Drop the two-line running header from the top of a continuation
+        page, plus bare page numbers.
+
+        The header is identified by TYPE SIZE, not by what it says: the court
+        sets it ~11pt against a 13.4pt body, in the top margin. The identical
+        words set at BODY size lower down are content — the writing's own title
+        block on its first page ('In re Z.G.*' / 'S289430' / 'Concurring
+        Opinion by Justice Groban') and centred ALL-CAPS section headings
+        ('III. DISCUSSION', 'I. FACTUAL AND PROCEDURAL BACKGROUND'). Keying on
+        'short and caption-shaped' deleted all of those."""
+        if not body:
+            return []
+        from collections import Counter
+
+        base = Counter(ln["size"] for ln in body).most_common(1)[0][0]
         out = []
-        for k, ln in enumerate(body):
+        for ln in body:
             t = ln["text"]
-            if t == id_text:
-                continue
-            if k < 3 and (self._is_docket(t) or self._looks_like_caption(t)):
-                continue
             if t.isdigit():
+                continue
+            if ln["top"] < self._RUN_BAND and ln["size"] < base - 1.0:
+                if t not in dropped:  # surfaced once in the Removed box
+                    dropped.append(t)
                 continue
             out.append(ln)
         return out
 
-    @staticmethod
-    def _looks_like_caption(t: str) -> bool:
-        # Running-header caption: short, ALL-CAPS-ish 'PEOPLE v. LOPEZ' or
-        # 'In re KOWALCZYK'.
-        if len(t.split()) > 8:
-            return False
-        return " v. " in t or t.startswith("In re ") or t.isupper()
+    # A writing opens with its own centred title block above this y.
+    _TITLE_BAND = 200.0
+
+    def _split_title(self, body_lines: list) -> tuple:
+        """Lift the writing's title block off the front of its first page.
+
+        Every California writing starts a fresh page headed by the case name,
+        the docket and the writing id, centred at body size. They are headings,
+        not the first sentence of the opinion — leaving them in the paragraph
+        flow glued the title to the opening prose."""
+        rows = []
+        while (
+            body_lines
+            and body_lines[0].get("align") == "C"
+            and body_lines[0]["top"] < self._TITLE_BAND
+        ):
+            rows.append(body_lines.pop(0))
+        return rows, body_lines
 
     def _capture_panel(self, body: list, doc: ExtractedDocument) -> None:
         """Record the concurring panel (the justices after 'We Concur:') into
@@ -417,15 +447,28 @@ class CaliforniaSupreme(BaseExtractor):
         left = min(ln["x0"] for ln in lines)
         indents = [ln["x0"] - left for ln in lines]
 
+        # A centred section heading is inset like a quote line, so it must not
+        # join a block-quote run: a bold or roman/all-caps heading immediately
+        # above an indented paragraph opening otherwise read as a two-line
+        # quotation, gluing the heading to the sentence AND orphaning the rest
+        # of the paragraph into a second block.
+        head_like = [
+            bool(ln.get("bold")) or self._is_heading(ln["text"]) for ln in lines
+        ]
+
         # Mark block-quote lines: maximal runs (length >= 2) where every line
         # is indented past _QUOTE_INDENT (the whole block is shifted right,
         # unlike a paragraph whose continuation lines return to the margin).
         is_q = [False] * len(lines)
         i = 0
         while i < len(lines):
-            if indents[i] >= self._QUOTE_INDENT:
+            if indents[i] >= self._QUOTE_INDENT and not head_like[i]:
                 j = i
-                while j < len(lines) and indents[j] >= self._QUOTE_INDENT:
+                while (
+                    j < len(lines)
+                    and indents[j] >= self._QUOTE_INDENT
+                    and not head_like[j]
+                ):
                     j += 1
                 if j - i >= 2:
                     for k in range(i, j):
@@ -464,12 +507,27 @@ class CaliforniaSupreme(BaseExtractor):
             kind = "heading" if is_head else "blockquote" if is_q[idx] else "p"
             if buf and kind != buf_kind:
                 flush()
+            elif kind == "heading" and buf and self._loose_gap(buf[-1], ln):
+                # Two heading rows a full blank line apart are two headings
+                # ('I.' then 'A.'); a heading that merely WRAPPED is
+                # single-spaced, so only the tight pair joins.
+                flush()
             elif kind == "p" and buf and indents[idx] >= self._PARA_INDENT:
                 flush()  # first-line indent starts a new para
             buf_kind = kind
             buf.append(ln)
         flush()
         return blocks
+
+    # A wrapped heading is single-spaced (~20pt pitch); anything looser is a
+    # separate heading row.
+    _HEAD_JOIN_GAP = 30.0
+
+    @classmethod
+    def _loose_gap(cls, prev, ln) -> bool:
+        if prev.get("raw") or prev.get("page") != ln.get("page"):
+            return True
+        return (ln.get("top", 0) - prev.get("top", 0)) > cls._HEAD_JOIN_GAP
 
     @staticmethod
     def _is_heading(t: str) -> bool:

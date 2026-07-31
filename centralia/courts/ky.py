@@ -37,6 +37,12 @@ _KY_TITLES = ("CHIEF JUSTICE", "JUSTICE")
 class KentuckySupreme(StateSupreme):
     court_id = "ky"
     court_label = "Supreme Court of Kentucky."
+    # Kentucky opens page 1 with the release line ('RENDERED: FEBRUARY 19, 2026'
+    # over 'TO BE PUBLISHED') — real headmatter, normally set at top≈38-39. One
+    # filing sets its whole page a little higher (top 30.1), which the default
+    # 32pt top margin cut, silently losing the rendition date. Nothing else in
+    # the corpus sits above 32, so lowering the margin costs no furniture.
+    margin_top = 28
 
     # Kentucky sets the body DOUBLE-spaced (~28pt) and block quotes single
     # (~14pt), indented to 108 with the right margin pulled in to ~504. That

@@ -34,6 +34,18 @@ class TrademarkBoard(StateSupreme):
             return name, title, None
         if t.rstrip(": ").lower() == "by the board":
             return "By the Board", "Board", None
+        # An interlocutory order is signed by a Board attorney rather than a
+        # judge ('Michael Webster, Managing Interlocutory Attorney'), with no
+        # 'Opinion by' prefix. Without it the writing had no byline at all and
+        # the fallback opened the body at the caption, emptying the headmatter.
+        # The plural roster ('Before English, Cohen, and Casagrande,
+        # Administrative Trademark Judges.') keeps its plural title and so is
+        # never matched here.
+        head, sep, tail = t.rpartition(",")
+        if sep and head.strip():
+            office = tail.strip().rstrip(":.").strip()
+            if office in self.SIGNER_TITLES:
+                return head.strip(), office, None
         return None
 
     def _byline_split(self, line):
@@ -59,37 +71,73 @@ class TrademarkBoard(StateSupreme):
             return "", [line]  # body-fallback start: no author to claim
         return super().split_author_line(line)
 
+    # The caption opens with the agency banner, set ROMAN and CENTERED. The
+    # letterhead masthead prints the identical words BOLD in the right-hand
+    # address column, so face + centering — not the text — separates them.
+    CAPTION_BANNER = "UNITED STATES PATENT AND TRADEMARK OFFICE"
+    # Order-style decisions carry no banner; their caption opens at the
+    # proceeding number.
+    CAPTION_NUMBER_STARTS = (
+        "Opposition No.",
+        "Cancellation No.",
+        "Serial No.",
+        "Reexamination No.",
+        "Expungement No.",
+        "Concurrent Use No.",
+    )
+
+    def _masthead_bottom(self, lines) -> float | None:
+        """y where the caption begins on page 1 — everything above it is the
+        USPTO letterhead masthead (agency address block, contact number and
+        email, the precedential-status stamp, and the mailing/hearing date).
+
+        Anchored on the caption's own first row so the masthead band cannot
+        swallow caption content. The previous text-keyed drop list ate the
+        caption's banner and its 'Trademark Trial and Appeal Board' row, and
+        it could not see the stamp at all on the two order-style decisions,
+        where pdfplumber merges the left-hand stamp column into the address
+        column ('PRECEDENT OF THE P.O. Box 1451')."""
+        for l in sorted(lines, key=lambda l: l.get("top", 0)):
+            t = " ".join(self.line_plain_text(l).split())
+            if t.upper() == self.CAPTION_BANNER and not self.line_meta(l)[2]:
+                return l["top"]
+            if t.startswith(self.CAPTION_NUMBER_STARTS):
+                return l["top"]
+        return None
+
     def page_lines(self, page):
         if not hasattr(self, "_ttab_dropped"):
             self._ttab_dropped = []
         lines = super().page_lines(page)
-        if page.page_number != 1:
+        if page.page_number != getattr(self, "_caption_pno", 1):
             return lines
-        # the mailing masthead: the centered block above the first '_____'
-        # caption divider — address/contact furniture
+        bottom = self._masthead_bottom(lines)
+        if bottom is None:
+            return lines
         kept = []
         for l in lines:
-            t = self.line_plain_text(l).strip()
-            if l.get("top", 0) < 240 and (
-                t.startswith(("P.O. Box", "General Contact", "General Email"))
-                or "Mailed:" in t
-                or t == "Trademark Trial and Appeal Board"
-                or t == "UNITED STATES PATENT AND TRADEMARK OFFICE"
-            ):
-                self._ttab_dropped.append(t)
+            if l.get("top", 0) < bottom - 1:
+                t = self.line_plain_text(l).strip()
+                if t:
+                    self._ttab_dropped.append(t)
                 continue
             kept.append(l)
         return kept
 
+    def _sweep_residual(self, doc, source_pages) -> None:
+        """Register the masthead in ``dropped`` BEFORE the completeness sweep
+        runs — otherwise furniture filtered out in ``page_lines`` has no home
+        yet and the sweep reports it as unplaced content."""
+        seen, extra = set(), []
+        for t in getattr(self, "_ttab_dropped", []):
+            if t and t not in seen:
+                seen.add(t)
+                extra.append(t)
+        if extra:
+            doc.dropped = list(doc.dropped) + extra
+        super()._sweep_residual(doc, source_pages)
+
     def extract(self, pdf_path: str):
         self._ttab_dropped = []
         self._ttab_author = None
-        doc = super().extract(pdf_path)
-        if self._ttab_dropped:
-            seen, extra = set(), []
-            for t in self._ttab_dropped:
-                if t not in seen:
-                    seen.add(t)
-                    extra.append(t)
-            doc.dropped = list(doc.dropped) + extra
-        return doc
+        return super().extract(pdf_path)

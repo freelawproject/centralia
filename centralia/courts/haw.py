@@ -9,6 +9,8 @@ PUBLICATION ...' banner and the red electronic-filing stamp.
 
 from __future__ import annotations
 
+from collections import Counter
+
 from ._hawaii import HawaiiStyle
 from ._statesupreme import StateSupreme
 
@@ -16,3 +18,87 @@ from ._statesupreme import StateSupreme
 class HawaiiSupreme(HawaiiStyle, StateSupreme):
     court_id = "haw"
     court_label = "Supreme Court of the State of Hawaiʻi."
+
+    def correct_page_geometry(self, page) -> None:
+        """Put the ʻokina back on its own text row.
+
+        Hawaiʻi's word processor sets the body in Courier but draws the ʻokina
+        in ``HAWAIʻI`` / ``Toʻotoʻo`` / ``Kauaʻi`` from a substituted Times
+        face whose declared bounding box sits ~4.5pt ABOVE the Courier row it
+        belongs to, even though its text matrix carries the correct baseline.
+        pdfplumber therefore emits the accent as a standalone line ('ʻ ʻ') and
+        the caption/body line beside it reads 'HAWAI I'.
+
+        The extractor's own baseline merge repairs its copy, but the
+        completeness audit clusters the raw page itself — so the two disagreed
+        and every ʻokina-bearing line (a caption banner, a party row, a
+        citation, a conformed signature) reported as unplaced content.
+
+        Fix it at the source, where both readers see it. A glyph's true row is
+        given by the page's majority row constant (``top + matrix[5]`` is
+        invariant per row for a correctly boxed font); a candidate is only
+        moved when the corrected top lands on a row the page already draws
+        text on, which is what proves the displacement is a boxing error
+        rather than a genuinely separate line (the red e-filing stamp is also
+        off-constant, but it occupies rows of its own and so is left alone).
+        """
+        super().correct_page_geometry(page)
+        chars = page.chars
+        if not chars:
+            return
+        # Row constant per (size, font); the page's body font supplies the
+        # correct one for its size.
+        counts: Counter = Counter()
+        for c in chars:
+            m = c.get("matrix")
+            if m:
+                counts[(round(c["size"], 1), round(c["top"] + m[5], 2))] += 1
+        if not counts:
+            return
+        majority = {}
+        for (size, const), n in counts.most_common():
+            majority.setdefault(size, (const, n))
+
+        for c in chars:
+            m = c.get("matrix")
+            if not m:
+                continue
+            size = round(c["size"], 1)
+            ref = majority.get(size)
+            if ref is None:
+                continue
+            const, n = ref
+            if n < 20:  # too little text at this size to trust the row constant
+                continue
+            delta = (c["top"] + m[5]) - const
+            if not 1.0 < abs(delta) < 8.0:
+                continue
+            new_top = c["top"] - delta
+            # Only snap onto a row the page already sets text on.
+            if any(
+                abs(o["top"] - new_top) <= 0.5
+                and abs((o.get("matrix") or (0,) * 6)[5] + o["top"] - const) < 0.5
+                for o in chars
+                if o is not c
+            ):
+                c["top"] = new_top
+                c["y0"] = c["y0"] + delta
+                c["y1"] = c["y1"] + delta
+                c["doctop"] = c.get("doctop", new_top) - delta
+
+    def _sweep_residual(self, doc, source_pages) -> None:
+        """``HawaiiStyle`` collects the red electronic-filing stamp while
+        reading the pages and appends it to ``dropped`` *after* ``extract()``
+        returns — but the completeness sweep runs inside that call, so the
+        stamp was still unplaced when the sweep looked. Flush it first."""
+        pending = getattr(self, "_haw_dropped", None)
+        if pending:
+            seen, uniq = set(doc.dropped), []
+            for t in pending:
+                if t and t not in seen:
+                    seen.add(t)
+                    uniq.append(t)
+            if uniq:
+                doc.dropped = list(doc.dropped) + uniq
+            self._haw_dropped = []
+        super()._sweep_residual(doc, source_pages)

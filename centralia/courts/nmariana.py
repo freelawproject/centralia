@@ -69,12 +69,20 @@ class NorthernMarianaSupreme(AbbrevTitleSupreme):
 
     def extract(self, pdf_path: str):
         self._cnmi_dropped = []
-        doc = super().extract(pdf_path)
-        if self._cnmi_dropped:
-            seen, extra = set(), []
-            for t in self._cnmi_dropped:
-                if t not in seen:
-                    seen.add(t)
-                    extra.append(t)
+        return super().extract(pdf_path)
+
+    def _sweep_residual(self, doc, source_pages) -> None:
+        """Flush the E-FILED stamp block onto the document BEFORE the
+        completeness sweep.
+
+        The sweep runs INSIDE ``super().extract()``, so adding the stamp to
+        ``doc.dropped`` after that call returned was too late: every stamp row
+        ('E-FILED / CNMI SUPREME COURT / E-filed: … / Clerk Review: … /
+        Filing ID: … / Case No.: … / Judy Aldan') was reported unplaced on the
+        four fixtures that carry one — 26 lines — while sitting in the Removed
+        box the whole time.
+        """
+        extra = list(dict.fromkeys(getattr(self, "_cnmi_dropped", []) or []))
+        if extra:
             doc.dropped = list(doc.dropped) + extra
-        return doc
+        super()._sweep_residual(doc, source_pages)

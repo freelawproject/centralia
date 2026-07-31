@@ -24,6 +24,50 @@ class OregonTaxMagistrate(DistrictBase):
     # at ~28pt).
     gap_tight_max = 12
 
+    def extract(self, pdf_path):
+        self._ortc_band = {}
+        return super().extract(pdf_path)
+
+    def page_lines(self, page):
+        """Record the Oregon Tax Reports running head before the margin filter
+        discards it.
+
+        The corpus holds two document styles. Magistrate Division DECISIONs are
+        letter-size (612pt) CM/ECF filings with nothing in the top margin.
+        Regular Division opinions are the REPORTER setting on a narrow 396pt
+        sheet, and every page of those carries exactly one running-head line in
+        the top margin — 'No. 9 October 28, 2022 173' on the opening page, then
+        alternating '<folio> <case name>' and 'Cite as 25 OTR 173 (2022)
+        <folio>'. It is page furniture, but it has to be SURFACED rather than
+        silently clipped, so stash it here for ``_sweep_residual`` to publish to
+        the Removed box."""
+        band = [
+            l
+            for l in self._text_lines(page.filter(lambda o: o["top"] < self.margin_top))
+            if (l.get("text") or "").strip()
+        ]
+        if band:
+            stash = getattr(self, "_ortc_band", None)
+            if stash is None:
+                stash = self._ortc_band = {}
+            stash[page.page_number] = [
+                (l.get("text") or "").strip() for l in band
+            ]
+        return super().page_lines(page)
+
+    def _sweep_residual(self, doc, source_pages) -> None:
+        """Publish the reporter running head to ``doc.dropped`` BEFORE the
+        completeness sweep reads it — the sweep runs inside ``extract()``."""
+        stash = getattr(self, "_ortc_band", None) or {}
+        rows, seen = list(doc.dropped), set(doc.dropped)
+        for pno in sorted(stash):
+            for t in stash[pno]:
+                if t not in seen:
+                    seen.add(t)
+                    rows.append(t)
+        doc.dropped = rows
+        super()._sweep_residual(doc, source_pages)
+
     def find_authors(self, all_segments) -> list:
         out = super().find_authors(all_segments)
         if not getattr(self, "_district_author", None):

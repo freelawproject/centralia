@@ -44,6 +44,52 @@ class TenthCircuit(FederalCircuitBase):
     efile_stamp_font = "TimesNewRomanPS-BoldMT"
     efile_stamp_size = 12.0
 
+    def _maybe_drop_running_header(self, page, lines):
+        lines = super()._maybe_drop_running_header(page, lines)
+        if page.page_number != 1:
+            return lines
+        kept = []
+        for line in lines:
+            text = self.line_plain_text(line).strip()
+            low = text.lower()
+            if (
+                line.get("top", 999) < 180
+                and (
+                    "clerk of court" in low
+                    or low == "christopher m. wolpert"
+                    or low == "for the tenth circuit"
+                )
+            ):
+                self._record_dropped(text)
+                continue
+            kept.append(line)
+        return kept
+
+    def page_lines(self, page):
+        lines = super().page_lines(page)
+        kept = []
+        for line in lines:
+            text = self.line_plain_text(line).strip()
+            low = text.lower()
+            if "clerk of court" in low and line.get("top", 999) < 220:
+                self._record_dropped(text)
+                continue
+            kept.append(line)
+        return kept
+
+    def _sweep_residual(self, doc, source_pages):
+        # Some CA10 clerk stamps are outside the extractor's text-line margin
+        # filter, so they never reach page_lines and cannot be recorded there.
+        # Register them from the sweep's source snapshot before matching
+        # leftovers; they are page furniture, not opinion content.
+        for _page_no, lines in source_pages:
+            for raw in lines:
+                low = raw.strip().lower()
+                if "clerk of court" in low or low == "christopher m. wolpert":
+                    self._record_dropped(raw.strip())
+        self._merge_furniture(doc)
+        super()._sweep_residual(doc, source_pages)
+
     def find_authors(self, all_segments):
         """Add an unsigned/per-curiam rehearing order before separate writings.
 

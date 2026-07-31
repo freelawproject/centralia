@@ -112,36 +112,163 @@ class HawaiiStyle:
             op.type = "majority"
         return op
 
+    # The Intermediate Court of Appeals sets its footnotes right down to
+    # y≈751 on a 792pt page, past the inherited 740 cutoff — so the last
+    # footnote of a page was filtered off before anything could place it.
+    # Nothing sits below this but the folio, which is folded out by value.
+    margin_bottom = 756.0
+
     def find_footnote_separator(self, page):
         # Full-width caption/section dividers sit in the bottom half (above the
         # 'CERTIORARI ... / ORDER ...' block on a disposition page) and would be
         # mistaken for a footnote rule, dropping the order header beneath. A real
         # footnote has footnote-sized text flush under its rule.
-        return self._footnote_sep_small_text_below(page)
+        # FIRST the court's own rule: a 2-inch (144pt) rule at the left body
+        # margin — 48 of them in hawapp, 58 in haw, against a scatter of other
+        # widths that are underlines. Keyed on that signature the bottom-half
+        # position fence drops away, which matters because a long footnote
+        # pushes its own separator UP the page: yang_1 p8 is one footnote
+        # containing a table, its rule at y=234 on a 792pt page, so the fence
+        # rejected it and footnote 7 was swallowed into footnote 6.
+        sep = self.footnote_sep_fixed_left_rule(page, width=144.0)
+        if sep is not None:
+            return sep
+        sep = self._footnote_sep_small_text_below(page)
+        if sep is not None:
+            return sep
+        return self._haw_sep_by_size(page)
+
+    def _haw_body_size(self, page):
+        """The document's dominant type size, measured once and cached.
+
+        Taken over the whole file so a page a long footnote has taken over
+        cannot redefine what 'body' means."""
+        cached = getattr(self, "_haw_body", None)
+        if cached is not None:
+            return cached or None
+        from collections import Counter
+
+        pdf = getattr(page, "pdf", None)
+        pages = getattr(pdf, "pages", None) or [page]
+        sizes: Counter = Counter()
+        for pg in pages:
+            try:
+                for ln in pg.extract_text_lines():
+                    if not (ln.get("text") or "").strip():
+                        continue
+                    printable = [
+                        c for c in ln["chars"] if (c.get("text") or "").strip()
+                    ]
+                    if printable:
+                        sizes[round(max(c.get("size") or 0 for c in printable))] += 1
+            except Exception:
+                continue
+        self._haw_body = sizes.most_common(1)[0][0] if sizes else 0
+        return self._haw_body or None
+
+    def _haw_sep_by_size(self, page):
+        """Footnote zone on a page that draws NO separator rule.
+
+        The ICA prints footnotes with no divider at all — just a size drop,
+        10pt under a 12pt Courier body. Every rule-based finder therefore
+        returns None and the footnotes are left in the body, or (past the
+        margin) dropped outright: 'choi_v._aloha_pacific' returned zero
+        footnotes with '1 The Honorable Michelle N. Comeau presided.' unplaced.
+
+        The zone is the trailing run of sub-body-size lines at the foot of the
+        page. The page folio is skipped rather than ending the run — it is set
+        at body size or smaller and sits BELOW the footnotes, so treating it as
+        a boundary would hide the block behind it."""
+        from collections import Counter
+
+        lines = [l for l in page.extract_text_lines() if (l.get("text") or "").strip()]
+        if len(lines) < 3:
+            return None
+
+        def size_of(ln):
+            return max(
+                (c.get("size") or 0)
+                for c in ln["chars"]
+                if (c.get("text") or "").strip()
+            )
+
+        # The body size is a property of the DOCUMENT, not of this page. A
+        # footnote long enough to run onto the next page can dominate it —
+        # elizares p2 is 35 footnote lines against 11 of body — and a
+        # per-page estimate then calls the footnote size 'body', so nothing
+        # reads as small and the whole continuation is left unplaced.
+        body = self._haw_body_size(page)
+        if body is None:
+            body = Counter(round(size_of(l)) for l in lines).most_common(1)[0][0]
+        top = bottom = None
+        for ln in sorted(lines, key=lambda l: -l["top"]):
+            txt = (ln.get("text") or "").strip()
+            if txt.isdigit():
+                continue  # printed folio: below the zone, not its edge
+            if round(size_of(ln)) <= body - 1.5:
+                top = ln["top"]
+                if bottom is None:
+                    bottom = ln["bottom"]
+                continue
+            break
+        # A genuine foot-of-page block REACHES the bottom of the page. Testing
+        # where the run starts would reject a footnote long enough to fill most
+        # of the sheet, which is exactly the case that needs finding.
+        if top is None or bottom is None or bottom < page.height * 0.75:
+            return None
+        return top - 1.0
 
     # ----------------------------------------------------------- furniture
+    _haw_dropped: list = []
+
     def extract(self, pdf_path):
         self._haw_dropped = []
-        doc = super().extract(pdf_path)
-        seen, uniq = set(), []
+        self._haw_merged = None
+        self._haw_body = None
+        return super().extract(pdf_path)
+
+    def _merge_haw_dropped(self, doc) -> None:
+        """Append the recorded furniture to ``doc.dropped`` — once."""
+        if getattr(self, "_haw_merged", None) is doc:
+            return
+        self._haw_merged = doc
+        seen, uniq = set(doc.dropped), []
         for t in self._haw_dropped:
             if t not in seen:
                 seen.add(t)
                 uniq.append(t)
         if uniq:
             doc.dropped = list(doc.dropped) + uniq
-        return doc
+
+    def _sweep_residual(self, doc, source_pages) -> None:
+        """Surface the furniture BEFORE the completeness sweep.
+
+        It was being merged only after ``extract`` returned, but the sweep runs
+        *inside* extract — so the e-filing stamp was recorded, rendered in the
+        Removed box, AND reported as unplaced content at the same time
+        ('Electronically Filed' / '22-JUL-2026' / '08:51 AM' / 'Dkt. 94 MO')."""
+        self._merge_haw_dropped(doc)
+        super()._sweep_residual(doc, source_pages)
 
     def page_lines(self, page):
         out = []
         for l in super().page_lines(page):
             t = (l.get("text") or "").strip()
             chars = l.get("chars") or []
-            if t.upper().startswith("FOR PUBLICATION IN WEST") or (
-                chars and _is_red(chars[0])
-            ):
+            # The reporter advisory comes in both polarities — '*** FOR
+            # PUBLICATION IN WEST'S …' on a published opinion and 'NOT FOR
+            # PUBLICATION IN WEST'S …' on an unpublished one — and the leading
+            # 'NOT' meant a startswith test matched only the published half,
+            # leaving the advisory sitting in the caption on every memorandum
+            # opinion. Test for the phrase anywhere in the line: the corpus
+            # prints eleven variants of it (asterisk-wrapped, and with the
+            # ʻokina coming out as 'ʻ', '‘', '#', '(cid:35)' or a space), and
+            # 'PUBLICATION IN WEST' is the part all of them share.
+            if "PUBLICATION IN WEST" in t.upper() or (chars and _is_red(chars[0])):
                 if t:
-                    getattr(self, "_haw_dropped", []).append(t)
+                    if self._haw_dropped is type(self)._haw_dropped:
+                        self._haw_dropped = []
+                    self._haw_dropped.append(t)
                 continue
             out.append(l)
         return out

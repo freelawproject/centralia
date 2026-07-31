@@ -8,7 +8,15 @@ txsd quirks:
     page 1 ('United States District Court / Southern District of Texas /
     ENTERED / <date> / Nathan Ochsner, Clerk') — page furniture. Left in the
     flow it pairs with the centered court banner and folds into a phantom
-    two-column caption; it is dropped (and surfaced) instead;
+    two-column caption; it is dropped (and surfaced) instead. The stamp is
+    identified by FONT: it is stamped in the base-14 'Helvetica' the clerk's
+    software carries, the only unsubsetted sans-serif on the sheet (every
+    judge's body font is a subsetted serif — CenturySchoolbook, Times New
+    Roman, BookAntiqua, Georgia). Keying on the font rather than an x
+    threshold matters because pdfplumber merges the stamp's rows onto the
+    court banner's baseline ('SOUTHERN DISTRICT OF TEXAS Nathan Ochsner,
+    Clerk'), and the glyphs are removed in ``correct_page_geometry`` so the
+    completeness sweep reads the page the same way the extractor does;
   * several rulings are flatbed scans run through OCR — the signature name
     line carries artifacts ('~ DAVID HITTNER' squiggle residue, 'Andrew S.
     Han en' split surname), which the strict name check rejects. A second,
@@ -19,6 +27,8 @@ txsd quirks:
 
 from __future__ import annotations
 
+import re
+
 from ._district import DistrictBase, _JUDGE_TITLES, _SIG_SKIP, _is_rule
 
 
@@ -26,51 +36,78 @@ class SouthernDistrictOfTexas(DistrictBase):
     court_id = "txsd"
     court_label = "United States District Court, Southern District of Texas."
 
+    # These judges set a shallow bottom margin: the last line of a footnote
+    # lands at top≈725 and a signature block can run to top≈733, both of which
+    # the default 725pt cutoff shaves off the page — silently losing footnote
+    # text (2084697) and a whole conformed signature (2098261.6). The centered
+    # page folio sits lower still (top≈745, or 728-738 on the scans) and is
+    # folded out by the folio machinery, not by the margin.
+    margin_bottom = 742
+
+    # A subset of TXSD's CM/ECF opinions uses a left-aligned fractional folio
+    # (``1 / 5``, ``2 / 5``, ...) at the bottom of every page.  The shared
+    # folio parser intentionally accepts only ordinary numeric folios, so this
+    # footer otherwise remains in the body/residual stream.  Keep the broader
+    # syntax local to TXSD: a slash is ordinary authored text in many courts.
+    _FRACTION_FOLIO = re.compile(r"^(\d{1,4})\s*/\s*(\d{1,4})$")
+
+    @classmethod
+    def _page_number_value(cls, text: str) -> str | None:
+        value = super()._page_number_value(text)
+        if value is not None:
+            return value
+        candidate = re.sub(r"<[^>]+>", "", str(text or "")).strip()
+        candidate = candidate.strip("-–— ")
+        match = cls._FRACTION_FOLIO.fullmatch(candidate)
+        return f"{match.group(1)}/{match.group(2)}" if match else None
+
+    @classmethod
+    def _is_page_number_text(cls, text: str) -> bool:
+        return cls._page_number_value(text) is not None
+
     # --------------------------------------------------- ENTERED stamp drop
-    def page_lines(self, page):
+    # The clerk's stamping software uses the PDF base-14 fonts, which carry no
+    # subset tag; every judge's word processor embeds a subsetted body font
+    # ('BCDEEE+TimesNewRomanPSMT'). So an unsubsetted Helvetica glyph in the
+    # page-1 top band is stamp, never text the judge typed.
+    _STAMP_FONTS = ("Helvetica", "Helvetica-Bold")
+    _STAMP_BAND = 118.0  # bottom of the stamp band (the caption starts below)
+
+    def correct_page_geometry(self, page) -> None:
+        """Remove the clerk's 'ENTERED' stamp glyphs from page 1.
+
+        Done here (not in ``page_lines``) so the completeness sweep and the
+        audit read the page through the same removal — otherwise the stamp's
+        rows, which pdfplumber merges onto the court banner's baseline, read
+        back as unplaced content. The text is remembered and surfaced in
+        ``doc.dropped``."""
+        super().correct_page_geometry(page)
+        if page.page_number != 1:
+            return
         if not hasattr(self, "_txsd_dropped"):
             self._txsd_dropped = []
-        lines = super().page_lines(page)
-        if page.page_number != 1:
-            return lines
-        pw = page.width
-        kept = []
-        for l in lines:
-            if l.get("top", 0) >= 110:
-                kept.append(l)
-                continue
-            # The stamp occupies the top-right corner; pdfplumber can merge a
-            # stamp line onto the centered banner's baseline ('UNITED STATES
-            # DISTRICT COURT April 10, 2026'), so split the line's chars at
-            # wide x-gaps and drop only the runs fully right of ~0.72 pw.
-            runs, cur = [], []
-            for c in sorted(l.get("chars") or [], key=lambda c: c["x0"]):
-                if cur and c["x0"] - cur[-1]["x1"] > 30:
-                    runs.append(cur)
-                    cur = [c]
-                else:
-                    cur.append(c)
-            if cur:
-                runs.append(cur)
-            keep_chars, dropped_any = [], False
-            for r in runs:
-                if r[0]["x0"] >= pw * 0.72:
-                    t = "".join(c.get("text") or "" for c in r).strip()
-                    if t:
-                        self._txsd_dropped.append(t)
-                    dropped_any = True
-                else:
-                    keep_chars.extend(r)
-            if not dropped_any:
-                kept.append(l)
-            elif keep_chars:
-                nl = dict(l)
-                nl["chars"] = keep_chars
-                nl["text"] = "".join(c.get("text") or "" for c in keep_chars)
-                nl["x0"] = min(c["x0"] for c in keep_chars)
-                nl["x1"] = max(c["x1"] for c in keep_chars)
-                kept.append(nl)
-        return kept
+        chars = page.chars
+        stamp = [
+            i
+            for i, c in enumerate(chars)
+            if c.get("top", 0) < self._STAMP_BAND
+            and (c.get("fontname") or "") in self._STAMP_FONTS
+        ]
+        if not stamp:
+            return
+        # Re-read the stamp in reading order (row by row, left to right) so the
+        # Removed box shows it as it was printed.
+        rows: dict = {}
+        for i in stamp:
+            c = chars[i]
+            rows.setdefault(round(c["top"] / 4.0), []).append(c)
+        for key in sorted(rows):
+            row = sorted(rows[key], key=lambda c: c["x0"])
+            text = "".join(c.get("text") or "" for c in row).strip()
+            if text:
+                self._txsd_dropped.append(text)
+        for i in sorted(stamp, reverse=True):
+            del chars[i]
 
     def extract(self, pdf_path: str):
         self._txsd_dropped = []

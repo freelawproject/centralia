@@ -28,6 +28,10 @@ from ._appellate import StateAppellate
 class ArkansasCourtOfAppeals(StateAppellate):
     court_id = "arkctapp"
     court_label = "Arkansas Court of Appeals."
+    # The open caption is whitespace-held rather than a simple text table.
+    # Render its measured x/y positions so the parties and appeal-from block
+    # remain opposite one another in the review HTML.
+    facsimile_headmatter = True
 
     def find_footnote_separator(self, page) -> Optional[float]:
         """Topmost thin horizontal rule in the lower half that is the real

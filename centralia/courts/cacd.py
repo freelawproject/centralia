@@ -17,9 +17,29 @@ assigned-judge line), so a bare filing would otherwise read as a judge-authored
 opinion. Classify the document by the two ruling signals — a minute-order
 header or a judge signature at the foot — and mark everything else FILING,
 dropping the fabricated author so it is not presented as the court's opinion.
+
+PARAGRAPH FORMAT — THE LEADING IS PER DOCUMENT, NOT PER COURT
+-------------------------------------------------------------
+No other court in the corpus is this typographically heterogeneous: the review
+notes count 30 distinct styles across 40 documents, with body leading ranging
+from 12pt to 25.5pt and body faces from Courier to Garamond. The shared
+paragraph grammar reads spacing against FIXED bands (tight < 16 < single < 22 <
+double < 40), which only works when a court's body leading is stable. Here it
+is not, so a chambers that sets its orders SINGLE-SPACED at 16.1pt landed every
+one of its paragraphs in the 'single' band — and the whole ruling came back
+rendered as block quotes instead of prose. That is the 'return things in
+paragraph format' complaint.
+
+The fix is to measure the document's OWN body leading (``_measure_body_lead``)
+and scale the three bands to it, so 'tight', 'single' and 'double' mean tighter
+than / equal to / looser than THIS document's body — whatever that is. Real
+block quotes then come from where they always should: both-margins indentation
+(``DistrictBase.blockquote_by_indent``), not from an absolute point size.
 """
 
 from __future__ import annotations
+
+from collections import Counter
 
 import pdfplumber
 
@@ -58,6 +78,32 @@ _JUDGE_TITLES_SQ = tuple(
 class CentralDistrictOfCalifornia(DistrictBase):
     court_id = "cacd"
     court_label = "United States District Court, Central District of California."
+    # CACD pleading-paper footnotes can sit below the usual district footer
+    # cutoff (including a one-line note at y≈740). Keep the note text while
+    # still excluding the centered page folio at y≈753.
+    margin_bottom = 748.0
+
+    def find_footnote_separator(self, page):
+        sep = super().find_footnote_separator(page)
+        if sep is not None:
+            return sep
+        # Some CACD orders have no drawn rule before a bottom footnote. The
+        # first line instead starts with a raised label followed by normal-size
+        # note text; use that typography and its lower-page position as the
+        # separator.
+        candidates = []
+        for line in page.extract_text_lines():
+            chars = line.get("chars") or []
+            if len(chars) < 2 or line.get("top", 0) < page.height * 0.72:
+                continue
+            first = chars[0]
+            if first.get("text") not in self.FOOTNOTE_LABEL_CHARS:
+                continue
+            rest = [c.get("size", 0) for c in chars[1:] if c.get("size")]
+            if not rest or first.get("size", 0) > max(rest) - 1.5:
+                continue
+            candidates.append(line["top"])
+        return min(candidates) if candidates else None
 
     def find_authors(self, all_segments) -> list:
         self._district_author = (

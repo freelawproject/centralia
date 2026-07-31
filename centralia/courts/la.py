@@ -58,14 +58,19 @@ class LouisianaSupreme(StateSupreme):
         by a footnote mark ('*' or a superscript digit). The byline stands alone
         (the opinion body begins on the next line), so the body half is always
         empty. Recognised structurally — the bold face is a subset font the base
-        'Bold'-in-fontname test cannot see, and the title is abbreviated. The
-        trailing footnote mark is dropped so the stored author reads cleanly
-        ('MCCALLUM, J.' not 'MCCALLUM, J.*')."""
+        'Bold'-in-fontname test cannot see, and the title is abbreviated.
+
+        The byline is kept EXACTLY as printed, footnote mark included ('COLE,
+        J.*', 'CRAIN, J.1'). The mark is not decoration: it anchors the
+        assignment footnote at the page foot ('* Judge Allison H. Penzato …
+        appointed Justice pro tempore'), and cleaning it off silently dropped
+        the only printed link to that footnote — the byline row then matched
+        nothing in the output and read as lost content."""
         text = self.line_plain_text(line).strip()
         parsed = self._la_byline(text)
         if parsed is None:
             return None
-        return parsed[0], ""
+        return text, ""
 
     @staticmethod
     def _la_byline(text: str):
@@ -119,3 +124,25 @@ class LouisianaSupreme(StateSupreme):
         elif "concur" in low:
             kind = "concurring"
         return name, title, kind
+
+    # ------------------------------------------------------------- footnotes
+    def detect_footnote_label(self, line):
+        """The assignment footnote is marked with a '*' set at the SAME size as
+        its 12pt text, not as a raised superscript, so the base 'smaller char'
+        test cannot see it and the footnote came back labelled '?'. Read the
+        leading star run as the label."""
+        text = (line.get("text") or "").lstrip()
+        if text.startswith("*"):
+            return text[: len(text) - len(text.lstrip("*"))]
+        return super().detect_footnote_label(line)
+
+    def build_footnote(self, label, lines):
+        """Strip the leading star marker off the footnote text — it is the
+        label, which the renderer draws in its own column."""
+        fn = super().build_footnote(label, lines)
+        if fn.paragraphs and label and set(label) == {"*"}:
+            tag, txt = fn.paragraphs[0]
+            stripped = txt.lstrip()
+            if stripped.startswith(label):
+                fn.paragraphs[0] = (tag, stripped[len(label) :].lstrip())
+        return fn

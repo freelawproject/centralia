@@ -27,6 +27,8 @@ Slip-print anatomy (every file shares it):
 
 from __future__ import annotations
 
+import re
+
 from ._abbrevtitle import AbbrevTitleSupreme
 
 
@@ -45,6 +47,13 @@ class WashingtonSupreme(AbbrevTitleSupreme):
     # Footnote-marker glyphs a pro-tempore designation hangs on the title
     # ('MADSEN, J.P.T.*—' / buck's 'MADSEN, J.∗—' uses U+2217).
     _STAR_GLYPHS = "*∗†‡"
+    # A few Washington PDFs contain a glyph-only signature/footer object with
+    # no ToUnicode mapping. pdfplumber exposes it as a run of CID placeholders
+    # (for example ``(cid:60)(cid:88)...``). It is not authored text and must
+    # not become a phantom footnote. Keep this deliberately narrow: only a
+    # line made entirely of CID placeholders is furniture; a CID embedded in
+    # real prose remains reviewable.
+    _CID_FURNITURE = re.compile(r"^(?:\s*\(cid:\d+\)\s*)+$")
 
     # ------------------------------------------------------------- byline
     def _abbrev_parse(self, text):
@@ -237,6 +246,8 @@ class WashingtonSupreme(AbbrevTitleSupreme):
         self._wash_dropped = []
         self._head_kinds = {}
         doc = super().extract(pdf_path)
+        self._separate_stapled_writings(doc)
+        self._remove_cid_furniture(doc)
         # A separate writing whose byline has no kind parenthetical
         # ('MADSEN, J.P.T.—…') announces its kind only in the running head
         # ('(Madsen, J.P.T., dissenting)') — type it from there.
@@ -263,6 +274,104 @@ class WashingtonSupreme(AbbrevTitleSupreme):
                     extra.append(t)
             doc.dropped = list(doc.dropped) + extra
         return doc
+
+    def split_author_line(self, line) -> tuple:
+        """Split Washington's inline ``PER CURIAM—`` opening.
+
+        The shared parser recognizes the em-dash form for justice bylines,
+        but a per-curiam line can carry a superscript footnote digit before
+        the dash (``PER CURIAM1—``). Treating the whole line as the author
+        makes the first writing's author absorb its opening sentence.
+        """
+        text = self.line_plain_text(line).strip()
+        if text.upper().startswith("PER CURIAM"):
+            chars = line.get("chars") or []
+            dash_i = next(
+                (i for i, c in enumerate(chars) if (c.get("text") or "") in "—–"),
+                None,
+            )
+            if dash_i is not None:
+                body_chars = chars[dash_i + 1 :]
+                body = dict(line)
+                body["chars"] = body_chars
+                body["text"] = "".join(c.get("text") or "" for c in body_chars).lstrip()
+                return "PER CURIAM", [body] if body["text"] else []
+        return super().split_author_line(line)
+
+    @staticmethod
+    def _is_wash_banner(block) -> bool:
+        text = re.sub(r"<[^>]+>", "", str(block.text or "")).strip().upper()
+        return text.startswith("IN THE SUPREME COURT OF THE STATE OF WASHINGTON")
+
+    def _separate_stapled_writings(self, doc) -> None:
+        """Attach repeated captions and signatures to the writing they open.
+
+        Washington's Supreme Court PDFs sometimes staple a lead/per-curiam
+        summary, the lead opinion, and separate opinions into one file. The
+        later caption occurs in the previous opinion's extracted range because
+        it has no byline of its own. A court banner is a reliable boundary:
+        move that suffix to the next Opinion and lift any immediately prior
+        signature images onto the preceding writing.
+        """
+        for i in range(len(doc.opinions) - 1):
+            current = doc.opinions[i]
+            boundary = next(
+                (n for n, block in enumerate(current.blocks) if self._is_wash_banner(block)),
+                None,
+            )
+            if boundary is None:
+                continue
+            before = current.blocks[:boundary]
+            caption = current.blocks[boundary:]
+            while before and before[-1].kind == "image":
+                image = before.pop()
+                current.signature.insert(0, {"__image__": True, **image.payload})
+            current.blocks = before
+            next_op = doc.opinions[i + 1]
+            next_op.caption = caption + list(getattr(next_op, "caption", []) or [])
+
+    def _remove_cid_furniture(self, doc):
+        """Remove standalone unmapped-glyph runs from rendered sections.
+
+        These runs occur after signature rules in the Wash Supreme Court's
+        text layer. The base extractor has already accounted for the source
+        line while building the (spurious) footnote, so record it in the
+        Removed bucket before removing that footnote from the model.
+        """
+        dropped = []
+
+        def clean_blocks(blocks):
+            kept = []
+            for block in blocks:
+                text = str(block.text or "")
+                if self._CID_FURNITURE.fullmatch(text):
+                    dropped.append(text.strip())
+                    continue
+                kept.append(block)
+            return kept
+
+        for op in doc.opinions:
+            op.blocks = clean_blocks(op.blocks)
+            kept_fns = []
+            for fn in op.footnotes:
+                paragraphs = []
+                for tag, text in fn.paragraphs:
+                    if self._CID_FURNITURE.fullmatch(str(text or "")):
+                        dropped.append(str(text).strip())
+                    else:
+                        paragraphs.append((tag, text))
+                if paragraphs:
+                    fn.paragraphs = paragraphs
+                    kept_fns.append(fn)
+                else:
+                    # A '?' label with no prose is the parser's unmistakable
+                    # signature that this was a CID-only phantom footnote.
+                    dropped.append(fn.label)
+            op.footnotes = kept_fns
+
+        if dropped:
+            have = set(doc.dropped)
+            doc.dropped = list(doc.dropped) + [x for x in dict.fromkeys(dropped) if x not in have]
 
     # -------------------------------------------------- footnote separator
     def find_footnote_separator(self, page):

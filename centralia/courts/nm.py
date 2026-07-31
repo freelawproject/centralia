@@ -27,6 +27,20 @@ from ._statesupreme import StateSupreme
 _GUTTER_X1 = 60.0
 
 
+def _dedupe(rows):
+    """Order-preserving de-duplication tolerant of unhashable rows."""
+    seen, out = set(), []
+    for r in rows:
+        try:
+            if r in seen:
+                continue
+            seen.add(r)
+        except TypeError:  # image/dict rows are never repeated
+            pass
+        out.append(r)
+    return out
+
+
 class NewMexicoSupreme(StateSupreme):
     court_id = "nm"
     court_label = "Supreme Court of the State of New Mexico."
@@ -77,6 +91,17 @@ class NewMexicoSupreme(StateSupreme):
             if texts[j]:
                 getattr(self, "_nm_dropped", []).append(texts[j])
         return lines[:start] + lines[end + 1 :]
+
+    def _sweep_residual(self, doc, source_pages):
+        """Publish the slip-opinion notice to ``doc.dropped`` BEFORE the
+        completeness sweep reads it. ``extract`` records the notice while
+        reading page 1 but only appends it after ``super().extract()`` returns,
+        and the sweep runs inside that call — so the notice's five body-size
+        lines were reported as unplaced content on every file."""
+        notice = [t for t in getattr(self, "_nm_dropped", None) or [] if t]
+        if notice:
+            doc.dropped = _dedupe(list(doc.dropped or []) + notice)
+        super()._sweep_residual(doc, source_pages)
 
     def _merge_hanging_markers(self, lines):
         """Fold a hanging '{N}' pinpoint that pdfplumber split onto its own line
@@ -213,10 +238,9 @@ class NewMexicoSupreme(StateSupreme):
             self.gap_tight_max = type(self).gap_tight_max
             self.gap_single_max = type(self).gap_single_max
         doc = super().extract(pdf_path)
-        seen = set()
-        uniq = [t for t in self._nm_dropped if not (t in seen or seen.add(t))]
-        if uniq:
-            doc.dropped = list(doc.dropped or []) + uniq
+        # _sweep_residual already published the notice; collapse the repeat so
+        # the Removed box shows each line once.
+        doc.dropped = _dedupe(list(doc.dropped or []) + list(self._nm_dropped))
         if not doc.non_digital:
             with pdfplumber.open(pdf_path) as pdf:
                 sig = self._nm_facets(pdf, line_h)

@@ -314,6 +314,35 @@ class StateSupreme(GenericExtractor):
             out.append(row)
         return out if placed else summary
 
+    @staticmethod
+    def _squeeze_spaced(text: str) -> str:
+        """'O R D E R' → 'ORDER'.
+
+        A court sets an order's heading letter-spaced as often as solid, and the
+        two are the same word: the spacing is typography, not content. A run of
+        consecutive single-character tokens is one letter-spaced word;
+        multi-character tokens are left alone, so 'PER CURIAM ORDER' and a mixed
+        'PER CURIAM O R D E R' both come out whole. Used by Maryland and DC,
+        whose order headings are letter-spaced in some templates only — a
+        heading test keyed on the solid form silently returns no writing at
+        all for the spaced ones."""
+        out, run = [], []
+        for tok in text.split():
+            if len(tok) == 1 and tok.isalpha():
+                run.append(tok)
+                continue
+            if len(run) >= 3:
+                out.append("".join(run))
+            else:
+                out.extend(run)
+            run = []
+            out.append(tok)
+        if len(run) >= 3:
+            out.append("".join(run))
+        else:
+            out.extend(run)
+        return " ".join(out)
+
     def _split_line_runs(self, line) -> list:
         """Split a line into separately-positioned runs at column gaps
         ('GREGORY GRIFFIN, ... §' is two runs, not one string at the line's
@@ -400,6 +429,16 @@ class StateSupreme(GenericExtractor):
             "dropped": [" ".join(notice)] if notice else [],
         }
 
+    def styled_headmatter_rows(self, rows: list) -> list:
+        """Hook: adjust the placed headmatter rows — ``(page, top, x0, payload)``,
+        in reading order — before they are turned into styled summary rows.
+
+        The payload carries ``html``/``size``/``x1``/``align`` (or ``divider``),
+        so a court can reconcile a run of wrapped lines that belongs together
+        before per-line measurements are frozen into the output. No-op by
+        default."""
+        return rows
+
     def _styled_headmatter(self, headmatter_segs, page1_rules=None) -> dict:
         """Style-preserving headmatter (the 'Florida' look): each line keeps its
         relative font size, bold/italic, and alignment; underscore rules become
@@ -449,18 +488,43 @@ class StateSupreme(GenericExtractor):
                 if all(c in "_-—–" for c in t):
                     rows.append((pno, top, x0, {"divider": True}))
                     continue
-                rows.append(
-                    (
-                        pno,
-                        top,
-                        x0,
-                        {
-                            "html": self.line_inline_text(line),
-                            "size": size,
-                            "align": self.line_alignment(line, pw),
-                        },
-                    )
-                )
+                # A row can hold more than one COLUMN. North Dakota prints the
+                # party at the left margin and its status flush right on the
+                # same baseline ('Jarrod Jashawn Adams,' … 'Petitioner and
+                # Appellant' ending exactly at x=540), and pdfplumber hands
+                # that back as one line — so a single html string collapses a
+                # 184pt gap to one space. Keep the runs, positioned.
+                zones = []
+                runs = self._split_line_runs(line)
+                if len(runs) > 1:
+                    right_margin = max(r["x1"] for r in runs)
+                    for a, b in zip(runs, runs[1:]):
+                        if b["x0"] - a["x1"] >= 24:
+                            break
+                    else:
+                        runs = []  # no real column gap: ordinary word spacing
+                    for r in runs:
+                        txt = self.line_inline_text(r)
+                        if not txt.strip():
+                            continue
+                        near_right = abs(r["x1"] - right_margin) <= 2
+                        zones.append(
+                            {
+                                "h": txt,
+                                "x0": round(r["x0"], 1),
+                                "x1": round(r["x1"], 1),
+                                "align": "r" if near_right and r is runs[-1] else "l",
+                            }
+                        )
+                payload = {
+                    "html": self.line_inline_text(line),
+                    "size": size,
+                    "x1": round(line["x1"], 1),
+                    "align": self.line_alignment(line, pw),
+                }
+                if len(zones) > 1:
+                    payload["zones"] = zones
+                rows.append((pno, top, x0, payload))
         # Preserve DRAWN caption/headmatter rules (vector lines, hairline rects,
         # rule images) as dividers at their y-position — the styled builder
         # otherwise only kept underscore-TEXT rules. Collapse near-duplicate tops
@@ -473,13 +537,25 @@ class StateSupreme(GenericExtractor):
             seen_div.append(div_top)
             rows.append((cap_pno, round(div_top, 1), 0.0, {"divider": True}))
         rows.sort(key=lambda r: (r[0], r[1], r[2]))
+        rows = self.styled_headmatter_rows(rows)
+        # HORIZONTAL POSITION is content. A caption indents its role lines
+        # under the party they belong to ('Plaintiff,' beneath 'ALEXIS
+        # STOMBAUGH,'), and pins the docket number out to the right — and a
+        # row model that keeps only L/C/R alignment flattens all of that to
+        # flush left, so every court needed its own column fold before its
+        # caption read correctly. Measure each row's offset from the block's
+        # own left edge and carry it through; the renderer indents by it.
+        left_edge = min(
+            (x0 for _p, _t, x0, pl in rows if "size" in pl and x0 is not None),
+            default=None,
+        )
         sizes = [p["size"] for _, _, _, p in rows if "size" in p]
         base = _Counter(round(s) for s in sizes).most_common(1)[0][0] if sizes else 12
         summary = []
         prev_pno = prev_top = prev_size = None
         for pno, top, _x0, p in rows:
             # Preserve the page's vertical rhythm: a gap wider than ~1.8
-            # lines (or a page break) becomes a blank row.
+            # lines (or a page break) becomes a blank row.  (indent below)
             if prev_top is not None and (
                 pno != prev_pno or (top - prev_top) > 1.8 * max(prev_size or 12, 9)
             ):
@@ -489,14 +565,27 @@ class StateSupreme(GenericExtractor):
             if p.get("divider"):
                 summary.append("__DIVIDER__")
             else:
-                summary.append(
-                    {
-                        "__hm__": True,
-                        "html": p["html"],
-                        "rel": round(p["size"] / base, 3),
-                        "align": p["align"],
-                    }
-                )
+                row = {
+                    "__hm__": True,
+                    "html": p["html"],
+                    "rel": round(p["size"] / base, 3),
+                    "align": p["align"],
+                }
+                # ``html`` is left intact so the caption folds (which read it)
+                # and the audit keep working; ``zones`` is additive.
+                if p.get("zones"):
+                    row["zones"] = p["zones"]
+                # Only a LEFT-set row carries a meaningful indent: a centered
+                # or right-set row is already positioned by its alignment, and
+                # padding it as well would shift it off its own axis.
+                if (
+                    p["align"] == "L"
+                    and left_edge is not None
+                    and _x0 is not None
+                    and (_x0 - left_edge) >= 6
+                ):
+                    row["ind"] = round(_x0 - left_edge, 1)
+                summary.append(row)
         return {
             "court": self.court_label or self.court_id,
             "summary": summary,
@@ -814,7 +903,7 @@ class StateSupreme(GenericExtractor):
             # already resolves via rects is untouched.
             rules = scan(page.lines)
         if not rules:
-            return self._footnote_sep_text(page)
+            return self._fenceless_sep(page) or self._footnote_sep_text(page)
         text_lines = page.extract_text_lines()
 
         def is_caption_pair(r):
@@ -849,8 +938,23 @@ class StateSupreme(GenericExtractor):
 
         cands = [r for r in rules if not is_caption_pair(r) and not is_underline(r)]
         if not cands:
-            return self._footnote_sep_text(page)
+            return self._fenceless_sep(page) or self._footnote_sep_text(page)
         return min(cands, key=lambda r: r["top"])["top"]
+
+    def _fenceless_sep(self, page):
+        """Second pass with the bottom-half fence removed.
+
+        The fence assumes a footnote zone sits low on the page, which is true
+        until a footnote is long enough to push its own separator UP: dc/brooks
+        (footnote 3 runs 20 lines) puts the rule at y=234, hawapp/yang_1 at 234,
+        fladistctapp/dunlap at 278 — all on a 792pt sheet, all rejected, all
+        losing every footnote on the page to the body.
+
+        Dropping the fence is only safe against a rule the court uses SOLELY as
+        a footnote separator, so this asks for the 2-inch (144pt) rule at the
+        left body margin — the standard Word/CM-ECF and reporter divider — and
+        nothing else."""
+        return self.footnote_sep_fixed_left_rule(page, width=144.0)
 
     # Tuning for ``_footnote_sep_small_text_below``. The default treats the line
     # directly under a rule (its topmost char, within a ~22pt band) as a footnote

@@ -20,6 +20,8 @@ a 'SYLLABUS' page.
 
 from __future__ import annotations
 
+import re
+
 from ._reversedjustice import ReversedJusticeSupreme
 
 # The formal opinion caption that follows the syllabus and opens the headmatter.
@@ -33,6 +35,30 @@ class NewJerseySupreme(ReversedJusticeSupreme):
     # the body as its own line — recognize it as furniture (drop it, and fold a
     # paragraph that a page break split back together with a <pagenumber> mark).
     fold_page_numbers = True
+
+    @staticmethod
+    def _repair_split_letter_hyphens(text: str) -> str:
+        """Repair an NJ embedded-font artifact: ``-Po-s-t`` / ``-Id-``.
+
+        These are not source hyphenations; the same PDF exposes the normal
+        words through its plain text layer. Require at least two hyphens so
+        ordinary compounds such as ``work-around`` remain untouched.
+        """
+        def join(match):
+            token = match.group(0)
+            return token.replace("-", "") if token.count("-") >= 2 else token
+
+        return re.sub(
+            r"(?<![A-Za-z])-?[A-Za-z]+(?:-[A-Za-z]+)+-?(?![A-Za-z])",
+            join,
+            text,
+        )
+
+    def line_inline_text(self, line) -> str:
+        return self._repair_split_letter_hyphens(super().line_inline_text(line))
+
+    def line_plain_text(self, line) -> str:
+        return self._repair_split_letter_hyphens(super().line_plain_text(line))
 
     _ROMAN_OUTLINE = {
         "I",
@@ -113,12 +139,27 @@ class NewJerseySupreme(ReversedJusticeSupreme):
         ahead of the formal 'SUPREME COURT OF NEW JERSEY' caption; the true
         byline always follows it. So drop any candidate before that caption."""
         authors = super().find_authors(all_segments)
+        self._nj_order_start = None
         first = ""
         for _pno, seg, _kind in all_segments:
             if seg and self.line_plain_text(seg[0]).strip():
                 first = self.line_plain_text(seg[0]).strip().upper()
                 break
         if first != "SYLLABUS":
+            if authors:
+                return authors
+            # Appellate Division motion orders have no justice byline. Their
+            # ruling begins with a standalone ``ORDER`` after the caption;
+            # without this fallback the ruling is all classified as headmatter.
+            for i, (_pno, seg, _kind) in enumerate(all_segments):
+                if (
+                    seg
+                    and "".join(self.line_plain_text(seg[0]).split()).upper()
+                    == "ORDER"
+                    and i > 0
+                ):
+                    self._nj_order_start = i
+                    return [i]
             return authors
         cap_idx = next(
             (
@@ -137,6 +178,11 @@ class NewJerseySupreme(ReversedJusticeSupreme):
             return authors
         gated = [i for i in authors if i >= cap_idx]
         return gated or authors
+
+    def split_author_line(self, line):
+        if getattr(self, "_nj_order_start", None) is not None:
+            return "PER CURIAM", [line]
+        return super().split_author_line(line)
 
     def extract_headmatter(self, headmatter_segs, page1_rules=None) -> dict:
         lines = [
