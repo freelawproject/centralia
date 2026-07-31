@@ -90,12 +90,23 @@ class FirstCircuit(FederalCircuitBase):
     def split_body_paragraphs(self, seg):
         return super().split_body_paragraphs(self._drop_pageno_lines(seg))
 
-    def build_footnotes(self, pages, footnote_lines_by_page, seen_labels=None):
+    def build_footnotes(
+        self,
+        pages,
+        footnote_lines_by_page,
+        seen_labels=None,
+        footnote_tables_by_page=None,
+    ):
         cleaned = {
             pno: self._drop_pageno_lines(lines)
             for pno, lines in footnote_lines_by_page.items()
         }
-        return super().build_footnotes(pages, cleaned, seen_labels=seen_labels)
+        return super().build_footnotes(
+            pages,
+            cleaned,
+            seen_labels=seen_labels,
+            footnote_tables_by_page=footnote_tables_by_page,
+        )
 
     def find_footnote_separator(self, page) -> Optional[float]:
         """CA1 draws its footnote separator as a 2-inch (≈144pt) hairline at

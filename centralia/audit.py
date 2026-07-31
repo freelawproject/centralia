@@ -586,6 +586,8 @@ def sweep_unplaced(doc: ExtractedDocument, pages_lines) -> list:
     junk) or 'content' (real text needing a home)."""
     kept = _norm(" ".join(c for c in _doc_chunks(doc) if c))
     kept_nodigits = _digitless(kept)
+    kept_raw = _strip_tags(" ".join(c for c in _doc_chunks(doc) if c))
+    kept_tails = _norm(" ".join(w[1:] for w in kept_raw.split() if len(w) > 2))
     dropped_hay = _norm(" ".join(c for c in doc.dropped if c))
     table_pages = {
         b.page
@@ -600,6 +602,13 @@ def sweep_unplaced(doc: ExtractedDocument, pages_lines) -> list:
             if not raw.strip():
                 continue
             if _matches(raw, kept, kept_nodigits):
+                continue
+            # Small-caps banner artifact: a drop-cap face puts the large
+            # initials on their own raw line, leaving 'NITED TATES ISTRICT
+            # OURT' as a GT line that can never substring-match the kept
+            # 'UNITED STATES DISTRICT COURT'. Match against the kept text
+            # with each word's initial removed.
+            if _matches(raw, kept_tails):
                 continue
             if pno in table_pages and all(
                 _norm(t) in kept for t in raw.split() if _norm(t)
@@ -617,6 +626,38 @@ def sweep_unplaced(doc: ExtractedDocument, pages_lines) -> list:
     return out
 
 
+def _split_between_kept_and_dropped(raw: str, kept: str, dropped: str) -> bool:
+    """Whether one physical row was routed into two visible destinations.
+
+    Side-by-side PDF columns can share a baseline and therefore appear as one
+    ``extract_text`` row even though geometry correctly sends the left run to
+    headmatter and the right run to the Removed box (Wisconsin's clerk stamp +
+    publication notice).  Require every substantial token to occur in one of
+    the two destinations, plus a consecutive two-token phrase in EACH.  The
+    phrase requirement prevents a genuinely missing sentence from passing
+    merely because its common words happen to occur elsewhere in the document.
+    """
+    if not kept or not dropped:
+        return False
+    tokens = [
+        _norm(token)
+        for token in raw.split()
+        if _norm(token) and any(ch.isalnum() for ch in token)
+    ]
+    if len(tokens) < 4 or not all(
+        token in kept or token in dropped for token in tokens
+    ):
+        return False
+
+    def has_phrase(haystack: str) -> bool:
+        return any(
+            tokens[index] + tokens[index + 1] in haystack
+            for index in range(len(tokens) - 1)
+        )
+
+    return has_phrase(kept) and has_phrase(dropped)
+
+
 def audit_coverage(
     doc: ExtractedDocument, pdf_path: str, extractor=None
 ) -> AuditResult:
@@ -626,6 +667,8 @@ def audit_coverage(
         return AuditResult(total=0, covered=0, missing=[])
     kept = _norm(" ".join(c for c in _doc_chunks(doc) if c))
     kept_nodigits = _digitless(kept)
+    kept_raw = _strip_tags(" ".join(c for c in _doc_chunks(doc) if c))
+    kept_tails = _norm(" ".join(w[1:] for w in kept_raw.split() if len(w) > 2))
     dropped_hay = _norm(" ".join(c for c in doc.dropped if c))
 
     # Pages where the output carries a table block: a multi-line table row
@@ -672,12 +715,29 @@ def audit_coverage(
             # happens to recur in the Removed box counts as kept.
             if _matches(raw, kept, kept_nodigits):
                 continue
-            if pno in table_pages and all(
+            # Small-caps banner artifact: a drop-cap face puts the large
+            # initials on their own raw line, leaving 'NITED TATES ISTRICT
+            # OURT' as a GT line that can never substring-match the kept
+            # 'UNITED STATES DISTRICT COURT'. Match against the kept text
+            # with each word's initial removed.
+            if _matches(raw, kept_tails):
+                continue
+            if (
+                pno in table_pages
+                or getattr(extractor, "_ao_form", False)
+            ) and all(
                 _norm(t) in kept for t in raw.split() if _norm(t)
             ):
                 continue
             # Routed to the Removed box (doc.dropped).
             if dropped_hay and _matches(raw, dropped_hay):
+                dropped.append((pno, raw.strip()))
+                continue
+            # A single source baseline may contain two geometric columns, one
+            # kept and one visibly removed.  Account for the split only when
+            # both destinations contain a real phrase and together contain
+            # every source token.
+            if _split_between_kept_and_dropped(raw, kept, dropped_hay):
                 dropped.append((pno, raw.strip()))
                 continue
             # Identified page furniture: running headers/footers, or a stamp /

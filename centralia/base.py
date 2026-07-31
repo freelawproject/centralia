@@ -322,6 +322,8 @@ class BaseExtractor:
     # body starts at the 'ORDER …' heading, author is the '/s/ Name' signature.
     # (delaware.py keeps its own richer version; Alabama is fidelity-locked.)
     order_heading_fallback: bool = True
+    # Surface what the margin bands cut (deduped) in the Removed box.
+    surface_margin_furniture: bool = True
     # A line-to-line change in bold normally marks a structural boundary
     # (heading / byline). Courts that bold text *inline* for emphasis — e.g.
     # Puerto Rico bolds dates and times mid-paragraph — set this False so an
@@ -522,6 +524,9 @@ class BaseExtractor:
         # so a batch run can't leak one PDF's order anchor into the next.
         self._order_start = None
         self._order_author = None
+        # Margin-band furniture captured by page_lines, keyed digitless so a
+        # per-page stamp dedupes to one Removed-box row.
+        self._margin_dropped = {}
         # Folios ``build_opinion`` removes from the body (see ``add_para``),
         # kept so the Removed box can show them instead of the sweep reporting
         # them unplaced.
@@ -564,6 +569,7 @@ class BaseExtractor:
             cap_page = self.caption_page(pdf)
             self._caption_pno = cap_page.page_number if cap_page is not None else 1
             self._page1_width = cap_page.width if cap_page is not None else 612.0
+            self._premeasure_geometry(pdf)
             if cap_page is not None:
                 page1_rules = self._page1_rules(cap_page)
                 self._hm_caption_box = self._page1_caption_box(cap_page)
@@ -823,6 +829,12 @@ class BaseExtractor:
             have = set(doc.dropped)
             doc.dropped = list(doc.dropped) + [
                 f for f in dict.fromkeys(folios) if f not in have
+            ]
+        margin = getattr(self, "_margin_dropped", None) or {}
+        if margin:
+            have = set(doc.dropped)
+            doc.dropped = list(doc.dropped) + [
+                t for t in margin.values() if t not in have
             ]
         try:
             from .audit import sweep_unplaced
@@ -1203,6 +1215,7 @@ class BaseExtractor:
         page has a vertical caption-column divider, split chars into
         left/right columns BEFORE clustering so the columns don't merge."""
         self.correct_page_geometry(page)
+        self._capture_margin_band(page)
         divider = self.find_caption_divider(page)
         if divider is None:
             lines = self._text_lines(page.filter(self.filter_margins))
@@ -1443,6 +1456,35 @@ class BaseExtractor:
         if obj["top"] < self.margin_top or obj["top"] > self.margin_bottom:
             return None
         return True
+
+    def _capture_margin_band(self, page) -> None:
+        """Record what ``filter_margins`` is about to cut, so it can surface
+        in the Removed box instead of vanishing.
+
+        The margin bands are geometry: whatever prints there — a CM/ECF
+        header stamp, a form footer ('CV-90 (10/08) CIVIL MINUTES - GENERAL
+        Page 1 of 1') — is page furniture BY POSITION, no text rules needed.
+        But 'drop only identified junk, and surface it': cutting the chars
+        silently made a one-page form's footer read as unplaced content in
+        the audit (repetition can't identify furniture with one page).
+        Deduped by digitless key: a stamp that repeats on every page shows
+        once."""
+        if not self.surface_margin_furniture:
+            return
+        try:
+            band = page.filter(lambda o: not self.filter_margins(o))
+            lines = self._text_lines(band)
+        except Exception:
+            return
+        store = getattr(self, "_margin_dropped", None)
+        if store is None:
+            store = self._margin_dropped = {}
+        for line in lines:
+            text = self.line_plain_text(line).strip()
+            if not text:
+                continue
+            key = "".join(c for c in text if not c.isdigit())
+            store.setdefault(key, text)
 
     def find_footnote_separator(self, page) -> Optional[float]:
         """y (top) of a footnote-zone separator rect, or None.
@@ -1802,7 +1844,16 @@ class BaseExtractor:
         """
         if not self.blockquote_by_indent:
             return [False] * len(lines)
-        deep = self.body_baseline_x0 + 1.5 * self.indent_step
+        # The deep-indent boundary is measured from the DOCUMENT's body column
+        # when known (the pre-pass supplies it during segmentation): a
+        # narrow-measure chambers sets its whole body past the constant
+        # boundary, which read every line as quote-deep and cut the body into
+        # one segment per line.
+        base = self.body_baseline_x0
+        geom = getattr(self, "_doc_geom", None)
+        if geom and self.measured_gap_bands:
+            base = max(base, geom["body_x0"])
+        deep = base + 1.5 * self.indent_step
         raw = [
             l["x0"] >= deep and not self._begins_paragraph_block([l]) for l in lines
         ]
@@ -1849,7 +1900,11 @@ class BaseExtractor:
         )
         geom = getattr(self, "_doc_geom", None)
         lead = (geom or {}).get("lead") if self.measured_gap_bands else None
-        if lead and tight_max <= lead < single_max:
+        # Below single_max covers both failure shapes: a lead inside the
+        # blockquote band (DC's 16pt against tight 16 / single 22) and one
+        # below even the notice band (cacd civil minutes at 15.3pt, where the
+        # whole ruling classified as 'notice' and never split into paragraphs).
+        if lead and lead < single_max:
             tight_max = 0.45 * lead
             single_max = 0.85 * lead
             double_max = 1.5 * lead
@@ -1877,8 +1932,19 @@ class BaseExtractor:
         if not seg:
             return False
         pw = getattr(self, "_page1_width", None) or 612.0
-        quote_left = self.body_baseline_x0 + 1.5 * self.para_indent_min
-        quote_right = pw - self.body_baseline_x0 - 24
+        # Judge the quote measure against the DOCUMENT's own body column when
+        # it was measurable — same floor/cap semantics as
+        # _is_indented_blockquote. A chambers that typesets its orders on a
+        # narrow law-review measure (txwd: body at x0=144, right 468) is not
+        # one long quotation of itself.
+        base_left = self.body_baseline_x0
+        right_edge = pw - self.body_baseline_x0
+        geom = getattr(self, "_doc_geom", None)
+        if geom and self.measured_gap_bands:
+            base_left = max(base_left, geom["body_x0"])
+            right_edge = min(right_edge, geom["right_x1"])
+        quote_left = base_left + 1.5 * self.para_indent_min
+        quote_right = right_edge - 24
         left = min(line["x0"] for line in seg)
         # A centered section heading can also fit inside both numerical
         # margins. A real quotation starts near the body column and moves
@@ -1892,6 +1958,48 @@ class BaseExtractor:
             left >= quote_left
             and max(line["x1"] for line in seg) <= quote_right
         )
+
+    def _premeasure_geometry(self, pdf) -> None:
+        """A quick first read of the document's geometry BEFORE the page loop.
+
+        Segmentation runs inside the loop and needs the body column too — a
+        narrow-measure chambers (txwd at x0=144/468) otherwise has its body
+        split line-by-line as quote runs before classification ever sees the
+        measured profile. Sampled from a few interior pages (the caption page
+        skews the columns); the full-precision measurement over every
+        collected line replaces it after the loop."""
+        lines = []
+        try:
+            pages = pdf.pages[1:4] or pdf.pages[:1]
+            for page in pages:
+                for line in page.extract_text_lines():
+                    if (line.get("text") or "").strip() and line["top"] > 80:
+                        lines.append(line)
+        except Exception:
+            return
+        if len(lines) < 12:
+            return
+        x1s = sorted(l["x1"] for l in lines)
+        right_x1 = x1s[int(0.95 * (len(x1s) - 1))]
+        full = [l for l in lines if l["x1"] >= right_x1 - 36]
+        if len(full) < 6:
+            return
+        body_x0 = Counter(round(l["x0"]) for l in full).most_common(1)[0][0]
+        leads = Counter()
+        for a, b in zip(lines, lines[1:]):
+            gap = round(b["top"] - a["top"])
+            if 5 < gap < 60:
+                leads[gap] += 1
+        lead = (
+            float(leads.most_common(1)[0][0])
+            if sum(leads.values()) >= 8
+            else None
+        )
+        self._doc_geom = {
+            "body_x0": float(body_x0),
+            "right_x1": float(right_x1),
+            "lead": lead,
+        }
 
     def _measure_doc_geometry(self, all_segments) -> None:
         """Measure THIS document's body column from its own lines.
@@ -2463,7 +2571,16 @@ class BaseExtractor:
         if not seg:
             return []
         seg_left = min(l["x0"] for l in seg)
-        indent_min = max(self.body_baseline_x0, seg_left) + self.para_indent_min
+        # The configured floor can sit ABOVE the document's real body column
+        # (cacd civil minutes print at x0=54 under the default 72, indenting
+        # paragraph first lines to 90 — below 72+28, so nothing ever split).
+        # The measured column caps the constant; courts that tuned a high
+        # baseline measure the same value and are unaffected.
+        floor = self.body_baseline_x0
+        geom = getattr(self, "_doc_geom", None)
+        if geom and self.measured_gap_bands:
+            floor = min(floor, geom["body_x0"])
+        indent_min = max(floor, seg_left) + self.para_indent_min
         # Lines must clear a *second* indent threshold to be treated as a
         # multi-line indented block rather than a paragraph first line.
         # A paragraph first line lands just above indent_min; a blockquote
@@ -3100,7 +3217,16 @@ class BaseExtractor:
         # opening block, so it must not be pulled into the body.
         start_pno, start_seg, _sk = all_segments[op_start]
         start_top = start_seg[0]["top"] if start_seg else 0.0
-        for pno in op_pages:
+        # ``op_pages`` holds only pages that contributed a body SEGMENT. A page
+        # whose entire content is an image — a scanned order page stapled to a
+        # digital caption (cacd 980704: page 2 is one full-page scan) — is
+        # absent, and its image silently disappeared. The last opinion owns
+        # any trailing image-only pages; nothing else can.
+        img_pages = set(op_pages)
+        if op_end >= len(all_segments) and op_pages:
+            last_body_pg = max(op_pages)
+            img_pages |= {p for p in images_by_page if p > last_body_pg}
+        for pno in img_pages:
             for img in images_by_page.get(pno, []):
                 if pno == start_pno and img["bottom"] <= start_top:
                     continue

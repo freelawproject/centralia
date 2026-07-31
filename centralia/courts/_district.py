@@ -160,6 +160,10 @@ class DistrictBase(GenericExtractor):
     # hides the title line the signature block is anchored on. Body prose is
     # untouched: a real wrapped paragraph always has full-measure lines.
     split_line_stacks = True
+    # CM/ECF header-band captures (see page_lines); class defaults so a court
+    # whose pipeline never routes page 1 through page_lines still reads clean.
+    _ecf_docket = None
+    _ecf_filed = None
 
     def extract(self, pdf_path):
         self._hm_super_labels = set()
@@ -177,7 +181,34 @@ class DistrictBase(GenericExtractor):
                 op.footnotes = [f for f in op.footnotes if f.label not in labels]
                 doc.headmatter_footnotes = list(doc.headmatter_footnotes) + moved
         self._harvest_signature(doc)
+        self._lift_district_date(doc)
         return doc
+
+    def _lift_district_date(self, doc) -> None:
+        """Populate decision_date, family-wide.
+
+        The typed date stamp in the signature block ('Signed: May 18, 2026' /
+        'Dated: …' / 'DATED this 3rd day of …') is authoritative when present;
+        otherwise the CM/ECF header band's 'Filed 05/11/26' — printed on every
+        filing — read off in page_lines before margin_top discards it."""
+        if doc.decision_date:
+            return
+        rows = [str(s) for s in (doc.signature or [])]
+        if doc.trailer:
+            rows.extend(str(t) for t in doc.trailer)
+        for op in doc.opinions:
+            rows.extend(str(b.text or "") for b in op.blocks[-4:])
+        for row in rows:
+            text = self._untag(row).strip()
+            for label in ("Signed:", "Dated:", "DATED:", "Entered:", "ENTERED:", "Date:"):
+                at = text.find(label)
+                if at != -1:
+                    tail = text[at + len(label) :].strip()
+                    if tail and any(ch.isdigit() for ch in tail):
+                        doc.decision_date = tail
+                        return
+        if getattr(self, "_ecf_filed", None):
+            doc.decision_date = self._ecf_filed
 
     @staticmethod
     def _untag(text: str) -> str:
@@ -348,14 +379,32 @@ class DistrictBase(GenericExtractor):
         # documents whose caption shows it bare or not at all. Read the token
         # off before the band disappears.
         if page.page_number == 1:
-            self._ecf_docket = None  # per-document; instances are reused
-        if getattr(self, "_ecf_docket", None) is None:
-            band = page.filter(lambda c: c["top"] < self.margin_top + 6)
-            for word in band.extract_words():
+            # per-document; instances are reused across a batch
+            self._ecf_docket = None
+            self._ecf_filed = None
+        if getattr(self, "_ecf_docket", None) is None or (
+            getattr(self, "_ecf_filed", None) is None
+        ):
+            # The stamp prints at the top on most districts and at the BOTTOM
+            # on others (ncwd, akd); flsd words it 'Entered on FLSD Docket
+            # 04/22/2026' instead of 'Filed 05/11/26'.
+            band = page.filter(
+                lambda c: c["top"] < self.margin_top + 6
+                or c["top"] > self.margin_bottom - 6
+            )
+            words = band.extract_words()
+            for i, word in enumerate(words):
                 token = (word.get("text") or "").rstrip(",;)")
-                if self._is_ecf_case_token(token):
+                if self._ecf_docket is None and self._is_ecf_case_token(token):
                     self._ecf_docket = token
-                    break
+                if (
+                    self._ecf_filed is None
+                    and token.rstrip(":").lower() in ("filed", "docket")
+                    and i + 1 < len(words)
+                ):
+                    nxt = (words[i + 1].get("text") or "").strip()
+                    if "/" in nxt and any(ch.isdigit() for ch in nxt):
+                        self._ecf_filed = nxt
         return super().page_lines(page)
 
     @staticmethod
@@ -635,11 +684,16 @@ class DistrictBase(GenericExtractor):
         ]
 
     def extract_page_tables(self, page):
-        """Completeness-first: don't lift tables into separate structures.
-        District rulings embed fee schedules / claim charts / exhibits whose
-        rows would otherwise be excluded from the body (their bbox is skipped)
-        and lost. Leaving them as body lines keeps every row in the output."""
-        return []
+        """Lift only tables proved by the shared, conservative validator.
+
+        The base detector rejects the common false positive here (an indented
+        quotation read as a two-column table): a candidate needs at least
+        three rows and at least two columns populated in a majority of rows.
+        Keeping a blanket district-court opt-out flattened genuine schedules
+        and deadline grids even though that validation already distinguished
+        them from prose.
+        """
+        return super().extract_page_tables(page)
 
     # NOTE: removal of page furniture (running footers, bates) and footnote /
     # opinion-start tuning are intentionally NOT in this shared base — they are
@@ -1700,6 +1754,38 @@ class DistrictBase(GenericExtractor):
                         run = ""
                 if run:
                     labels.add(run)
+        # Group what belongs together: a section heading directly ABOVE the
+        # chosen start belongs to the ruling, not to headmatter. When page 1
+        # is a scanned caption (cacd 996274), the digital text opens
+        # 'II. LEGAL STANDARD' on page 2 and the body-segment fallback landed
+        # on the paragraph BELOW it — the heading was orphaned into an
+        # otherwise-empty headmatter. Walk back over short heading-like
+        # segments that sit on the start's own page, outside any caption band.
+        while start > 0:
+            prev_pno, prev_seg, _pk = all_segments[start - 1]
+            cur_pno, cur_seg, _ck = all_segments[start]
+            if not prev_seg or prev_pno != cur_pno or len(prev_seg) > 2:
+                break
+            # On page 1 the segment above the start is almost always caption
+            # material. Walk back only when a measured caption band PROVES the
+            # heading sits below it — with no band drawn (txwd's typed-rail
+            # captions), a bold 'Plaintiffs,' role row is indistinguishable
+            # from a heading by geometry alone, and walking back swallows the
+            # caption into the body.
+            if prev_pno == 1 and (
+                cap_bottom is None
+                or prev_seg[0].get("top", 0) < cap_bottom - 4
+            ):
+                break
+            text = self.line_plain_text(prev_seg[0]).strip()
+            # Heading geometry: short of the measure and either bold or
+            # set in caps — never a wrapped prose line.
+            if not text or (prev_seg[0]["x1"] - prev_seg[0]["x0"]) > wide:
+                break
+            _sz, _font, bold = self.line_meta(prev_seg[0])
+            if not (bold or text == text.upper()):
+                break
+            start -= 1
         self._hm_super_labels = labels
         return [start]
 

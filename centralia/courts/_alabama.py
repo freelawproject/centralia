@@ -42,6 +42,7 @@ class AlabamaAppellate(BaseExtractor):
     measured_gap_bands = False
     split_quote_runs = False
     order_heading_fallback = False
+    surface_margin_furniture = False
     footnote_sep_rect = (72.0, 216.0)
     underline_offset_min = -4.0
     underline_offset_max = 5.0
