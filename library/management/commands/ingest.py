@@ -84,6 +84,14 @@ class Command(BaseCommand):
                         n_docs += 1
                         continue
                     has_body = any(op.blocks for op in d.opinions)
+                    warnings = list(d.warnings)
+                    if d.non_digital and not any(
+                        "non-born-digital" in warning for warning in warnings
+                    ):
+                        warnings.append(
+                            "non-born-digital (scanned image + OCR text layer); "
+                            "not processed"
+                        )
                     cov = 0.0
                     if do_audit:
                         try:
@@ -101,7 +109,7 @@ class Command(BaseCommand):
                         headnotes=list(getattr(d, "headnotes", []) or []),
                         dropped=list(d.dropped), trailer=list(d.trailer),
                         residual=list(getattr(d, "residual", []) or []),
-                        warnings=list(d.warnings),
+                        warnings=warnings,
                         suspect=(not has_body) and d.n_pages > 2, coverage=cov)
                     for fn in d.headmatter_footnotes:
                         Footnote.objects.create(

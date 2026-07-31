@@ -1,0 +1,186 @@
+{% extends "library/base.html" %}{% block title %}Audit — centralia{% endblock %}
+{% block content %}
+<style>
+ .tiles{display:grid;grid-template-columns:repeat(auto-fit,minmax(8.5rem,1fr));gap:.6rem;margin:.4rem 0 1.4rem}
+ .tile{border:1px solid var(--rule);border-radius:.4rem;padding:.6rem .7rem;background:#faf8f4}
+ .tile .n{font-size:1.5rem;font-weight:bold;line-height:1.1}
+ .tile .k{font-size:.66rem;text-transform:uppercase;letter-spacing:.06em;color:var(--muted)}
+ .tile.bad{background:#fdf3f3;border-color:#e6c9c9} .tile.bad .n{color:#7a1f1f}
+ .tile.warn{background:#fdf8ec;border-color:#e8dcc0} .tile.warn .n{color:#8a5a1f}
+ .tile.good{background:#f2f7f3;border-color:#cfe0d4} .tile.good .n{color:var(--ok)}
+ table.aud{width:100%;border-collapse:collapse;font-size:.88rem}
+ table.aud th{text-align:left;color:var(--muted);font-size:.68rem;text-transform:uppercase;
+   letter-spacing:.06em;padding:.35rem .4rem;border-bottom:1px solid var(--rule);
+   cursor:pointer;user-select:none;white-space:nowrap}
+ table.aud th:hover{color:#1a1a1a}
+ table.aud td{padding:.3rem .4rem;border-bottom:1px solid #f2f2f2;vertical-align:top}
+ table.aud tr.clean td{color:var(--muted)}
+ /* Row tint = KIND of problem; cell tint = its magnitude. Kept pale so the
+    numbers stay readable and a page of rows still reads as a table. */
+ table.aud tr.t-noop{background:#fdf1f1}
+ table.aud tr.t-content{background:#fdfaf2}
+ table.aud tr.t-clean{background:#f7fbf8}
+ table.aud tr:hover{background:#f0ece4 !important}
+ table.aud tr.t-noop td:first-child{box-shadow:inset 3px 0 0 #7a1f1f}
+ table.aud tr.t-content td:first-child{box-shadow:inset 3px 0 0 #c98a2e}
+ table.aud tr.t-clean td:first-child{box-shadow:inset 3px 0 0 #9ec3a8}
+ .h1{background:#fdf6e7} .h2{background:#f9e9c8} .h3{background:#f2d49b} .h4{background:#e8b96a}
+ .n1{background:#fbe9e9} .n2{background:#f4cfcf} .n3{background:#e9adad}
+ td.heat,td.nheat{border-radius:.2rem;font-weight:bold}
+ .num{text-align:right;font-variant-numeric:tabular-nums}
+ .cid{font-family:ui-monospace,monospace}
+ .dot{display:inline-block;width:.5rem;height:.5rem;border-radius:50%;margin-right:.35rem}
+ .dot.noop{background:#7a1f1f} .dot.content{background:#c98a2e} .dot.clean{background:var(--ok)}
+ .bar{display:inline-block;height:.5rem;background:#c98a2e;border-radius:.15rem;
+      vertical-align:middle;margin-left:.4rem;min-width:1px}
+ .stem{font-size:.76rem;color:var(--muted);font-family:ui-monospace,monospace;
+       word-break:break-all}
+ .ctl{display:flex;gap:.6rem;align-items:center;margin:.2rem 0 .7rem;flex-wrap:wrap}
+ .ctl input{padding:.3rem .5rem;border:1px solid var(--rule);border-radius:.3rem;font:inherit;font-size:.85rem}
+ .ctl label{font-size:.8rem;color:var(--muted)}
+ .fam{font-size:.76rem;color:var(--muted)}
+</style>
+
+<h1>Extraction audit</h1>
+<p class="muted">Live from the ingest DB — re-ingest a court to refresh its row.
+Ranked worst-first: a document that returned <b>no writing</b> outranks any number of
+stray lines. Furniture is listed but never flagged; it is already identified.</p>
+
+<div class="tiles">
+ <div class="tile bad"><div class="n">{{ totals.noop }}</div>
+   <div class="k">No writing</div>
+   <div class="fam">in {{ totals.noop_courts }} courts</div></div>
+ <div class="tile warn"><div class="n">{{ totals.content }}</div>
+   <div class="k">Unplaced content</div>
+   <div class="fam">in {{ totals.content_courts }} more courts</div></div>
+ <div class="tile good"><div class="n">{{ totals.clean }}</div>
+   <div class="k">Clean courts</div>
+   <div class="fam">of {{ totals.courts }}</div></div>
+ <div class="tile"><div class="n">{{ totals.files }}</div>
+   <div class="k">Documents</div>
+   <div class="fam">{{ totals.scans }} scans skipped</div></div>
+ <div class="tile"><div class="n">{{ totals.furniture }}</div>
+   <div class="k">Furniture</div>
+   <div class="fam">confirm &amp; drop</div></div>
+ <div class="tile warn"><div class="n">{{ footnote_gaps|length }}</div>
+   <div class="k">Missing footnotes</div>
+   <div class="fam">courts with unreturned marks</div></div>
+</div>
+
+<h2 class="sec">Courts needing work ({{ flagged|length }})</h2>
+<div class="ctl">
+ <input id="q" placeholder="filter court or family…" oninput="filt()">
+ <label><input type="checkbox" id="showclean" onchange="filt()"> show clean courts</label>
+ <span class="fam">click a column to sort</span>
+</div>
+
+<table class="aud" id="t">
+ <thead><tr>
+   <th onclick="sortBy(0,'s')">Court</th>
+   <th onclick="sortBy(1,'s')">Family</th>
+   <th class="num" onclick="sortBy(2,'n')">Files</th>
+   <th class="num" onclick="sortBy(3,'n')">No&nbsp;writing</th>
+   <th class="num" onclick="sortBy(4,'n')">Content</th>
+   <th class="num" onclick="sortBy(5,'n')">Furn.</th>
+   <th class="num" onclick="sortBy(6,'n')">Cov&nbsp;%</th>
+   <th onclick="sortBy(7,'s')">Where to look</th>
+ </tr></thead>
+ <tbody>
+ {% for c in courts %}
+ <tr class="t-{{ c.tier }}{% if c.clean %} clean{% endif %}"
+     data-clean="{{ c.clean|yesno:"1,0" }}"
+     data-k="{{ c.court_id }} {{ c.family|lower }}">
+   <td><span class="dot {{ c.tier }}"></span><a class="simlink cid"
+      href="{% url 'library:court_detail' c.court_id %}">{{ c.court_id }}</a></td>
+   <td class="fam">{{ c.family }}</td>
+   <td class="num">{{ c.files }}</td>
+   <td class="num nheat n{{ c.nheat }}">{% if c.noop %}{{ c.noop }}{% endif %}</td>
+   <td class="num heat h{{ c.heat }}">{% if c.content %}{{ c.content }}
+      <span class="bar" style="width:{{ c.bar }}px"></span>{% endif %}</td>
+   <td class="num" style="color:var(--muted)">{{ c.furniture|default:"" }}</td>
+   <td class="num">{{ c.coverage|default:"" }}</td>
+   <td class="stem">{% if c.noop_stems %}{% for s in c.noop_stems %}{{ s }}<br>{% endfor %}
+     {% elif c.worst %}{{ c.worst }} <span class="fam">({{ c.worst_n }})</span>{% endif %}</td>
+ </tr>
+ {% endfor %}
+ </tbody>
+</table>
+
+<h2 class="sec">No opinions returned</h2>
+<p class="muted">These are non-scan, non-order/notice/certificate documents where
+the extractor returned no opinion. The document names are the first examples to
+inspect.</p>
+<table class="aud">
+ <thead><tr><th>Court</th><th class="num">Documents</th><th>Examples</th></tr></thead>
+ <tbody>
+ {% for c in courts %}{% if c.noop %}
+ <tr class="t-noop"><td><a class="simlink cid"
+   href="{% url 'library:court_detail' c.court_id %}">{{ c.court_id }}</a></td>
+   <td class="num"><b>{{ c.noop }}</b></td>
+   <td class="stem">{% for s in c.noop_stems %}{{ s }}<br>{% endfor %}</td></tr>
+ {% endif %}{% endfor %}
+ </tbody>
+</table>
+
+<h2 class="sec">Missing footnote candidates</h2>
+<p class="muted">Numeric footnote marks found in opinion body text without a
+matching extracted footnote. These are candidates for review; quoted opinions
+and unusual labels can produce false positives.</p>
+<table class="aud">
+ <thead><tr><th>Court</th><th class="num">Documents</th><th>Examples</th></tr></thead>
+ <tbody>
+ {% for c in courts %}{% if c.footnote_gaps %}
+ <tr class="t-content"><td><a class="simlink cid"
+   href="{% url 'library:court_detail' c.court_id %}">{{ c.court_id }}</a></td>
+   <td class="num"><b>{{ c.footnote_gaps }}</b></td>
+   <td class="stem">{% for s in c.footnote_stems %}{{ s }}<br>{% endfor %}</td></tr>
+ {% endif %}{% endfor %}
+ </tbody>
+</table>
+
+<h2 class="sec">By extractor family</h2>
+<p class="muted">A fix in a shared base moves every court beneath it at once — this is
+where to look for a court that should behave like its siblings but doesn't.</p>
+<table class="aud">
+ <thead><tr><th>Family</th><th class="num">Courts</th><th class="num">Clean</th>
+   <th class="num">Files</th><th class="num">No writing</th><th class="num">Content</th></tr></thead>
+ <tbody>
+ {% for f in families %}
+ <tr><td class="fam">{{ f.name }}</td>
+   <td class="num">{{ f.courts }}</td>
+   <td class="num">{{ f.clean }}</td>
+   <td class="num">{{ f.files }}</td>
+   <td class="num">{% if f.noop %}<b style="color:#7a1f1f">{{ f.noop }}</b>{% endif %}</td>
+   <td class="num">{% if f.content %}<b style="color:#8a5a1f">{{ f.content }}</b>{% endif %}</td>
+ </tr>
+ {% endfor %}
+ </tbody>
+</table>
+
+<script>
+function filt(){
+  var q=document.getElementById('q').value.toLowerCase().trim();
+  var sc=document.getElementById('showclean').checked;
+  document.querySelectorAll('#t tbody tr').forEach(function(r){
+    var okq=!q||r.dataset.k.indexOf(q)>=0;
+    var okc=sc||r.dataset.clean==='0';
+    r.style.display=(okq&&okc)?'':'none';
+  });
+}
+var dir={};
+function sortBy(i,kind){
+  var tb=document.querySelector('#t tbody');
+  var rows=[].slice.call(tb.rows);
+  dir[i]=!dir[i];
+  rows.sort(function(a,b){
+    var x=a.cells[i].innerText.trim(), y=b.cells[i].innerText.trim();
+    if(kind==='n'){ x=parseFloat(x.replace(/[^0-9.\-]/g,''))||0;
+                    y=parseFloat(y.replace(/[^0-9.\-]/g,''))||0;
+                    return dir[i]?y-x:x-y; }
+    return dir[i]?y.localeCompare(x):x.localeCompare(y);
+  });
+  rows.forEach(function(r){tb.appendChild(r);});
+}
+filt();
+</script>
+{% endblock %}
