@@ -41,13 +41,71 @@ class DelawareChancery(AbbrevTitleSupreme):
         ("M.", "Magistrate in Chancery"),
     ) + AbbrevTitleSupreme.abbrev_titles
 
+    _MONTHS = (
+        "January", "February", "March", "April", "May", "June", "July",
+        "August", "September", "October", "November", "December",
+    )
+
     def extract(self, pdf_path):
         self._letter_start = None
         self._letter_author = None
         doc = super().extract(pdf_path)
         if self._letter_start is not None and doc.opinions:
             doc.opinions[0].type = "order"
+        self._lift_chancery_metadata(doc)
         return doc
+
+    def _lift_chancery_metadata(self, doc):
+        """Docket and decision date are printed in the headmatter but were
+        never lifted into the document fields: memorandum opinions carry
+        'C.A. No. …' in the caption and a 'Date Decided:' row; letter rulings
+        put 'C.A. No. …' in the 'Re:' block and the date as a standalone
+        centered letterhead row."""
+        from ..audit import _strip_tags
+
+        texts = []
+        for row in doc.summary:
+            if isinstance(row, dict):
+                if row.get("__hm__"):
+                    texts.append(_strip_tags(str(row.get("html", ""))))
+                elif row.get("__caption__"):
+                    texts.extend(row.get("left") or [])
+                    texts.extend(row.get("right") or [])
+            elif isinstance(row, str):
+                texts.append(row)
+        for t in texts:
+            t = t.strip()
+            if not doc.docket_number and "C.A. No" in t:
+                tail = t.split("C.A. No", 1)[1].lstrip(". ").strip()
+                if tail:
+                    doc.docket_number = f"C.A. No. {tail}"
+            if not doc.decision_date:
+                if t.startswith(("Date Decided", "Decided")) or (
+                    # A magistrate report is dated by its 'Report:' row —
+                    # 'Report: July 02, 2026', 'Final Report: …'.
+                    t.split(":", 1)[0].endswith("Report") and ":" in t
+                ):
+                    doc.decision_date = t.split(":", 1)[-1].strip()
+                else:
+                    # A standalone letterhead date: 'May 14, 2026'.
+                    words = t.replace(",", "").split()
+                    if (
+                        len(words) == 3
+                        and words[0] in self._MONTHS
+                        and words[1].isdigit()
+                        and len(words[2]) == 4
+                        and words[2].isdigit()
+                    ):
+                        doc.decision_date = t
+        if not doc.decision_date and doc.opinions:
+            # Orders date themselves at the conformed signature:
+            # 'Dated: July 2, 2026'.
+            for block in doc.opinions[-1].blocks[-4:]:
+                text = _strip_tags(str(block.text or ""))
+                marker = text.find("Dated:")
+                if marker != -1:
+                    doc.decision_date = text[marker + len("Dated:") :].strip()
+                    break
 
     # ------------------------------------------------------------- letters
     def find_authors(self, all_segments) -> list:
