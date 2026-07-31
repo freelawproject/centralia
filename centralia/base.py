@@ -1887,27 +1887,7 @@ class BaseExtractor:
             return "single"
         gaps = [seg[i + 1]["top"] - seg[i]["top"] for i in range(len(seg) - 1)]
         med = median(gaps)
-        # The gap bands assume the court's usual leading. When THIS document's
-        # measured body lead lands inside the configured blockquote band — a
-        # single-spaced order from a double-spaced court (DC in_re_kester: 16pt
-        # lead against gap_single_max 22) — the entire body would classify as
-        # one long quote. Rescale the bands from the document's own lead; a
-        # document whose lead agrees with the constants is left alone.
-        tight_max, single_max, double_max = (
-            self.gap_tight_max,
-            self.gap_single_max,
-            self.gap_double_max,
-        )
-        geom = getattr(self, "_doc_geom", None)
-        lead = (geom or {}).get("lead") if self.measured_gap_bands else None
-        # Below single_max covers both failure shapes: a lead inside the
-        # blockquote band (DC's 16pt against tight 16 / single 22) and one
-        # below even the notice band (cacd civil minutes at 15.3pt, where the
-        # whole ruling classified as 'notice' and never split into paragraphs).
-        if lead and lead < single_max:
-            tight_max = 0.45 * lead
-            single_max = 0.85 * lead
-            double_max = 1.5 * lead
+        tight_max, single_max, double_max = self._effective_gap_bands()
         if med < tight_max:
             kind = "notice"
         elif med < single_max:
@@ -2219,7 +2199,24 @@ class BaseExtractor:
         x1 = line["x1"]
         width = x1 - x0
         cx = (x0 + x1) / 2
-        if x0 > 100 and abs(cx - page_width / 2) < 25 and width < page_width * 0.55:
+        # A line that FILLS the document's measured column is justified prose,
+        # never centered — a narrow-measure court (cafc's 324pt column at
+        # x0=144) puts every full line's midpoint exactly on the page axis,
+        # and reading those as 'C' turned body lines into bold headings and
+        # cut paragraphs at every alignment flip. Centering is judged inside
+        # the measured column; only genuinely short lines can be centered.
+        full_measure = False
+        geom = getattr(self, "_doc_geom", None)
+        if geom and self.measured_gap_bands:
+            column = geom["right_x1"] - geom["body_x0"]
+            if column > 100:
+                full_measure = width >= 0.82 * column
+        if (
+            not full_measure
+            and x0 > 100
+            and abs(cx - page_width / 2) < 25
+            and width < page_width * 0.55
+        ):
             a = "C"
         elif x0 <= 200:
             a = "L"
@@ -2236,14 +2233,40 @@ class BaseExtractor:
                 a = "C"
         return a
 
+    def _effective_gap_bands(self) -> tuple:
+        """The gap bands, rescaled to THIS document's measured lead when the
+        configured bands contradict it.
+
+        At-or-below single_max covers three failure shapes: a lead inside the
+        blockquote band (DC's 16pt against tight 16 / single 22 — a
+        single-spaced order from a double-spaced court reads as one long
+        quote); one below even the notice band (cacd civil minutes at 15.3pt,
+        where the ruling classified 'notice' and never split into
+        paragraphs); and a lead sitting exactly ON a band edge (cafc's 14pt
+        against single_max 14 — ±0.05pt gap jitter then coin-flips every
+        line's zone, shredding segments). Every consumer — classify_segment,
+        gap_bucket/line_zone — must read the SAME bands or they disagree at
+        exactly these edges."""
+        tight, single, double = (
+            self.gap_tight_max,
+            self.gap_single_max,
+            self.gap_double_max,
+        )
+        geom = getattr(self, "_doc_geom", None)
+        lead = (geom or {}).get("lead") if self.measured_gap_bands else None
+        if lead and lead <= single:
+            return 0.45 * lead, 0.85 * lead, 1.5 * lead
+        return tight, single, double
+
     def gap_bucket(self, g) -> Optional[str]:
         if g is None:
             return None
-        if g < self.gap_tight_max:
+        tight, single, double = self._effective_gap_bands()
+        if g < tight:
             return "tight"
-        if g < self.gap_single_max:
+        if g < single:
             return "single"
-        if g < self.gap_double_max:
+        if g < double:
             return "double"
         return "boundary"
 
