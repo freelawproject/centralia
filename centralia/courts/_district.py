@@ -163,6 +163,11 @@ class DistrictBase(GenericExtractor):
 
     def extract(self, pdf_path):
         self._hm_super_labels = set()
+        # A body-sized footnote can continue under an unlabeled separator on
+        # the next page.  ``find_footnote_separator`` is called in page order,
+        # so retain only the measured shape of a footnote that geometrically
+        # runs through the bottom of the preceding page.
+        self._footnote_carry_geometry = None
         doc = super().extract(pdf_path)
         labels = getattr(self, "_hm_super_labels", set())
         if labels and doc.opinions:
@@ -337,6 +342,20 @@ class DistrictBase(GenericExtractor):
             gx = self._pleading_gutter_by_numbers(page)
         if gx is not None:
             page = page.filter(lambda c: c["x0"] >= gx - 1)
+        # The CM/ECF header band ('Case 3:25-cv-00691-wmc Document #: 22 …')
+        # is furniture cut by margin_top before lines are built — but it is
+        # also the one place EVERY filing prints its case number, including
+        # documents whose caption shows it bare or not at all. Read the token
+        # off before the band disappears.
+        if page.page_number == 1:
+            self._ecf_docket = None  # per-document; instances are reused
+        if getattr(self, "_ecf_docket", None) is None:
+            band = page.filter(lambda c: c["top"] < self.margin_top + 6)
+            for word in band.extract_words():
+                token = (word.get("text") or "").rstrip(",;)")
+                if self._is_ecf_case_token(token):
+                    self._ecf_docket = token
+                    break
         return super().page_lines(page)
 
     @staticmethod
@@ -385,6 +404,65 @@ class DistrictBase(GenericExtractor):
         ]
         return max(xs) if xs else None
 
+    def _numbered_decretal_start(self, line) -> bool:
+        """A district-order list marker such as ``1)`` at an indented rail.
+
+        A wrapped citation can begin a physical line with text such as
+        ``99) Orozco ...`` (the tail of ``PageID.198–99)``).  Lexically that
+        resembles a list item, but geometrically it remains flush with the
+        body column.  Decretal lists sit on their own modestly indented rail;
+        require that rail and the usual single-digit order-item marker before
+        allowing the renderer to consume the marker and synthesize numbering.
+        """
+        text = self.line_plain_text(line).strip()
+        marker, space, rest = text.partition(" ")
+        return bool(
+            space
+            and rest
+            and marker.endswith(")")
+            and marker[:-1].isdigit()
+            and len(marker[:-1]) == 1
+            and line["x0"] >= self.body_baseline_x0 + 6
+        )
+
+    def segment_lines(self, lines, page_width) -> list:
+        """Keep a styled hanging continuation with its numbered order item."""
+        segments = super().segment_lines(lines, page_width)
+        joined = []
+        for seg in segments:
+            if joined and len(seg) == 1 and joined[-1]:
+                opener = joined[-1][-1]
+                continuation = seg[0]
+                gap = continuation["top"] - opener["top"]
+                if (
+                    self._numbered_decretal_start(opener)
+                    and continuation["x0"] >= opener["x0"] + 6
+                    and 0 < gap <= self.gap_double_max
+                ):
+                    joined[-1].extend(seg)
+                    continue
+            joined.append(seg)
+        return joined
+
+    def split_body_paragraphs(self, seg) -> list:
+        """Split consecutive numbered decretal items by their visual markers."""
+        out = []
+        for paragraph in super().split_body_paragraphs(seg):
+            current = []
+            for line in paragraph:
+                if current and self._numbered_decretal_start(line):
+                    out.append(current)
+                    current = []
+                current.append(line)
+            if current:
+                out.append(current)
+        return out
+
+    def classify_paragraph(self, lines) -> str:
+        if lines and self._numbered_decretal_start(lines[0]):
+            return "ordered-list-item"
+        return super().classify_paragraph(lines)
+
     def find_footnote_separator(self, page):
         """The page-1 caption's closing shelf — a left rule meeting the mid
         vertical (Old Faithful) — sits past the half-page cutoff on long
@@ -412,13 +490,16 @@ class DistrictBase(GenericExtractor):
             # footnote zone: the first line beneath it must carry a footnote
             # label (a raised marker '4' — the court's own label test).
             cand = self.footnote_sep_fixed_left_rule(page)
-            if cand is not None and self._opens_footnote_zone(page, cand):
+            if cand is not None and (
+                self._opens_footnote_zone(page, cand)
+                or self._opens_continued_footnote_zone(page, cand)
+            ):
                 sep = cand
         if sep is None or page.page_number != 1:
-            return sep
+            return self._remember_footnote_carry(page, sep)
         cap_bottom = self._caption_band_bottom()
         if cap_bottom is None or sep > cap_bottom + 12:
-            return sep
+            return self._remember_footnote_carry(page, sep)
         gx = self._pleading_gutter_x(page)
         x0_hi = (gx + 30) if gx is not None else (self.body_baseline_x0 + 4)
         x0_lo = (gx - 2) if gx is not None else 0
@@ -430,7 +511,78 @@ class DistrictBase(GenericExtractor):
             and x0_lo <= r["x0"] <= x0_hi
             and r["top"] > cap_bottom + 12
         ]
-        return min(cands) if cands else None
+        sep = min(cands) if cands else None
+        return self._remember_footnote_carry(page, sep)
+
+    @staticmethod
+    def _footnote_zone_lines(page, sep_top):
+        """Substantive text below a separator, excluding the bottom folio."""
+        return sorted(
+            (
+                line
+                for line in page.extract_text_lines()
+                if line.get("top", 0) > sep_top + 1
+                and line.get("bottom", line.get("top", 0)) < page.height - 45
+                and (line.get("text") or "").strip()
+            ),
+            key=lambda line: line["top"],
+        )
+
+    def _remember_footnote_carry(self, page, sep_top):
+        """Remember a wrapped footnote line that reaches the page bottom.
+
+        The remembered values are geometry only: left edge and line leading.
+        A completed short line or flush-left citation clears the state, so an
+        unrelated 2-inch signature/redaction rule on the next page cannot be
+        mistaken for a continued footnote.
+        """
+        carry = None
+        if sep_top is not None:
+            lines = self._footnote_zone_lines(page, sep_top)
+            if len(lines) >= 2:
+                last, prev = lines[-1], lines[-2]
+                same_indent = abs(last["x0"] - prev["x0"]) <= 4
+                lead = last["top"] - prev["top"]
+                # Compare with the contiguous trailing run, not every line at
+                # that inset.  An introductory footnote line can share x0 but
+                # use the wider ordinary measure above an inset quotation.
+                trailing_run = [last]
+                for prior in reversed(lines[:-1]):
+                    gap = trailing_run[-1]["top"] - prior["top"]
+                    if (
+                        abs(prior["x0"] - last["x0"]) > 4
+                        or not 8 <= gap <= self.gap_single_max
+                    ):
+                        break
+                    trailing_run.append(prior)
+                run_right = max(line["x1"] for line in trailing_run)
+                near_bottom = (
+                    last.get("bottom", last["top"]) >= page.height - 90
+                )
+                fills_run = run_right - last["x1"] <= 12
+                if same_indent and 8 <= lead <= self.gap_single_max and near_bottom and fills_run:
+                    carry = {"x0": last["x0"], "lead": lead}
+        self._footnote_carry_geometry = carry
+        return sep_top
+
+    def _opens_continued_footnote_zone(self, page, sep_top) -> bool:
+        """True when an unlabeled zone continues the prior page's footnote.
+
+        Continuation is proved by matching the prior page's trailing inset and
+        single-spaced leading immediately below the same fixed-width rule.
+        """
+        carry = getattr(self, "_footnote_carry_geometry", None)
+        if not carry:
+            return False
+        lines = self._footnote_zone_lines(page, sep_top)
+        if len(lines) < 2:
+            return False
+        first, second = lines[:2]
+        return (
+            abs(first["x0"] - carry["x0"]) <= 4
+            and abs(second["x0"] - carry["x0"]) <= 4
+            and abs((second["top"] - first["top"]) - carry["lead"]) <= 3
+        )
 
     def _gutter_footnote_rule(self, page, gx):
         """A footnote separator on pleading paper: a thin, left-anchored
@@ -510,8 +662,78 @@ class DistrictBase(GenericExtractor):
     # the monospace grid with ``styled_headmatter = False``.
     styled_headmatter = True
 
+    def _lift_district_docket(self, out, headmatter_segs) -> None:
+        """Populate the docket field from the caption's case-number line.
+
+        Every district caption prints its number in the right column ('Case
+        No. 3:24-cv-00170-jdp', 'No. 2:24-cv-01234', 'CIVIL ACTION NO.
+        24-1234', 'Case 1:24-cv-00612 Document 47'), but the field was never
+        filled family-wide — the number rendered in the facsimile and nowhere
+        else. Anchor on the 'No.' label; the number is the token that follows."""
+        if out.get("docketnumber"):
+            return
+        for seg in headmatter_segs:
+            for line in seg:
+                text = self.line_plain_text(line)
+                low = text.lower()
+                for label in ("case no", "civil action no", "case number", "no."):
+                    at = low.find(label)
+                    if at == -1:
+                        continue
+                    tail = text[at + len(label) :].lstrip(".:# ")
+                    token = tail.split()[0].rstrip(",;)") if tail.split() else ""
+                    # A docket token has digits and internal punctuation
+                    # ('3:24-cv-00170-jdp'); a prose 'No.' ('No. 2 pencil')
+                    # does not.
+                    if (
+                        any(ch.isdigit() for ch in token)
+                        and any(ch in "-:" for ch in token)
+                        and len(token) >= 5
+                    ):
+                        out["docketnumber"] = token
+                        return
+        # No label: some courts print the number bare in the right column
+        # ('25-cv-1012-wmc', ncmd's '1:24CV948'), and every ECF page stamps
+        # 'Case <no.> Document N Filed …'. A CM/ECF case token is
+        # self-identifying: a cv/cr office code flanked by digits.
+        for seg in headmatter_segs:
+            for line in seg:
+                for token in self.line_plain_text(line).split():
+                    token = token.rstrip(",;)")
+                    if self._is_ecf_case_token(token):
+                        out["docketnumber"] = token
+                        return
+        # Last resort: the CM/ECF header band read off in page_lines.
+        if getattr(self, "_ecf_docket", None):
+            out["docketnumber"] = self._ecf_docket
+
+    @staticmethod
+    def _is_ecf_case_token(token: str) -> bool:
+        """'3:25-cv-00691-wmc', '1:24CV948', '23-CR-2061-SAB-1' — a cv/cr
+        office code flanked by digits (allowing the '-' separators), inside a
+        token that carries a ':' or '-'. Prose 'cv' ('cv.' in a citation)
+        never sits digit-to-digit."""
+        low = token.lower()
+        if len(token) < 6 or not any(ch in ":-" for ch in token):
+            return False
+        for code in ("cv", "cr"):
+            at = low.find(code)
+            while at != -1:
+                before = low[at - 1 : at]
+                after = low[at + 2 : at + 3]
+                if before in ("-",) or before.isdigit():
+                    if after in ("-",) or after.isdigit():
+                        # strip separators and confirm digits on both sides
+                        left = low[:at].rstrip("-")
+                        right = low[at + 2 :].lstrip("-")
+                        if left[-1:].isdigit() and right[:1].isdigit():
+                            return True
+                at = low.find(code, at + 1)
+        return False
+
     def extract_headmatter(self, headmatter_segs, page1_rules=None) -> dict:
         out = super().extract_headmatter(headmatter_segs, page1_rules=page1_rules)
+        self._lift_district_docket(out, headmatter_segs)
         if self.styled_headmatter:
             rows = self._styled_caption_rows(headmatter_segs)
             if rows:
