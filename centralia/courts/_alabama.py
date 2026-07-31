@@ -34,6 +34,14 @@ class AlabamaAppellate(BaseExtractor):
     author_titles = ("Justice",)
 
     # --- Shared Alabama appellate layout --------------------------------
+    # Alabama is fidelity-locked: byte-identical to the old ca1/casebody.
+    # Its single-spaced ~17pt lead sits INSIDE the tuned blockquote band on
+    # purpose, so the measured-geometry adaptations (band rescale from the
+    # document's lead; quote-run splitting of body segments) must not move
+    # its output.
+    measured_gap_bands = False
+    split_quote_runs = False
+    order_heading_fallback = False
     footnote_sep_rect = (72.0, 216.0)
     underline_offset_min = -4.0
     underline_offset_max = 5.0

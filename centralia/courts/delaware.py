@@ -30,6 +30,10 @@ def _is_section_heading(t: str) -> bool:
 class DelawareSupreme(StateSupreme):
     court_id = "del"
     court_label = "Supreme Court of the State of Delaware."
+    # This file implements its own richer unsigned-order fallback (a
+    # 'Decided:' anchor and caption-footnote bookkeeping the generic base
+    # fallback doesn't do) — keep the base one out of the way.
+    order_heading_fallback = False
     hm_caption_footnotes = True  # 'TASHA MILLMAN,¹' — caption footnotes
     # The page-number footer sits at y≈726, inside the text margins; fold it
     # out of the body (cross-page merges carry a <pagenumber/> instead).

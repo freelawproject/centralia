@@ -312,6 +312,16 @@ class BaseExtractor:
     # whatever tight gap band its leading lands in. Off by default so the gap
     # bands are the sole classifier (Alabama fidelity).
     blockquote_by_indent: bool = False
+    # The two measured-geometry adaptations of classify_segment. On by
+    # default — the engine adapts to the document, not the court — but a
+    # fidelity-locked court whose tuned constants ARE its contract (Alabama:
+    # byte-identical to the old ca1/casebody) can pin its behavior.
+    measured_gap_bands: bool = True
+    split_quote_runs: bool = True
+    # When no byline is found anywhere, fall back to the unsigned-order shape:
+    # body starts at the 'ORDER …' heading, author is the '/s/ Name' signature.
+    # (delaware.py keeps its own richer version; Alabama is fidelity-locked.)
+    order_heading_fallback: bool = True
     # A line-to-line change in bold normally marks a structural boundary
     # (heading / byline). Courts that bold text *inline* for emphasis — e.g.
     # Puerto Rico bolds dates and times mid-paragraph — set this False so an
@@ -508,6 +518,10 @@ class BaseExtractor:
         # None until the whole document has been read, and stays None when the
         # document is too small to measure confidently.
         self._doc_geom = None
+        # Unsigned-order fallback state (see find_authors). Reset per document
+        # so a batch run can't leak one PDF's order anchor into the next.
+        self._order_start = None
+        self._order_author = None
         # Folios ``build_opinion`` removes from the body (see ``add_para``),
         # kept so the Removed box can show them instead of the sweep reporting
         # them unplaced.
@@ -683,8 +697,14 @@ class BaseExtractor:
             (page_no, seg, self.classify_segment(seg))
             for page_no, seg, _ in all_segments
         ]
+        all_segments = self._split_quote_runs(all_segments)
         all_segments = self._split_segments_at_bylines(all_segments)
         author_indices = self.find_authors(all_segments)
+        if not author_indices and self.order_heading_fallback:
+            # Pipeline-level so it applies under every family's find_authors
+            # override: a docket with no byline anywhere is an unsigned order,
+            # not a document that is all headmatter.
+            author_indices = self._order_fallback(all_segments)
         doc_type = self.classify_document_type(all_segments, author_indices, n_pages)
 
         boundary = author_indices[0] if author_indices else len(all_segments)
@@ -780,6 +800,11 @@ class BaseExtractor:
                 )
             )
 
+        if self._order_start is not None and doc.opinions:
+            # The unsigned-order fallback found the body via the ORDER title;
+            # its single writing is an order, not a majority opinion.
+            doc.opinions[0].type = "order"
+
         if not layout_ok:
             doc.warnings.append("layout does not match expected court format")
         fp = getattr(self, "_caption_fp", (None, None, None))
@@ -843,6 +868,8 @@ class BaseExtractor:
         Not every PDF a court publishes is an authored opinion. The default
         heuristic: an authored byline => OPINION; otherwise look at the text
         for order / notice cues. Subclasses refine this for their court."""
+        if getattr(self, "_order_start", None) is not None:
+            return DocType.ORDER
         if author_indices:
             return DocType.OPINION
         text = " ".join(
@@ -1809,11 +1836,28 @@ class BaseExtractor:
             return "single"
         gaps = [seg[i + 1]["top"] - seg[i]["top"] for i in range(len(seg) - 1)]
         med = median(gaps)
-        if med < self.gap_tight_max:
+        # The gap bands assume the court's usual leading. When THIS document's
+        # measured body lead lands inside the configured blockquote band — a
+        # single-spaced order from a double-spaced court (DC in_re_kester: 16pt
+        # lead against gap_single_max 22) — the entire body would classify as
+        # one long quote. Rescale the bands from the document's own lead; a
+        # document whose lead agrees with the constants is left alone.
+        tight_max, single_max, double_max = (
+            self.gap_tight_max,
+            self.gap_single_max,
+            self.gap_double_max,
+        )
+        geom = getattr(self, "_doc_geom", None)
+        lead = (geom or {}).get("lead") if self.measured_gap_bands else None
+        if lead and tight_max <= lead < single_max:
+            tight_max = 0.45 * lead
+            single_max = 0.85 * lead
+            double_max = 1.5 * lead
+        if med < tight_max:
             kind = "notice"
-        elif med < self.gap_single_max:
+        elif med < single_max:
             kind = "blockquote"
-        elif med < self.gap_double_max:
+        elif med < double_max:
             kind = "body"
         else:
             kind = "spaced"
@@ -1880,7 +1924,96 @@ class BaseExtractor:
         if len(full) < 6:
             return
         body_x0 = Counter(round(l["x0"]) for l in full).most_common(1)[0][0]
-        self._doc_geom = {"body_x0": float(body_x0), "right_x1": float(right_x1)}
+        # The document's dominant leading, from consecutive same-segment line
+        # pairs. A court can print two templates (Georgia: 16pt single-spaced
+        # slips AND 36pt double-spaced disciplinary opinions; DC: double-spaced
+        # opinions AND 16pt single-spaced orders), so the lead is a fact about
+        # the document, never about the court.
+        leads = Counter()
+        for _, seg, _ in all_segments:
+            for a, b in zip(seg, seg[1:]):
+                gap = round(b["top"] - a["top"])
+                if 5 < gap < 60:
+                    leads[gap] += 1
+        lead = (
+            float(leads.most_common(1)[0][0])
+            if sum(leads.values()) >= 8
+            else None
+        )
+        self._doc_geom = {
+            "body_x0": float(body_x0),
+            "right_x1": float(right_x1),
+            "lead": lead,
+        }
+
+    def _split_quote_runs(self, all_segments) -> list:
+        """Split quote-geometry runs out of single-spaced body segments.
+
+        In a single-spaced document a block quote keeps the body's leading, so
+        gap-based segmentation never separates it: quote and body arrive as
+        one segment whose min(x0) is the body margin, and the whole thing
+        classifies as body (ohioctcl bankston: a 4-line R.C. 2743.75 quotation
+        at x0 108-144 / x1≈504 inside a 72→540 body). Walk each body segment,
+        cut it at transitions between body-column lines and lines wholly
+        inside the quote measure, and keep a cut only when the indented run
+        independently passes ``_is_indented_blockquote`` — anything else
+        (centered headings, ragged short lines) leaves the segment untouched.
+        """
+        geom = getattr(self, "_doc_geom", None)
+        if not geom or not self.split_quote_runs:
+            return all_segments
+        pw = getattr(self, "_page1_width", None) or 612.0
+        body_x0 = max(self.body_baseline_x0, geom["body_x0"])
+        right = min(pw - self.body_baseline_x0, geom["right_x1"])
+
+        def indented(line):
+            # Both margins per line: a paragraph FIRST line shares the quote's
+            # left indent but runs to the full measure (ohioctcl '{¶7} …' at
+            # x0=108/x1=540 directly under a 108/504 quote) — it ends the run.
+            # Runs this splits too finely simply fail the ≥3-line acceptance
+            # and merge back into the body, so nothing fragments.
+            return line["x0"] >= body_x0 + 15 and line["x1"] <= right - 24
+
+        out = []
+        for page_no, seg, kind in all_segments:
+            if kind != "body" or len(seg) < 4:
+                out.append((page_no, seg, kind))
+                continue
+            pieces = [[seg[0]]]
+            for line in seg[1:]:
+                if indented(line) == indented(pieces[-1][-1]):
+                    pieces[-1].append(line)
+                else:
+                    pieces.append([line])
+            # ≥3 lines: a body paragraph's own indented FIRST line is one
+            # line, and two stacked short one-line paragraphs (common in
+            # {¶N} courts) share an indent without being a quote. Three
+            # both-margins-indented lines with a common edge is quote
+            # geometry.
+            accepted = {
+                i
+                for i, piece in enumerate(pieces)
+                if len(piece) >= 3
+                and indented(piece[0])
+                and self._is_indented_blockquote(piece)
+            }
+            if not accepted:
+                out.append((page_no, seg, kind))
+                continue
+            merged = []  # (is_quote, lines) with non-quote neighbors joined
+            for i, piece in enumerate(pieces):
+                if i in accepted:
+                    merged.append((True, list(piece)))
+                elif merged and not merged[-1][0]:
+                    merged[-1][1].extend(piece)
+                else:
+                    merged.append((False, list(piece)))
+            for is_quote, lines in merged:
+                if is_quote:
+                    out.append((page_no, lines, "blockquote"))
+                else:
+                    out.append((page_no, lines, self.classify_segment(lines)))
+        return out
 
     def _is_indented_blockquote(self, seg) -> bool:
         """True if ``seg`` is a multi-line run indented on BOTH margins — the
@@ -2070,6 +2203,10 @@ class BaseExtractor:
     def split_author_line(self, line) -> tuple:
         """Hook: split an author line into (author_text, extra_body_lines).
         Default: the whole line is the author, no inline body content."""
+        if getattr(self, "_order_start", None) is not None:
+            # The unsigned-order fallback anchors on the ORDER title, which is
+            # body content, not a byline; the author is the /s/ signature.
+            return (self._order_author or ""), [line]
         return (line.get("text") or "").strip(), []
 
     def parse_author_line(self, text) -> Optional[tuple]:
@@ -2117,6 +2254,48 @@ class BaseExtractor:
             if self.parse_author_line(seg[0]["text"].strip()):
                 out.append(i)
         return out
+
+    def _order_fallback(self, all_segments) -> list:
+        """No byline anywhere: an unsigned ORDER. Without this, the whole
+        document lands in headmatter (delch wsp_usa: a 12-page numbered-
+        paragraph order became 375 summary rows). The body starts at the
+        'ORDER …' title ('ORDER', 'ORDER GRANTING DEFENDANT'S MOTION TO
+        DISMISS'); the author, when present, is the conformed '/s/ Name'
+        signature with its adjacent title line."""
+        start = next(
+            (
+                i
+                for i, (_p, seg, _k) in enumerate(all_segments)
+                if seg
+                and self.line_plain_text(seg[0]).strip().upper().startswith("ORDER")
+            ),
+            None,
+        )
+        if start is None:
+            return []
+        self._order_start = start
+        self._order_author = self._conformed_signature_author(all_segments)
+        return [start]
+
+    def _conformed_signature_author(self, all_segments):
+        """'/s/ Name' (or '/s Name') plus its adjacent judicial title line —
+        title-first ('Chancellor Kathaleen St. J. McCormick') or title-last
+        ('Abigail M. LeGrow, Justice') both appear across courts."""
+        lines = [l for _p, seg, _k in all_segments for l in seg]
+        titles = ("justice", "judge", "chancellor", "magistrate", "commissioner")
+        for i, line in enumerate(lines):
+            t = self.line_plain_text(line).strip()
+            if not t.lower().startswith(("/s/", "/s ")):
+                continue
+            name = t[3:].strip()
+            if i + 1 < len(lines):
+                nxt = self.line_plain_text(lines[i + 1]).strip()
+                if any(w in nxt.lower() for w in titles):
+                    return f"{name}, {nxt}" if not nxt.lower().startswith(
+                        titles
+                    ) else nxt
+            return name
+        return None
 
     def normalize_opinion_type(self, kind) -> str:
         if kind is None:
