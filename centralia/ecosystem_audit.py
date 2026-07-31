@@ -139,6 +139,37 @@ def _looks_like_running_furniture(text: str) -> bool:
     return False
 
 
+def _indented_runs(path: Path) -> int:
+    """Candidate block quotes in the SOURCE: runs of ≥3 consecutive lines set
+    in from the page's own modal body column and ending short of it. Used to
+    tell 'this court truly has no quotes' from 'the extractor returned none'."""
+    import pdfplumber
+
+    runs = 0
+    try:
+        with pdfplumber.open(str(path)) as pdf:
+            for page in pdf.pages:
+                lines = [
+                    l
+                    for l in page.extract_text_lines()
+                    if l["top"] > 90 and (l["text"] or "").strip()
+                ]
+                if len(lines) < 5:
+                    continue
+                body_x0 = Counter(round(l["x0"]) for l in lines).most_common(1)[0][0]
+                run = 0
+                for l in lines:
+                    if round(l["x0"]) >= body_x0 + 15:
+                        run += 1
+                    else:
+                        runs += run >= 3
+                        run = 0
+                runs += run >= 3
+    except Exception:
+        return 0
+    return runs
+
+
 def _category(court: str, extractor) -> str:
     if court in FEDERAL_APPELLATE:
         return "federal appellate"
@@ -256,6 +287,40 @@ def inspect_pdf(task: tuple[str, str]) -> dict:
             )
         if result.opinions > 1 and empty_authors:
             result.flags.append("suspicious-multi-opinion")
+        # The inverse of blockquote-dominant: the extractor returned NO quotes
+        # while the source itself shows indented multi-line runs. mass/conn
+        # class of miss — the segmenter never splits the quote out of its
+        # surrounding body segment.
+        if prose >= 30 and result.blockquotes == 0 and not doc.non_digital:
+            candidate_runs = _indented_runs(path)
+            if candidate_runs >= 3:
+                result.flags.append(
+                    f"no-blockquotes-despite-indented-runs:{candidate_runs}"
+                )
+        # Page provenance: a multi-page opinion whose body carries no
+        # <pagenumber/> markers at all has lost its page mapping (the
+        # calctapp defect, corpus-wide).
+        if (
+            result.pages >= 3
+            and result.blocks >= 10
+            and not doc.non_digital
+            and not _inline_values(body, "pagenumber", "value")
+        ):
+            result.flags.append("no-page-markers")
+        # Fragmentation: paragraphs averaging a couple of lines' worth of
+        # words mean wrapped lines are not being joined — output that "looks
+        # complete" but reads broken.
+        if result.paragraphs >= 10:
+            body_words = sum(len((t or "").split()) for t in body_texts)
+            avg = body_words / max(1, result.paragraphs)
+            if avg < 22:
+                result.flags.append(f"fragmented-paragraphs:avg{avg:.0f}w")
+        # Headmatter sanity on real opinions.
+        if doc.doc_type == DocType.OPINION and not doc.non_digital:
+            if not doc.summary:
+                result.flags.append("empty-headmatter")
+            if not (doc.docket_number or doc.decision_date):
+                result.flags.append("no-docket-no-date")
 
         coverage = audit_coverage(doc, str(path), extractor=extractor)
         result.total_lines = coverage.total
@@ -439,8 +504,13 @@ def _court_markdown(
     return "\n".join(out) + "\n"
 
 
-def generate_reports(assets: Path, output: Path, workers: int) -> None:
+def generate_reports(
+    assets: Path, output: Path, workers: int, courts: list[str] | None = None
+) -> None:
     court_dirs = sorted(path for path in assets.iterdir() if path.is_dir())
+    if courts:
+        wanted = set(courts)
+        court_dirs = [path for path in court_dirs if path.name in wanted]
     tasks = [
         (court_dir.name, str(pdf))
         for court_dir in court_dirs
@@ -457,45 +527,22 @@ def generate_reports(assets: Path, output: Path, workers: int) -> None:
             if completed % 100 == 0 or completed == len(tasks):
                 print(f"audited {completed}/{len(tasks)} PDFs", flush=True)
 
-    court_output = output / "courts"
-    court_output.mkdir(parents=True, exist_ok=True)
-    summaries = []
+    # Merge with any earlier run so a filtered re-doctor of one court can't
+    # clobber the corpus-wide results.
+    results_path = output / "results.json"
+    files: dict[str, list[dict]] = {}
+    if courts and results_path.exists():
+        files = json.loads(results_path.read_text(encoding="utf-8"))["files"]
     for court_dir in court_dirs:
-        court = court_dir.name
-        rows = sorted(by_court.get(court, []), key=lambda row: row["file"])
-        registered = court in EXTRACTORS
-        extractor = get_extractor(court)
-        category = _category(court, extractor)
-        note_exists = (Path("output/notes") / f"{court}.md").exists()
-        status = _court_status(court, rows, registered)
-        text = _court_markdown(
-            court, rows, registered, category, note_exists
+        files[court_dir.name] = sorted(
+            by_court.get(court_dir.name, []), key=lambda row: row["file"]
         )
-        (court_output / f"{court}.md").write_text(text, encoding="utf-8")
-        summaries.append(
-            {
-                "court": court,
-                "category": category,
-                "status": status,
-                "fixtures": len(rows),
-                "scans": sum(row["non_digital"] for row in rows),
-                "errors": sum(bool(row["error"]) for row in rows),
-                "missing": sum(row["missing_lines"] for row in rows),
-                "flags": sum(len(row["flags"]) for row in rows),
-                "coverage_total": sum(row["total_lines"] for row in rows),
-                "coverage_kept": sum(row["covered_lines"] for row in rows),
-            }
-        )
-
-    (output / "results.json").write_text(
-        json.dumps(
-            {"courts": summaries, "files": by_court},
-            indent=2,
-            ensure_ascii=False,
-        ),
+    output.mkdir(parents=True, exist_ok=True)
+    results_path.write_text(
+        json.dumps({"courts": [], "files": files}, indent=2, ensure_ascii=False),
         encoding="utf-8",
     )
-    _write_indexes(output, summaries)
+    render_saved_results(output)
 
 
 def _write_indexes(output: Path, summaries: list[dict]) -> None:
@@ -635,11 +682,19 @@ def main(argv=None) -> int:
         action="store_true",
         help="re-render Markdown from an existing results.json",
     )
+    parser.add_argument(
+        "courts",
+        nargs="*",
+        help="limit the run to these court ids (results merge into the "
+        "existing corpus-wide report)",
+    )
     args = parser.parse_args(argv)
     if args.render_only:
         render_saved_results(Path(args.output))
     else:
-        generate_reports(Path(args.assets), Path(args.output), args.workers)
+        generate_reports(
+            Path(args.assets), Path(args.output), args.workers, args.courts or None
+        )
     return 0
 
 
