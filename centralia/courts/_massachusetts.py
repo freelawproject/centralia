@@ -77,6 +77,7 @@ class MassachusettsStyle:
 
     def find_authors(self, all_segments) -> list:
         self._mass_order_start = None
+        self._mass_advisory_start = None
         starts = super().find_authors(all_segments)
         if starts:
             return starts
@@ -86,6 +87,16 @@ class MassachusettsStyle:
         seen_court_topic = False
         for i, (_p, seg, _k) in enumerate(all_segments):
             low = self.line_plain_text(seg[0]).strip().lower()
+            # An ADVISORY opinion ('OPINION OF THE JUSTICES TO THE SENATE')
+            # carries no byline at all: the Justices answer collectively and
+            # subscribe as a list at the end. Its body opens on the salutation.
+            # Without this the whole writing had no opinion start, so an
+            # eleven-page response became 435 rows of headmatter and the
+            # document classified as a notice.
+            if low.startswith("to the honorable"):
+                self._mass_advisory_start = i
+                self._mass_order_start = i
+                return [i]
             if low.rstrip(".") == "supreme judicial court" and i + 1 < len(all_segments):
                 self._mass_order_start = i + 1
                 return [i + 1]
@@ -110,7 +121,12 @@ class MassachusettsStyle:
 
     def build_opinion(self, op_start, op_end, **kwargs):
         op = super().build_opinion(op_start, op_end, **kwargs)
-        if getattr(self, "_mass_order_start", None) == op_start:
+        if getattr(self, "_mass_advisory_start", None) == op_start:
+            # The Justices answer collectively and subscribe as a list at the
+            # end; there is no single author to name.
+            op.author = "BY THE JUSTICES"
+            op.type = "majority"
+        elif getattr(self, "_mass_order_start", None) == op_start:
             op.author = "PER CURIAM"
             op.type = "majority"
         return op

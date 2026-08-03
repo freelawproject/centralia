@@ -34,6 +34,31 @@ class SixthCircuitBAP(StateSupreme):
     # identify those geometrically after the ordinary body leading is fixed.
     blockquote_by_indent = True
 
+    # Every continuation page opens with a one-line running head — 'Nos.
+    # 18-8010/8013/8018 In re Blasingame Page 7' — at top≈55.8, with the body
+    # starting at ≈97. Bound the head by the band it actually occupies so no
+    # body line is ever caught.
+    running_head_max_top = 70.0
+
+    def _maybe_drop_running_header(self, page, lines):
+        """Cut the continuation-page running head and record it, so it shows in
+        the Removed box rather than leaking into the headmatter (it was landing
+        mid-caption as 'Nos. … In re Blasingame Page 2')."""
+        lines = super()._maybe_drop_running_header(page, lines)
+        if page.page_number == 1:
+            return lines
+        if not hasattr(self, "_running_header_dropped"):
+            self._running_header_dropped = []
+        kept = []
+        for ln in lines:
+            if ln.get("top", 0) <= self.running_head_max_top:
+                text = " ".join(self.line_plain_text(ln).split())
+                if text:
+                    self._running_header_dropped.append(text)
+                continue
+            kept.append(ln)
+        return kept
+
     def parse_author_line(self, text):
         parsed = super().parse_author_line(text)
         if parsed is not None:
@@ -75,7 +100,12 @@ class SixthCircuitBAP(StateSupreme):
                 for i, row in enumerate(rows)
                 if isinstance(row, dict)
                 and row.get("__hm__")
-                and "IN RE:" in str(row.get("html", ""))
+                # Case-INSENSITIVE: the caption's opening row is typeset 'In
+                # re:' on most of the corpus and 'IN RE:' on the rest. Keying
+                # on the upper-case spelling alone silently disabled the whole
+                # fold — the rail glyphs stayed embedded in the party rows and
+                # every caption line became its own headmatter row.
+                and "IN RE:" in str(row.get("html", "")).upper()
             ),
             None,
         )

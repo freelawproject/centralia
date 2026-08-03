@@ -32,21 +32,37 @@ class SixthCircuit(FederalCircuitBase):
         return self._drop_head_band(page, lines)
 
     def find_caption_divider(self, page):
-        """CA6 draws the caption box with Unicode box-drawing chars."""
-        cols = [c for c in page.chars if c.get("text") in _BOX]
-        if len(cols) < 3:
-            return super().find_caption_divider(page)
+        """CA6 draws the caption box with Unicode box-drawing chars — or, on
+        part of the corpus, with a stacked ')' glyph rail instead.
+
+        Both are the same structure and only the glyph differs, so try the box
+        characters first and fall back to the paren rail. Without the fallback
+        the paren-railed captions got no divider at all, so their two columns
+        were never split and ``extract_text`` merged them onto single rows
+        ('Petitioner, ) ) ON PETITION FOR REVIEW v. ) FROM THE UNITED STATES')."""
         from collections import Counter
 
-        x, _ = Counter(round(c["x0"]) for c in cols).most_common(1)[0]
-        column = [c for c in cols if abs(c["x0"] - x) < 3]
-        if len(column) < 3:
-            return super().find_caption_divider(page)
-        return (
-            float(x),
-            min(c["top"] for c in column) - 2,
-            max(c["bottom"] for c in column) + 2,
-        )
+        def rail(chars, floor):
+            if len(chars) < floor:
+                return None
+            x, _ = Counter(round(c["x0"]) for c in chars).most_common(1)[0]
+            column = [c for c in chars if abs(c["x0"] - x) < 3]
+            if len(column) < floor:
+                return None
+            top = min(c["top"] for c in column)
+            bottom = max(c["bottom"] for c in column)
+            return float(x), top - 2, bottom + 2
+
+        found = rail([c for c in page.chars if c.get("text") in _BOX], 3)
+        if found is not None:
+            return found
+        # A paren rail needs a taller floor than the box glyphs: ')' occurs in
+        # ordinary prose, so require a real stack before treating it as the
+        # caption's divider.
+        found = rail([c for c in page.chars if c.get("text") == ")"], 6)
+        if found is not None:
+            return found
+        return super().find_caption_divider(page)
 
     def skip_headmatter_segment(self, seg) -> bool:
         if seg:
