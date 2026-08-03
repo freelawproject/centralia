@@ -146,6 +146,18 @@ class AlabamaAppellate(BaseExtractor):
                     break
             drop.add(id(line))
             previous = line
+        # Record what was cut so the Removed box can show it. Alabama overrides
+        # the base method, so the base's own bookkeeping never runs here — a
+        # docket line removed from 28 pages left no trace anywhere in the
+        # rendered document, and removal was indistinguishable from loss.
+        if drop:
+            if not hasattr(self, "_running_header_dropped"):
+                self._running_header_dropped = []
+            for line in lines:
+                if id(line) in drop:
+                    text = " ".join((line.get("text") or "").split())
+                    if text:
+                        self._running_header_dropped.append(text)
         return [line for line in lines if id(line) not in drop]
 
     # ====================================================================

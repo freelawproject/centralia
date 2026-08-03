@@ -531,6 +531,12 @@ class BaseExtractor:
         # kept so the Removed box can show them instead of the sweep reporting
         # them unplaced.
         self._folio_dropped = []
+        # Running headers ``_drop_running_header`` cuts from continuation
+        # pages. Recorded for the same reason as the folios: the reviewer has
+        # to be able to see that a repeated docket line was removed rather
+        # than swallowed. Deduped on the way into the Removed box, so a header
+        # repeated on 28 pages shows once, not 28 times.
+        self._running_header_dropped = []
         source_pages = []  # (page_number, [text lines]) — ground truth for the residual sweep
         with pdfplumber.open(pdf_path) as pdf:
             n_pages = len(pdf.pages)
@@ -840,6 +846,18 @@ class BaseExtractor:
             have = set(doc.dropped)
             doc.dropped = list(doc.dropped) + [
                 t for t in margin.values() if t not in have
+            ]
+        # Running headers cut from continuation pages. Without this the header
+        # is genuinely gone: the coverage audit calls a repeated margin line
+        # 'furniture' and stops counting it, which is an AUDIT-side bucket, not
+        # a place the reviewer can look. A docket line removed from 28 pages
+        # left no trace anywhere in the rendered document (alacivapp
+        # 'CL-2025-0736'), so removal could not be distinguished from loss.
+        headers = [h for h in (getattr(self, "_running_header_dropped", None) or []) if h]
+        if headers:
+            have = set(doc.dropped)
+            doc.dropped = list(doc.dropped) + [
+                h for h in dict.fromkeys(headers) if h not in have
             ]
         try:
             from .audit import sweep_unplaced
@@ -1351,6 +1369,13 @@ class BaseExtractor:
                 break
         if not drop:
             return lines
+        if not hasattr(self, "_running_header_dropped"):
+            self._running_header_dropped = []
+        for l in lines:
+            if id(l) in drop:
+                t = " ".join((l.get("text") or "").split())
+                if t:
+                    self._running_header_dropped.append(t)
         return [l for l in lines if id(l) not in drop]
 
     def is_docket_line(self, text) -> bool:
