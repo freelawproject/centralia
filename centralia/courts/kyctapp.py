@@ -86,9 +86,20 @@ class KentuckyCourtOfAppeals(StateAppellate):
         parts = [p.strip() for p in t[:ci].split(",")]
         if len(parts) < 2 or not is_caps_name(parts[0]):
             return None
-        if parts[1].lower().replace(".", "") not in _KY_JUDGE_TITLES:
+        title_at = 1
+        name = parts[0]
+        # ``JONES, L., JUDGE:`` uses surname-first reporter ordering.  The
+        # middle initial belongs to the author, not to the judicial title.
+        if (
+            len(parts) >= 3
+            and len(parts[1].rstrip(".")) == 1
+            and parts[1].rstrip(".").isalpha()
+        ):
+            name = f"{parts[0]}, {parts[1]}"
+            title_at = 2
+        if parts[title_at].lower().replace(".", "") not in _KY_JUDGE_TITLES:
             return None
-        kt = " ".join(parts[2:]).upper()
+        kt = " ".join(parts[title_at + 1 :]).upper()
         has_c, has_d = "CONCUR" in kt, "DISSENT" in kt
         kind = (
             "concurring in part and dissenting in part"
@@ -99,7 +110,7 @@ class KentuckyCourtOfAppeals(StateAppellate):
             if has_c
             else None
         )
-        return parts[0], parts[1].title(), kind
+        return name, parts[title_at].title(), kind
 
     def parse_author_line(self, text):
         r = self._kyctapp_byline(text)

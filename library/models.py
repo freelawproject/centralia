@@ -77,6 +77,10 @@ class Opinion(models.Model):
     order = models.PositiveIntegerField(default=0)
     type = models.CharField(max_length=64, default="majority")
     author = models.CharField(max_length=255, blank=True)
+    # Exact printed byline/announcement or repeated per-writing caption.
+    # Kept apart from normalized ``author`` so downstream matching sees a
+    # stable concise value while the viewer preserves what the court printed.
+    caption = models.JSONField(default=list, blank=True)
 
     class Meta:
         ordering = ["document", "order"]

@@ -50,12 +50,25 @@ _ORDER_BODY_STARTS = (
     "the defendant",
     "the commonwealth",
     "the appellant",
+    "the respondent",
+    "the respondents",
     "this case",
 )
 
 
 class MassachusettsStyle:
     fold_page_numbers = True
+
+    def find_footnote_separator(self, page):
+        sep = super().find_footnote_separator(page)
+        # A caption footnote can sit in the middle of page 1, followed by the
+        # counsel block and opinion byline.  The base model's footnote zone is
+        # terminal, so treating that rule as a separator swallows the actual
+        # opinion beneath it.  Keep mid-page caption notes in headmatter; true
+        # opinion footnotes remain bottom-page zones.
+        if page.page_number == 1 and sep is not None and sep < page.height * 0.6:
+            return None
+        return sep
 
     # ------------------------------------------------------------- orders
     def extract(self, pdf_path):
@@ -70,6 +83,7 @@ class MassachusettsStyle:
         # Per-curiam order (no byline): the body opens after the centered
         # 'Supreme Judicial Court.' header, or — when there is none — at the first
         # prose paragraph ('The plaintiff ...') following the headnotes.
+        seen_court_topic = False
         for i, (_p, seg, _k) in enumerate(all_segments):
             low = self.line_plain_text(seg[0]).strip().lower()
             if low.rstrip(".") == "supreme judicial court" and i + 1 < len(all_segments):
@@ -78,6 +92,15 @@ class MassachusettsStyle:
             if low.startswith(_ORDER_BODY_STARTS):
                 self._mass_order_start = i
                 return [i]
+            # Some single-justice orders have no author byline and begin after
+            # a reporter topic headed ``Supreme Judicial Court, ...``.  Topic
+            # labels are short single-line segments; the first wrapped prose
+            # segment after them is the order body.
+            if seen_court_topic and len(seg) >= 2:
+                self._mass_order_start = i
+                return [i]
+            if low.startswith("supreme judicial court,"):
+                seen_court_topic = True
         return []
 
     def split_author_line(self, line):

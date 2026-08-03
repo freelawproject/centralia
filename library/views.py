@@ -26,41 +26,93 @@ from .models import Block, Court, Document, Footnote, Opinion
 _OUTPUT_DIR = settings.BASE_DIR / "output"
 
 
+_NON_OPINION_TYPES = {"certificate-of-judgment", "filing", "notice", "order"}
+
+
+def _document_quality(d):
+    """Return the viewer color bucket and its plain-language diagnosis.
+
+    Keep mutually useful failures separate here: a raster scan is not a parser
+    bug, an unreadable font map is not a scan, and an intentionally
+    non-opinion document is not a missing opinion.  The first matching bucket
+    is the document's most actionable diagnosis; the hover text supplies the
+    detail.
+    """
+    warnings = [str(w) for w in (d.warnings or [])]
+    warning_text = " ".join(warnings)
+    warning_lower = warning_text.lower()
+    has_opinions = d.opinions.exists()
+
+    if d.doc_type == "error":
+        return "error", "extractor crashed" + (f": {warnings[0]}" if warnings else "")
+
+    if (
+        "unreadable text layer" in warning_lower
+        or "unmapped (cid:n)" in warning_lower
+        or "cid glyph" in warning_lower
+    ):
+        return "text-layer", "unreadable PDF text layer (missing character map)"
+
+    if (
+        "non-born-digital" in warning_lower
+        or "scanned image-only" in warning_lower
+        or "needs ocr" in warning_lower
+    ):
+        return "scan", "scanned PDF; OCR/extraction work required"
+
+    if d.residual and any(
+        not isinstance(r, dict) or r.get("kind") != "furniture"
+        for r in d.residual
+    ):
+        return "unplaced", "authored content remains unplaced"
+
+    if not has_opinions and (d.suspect or d.doc_type == "opinion"):
+        detail = "no opinion body parsed"
+        if d.suspect:
+            detail += "; multi-page content landed in headmatter"
+        return "missing-opinion", detail
+
+    if d.doc_type == "unknown":
+        return "unclassified", "born-digital document type is still unknown"
+
+    if not has_opinions:
+        if d.doc_type in _NON_OPINION_TYPES:
+            return "non-opinion", f"{d.doc_type}; no judicial opinion expected"
+        return "missing-opinion", "no opinion body parsed"
+
+    layout_reasons = []
+    if d.coverage and d.coverage < 100:
+        layout_reasons.append(f"source coverage {d.coverage:g}%")
+    if not d.layout_ok:
+        layout_reasons.append("layout does not match the expected court format")
+    if layout_reasons:
+        return "layout", "; ".join(layout_reasons)
+
+    # The certificate warning records an intentional parser choice, not a
+    # failure. Any other warning gets its own review color.
+    actionable_warnings = [
+        w for w in warnings
+        if not w.startswith("body not parsed for doc_type=certificate-of-judgment")
+    ]
+    if actionable_warnings:
+        return "warning", "; ".join(actionable_warnings)
+
+    return "clean", "clean extraction"
+
+
 def _rebuild_manifest():
     """Rewrite output/manifest.js from the DB, including review-facing health.
 
-    ``q`` is intentionally small and stable because the static viewer only
-    needs to choose a color and explain it on hover:
-    clean, unplaced, no-opinions, or issue.
+    ``q`` names a specific extraction outcome so the static viewer can give
+    scans, text-layer failures, parser failures, and intentional non-opinions
+    visibly different treatments.
     """
-    def quality(d):
-        if d.doc_type == "error":
-            return "issue", "extraction error"
-        if d.residual and any(
-            not isinstance(r, dict) or r.get("kind") != "furniture"
-            for r in d.residual
-        ):
-            return "unplaced", "unplaced content"
-        if not d.opinions.exists():
-            return "no-opinions", (
-                "no opinions parsed" + ("; suspect extraction" if d.suspect else "")
-            )
-        reasons = []
-        if d.coverage and d.coverage < 100:
-            reasons.append(f"coverage {d.coverage:g}%")
-        if not d.layout_ok:
-            reasons.append("layout mismatch")
-        if d.warnings:
-            reasons.append("extractor warning")
-        if d.suspect:
-            reasons.append("suspect extraction")
-        return ("issue", "; ".join(reasons)) if reasons else ("clean", "good")
-
     man = {
         c.court_id: [
             {"n": d.stem, "href": f"{c.court_id}/{d.stem}.html",
-             "s": d.suspect, "q": quality(d)[0], "qd": quality(d)[1]}
+             "s": d.suspect, "q": diagnosis[0], "qd": diagnosis[1]}
             for d in c.documents.all().order_by("stem")
+            for diagnosis in [_document_quality(d)]
         ]
         for c in Court.objects.all().order_by("court_id")
     }
@@ -148,7 +200,9 @@ def viewer(request):
     return FileResponse(f.open("rb"), content_type="text/html")
 
 # Sidebar grouping (mirrors the static viewer).
-_CIRCUITS = set("ca1 ca2 ca3 ca4 ca5 ca6 ca7 ca8 ca9 ca10 ca11 cadc cafc".split())
+_CIRCUITS = set(
+    "scotus ca1 ca2 ca3 ca4 ca5 ca6 ca7 ca8 ca9 ca10 ca11 cadc cafc".split()
+)
 _DISTRICTS = set(("akd almd alnd alsd ared arwd azd cacd caed cand casd cod ctd "
     "ded dcd flmd flnd flsd gamd gand gasd hid iand iasd idd ilcd ilnd ilsd innd "
     "insd ksd kyed kywd laed lamd lawd mad mdd med mied miwd mnd moed mowd msnd "
@@ -377,7 +431,38 @@ def _block_html(b):
     if b.kind == "image":
         src = b.payload.get("src", "")
         return f'<img src="{src}" alt="figure">' if src else ""
+    if b.kind == "table":
+        rows = b.payload.get("rows") or []
+        has_header = b.payload.get("has_header", True)
+        table_class = ' class="continued"' if b.payload.get("continuation") else ""
+        rendered = [f"<table{table_class}>"]
+        for row_index, row in enumerate(rows):
+            tag = "th" if has_header and row_index == 0 else "td"
+            rendered.append("<tr>")
+            for cell in row:
+                content = _inline_to_html(str(cell or "")).replace("\n", "<br>")
+                rendered.append(f"<{tag}>{content}</{tag}>")
+            rendered.append("</tr>")
+        rendered.append("</table>")
+        return "".join(rendered)
+    indent = (b.payload or {}).get("first_line_indent")
+    if b.kind == "p" and indent:
+        return f'<p style="text-indent:{float(indent):.1f}pt">{_inline_to_html(b.text)}</p>'
     return f"<p>{_inline_to_html(b.text)}</p>"
+
+
+def _stored_block_html(block):
+    """Render an extractor Block serialized into an Opinion JSON field."""
+    kind = block.get("kind", "p") if isinstance(block, dict) else "p"
+    text = block.get("text", "") if isinstance(block, dict) else str(block)
+    if kind == "heading":
+        return f"<h3>{_inline_to_html(text)}</h3>"
+    if kind == "blockquote":
+        return f"<blockquote>{_inline_to_html(text)}</blockquote>"
+    if kind == "image":
+        src = (block.get("payload") or {}).get("src", "")
+        return f'<img src="{src}" alt="caption figure">' if src else ""
+    return f"<p>{_inline_to_html(text)}</p>"
 
 
 def document_detail(request, court_id, stem):
@@ -387,6 +472,13 @@ def document_detail(request, court_id, stem):
     headnotes = mark_safe("".join(_row_html(r) for r in doc.headnotes))
     opinions = []
     for op in doc.opinions.all():
+        caption_rows = list(op.caption or [])
+        caption = mark_safe("".join(_stored_block_html(b) for b in caption_rows))
+        visible_byline = any(
+            isinstance(block, dict)
+            and (block.get("payload") or {}).get("role") in ("byline", "announcement")
+            for block in caption_rows
+        )
         body = mark_safe("".join(_block_html(b) for b in op.blocks.all()))
         fns = [(f.label, mark_safe("".join(
             # A ('table', markup) paragraph is a table printed inside the
@@ -394,7 +486,10 @@ def document_detail(request, court_id, stem):
             str(t) if tag == "table" else f"<span>{_inline_to_html(t)}</span> "
             for tag, t in f.paragraphs)))
             for f in op.footnotes.all()]
-        opinions.append({"op": op, "body": body, "footnotes": fns})
+        opinions.append({
+            "op": op, "caption": caption, "show_author": not visible_byline,
+            "body": body, "footnotes": fns,
+        })
     return render(request, "library/document_detail.html", {
         "doc": doc, "headmatter": headmatter, "syllabus": syllabus,
         "headnotes": headnotes,

@@ -23,6 +23,73 @@ class OfficeOfLegalCounsel(GenericExtractor):
     # 'notice' to the classifier; keep those segments in the body
     drop_notice_in_body = False
 
+    def extract_page_tables(self, page):
+        """Rebuild OLC's four-column immigration-status comparison table.
+
+        The PDF draws nested cell rectangles.  pdfplumber consequently emits
+        twelve sparse pseudo-columns and loses the text of several rows.  The
+        outer first-column cells still give reliable row boundaries; cluster
+        the four outer column edges and crop each logical cell once.
+        """
+        tables = super().extract_page_tables(page)
+        broad = next(
+            (
+                table
+                for table in tables
+                if len(table.get("rows") or []) >= 8
+                and max((len(row) for row in table["rows"]), default=0) >= 8
+            ),
+            None,
+        )
+        if broad is None or "PRWORA Qualified" not in (page.extract_text() or ""):
+            return tables
+
+        bx0, btop, bx1, bbottom = broad["bbox"]
+        first_cells = sorted(
+            (
+                rect
+                for rect in page.rects
+                if abs(rect["x0"] - bx0) <= 2
+                and 50 <= rect["x1"] - rect["x0"] <= 90
+                and rect["height"] >= 8
+                and btop - 2 <= rect["top"] < bbottom
+            ),
+            key=lambda rect: rect["top"],
+        )
+        row_tops = []
+        for rect in first_cells:
+            if not row_tops or abs(rect["top"] - row_tops[-1]) > 2:
+                row_tops.append(rect["top"])
+        if len(row_tops) < 4:
+            return tables
+        row_edges = row_tops + [max(rect["bottom"] for rect in first_cells)]
+
+        raw_edges = sorted(
+            rect["x0"]
+            for rect in page.rects
+            if abs(rect["top"] - btop) <= 2 and rect["height"] >= 8
+        )
+        col_edges = []
+        for value in raw_edges:
+            if not col_edges or value - col_edges[-1] > 8:
+                col_edges.append(value)
+        col_edges = [value for value in col_edges if bx0 - 2 <= value < bx1 - 2]
+        col_edges.append(bx1)
+        if len(col_edges) != 5:
+            return tables
+
+        rows = []
+        for top, bottom in zip(row_edges, row_edges[1:]):
+            row = []
+            for left, right in zip(col_edges, col_edges[1:]):
+                cell = page.crop((left + 1, top + 1, right - 1, bottom - 1))
+                text = cell.extract_text(x_tolerance=2, y_tolerance=3) or ""
+                row.append(" ".join(text.splitlines()).strip())
+            rows.append(row)
+        rebuilt = dict(broad)
+        rebuilt["rows"] = rows
+        return [rebuilt if table is broad else table for table in tables]
+
     def find_authors(self, all_segments) -> list:
         for i, (_p, seg, _k) in enumerate(all_segments):
             if not seg:

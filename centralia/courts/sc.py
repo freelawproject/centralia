@@ -63,7 +63,7 @@ class SouthCarolinaSupreme(ReversedJusticeSupreme):
         for i, (_, seg, _) in enumerate(all_segments):
             if not seg:
                 continue
-            parsed = self.parse_author_line(seg[0]["text"].strip())
+            parsed = self.parse_author_line(self.line_plain_text(seg[0]).strip())
             if parsed is None:
                 continue
             out.append(i)

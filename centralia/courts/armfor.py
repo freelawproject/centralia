@@ -222,6 +222,37 @@ class ArmedForcesCourt(ReversedJusticeSupreme):
         self._armfor_dropped = []
         self._cover_close_top = None
         doc = super().extract(pdf_path)
+        # Some decisions devote the first lines of page 2 to a roster of all
+        # writings, then repeat the actual majority byline at the start of the
+        # opinion on page 3.  An interior ``Judge NAME`` in the roster's third
+        # wrapped line can be mistaken for a new, empty opinion.  The first two
+        # lines are already retained as headmatter; return the third there as
+        # well and discard only the phantom boundary.
+        hm_rows = [row for row in doc.summary if isinstance(row, dict)]
+        roster_open = (
+            len(hm_rows) >= 2
+            and str(hm_rows[-2].get("html", "")).rstrip().endswith(", in")
+            and str(hm_rows[-1].get("html", "")).rstrip().endswith("and")
+        )
+        opinions = []
+        for opinion in doc.opinions:
+            author_low = opinion.author.lower()
+            is_roster_tail = (
+                roster_open
+                and not opinion.blocks
+                and not opinion.footnotes
+                and " joined. judge " in author_low
+                and " filed a separate opinion" in author_low
+            )
+            if is_roster_tail:
+                prior = hm_rows[-1]
+                row = dict(prior)
+                row["html"] = opinion.author
+                row["top"] = float(prior.get("top", 0)) + 15.0
+                doc.summary.append(row)
+                continue
+            opinions.append(opinion)
+        doc.opinions = opinions
         if self._armfor_dropped:
             seen, extra = set(), []
             for t in self._armfor_dropped:

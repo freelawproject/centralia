@@ -15,11 +15,16 @@ class FifthCircuit(FederalCircuitBase):
     gap_double_max = 28.0
 
     def filter_margins(self, obj):
-        # CA5 page-1 right-column 'FILED <date> / Clerk' stamp.
+        # CA5 page-1 right-column 'FILED <date> / Clerk' stamp.  It overlaps
+        # the centered Old English court banner in X, so an x>=440 crop cuts
+        # the final ``ls`` off ``Appeals`` and can attach ``Clerk`` to the
+        # first party.  The stamp is consistently Arial; the authored slip
+        # caption uses OldEnglish/Equity faces.  Filter on that structural font
+        # distinction and preserve the complete banner underneath.
         if (
             obj.get("page_number", 1) == 1
-            and obj.get("x0", 0) >= 440
-            and obj.get("top", 0) <= 200
+            and obj.get("top", 0) <= 220
+            and "arial" in (obj.get("fontname") or "").lower()
         ):
             return None
         return super().filter_margins(obj)

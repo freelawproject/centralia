@@ -60,6 +60,17 @@ class EasternDistrictOfCalifornia(DistrictBase):
         in the headmatter. The caption band bottom is drawn geometry (the mid
         vertical and the shelf that closes into it), so breaking the segment
         there follows the page."""
+        # Preserve the complete raw footer row before the pleading-gutter
+        # filter separates its left law-firm letterhead from the right running
+        # document title.  Both are furniture, but both must remain visible in
+        # Removed for source accounting.
+        if getattr(self, "_caed_footer", None) is not None:
+            for line in page.extract_text_lines():
+                if line.get("top", 0) > 730:
+                    text = self.line_plain_text(line).strip()
+                    if text:
+                        self._caed_footer.append(text)
+
         lines = super().page_lines(page)
         if page.page_number != 1:
             return lines
@@ -111,6 +122,7 @@ class EasternDistrictOfCalifornia(DistrictBase):
         return paras
 
     def extract(self, pdf_path: str):
+        self._caed_footer = []
         doc = super().extract(pdf_path)
         for op in doc.opinions:
             for b in op.blocks:
@@ -122,6 +134,12 @@ class EasternDistrictOfCalifornia(DistrictBase):
         self._harvest_graphic_signature(doc)
         self._reclassify_party_filing(doc)
         return doc
+
+    def _sweep_residual(self, doc, source_pages):
+        footer = list(dict.fromkeys(getattr(self, "_caed_footer", []) or []))
+        if footer:
+            doc.dropped = list(dict.fromkeys(list(doc.dropped) + footer))
+        super()._sweep_residual(doc, source_pages)
 
     # --------------------------------------------------------- page filler
     def _drop_pleading_filler(self, doc) -> None:
@@ -218,6 +236,8 @@ class EasternDistrictOfCalifornia(DistrictBase):
             low = _TAG.sub("", str(s)).strip().rstrip(".").lower()
             if low in titles or any(low.endswith(" " + jt) for jt in titles):
                 return
+            if low.startswith(("/s/", "s/")) or " /s/ " in low:
+                conformed = True
         if conformed:
             doc.doc_type = DocType.FILING
 

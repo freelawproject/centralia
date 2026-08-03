@@ -261,6 +261,27 @@ def caption_signature(page) -> dict:
                 and band[0] - 20 <= c["top"] <= band[1] + 60
             ]
             if ys:
+                # Keep the stacked caption rail, not a later prose parenthesis
+                # that happens to land in the same coarse x bucket.  A true
+                # rail is a contiguous vertical run; split at a gap much larger
+                # than its own line pitch and retain the longest run.
+                ys.sort(key=lambda c: c["top"])
+                pitches = [
+                    b["top"] - a["top"]
+                    for a, b in zip(ys, ys[1:])
+                    if b["top"] > a["top"]
+                ]
+                ordinary = min(pitches) if pitches else 16.0
+                gap_limit = max(36.0, ordinary * 2.5)
+                groups, current = [], []
+                for char in ys:
+                    if current and char["top"] - current[-1]["top"] > gap_limit:
+                        groups.append(current)
+                        current = []
+                    current.append(char)
+                if current:
+                    groups.append(current)
+                ys = max(groups, key=len)
                 rail_band = (
                     min(c["top"] for c in ys),
                     max(c["bottom"] for c in ys),

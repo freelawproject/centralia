@@ -20,6 +20,19 @@ class NewJerseyTaxCourt(AbbrevTitleSupreme):
         ("J.T.C.", "Judge of the Tax Court"),
     ) + AbbrevTitleSupreme.abbrev_titles
 
+    def find_footnote_separator(self, page):
+        sep = super().find_footnote_separator(page)
+        if sep is None:
+            return None
+        try:
+            if any(top - 2 <= sep <= bottom + 2 for _x0, top, _x1, bottom in (
+                table.bbox for table in page.find_tables()
+            )):
+                return None
+        except Exception:
+            pass
+        return sep
+
     def find_authors(self, all_segments) -> list:
         out = super().find_authors(all_segments)
         if out:

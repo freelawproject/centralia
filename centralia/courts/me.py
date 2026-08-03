@@ -50,6 +50,28 @@ class MaineSupreme(AbbrevTitleSupreme):
     court_id = "me"
     court_label = "Maine Supreme Judicial Court."
 
+    def extract(self, pdf_path):
+        self._advisory_start = None
+        return super().extract(pdf_path)
+
+    def find_authors(self, all_segments) -> list:
+        starts = super().find_authors(all_segments)
+        if starts:
+            return starts
+        for i, (_p, seg, _kind) in enumerate(all_segments):
+            if not seg:
+                continue
+            text = self.line_plain_text(seg[0]).strip().lower()
+            if text.startswith("to the maine legislature"):
+                self._advisory_start = i
+                return [i]
+        return []
+
+    def split_author_line(self, line):
+        if getattr(self, "_advisory_start", None) is not None:
+            return "THE JUSTICES", [line]
+        return super().split_author_line(line)
+
     @staticmethod
     def correct_page_geometry(page) -> None:
         """Snap each char's ``top``/``bottom`` back to the row implied by its
@@ -177,4 +199,31 @@ class MaineSupreme(AbbrevTitleSupreme):
         text = self.line_plain_text(line).strip()
         if text.upper() in _COURT_OPENERS:
             return text, ""
+        if self._panel_byline(text) is not None:
+            return text, ""
         return super()._byline_split(line)
+
+    @staticmethod
+    def _panel_byline(text: str):
+        """A judicial-discipline panel may author jointly as a roster.
+
+        This is distinct from the page-top ``Panel:`` metadata because it has
+        no prefix and consists entirely of capitalized names plus judicial
+        abbreviations.
+        """
+        t = (text or "").strip().rstrip(".")
+        if not t or t.startswith("Panel:") or ", and " not in t:
+            return None
+        if not any(mark in t for mark in (", J.", ", C.J.", ", A.R.J.")):
+            return None
+        words = t.replace(",", " ").replace(".", " ").split()
+        allowed = {"J", "CJ", "ARJ", "AND"}
+        if not words or not all(word.isupper() or word.upper() in allowed for word in words):
+            return None
+        return t
+
+    def parse_author_line(self, text):
+        panel = self._panel_byline(text)
+        if panel is not None:
+            return panel, "panel", None
+        return super().parse_author_line(text)

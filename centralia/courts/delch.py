@@ -27,6 +27,9 @@ class DelawareChancery(AbbrevTitleSupreme):
     court_id = "delch"
     court_label = "Court of Chancery of the State of Delaware."
     hm_caption_footnotes = True
+    # Current slips use both all-caps (McCORMICK) and title-case (Cook)
+    # surnames before the Chancery-specific C./V.C. abbreviations.
+    allow_titlecase_name = True
     author_titles = (
         "Chancellor",
         "Vice Chancellor",
@@ -37,6 +40,7 @@ class DelawareChancery(AbbrevTitleSupreme):
         "Judge",
     )
     abbrev_titles = (
+        ("C.", "Chancellor"),
         ("V.C.", "Vice Chancellor"),
         ("M.", "Magistrate in Chancery"),
     ) + AbbrevTitleSupreme.abbrev_titles

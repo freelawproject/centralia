@@ -24,6 +24,7 @@ class MilitaryCCA(StateSupreme):
 
     def extract(self, pdf_path):
         self._order_start = None
+        self._anonymous_opinion_start = None
         doc = super().extract(pdf_path)
         if self._order_start is not None and doc.opinions:
             doc.opinions[0].type = "order"
@@ -50,6 +51,12 @@ class MilitaryCCA(StateSupreme):
             ):
                 if best is None or line["top"] < best:
                     best = line["top"]
+        if best is not None:
+            for line in page.extract_text_lines():
+                if line.get("top", 0) > best and self.parse_author_line(
+                    (line.get("text") or "").strip()
+                ):
+                    return None
         return best
 
     def parse_author_line(self, text):
@@ -83,11 +90,21 @@ class MilitaryCCA(StateSupreme):
         # ')'-railed caption.
         pw = getattr(self, "_page1_width", 612.0) or 612.0
         last_rail = None
-        for i, (_p, seg, _k) in enumerate(all_segments):
+        for i, (pno, seg, _k) in enumerate(all_segments):
+            if pno != 1:
+                continue
             for l in seg:
                 if ")" in self.line_plain_text(l).split():
                     last_rail = i
         if last_rail is None:
+            # Some Army memorandum opinions have an image-only title page and
+            # no recoverable byline.  Start at the first sustained prose run,
+            # keeping the author unknown instead of misclassifying a late
+            # occurrence of ')' in a citation as a caption rail/order.
+            for i, (_p, seg, _k) in enumerate(all_segments):
+                if len(seg) >= 2 and max(l["x1"] - l["x0"] for l in seg) > pw * 0.5:
+                    self._anonymous_opinion_start = i
+                    return [i]
             return []
         for i in range(last_rail + 1, len(all_segments)):
             seg = all_segments[i][1]
@@ -99,6 +116,8 @@ class MilitaryCCA(StateSupreme):
     def split_author_line(self, line):
         if getattr(self, "_order_start", None) is not None:
             return "", [line]
+        if getattr(self, "_anonymous_opinion_start", None) is not None:
+            return "", [line]
         return super().split_author_line(line)
 
     def classify_document_type(self, all_segments, author_indices, n_pages):
@@ -106,6 +125,10 @@ class MilitaryCCA(StateSupreme):
             from ..models import DocType
 
             return DocType.ORDER
+        if getattr(self, "_anonymous_opinion_start", None) is not None:
+            from ..models import DocType
+
+            return DocType.OPINION
         return super().classify_document_type(all_segments, author_indices, n_pages)
 
     def extract_headmatter(self, headmatter_segs, page1_rules=None) -> dict:

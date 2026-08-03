@@ -69,6 +69,23 @@ class MarylandSupreme(AbbrevTitleSupreme):
         r = self._abbrev_parse(rest)
         if r is not None:
             return r[0], r[1]
+        # Reporter caption form with an inverted full name:
+        # ``Opinion by Eyler, Deborah S., J.``.
+        for ab, full in self.abbrev_titles:
+            suffix = ", " + ab
+            if not rest.rstrip().endswith(suffix):
+                continue
+            name = rest.rstrip()[: -len(suffix)].strip()
+            pieces = [piece.strip() for piece in name.split(",", 1)]
+            if len(pieces) != 2 or not self._name_ok(pieces[0]):
+                continue
+            given = pieces[1].replace("-", " ").split()
+            if given and all(
+                token[:1].isupper()
+                and token.rstrip(".").replace("'", "").isalpha()
+                for token in given
+            ):
+                return name, full
         if "," in rest:
             name = rest.split(",", 1)[0].strip()
             after = rest.split(",", 1)[1].strip()

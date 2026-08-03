@@ -103,6 +103,22 @@ def _render_opinion(op: Opinion) -> list:
         f'  <opinion type="{op.type}">',
         f"    <author>{escape(op.author)}</author>",
     ]
+    if getattr(op, "caption", None):
+        out.append("    <opinion-caption>")
+        for block in op.caption:
+            role = (block.payload or {}).get("role")
+            role_attr = f' role="{escape(str(role))}"' if role else ""
+            if block.kind == "image":
+                out.append(
+                    f'      <image{role_attr} src="{block.payload["src"]}" '
+                    f'width="{block.payload["width"]:.0f}" '
+                    f'height="{block.payload["height"]:.0f}" page="{block.page}"/>'
+                )
+            else:
+                out.append(
+                    f"      <{block.kind}{role_attr}>{block.text}</{block.kind}>"
+                )
+        out.append("    </opinion-caption>")
     list_type = None
     for b in op.blocks:
         if b.kind in ("list-item", "ordered-list-item"):
@@ -128,7 +144,13 @@ def _render_opinion(op: Opinion) -> list:
                 f'height="{b.payload["height"]:.0f}" page="{b.page}"/>'
             )
         elif b.kind == "table":
-            out.extend(_render_table(b.payload.get("rows") or [], b.page))
+            out.extend(
+                _render_table(
+                    b.payload.get("rows") or [],
+                    b.page,
+                    has_header=b.payload.get("has_header", True),
+                )
+            )
         else:
             out.append(f"    <{b.kind}>{b.text}</{b.kind}>")
     if list_type is not None:
@@ -147,12 +169,12 @@ def _render_footnote(fn: Footnote) -> str:
     return f'      <footnote label="{escape(fn.label)}">{inner}</footnote>'
 
 
-def _render_table(rows: list, page_no) -> list:
+def _render_table(rows: list, page_no, has_header=True) -> list:
     if not rows:
         return []
     out = [f'    <table page="{page_no}">']
     for ri, row in enumerate(rows):
-        tag = "th" if ri == 0 else "td"
+        tag = "th" if has_header and ri == 0 else "td"
         out.append("      <tr>")
         for cell in row:
             cell_text = (cell or "").replace("\n", " ").strip()

@@ -16,6 +16,59 @@ class MiddleDistrictOfAlabama(AlabamaDistrictBase):
     court_id = "almd"
     court_label = "United States District Court, Middle District of Alabama."
 
+    def _split_segments_at_bylines(self, all_segments):
+        """Isolate a full-width title glued to the caption's last row.
+
+        Some ALMD Word templates keep the caption rail and the centered
+        ``AMENDED OPINION ...`` title in one gap-classified segment.  The title
+        is the ruling boundary, not another caption cell.
+        """
+        out = []
+        for page_no, seg, kind in super()._split_segments_at_bylines(all_segments):
+            cuts = []
+            for index, line in enumerate(seg[1:], 1):
+                text = self.line_plain_text(line).strip()
+                upper = text.upper()
+                if (
+                    text == upper
+                    and len(text) < 100
+                    and (
+                        upper.startswith("AMENDED OPINION")
+                        or upper.startswith("AMENDED ORDER")
+                    )
+                ):
+                    cuts.append(index)
+            if not cuts:
+                out.append((page_no, seg, kind))
+                continue
+            for start, end in zip([0] + cuts, cuts + [len(seg)]):
+                part = seg[start:end]
+                if part:
+                    out.append((page_no, part, self.classify_segment(part)))
+        return out
+
+    def _is_heading(self, line) -> bool:
+        text = self.line_plain_text(line).strip()
+        upper = text.upper()
+        if text == upper and upper.startswith(("AMENDED OPINION", "AMENDED ORDER")):
+            return True
+        return super()._is_heading(line)
+
+    def build_opinion(self, op_start, op_end, **kwargs):
+        op = super().build_opinion(op_start, op_end, **kwargs)
+        if (
+            len(op.blocks) >= 2
+            and op.blocks[0].page == op.blocks[1].page
+            and self._untag(op.blocks[0].text).upper().startswith(
+                ("AMENDED OPINION", "AMENDED ORDER")
+            )
+            and op.blocks[1].kind == "p"
+        ):
+            op.blocks[0].text = f"{op.blocks[0].text} {op.blocks[1].text}".strip()
+            op.blocks[0].kind = "heading"
+            del op.blocks[1]
+        return op
+
     def correct_page_geometry(self, page) -> None:
         """This judge sets opinions entirely in Courier New Bold. Two quirks:
         a wide-space glyph extracts as the literal '(cid:1)' (map it to a
@@ -63,7 +116,14 @@ class MiddleDistrictOfAlabama(AlabamaDistrictBase):
         i = 0
         while i < len(t) and t[i].isdigit():
             i += 1
-        if i > 0 and i < len(t) and t[i] == ".":
+        # A continuation can begin with a citation such as ``10.) Young's``.
+        # That is prose from the current note, not a new note numbered 10.
+        if (
+            0 < i <= 3
+            and i < len(t)
+            and t[i] == "."
+            and (i + 1 == len(t) or t[i + 1] != ")")
+        ):
             return t[:i]
         return super().detect_footnote_label(line)
 

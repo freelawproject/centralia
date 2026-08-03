@@ -139,7 +139,17 @@ class ArizonaCourtOfAppeals(ArizonaStyle, StateAppellate):
         for token in text.split(" "):
             head = token.rstrip(",.:;")
             tail = token[len(head) :]
-            if len(head) == 1 and head.isalpha() and head.isupper():
+            if (
+                len(head) == 1
+                and head.isalpha()
+                and head.isupper()
+            ) or (
+                not run
+                and len(head) == 2
+                and head[0].isalpha()
+                and head[0].isupper()
+                and head[1] in ("'", "’")
+            ):
                 run.append(head)
                 if tail:  # the run's last letter carries the byline's comma
                     flush(tail)
@@ -172,7 +182,20 @@ class ArizonaCourtOfAppeals(ArizonaStyle, StateAppellate):
             return None
         # Collapse letter-spaced capitals: 'M O R S E' -> 'MORSE'.
         toks = name.split()
-        if toks and all(len(tk) == 1 for tk in toks):
+        # O'Neil is printed as ``O’ N E I L``: the apostrophe stays attached
+        # to the first initial while every remaining letter is tracked.  Treat
+        # that leading apostrophe token as part of the same typographic run.
+        tracked = toks and all(
+            (len(tk) == 1 and tk.isalpha() and tk.isupper())
+            or (
+                len(tk) == 2
+                and tk[0].isalpha()
+                and tk[0].isupper()
+                and tk[1] in ("'", "’")
+            )
+            for tk in toks
+        )
+        if tracked:
             name = "".join(toks)
         else:
             name = name.strip()

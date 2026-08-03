@@ -43,6 +43,7 @@ from collections import Counter
 
 import pdfplumber
 
+from ..base import BaseExtractor
 from ..models import DocType
 from ._district import DistrictBase
 
@@ -81,7 +82,46 @@ class CentralDistrictOfCalifornia(DistrictBase):
     # CACD pleading-paper footnotes can sit below the usual district footer
     # cutoff (including a one-line note at y≈740). Keep the note text while
     # still excluding the centered page folio at y≈753.
-    margin_bottom = 748.0
+    # Pleading-paper standing orders start line 1 at y≈31.7, immediately below
+    # the two-line CM/ECF stamp (which ends at y≈37).  Civil Minutes forms can
+    # run authored prose through y≈762.7, immediately above their footer at
+    # y≈765.8.  These bounds preserve both body rails; page_lines separately
+    # strips the identifiable stamp/form furniture.
+    margin_top = 30.0
+    margin_bottom = 764.0
+
+    def page_lines(self, page):
+        lines = super().page_lines(page)
+        if page.page_number <= 1:
+            return lines
+
+        # A Civil Minutes continuation page repeats its court/form/case/title
+        # masthead above y=170.  Remove that complete geometric band only when
+        # the form title positively identifies it; body begins around y=180.
+        civil_minutes = any(
+            line.get("top", 0) < 120
+            and "CIVIL MINUTES - GENERAL" in self.line_plain_text(line)
+            for line in lines
+        )
+        if not civil_minutes:
+            return lines
+        kept = []
+        for line in lines:
+            text = self.line_plain_text(line).strip()
+            if line.get("top", 0) < 170:
+                if text:
+                    self._cacd_repeat_header.append(text)
+                continue
+            kept.append(line)
+        return kept
+
+    def _sweep_residual(self, doc, source_pages):
+        repeated = list(
+            dict.fromkeys(getattr(self, "_cacd_repeat_header", []) or [])
+        )
+        if repeated:
+            doc.dropped = list(dict.fromkeys(list(doc.dropped) + repeated))
+        super()._sweep_residual(doc, source_pages)
 
     def find_footnote_separator(self, page):
         sep = super().find_footnote_separator(page)
@@ -112,13 +152,88 @@ class CentralDistrictOfCalifornia(DistrictBase):
             or self._byline_author(all_segments)
             or self._caption_judge(all_segments)
         )
+        if self._district_author and self._district_author.upper().startswith(
+            "HONORABLE "
+        ):
+            self._district_author = self._district_author[len("HONORABLE ") :]
         # Minute order: the ruling proper starts at the 'Proceedings:' line.
         for i, (_p, seg, _k) in enumerate(all_segments):
             if seg and self.line_plain_text(seg[0]).strip().lower().startswith(
                 "proceedings:"
             ):
                 return [i]
+
+        # The title of this standing-order template sits in the caption's
+        # right column.  Its authored text opens with a full-width warning
+        # below the final party-role row; do not start at the court banner.
+        for i, (_p, seg, _k) in enumerate(all_segments):
+            if seg and self.line_plain_text(seg[0]).strip().startswith(
+                "PLEASE READ THIS ORDER CAREFULLY"
+            ):
+                return [i]
         return super().find_authors(all_segments)
+
+    def _present_author(self, all_segments):
+        author = super()._present_author(all_segments)
+        if author:
+            return author
+        # The CV-90 form prints "Present: The Sheri Pym, United States
+        # Magistrate Judge"—the fixed word "The" occupies the place where
+        # other versions print "The Honorable".
+        for _page, segment, _kind in all_segments:
+            for line in segment:
+                text = self.line_plain_text(line).strip()
+                low = text.lower()
+                if not low.startswith("present: the ") or "," not in text:
+                    continue
+                if "united states" not in low or "judge" not in low:
+                    continue
+                name = text[len("Present: The ") :].split(",", 1)[0].strip()
+                if name:
+                    return name
+        return None
+
+    def classify_document_type(self, all_segments, author_indices, n_pages):
+        for _page, segment, _kind in all_segments:
+            text = " ".join(self.line_plain_text(line).strip() for line in segment)
+            upper = text.upper()
+            if "CIVIL STANDING ORDER" in upper:
+                return DocType.ORDER
+            if upper.startswith("PROCEEDINGS:") and "ORDER" in upper:
+                return DocType.ORDER
+        return super().classify_document_type(all_segments, author_indices, n_pages)
+
+    def classify_paragraph(self, lines) -> str:
+        if lines and all(self._line_all_emphasized(line) for line in lines):
+            text = self.line_plain_text(lines[0]).strip()
+            first = text.split(maxsplit=1)[0] if text else ""
+            outline = first.rstrip(".")
+            if outline.isdigit() or outline in {
+                "I",
+                "II",
+                "III",
+                "IV",
+                "V",
+                "VI",
+                "VII",
+                "VIII",
+                "IX",
+                "X",
+                "XI",
+                "XII",
+                "XIII",
+                "XIV",
+                "XV",
+                "XVI",
+            }:
+                return "heading"
+        return super().classify_paragraph(lines)
+
+    def extract_page_tables(self, page):
+        # CACD standing orders contain a real ruled attorney-fee example table.
+        # The base validator rejects quote-like false tables and finds only the
+        # grid with at least three populated rows and two populated columns.
+        return BaseExtractor.extract_page_tables(self, page)
 
     def _is_ruling(self, pdf_path) -> bool:
         """True when the document is a court ruling, not an attorney filing: a
@@ -140,9 +255,13 @@ class CentralDistrictOfCalifornia(DistrictBase):
         return any(t in squeezed for t in _JUDGE_TITLES_SQ)
 
     def extract(self, pdf_path):
+        self._cacd_repeat_header = []
         doc = super().extract(pdf_path)
         if doc.non_digital:
             return doc
+        if doc.doc_type == DocType.ORDER:
+            for opinion in doc.opinions:
+                opinion.type = "order"
         if not self._is_ruling(pdf_path):
             doc.doc_type = DocType.FILING
             # No judicial author on an attorney filing — the base fell back to

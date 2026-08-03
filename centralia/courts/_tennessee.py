@@ -408,6 +408,10 @@ class TennesseeAppellate(
     # The Court of Appeals sits in sections; the byline carries the section
     # after the title ('STAFFORD, P.J., W.S., delivered ...').
     title_suffixes = ("W.S.", "M.S.", "E.S.")
+    abbrev_titles = (
+        ("PJ.", "Presiding Judge"),
+        ("CJ.", "Chief Judge"),
+    ) + StateAppellate.abbrev_titles
     fold_page_numbers = True
 
     def extract(self, pdf_path):

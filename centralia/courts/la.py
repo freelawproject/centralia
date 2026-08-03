@@ -52,6 +52,40 @@ class LouisianaSupreme(StateSupreme):
     # centered page number (~945).
     margin_bottom = 940.0
 
+    def find_authors(self, all_segments) -> list:
+        # Newer disciplinary opinions announce a title-case author on the
+        # news-release cover (``BY Guidry, J.:``) and repeat that same
+        # title-case byline on the opinion page.  Record the announced name so
+        # only that exact title-case surname can pass the otherwise all-caps
+        # Louisiana grammar.
+        self._la_announced_names = set()
+        for _p, seg, _kind in all_segments:
+            if not seg:
+                continue
+            text = self.line_plain_text(seg[0]).strip()
+            if text.startswith("BY ") and "," in text:
+                self._la_announced_names.add(text[3:].split(",", 1)[0].strip())
+        starts = super().find_authors(all_segments)
+        # A news-release cover can say ``PER CURIAM:`` before repeating the
+        # actual per-curiam byline on the opinion page.  When both exist, the
+        # cover announcement is metadata, not a first opinion.
+        per = [
+            i
+            for i in starts
+            if self._la_per_curiam(
+                self.line_plain_text(all_segments[i][1][0]).strip()
+            )
+        ]
+        if len(per) >= 2:
+            later_pages = {all_segments[i][0] for i in per if all_segments[i][0] > 1}
+            if later_pages:
+                starts = [
+                    i
+                    for i in starts
+                    if not (i in per and all_segments[i][0] == 1)
+                ]
+        return starts
+
     def _byline_split(self, line):
         """Louisiana byline: ALL-CAPS surname, comma, an abbreviated judicial
         title ('J.', 'Chief Justice', 'Justice Pro Tempore'), optionally trailed
@@ -67,13 +101,14 @@ class LouisianaSupreme(StateSupreme):
         the only printed link to that footnote — the byline row then matched
         nothing in the output and read as lost content."""
         text = self.line_plain_text(line).strip()
+        if self._la_per_curiam(text):
+            return text, ""
         parsed = self._la_byline(text)
         if parsed is None:
             return None
         return text, ""
 
-    @staticmethod
-    def _la_byline(text: str):
+    def _la_byline(self, text: str):
         """Parse a Louisiana author byline; return (cleaned, name, title) or None.
         ``cleaned`` is the byline with any trailing footnote mark stripped (so the
         stored author reads 'MCCALLUM, J.', not 'MCCALLUM, J.*'); a separate
@@ -87,7 +122,7 @@ class LouisianaSupreme(StateSupreme):
         head, after = head.strip(), after.lstrip()
         cleaned = text.rstrip("*0123456789 ").rstrip()
         # Form A: 'SURNAME, <title>[, disposition]'.
-        if _is_byline_name(head):
+        if _is_byline_name(head) or head in getattr(self, "_la_announced_names", set()):
             core = after.rstrip("*0123456789 ").rstrip()
             if core.startswith(_LA_TITLE_STARTS):
                 return cleaned, head, core.split(",")[0].strip()
@@ -109,6 +144,8 @@ class LouisianaSupreme(StateSupreme):
         base = super().parse_author_line(text)
         if base is not None:
             return base
+        if self._la_per_curiam(text):
+            return "PER CURIAM", "per curiam", None
         parsed = self._la_byline(text)
         if parsed is None:
             return None
@@ -124,6 +161,11 @@ class LouisianaSupreme(StateSupreme):
         elif "concur" in low:
             kind = "concurring"
         return name, title, kind
+
+    @staticmethod
+    def _la_per_curiam(text: str) -> bool:
+        t = (text or "").strip().rstrip("0123456789*†‡:. ")
+        return " ".join(t.split()).upper() == "PER CURIAM"
 
     # ------------------------------------------------------------- footnotes
     def detect_footnote_label(self, line):

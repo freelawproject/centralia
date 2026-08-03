@@ -17,6 +17,21 @@ class TrademarkBoard(StateSupreme):
     court_id = "ttab"
     court_label = "Trademark Trial and Appeal Board."
 
+    # Offices an *interlocutory order* may be signed under, for the byline
+    # fallback below. Deliberately narrow: the plural roster row ('Before
+    # English, Cohen, and Casagrande, Administrative Trademark Judges.') and
+    # the ex parte caption's examining-attorney counsel block ('Jane Doe,
+    # Trademark Examining Attorney, Law Office 102, / Daniel Brody, Managing
+    # Attorney.') both end in a comma-title and would otherwise be claimed as
+    # bylines, opening a spurious opinion at the caption.
+    SIGNER_TITLES = frozenset(
+        {
+            "Interlocutory Attorney",
+            "Managing Interlocutory Attorney",
+            "Supervisory Interlocutory Attorney",
+        }
+    )
+
     def parse_author_line(self, text):
         """'Opinion by Cohen, Administrative Trademark Judge:' — md-style
         prefix byline with a colon; 'By the Board:' for institutional
@@ -52,6 +67,16 @@ class TrademarkBoard(StateSupreme):
         text = self.line_plain_text(line).strip()
         if self.parse_author_line(text) is not None:
             return text, ""
+        # Both Board byline forms close on a colon, and either may run inline
+        # with the first sentence of the writing ('By the Board: Blizzard
+        # Entertainment, Inc. has moved …'). Split at that colon so the byline
+        # is claimed and the caption above it stays in headmatter — otherwise
+        # the unsigned-order fallback opens the body at the caption and the
+        # whole caption reads as opinion text.
+        head, sep, tail = text.partition(":")
+        if sep and tail.strip():
+            if self.parse_author_line(head + sep) is not None:
+                return head + sep, tail.strip()
         return super()._byline_split(line)
 
     def find_authors(self, all_segments) -> list:
@@ -66,8 +91,7 @@ class TrademarkBoard(StateSupreme):
         return []
 
     def split_author_line(self, line):
-        text = self.line_plain_text(line).strip()
-        if self.parse_author_line(text) is None:
+        if self._byline_split(line) is None:
             return "", [line]  # body-fallback start: no author to claim
         return super().split_author_line(line)
 

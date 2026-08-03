@@ -64,14 +64,19 @@ class NorthernDistrictOfWestVirginia(DistrictBase):
     def _headmatter_rule_top(self):
         """Top of the full-width rule that closes the Kleeh-style headmatter
         (drawn beneath the document-type title), or None. Taken from the page-1
-        caption-box geometry already measured by the base."""
+        caption-box geometry already measured by the base.
+
+        A collateral-review order can print both the criminal and civil
+        captions, with a full-width rule between them and another beneath the
+        document title.  The latter is necessarily the lowest qualifying rule.
+        """
         box = getattr(self, "_hm_caption_box", None) or {}
         tops = [
             top
             for top, x0, x1 in box.get("hrules", []) or []
             if (x1 - x0) >= _HM_RULE_MIN_WIDTH
         ]
-        return min(tops) if tops else None
+        return max(tops) if tops else None
 
     def find_authors(self, all_segments) -> list:
         result = super().find_authors(all_segments)
@@ -109,7 +114,10 @@ class NorthernDistrictOfWestVirginia(DistrictBase):
 
     def extract(self, pdf_path):
         self._wvnd_title = None
-        doc = super().extract(pdf_path)
+        return super().extract(pdf_path)
+
+    def _place_title(self, doc):
+        """Put the rule-bounded title in the opinion before completeness runs."""
         if self._wvnd_title and doc.opinions:
             from ..models import Block
 
@@ -117,7 +125,15 @@ class NorthernDistrictOfWestVirginia(DistrictBase):
                 Block(kind="heading", text=self._wvnd_title, page=1),
                 Block(kind="rule", text="", page=1),
             ]
-        return doc
+            self._wvnd_title = None
+
+    def _sweep_residual(self, doc, source_pages):
+        # ``extract_headmatter`` temporarily holds the title outside the
+        # document model. Place it before the shared sweep builds its rendered
+        # haystack; inserting it afterward made correctly returned title rows
+        # appear as unplaced content.
+        self._place_title(doc)
+        super()._sweep_residual(doc, source_pages)
 
     def _split_title(self, headmatter_segs, rule_top):
         """Return (title_lines, caption_segs): the contiguous single-spaced run

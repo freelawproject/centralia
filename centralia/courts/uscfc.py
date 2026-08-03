@@ -15,6 +15,10 @@ from ._district import DistrictBase
 class CourtOfFederalClaims(DistrictBase):
     court_id = "uscfc"
     court_label = "United States Court of Federal Claims."
+    # Vaccine decisions can staple the respondent's proffer behind the ruling;
+    # each component restarts its footnotes at 1.  Repeated labels are therefore
+    # distinct visible notes, not duplicate extraction noise.
+    dedupe_footnote_labels = False
 
     _START = ("DECISION", "OPINION", "RULING", "ORDER", "MEMORANDUM")
 

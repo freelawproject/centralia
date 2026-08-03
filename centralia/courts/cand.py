@@ -16,7 +16,13 @@ through as well — and recorded in the Removed box.
 
 from __future__ import annotations
 
+import html
+import re
+
+from ..models import DocType
 from ._district import DistrictBase
+
+_TAG = re.compile(r"<[^>]+>")
 
 
 class NorthernDistrictOfCalifornia(DistrictBase):
@@ -85,7 +91,106 @@ class NorthernDistrictOfCalifornia(DistrictBase):
 
     def extract(self, pdf_path: str):
         self._cand_dropped = []
-        return super().extract(pdf_path)
+        doc = super().extract(pdf_path)
+        self._clean_accepted_proposed_order(doc)
+        if doc.doc_type == DocType.ORDER:
+            for opinion in doc.opinions:
+                opinion.type = "order"
+        return doc
+
+    def find_footnote_separator(self, page):
+        """Reject the pleading form's footer rule as a footnote separator.
+
+        The footer is a horizontal rule followed only by line 28's folio/case
+        number and the running filing title.  Its leading ``28`` otherwise
+        looks exactly like a footnote label and turns every page footer into
+        one synthetic footnote.
+        """
+        sep = super().find_footnote_separator(page)
+        if sep is None:
+            return None
+        below = [
+            self.line_plain_text(line).strip()
+            for line in page.extract_text_lines()
+            # The folio/case-number row sits immediately ABOVE the rule and
+            # the running title immediately below it.
+            if line.get("top", 0) >= sep - 20
+            and self.line_plain_text(line).strip()
+        ]
+        joined = " ".join(below).upper()
+        has_case_folio = "CASE NO." in joined or "CASE NUMBER" in joined
+        has_running_title = "STIPULATION" in joined and "ORDER" in joined
+        if has_case_folio and has_running_title:
+            return None
+        return sep
+
+    def classify_document_type(self, all_segments, author_indices, n_pages):
+        # A signed ruling whose caption title starts "ORDER ..." is an order,
+        # not a generic authored opinion.  The judicial signature remains the
+        # dispositive distinction from an unsigned proposed order or party
+        # filing.
+        has_judicial_signature = self._signature_author(all_segments) is not None
+        if has_judicial_signature:
+            for _page, segment, _kind in all_segments[:20]:
+                for line in segment:
+                    text = self.line_plain_text(line).strip().upper()
+                    if text.startswith("ORDER ") or text == "ORDER":
+                        return DocType.ORDER
+        return super().classify_document_type(all_segments, author_indices, n_pages)
+
+    @staticmethod
+    def _caption_plain(block) -> str:
+        rows = []
+        for side in ("left", "right"):
+            for row in block.get(side, []):
+                value = row.get("h", "") if isinstance(row, dict) else row
+                text = html.unescape(_TAG.sub("", str(value))).strip()
+                if text:
+                    rows.append(text)
+        return "\n".join(rows)
+
+    def _clean_accepted_proposed_order(self, doc) -> None:
+        """Clean filing-template matter around a judge-adopted proposal.
+
+        An accepted proposed order remains an order, but the submitting
+        lawyers' two-column address roster is not judicial headmatter.  Move
+        that roster to Removed so it stays visible and auditable.  Also keep
+        the pleading footer out of the judicial signature and normalize the
+        honorific that the signature parser included in the author name.
+        """
+        kept = []
+        for item in doc.summary:
+            if isinstance(item, dict) and item.get("__caption__"):
+                plain = self._caption_plain(item)
+                low = plain.lower()
+                is_attorney_roster = (
+                    "attorneys for" in low
+                    and ("telephone:" in low or "facsimile:" in low)
+                )
+                if is_attorney_roster:
+                    doc.dropped.append(
+                        "[submitting attorney headmatter removed]\n" + plain
+                    )
+                    continue
+            kept.append(item)
+        doc.summary = kept
+
+        for opinion in doc.opinions:
+            author = opinion.author or ""
+            for prefix in ("The Honorable ", "Honorable "):
+                if author.startswith(prefix):
+                    opinion.author = author[len(prefix) :].strip()
+                    break
+
+        signature = []
+        for item in doc.signature:
+            if isinstance(item, str):
+                plain = html.unescape(_TAG.sub("", item)).strip()
+                if re.search(r"-\s*\d+\s*-\s*Case No\.", plain, re.I):
+                    doc.dropped.append(plain)
+                    continue
+            signature.append(item)
+        doc.signature = signature
 
     def _sweep_residual(self, doc, source_pages):
         """Record the removed letterhead BEFORE the completeness sweep runs —

@@ -30,10 +30,17 @@ def test_narrow_txed_template_is_not_all_blockquotes():
 def test_docket_control_order_starts_before_schedule():
     _extractor, doc = _extract("gov.uscourts.txed.243659.20.0.pdf")
     blocks = [b for op in doc.opinions for b in op.blocks]
-    text = " ".join(b.text or "" for b in blocks)
+    table_text = " ".join(
+        str(cell or "")
+        for block in blocks
+        if block.kind == "table"
+        for row in block.payload.get("rows", [])
+        for cell in row
+    )
 
     assert blocks[0].text == "<strong>DOCKET CONTROL ORDER</strong>"
-    assert "Defendant to disclose final invalidity theories" in text
+    assert len([block for block in blocks if block.kind == "table"]) == 4
+    assert "Defendant to disclose final invalidity theories" in table_text
     assert not any(
         item.get("kind") == "content" for item in doc.residual
     )

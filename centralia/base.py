@@ -797,7 +797,12 @@ class BaseExtractor:
                     all_segments=all_segments,
                     footnote_lines_by_page=owned_fn,
                     images_by_page=images_by_page,
-                    tables_by_page=tables_by_page,
+                    # Give this writing every table on the pages it owns,
+                    # including pages made ENTIRELY of table rows (and thus
+                    # absent from ``all_segments`` / ``op_pages``).
+                    tables_by_page={
+                        p: t for p, t in tables_by_page.items() if p in owned_pages
+                    },
                     footnote_tables_by_page={
                         p: t
                         for p, t in footnote_tables_by_page.items()
@@ -1148,7 +1153,40 @@ class BaseExtractor:
                 list(prev.get("chars") or []) + list(ln.get("chars") or []),
                 key=lambda c: c["x0"],
             )
-            if merged_chars and v_overlap > 0.45 * min_h:
+            prev_sizes = sorted(
+                float(c.get("size") or 0)
+                for c in (prev.get("chars") or [])
+                if (c.get("text") or "").strip() and c.get("size")
+            )
+            line_sizes = sorted(
+                float(c.get("size") or 0)
+                for c in (ln.get("chars") or [])
+                if (c.get("text") or "").strip() and c.get("size")
+            )
+            size_compatible = True
+            if prev_sizes and line_sizes:
+                a = prev_sizes[len(prev_sizes) // 2]
+                b = line_sizes[len(line_sizes) // 2]
+                size_compatible = max(a, b) <= 1.8 * max(min(a, b), 0.1)
+            prev_arial = any(
+                "arial" in (c.get("fontname") or "").lower()
+                for c in (prev.get("chars") or [])
+                if (c.get("text") or "").strip()
+            )
+            line_arial = any(
+                "arial" in (c.get("fontname") or "").lower()
+                for c in (ln.get("chars") or [])
+                if (c.get("text") or "").strip()
+            )
+            # E-filing stamps are frequently Arial overlays on a differently
+            # faced slip-opinion banner.  Their boxes overlap vertically but
+            # they are independent rows/columns, not an italic run belonging
+            # to the opinion line underneath.
+            if min(prev.get("top", 999), ln.get("top", 999)) < 220 and (
+                prev_arial != line_arial
+            ):
+                size_compatible = False
+            if merged_chars and size_compatible and v_overlap > 0.45 * min_h:
                 union = max(c["x1"] for c in merged_chars) - min(
                     c["x0"] for c in merged_chars
                 )
@@ -1181,6 +1219,21 @@ class BaseExtractor:
         distinct glyphs never share a position, so a repeat there is the same
         glyph struck again, not new text."""
         chars = page.chars
+        # Word's PDF footnote field can leave a microscopic ``0F`` field-code
+        # run under the real superscript label.  At roughly one point high it
+        # is not visible and pdfplumber's ordinary ``extract_text`` omits it,
+        # but our char-faithful inline renderer used to emit it as literal
+        # body text (``...57.)0F¹``).  Remove only alphanumeric micro-glyphs;
+        # ordinary small caps, subscripts, and footnote marks are several
+        # points larger and remain untouched.
+        micro = [
+            i
+            for i, c in enumerate(chars)
+            if (c.get("text") or "").isalnum()
+            and 0 < float(c.get("size") or 0) <= 1.5
+        ]
+        for i in reversed(micro):
+            del chars[i]
         # Sorted by glyph then POSITION, so every copy of one stamp lands
         # beside its originals: the restamps scatter by hundredths of a point,
         # which a fixed grid would split across two buckets, and ordering by
@@ -1245,13 +1298,19 @@ class BaseExtractor:
                 and obj["x0"] >= div_x
             )
 
-        out_lines = self._text_lines(page.filter(outside_caption))
+        out_lines = self._merge_interleaved(
+            self._text_lines(page.filter(outside_caption))
+        )
         for l in out_lines:
             l["_caption_col"] = None
-        left_lines = self._text_lines(page.filter(left_of_divider))
+        left_lines = self._merge_interleaved(
+            self._text_lines(page.filter(left_of_divider))
+        )
         for l in left_lines:
             l["_caption_col"] = "L"
-        right_lines = self._text_lines(page.filter(right_of_divider))
+        right_lines = self._merge_interleaved(
+            self._text_lines(page.filter(right_of_divider))
+        )
         for l in right_lines:
             l["_caption_col"] = "R"
         lines = out_lines + left_lines + right_lines
@@ -3180,6 +3239,11 @@ class BaseExtractor:
                 blocks[-1].text += f"{middle} {txt}"
             else:
                 payload = {}
+                first_line_indent = lines[0].get("_first_line_indent")
+                if tag == "p" and first_line_indent:
+                    payload["first_line_indent"] = round(
+                        float(first_line_indent), 1
+                    )
                 if tag == "blockquote":
                     # Preserve the quote's absolute inset from the opinion's
                     # body margin. Measuring from quote_left made every
@@ -3254,7 +3318,11 @@ class BaseExtractor:
                 if pno == start_pno and img["bottom"] <= start_top:
                     continue
                 events.append((pno, img["top"], "image", img))
-        for pno in op_pages:
+        # ``tables_by_page`` is already ownership-filtered by the caller. A
+        # table-only continuation page contributes no prose segment, so it is
+        # not in ``op_pages``; nevertheless its table belongs in this writing.
+        op_pages |= set(tables_by_page)
+        for pno in tables_by_page:
             for tbl in tables_by_page.get(pno, []):
                 events.append((pno, tbl["bbox"][1], "table", tbl))
 
@@ -3280,6 +3348,8 @@ class BaseExtractor:
                         page=page_no,
                         payload={
                             "rows": payload.get("rows") or [],
+                            "has_header": payload.get("has_header", True),
+                            "continuation": payload.get("continuation", False),
                         },
                     )
                 )

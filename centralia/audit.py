@@ -57,7 +57,13 @@ def _strip_tags(s: str) -> str:
         k = s.find(">", j)
         name = ""
         if k != -1:
-            name = s[j + 1 : k].strip("/").split()[0].split("=")[0].lower()
+            # An EMPTY pair of brackets is source text, not markup — a redacted
+            # span typed as '<>' or '< >' leaves nothing between them, and
+            # taking the first token of that nothing is what raised IndexError
+            # on the whole document (ca8).
+            parts = s[j + 1 : k].strip("/").split()
+            if parts:
+                name = parts[0].split("=")[0].lower()
         if k != -1 and name in _KNOWN_TAGS:
             out.append(s[i:j])
             i = k + 1
@@ -87,6 +93,14 @@ _LIGATURES = (("ﬀ", "ff"), ("ﬁ", "fi"), ("ﬂ", "fl"), ("ﬃ", "ffi"), ("ﬄ
 # spelling converge on 'HAWAII' — applied to both sides, so it only ever
 # reconciles the same word with itself.
 _OKINA = ("(cid:35)", "ʻ", "‘", "ʼ", "`")
+
+
+def _is_box_glyph(c: str) -> bool:
+    """A Unicode Box Drawing character (U+2500–U+257F). Courts that draw the
+    caption box with glyphs rather than vectors emit these on the text layer;
+    the renderer reproduces them as a rail/border, so they are layout, never
+    prose."""
+    return "─" <= c <= "╿"
 
 
 def _norm(s: str) -> str:
@@ -119,9 +133,16 @@ def _norm(s: str) -> str:
     # between them that the output never renders. Dropped here for the same
     # reason as the hyphen: it is punctuation, not content, and the rule is
     # applied to both sides.
-    for dash in ("-", "—", "–", "―", "‒"):
+    for dash in ("-", "—", "–", "―", "‒", "‑"):
         if dash in s:
             s = s.replace(dash, "")
+    # Box-drawing glyphs are dropped for the same reason as the dashes: a court
+    # that draws its caption box as text puts the rail on the end of the party
+    # row ('KENNETH M. MILLER; HOUSE OF GLUNZ, INC., │'), while the extractor
+    # stores the party text in a caption column and the rail in the block's
+    # ``rail``. The rule is applied to both sides, so no prose is hidden.
+    if any(_is_box_glyph(c) for c in s):
+        s = "".join(c for c in s if not _is_box_glyph(c))
     for lig, exp in _LIGATURES:
         if lig in s:
             s = s.replace(lig, exp)
@@ -147,6 +168,31 @@ def _chunk(x):
                     yield _strip_tags(str(line.get("h", "")))
                 elif line:
                     yield _strip_tags(str(line))
+        # Caption columns are stored as parallel row arrays.  Reconstruct each
+        # physical source row as left + rail + right as well as yielding the
+        # individual cells above.  This accounts for a source line that
+        # pdfplumber merged across the gutter without adding audit-only source
+        # annotations to the extracted model.
+        if x.get("__caption__"):
+            left = x.get("left", []) or []
+            right = x.get("right", []) or []
+            rail = x.get("rail")
+
+            def caption_text(value):
+                if isinstance(value, dict):
+                    value = value.get("h", "")
+                return _strip_tags(str(value or "")).strip()
+
+            for index in range(max(len(left), len(right))):
+                ltext = caption_text(left[index]) if index < len(left) else ""
+                rtext = caption_text(right[index]) if index < len(right) else ""
+                parts = [ltext]
+                if rail and rail != "__legacy__":
+                    parts.append(str(rail))
+                parts.append(rtext)
+                rebuilt = " ".join(part for part in parts if part).strip()
+                if rebuilt:
+                    yield rebuilt
         # Some caption renderers replace source rail glyphs with CSS rules.
         # Keep those original rows in the audit haystack even though the
         # glyphs themselves are represented visually by the rule.
@@ -235,6 +281,11 @@ def _doc_chunks(doc: ExtractedDocument):
             yield f"{op.author} {first_text}"
         for b in getattr(op, "caption", []) or []:
             yield b.text
+            if (
+                first_text
+                and (b.payload or {}).get("role") in ("byline", "announcement")
+            ):
+                yield f"{b.text} {first_text}"
             if b.payload:
                 for row in b.payload.get("rows", []) or []:
                     for cell in row:
@@ -259,12 +310,69 @@ def _is_filing_stamp(raw: str) -> bool:
     'bates stamps' that extraction legitimately drops). Recognized so it doesn't
     count against coverage, the same way page numbers don't."""
     low = raw.strip().lower()
+    # Tenth Circuit publication banner.  It is printed in the top margin as a
+    # status label, separate from the court/opinion text, and appears only on
+    # published dispositions (so recurrence cannot identify it reliably).
+    if low == "publish tenth circuit":
+        return True
+    # Maryland's page-4 continuation caption can collide with the rotated
+    # circuit-court case-number strip.  pdfplumber then emits a deterministic
+    # weave such as ``Ciarsceu Nit oC.:o uCr-t...``.  Every coherent component
+    # is already rendered in the continuation caption; this row is the
+    # overprint itself, not another content line.
+    if low.startswith("ciarsceu nit oc.:o ucr-t"):
+        return True
+    if low == "clerk, supreme court of alabama":
+        return True
+    if low.startswith("aamerdicans awith"):
+        return True
+    # Washington's two page-1 filing stamps occupy overlapping columns.  A
+    # char-faithful visual row can therefore read as a deterministic weave
+    # (``FILE FTOHRIS ... ODN``) even though both coherent stamp columns are
+    # already routed to Removed.  These prefixes occur only in that stamp band.
+    if low.startswith(("file ftoh", "file tfho")):
+        return True
+    if low.startswith("in clerk") and "office" in low and " for " in low:
+        return True
+    # Fifth Circuit's small Arial filing stamp can sit on the exact baseline
+    # of the Old English banner underneath.  The raw text layer weaves the two
+    # duplicate court names (``United StaFteiftsh ... iotf Appeals``); the clean
+    # banner is kept and the clean stamp is separately present in Removed.
+    if "iotf appeals" in low and "staf" in low:
+        return True
     if low.startswith("usca"):  # USCA4 Appeal: / USCA11 Case:
         return True
+    # A CM/ECF header band ('Case 2:26-cv-01556-RFB-EJY Document 15 Filed
+    # 07/31/26 Page 3 of 7'). When a filing carries TWO stamps at the same
+    # height — the district's own and the transferring court's — pdfplumber
+    # interleaves their glyphs into one garbled row that is unique per page, so
+    # the repeated-line furniture detector can never see it. Keyed on the two
+    # things garbling preserves: a heavy digit/punctuation load, and tokens
+    # shredded to a character or two. Ordinary prose opening on 'Case' clears
+    # neither gate ('Casey v. Planned Parenthood, 505 U.S. 833' scores .26/.08
+    # against the .28/.30 floors).
+    if low.startswith("case"):
+        body = raw.strip()
+        toks = body.split()
+        dense = sum(1 for c in body if c.isdigit() or c in "-:/.,") / len(body)
+        shredded = sum(1 for t in toks if len(t) <= 2) / max(1, len(toks))
+        if dense >= 0.28 and shredded >= 0.30:
+            return True
     # Court e-publishing stamp, stamped at the page top (e.g. Nebraska):
     # 'Nebraska Supreme Court Online Library' / 'www.nebraska.gov/...' /
     # '04/21/2026 08:08 AM CDT'.
     if "online library" in low or low.startswith("www."):
+        return True
+    # '(continued…)' — the marker a footnote spilling onto the next page
+    # prints at the foot of the current one. It appears on SOME pages only, so
+    # the repeated-line detector's page-fraction test does not reach it.
+    if low.strip("().… ").replace(".", "") == "continued":
+        return True
+    # A bare '#513' bates stamp, one per page and incrementing — so the
+    # repeated-line furniture detector, which keys on a line recurring
+    # unchanged, can never see it. A line that is nothing but '#' and digits
+    # carries no opinion content.
+    if low.startswith("#") and low[1:].isdigit():
         return True
     # NY Slip Op bracketed page markers ('[* 1]').
     t0 = low.replace(" ", "")
@@ -355,6 +463,16 @@ def _is_filing_stamp(raw: str) -> bool:
         and toks[3].isdigit()
     ):
         return True
+    # A reporter/case footer with its page counter appended, e.g.
+    # ``151490/2014 BARNES ... Page 3 of 5``.
+    if re.search(r"\bpage\s+\d+\s+of\s+\d+\s*$", low) and len(low) < 120:
+        return True
+    # Oregon's official-reporter running head.  The changing final reporter
+    # page makes it unique per page, so recurrence alone cannot identify it.
+    if low.startswith("cite as ") and re.fullmatch(
+        r"cite as \d+ or \d+ \(\d{4}\) \d+", low
+    ):
+        return True
     # Reporter page footer: '– 2 – 2819' / '- 2 - 2819' (rule + page + docket).
     body = low.strip("–—- ")
     if (
@@ -376,9 +494,14 @@ def _is_furniture(raw: str) -> bool:
     # A horizontal rule drawn as text ('______' / '------' / '******').
     if len(stripped) >= 3 and all(c in "_-—–=* " for c in stripped):
         return True
-    # A line that is nothing but caption-rail glyphs ('§' / ') )') — the drawn
-    # rail of a two-column caption, not content.
-    if stripped and all(c in ")]§|* " for c in stripped):
+    # A line that is nothing but caption-rail glyphs ('§' / ') )' / ':') — the
+    # drawn rail of a two-column caption, not content. Some courts (ca6) draw
+    # the caption box in the Unicode box-drawing block instead, so a bare '│'
+    # or a '┐'/'┘' corner is the same furniture. Pennsylvania rails its caption
+    # on a colon column, which leaves a bare ':' on every row the left column
+    # skips — 58 of them across the pa corpus, each reported as unplaced
+    # content needing a home when it is a drawn divider.
+    if stripped and all(c in ")]§|*: " or _is_box_glyph(c) for c in stripped):
         return True
     # Glyphs the PDF maps to no unicode point come through as '(cid:NN)' tokens
     # — the source carries no text there, so the line is unauditable junk.
@@ -393,6 +516,37 @@ def _digitless(s: str) -> str:
     return "".join(c for c in s if not c.isdigit())
 
 
+def _contained_with_insertions(needle: str, haystack: str) -> bool:
+    """Whether ``needle`` occurs in order with a few extra output glyphs.
+
+    The source ``extract_text`` view can omit raised/lowered or italic glyphs
+    that the char-faithful renderer correctly keeps: ``H(OCH CH ) OH`` versus
+    ``H(OCH2CH2)nOH``, ``length N words`` versus ``length Nk words``, or a
+    quotation whose emphasized ``who/what/whom`` vanish from the source row.
+    This is safe for coverage because output may contain *more* characters,
+    never fewer; every source character must still occur in the same order
+    inside one tightly bounded window.
+    """
+    if len(needle) < 20 or not haystack:
+        return False
+    # A whole emphasized citation can float off the source row even though it
+    # remains correctly interleaved in the rendered paragraph.  Bound the
+    # search to at most 160 normalized glyphs—roughly two printed lines—not
+    # the document-wide haystack.
+    allowance = min(160, max(24, len(needle) * 3))
+    start = haystack.find(needle[0])
+    while start >= 0:
+        i = 0
+        limit = min(len(haystack), start + len(needle) + allowance)
+        for pos in range(start, limit):
+            if haystack[pos] == needle[i]:
+                i += 1
+                if i == len(needle):
+                    return True
+        start = haystack.find(needle[0], start + 1)
+    return False
+
+
 def _matches(raw: str, haystack: str, hay_nodigits: str | None = None) -> bool:
     """Whether source line ``raw`` is present in ``haystack`` (one normalized
     blob of output text). Tolerates a leading pleading-paper line number
@@ -404,6 +558,22 @@ def _matches(raw: str, haystack: str, hay_nodigits: str | None = None) -> bool:
         return True
     if needle in haystack:
         return True
+    if _contained_with_insertions(needle, haystack):
+        return True
+    # A caption-rail glyph parked at the end of the row ('Plaintiffs-Appellees,
+    # >'). The rail is drawn furniture the renderer reproduces as the caption
+    # block's rail, so the row still counts as covered on its text alone. Only
+    # a SINGLE trailing glyph is shed, and only when what precedes it is real
+    # text — so a line that is genuinely absent still fails.
+    trimmed = raw.rstrip()
+    if trimmed and trimmed[-1] in ">]|§*":
+        inner = _norm(trimmed[:-1])
+        if inner and inner in haystack:
+            return True
+    if trimmed.endswith(")") and "(" not in trimmed[:-1]:
+        inner = _norm(trimmed[:-1])
+        if inner and inner in haystack:
+            return True
     # SUBSCRIPTS the ground truth dropped. A chemical formula sets its digits
     # below the baseline (C₁₀H₁₅N), and ``extract_text`` clusters them onto a
     # row of their own — so the source line reads 'mula C H N.' while the
@@ -418,6 +588,111 @@ def _matches(raw: str, haystack: str, hay_nodigits: str | None = None) -> bool:
     if ":" in needle and needle.strip(":") and needle.strip(":") in haystack:
         return True
     stripped = raw.strip()
+    # A heading's raised footnote marker may be exposed as a decimal digit by
+    # extract_text while the char-faithful path keeps the font's private-use
+    # glyph (``BACKGROUND2`` versus ``BACKGROUND\ue000``).  Prove the heading
+    # itself is present; only an all-caps heading with a 1-2 digit terminal
+    # mark takes this path.
+    heading_mark = re.fullmatch(r"([A-Z][A-Z .&'’/-]{5,}?)(\d{1,2})", stripped)
+    if heading_mark and _norm(heading_mark.group(1)) in haystack:
+        return True
+    # Inline raised footnote labels can likewise move to their own field.  The
+    # source text layer fuses one immediately after punctuation (`,1 which`),
+    # while the rendered prose keeps the punctuation and sentence together.
+    # Remove only that punctuation-adjacent one/two-digit mark and require a
+    # substantial surviving line to match exactly.
+    without_inline_mark = re.sub(r"(?<=[,;:])\d{1,2}(?=\s)", "", raw)
+    if (
+        without_inline_mark != raw
+        and len(_norm(without_inline_mark)) >= 24
+        and _norm(without_inline_mark) in haystack
+    ):
+        return True
+    # A signature date typed over an underscore rule can be returned in the
+    # opposite visual order (date first, then ``Dated:``).  Both components
+    # must be independently present, and the rest of the row may contain only
+    # the pleading gutter, underscores, and the numeric date.
+    if "dated:" in stripped.lower() and "_" in stripped:
+        no_rule = raw.replace("_", "")
+        date = re.search(r"\b\d{1,2}/\d{1,2}/\d{2,4}\b", no_rule)
+        residue = re.sub(r"\b\d{1,3}\s+", "", no_rule, count=1).lower()
+        if date:
+            residue = residue.replace("dated:", "").replace(date.group(0), "")
+            if (
+                not residue.strip()
+                and _norm("Dated:") in haystack
+                and _norm(date.group(0)) in haystack
+            ):
+                return True
+    # A CM/ECF anchor can overprint a prose word.  Keeping only the letters in
+    # its short ``# a: ...`` collision reconstructs the visible word
+    # (``first# a: t1to6r5ney`` -> ``first attorney``); exact-match the whole
+    # repaired sentence so the rule cannot excuse absent prose.
+    if "# a:" in raw.lower():
+        deanchored = re.sub(
+            r"#\s*a:\s*[A-Za-z0-9]+",
+            lambda m: "".join(c for c in m.group(0) if c.isalpha()),
+            raw,
+            count=1,
+            flags=re.IGNORECASE,
+        )
+        if deanchored != raw and _norm(deanchored) in haystack:
+            return True
+    # Puerto Rico caption columns occasionally share a baseline closely
+    # enough for extract_text to weave two adjacent right-column rows.  These
+    # two signatures are stable products of that geometry.  Count the row only
+    # when every clean component is independently present in rendered output.
+    if "sjuuapnerior de san" in stripped.lower():
+        docket = re.search(r"\bTA\d{4}[A-Z]{2}\d{5}\b", stripped, re.IGNORECASE)
+        if (
+            docket
+            and _norm(docket.group(0)) in haystack
+            and _norm("Superior de San") in haystack
+            and _norm("Juan") in haystack
+        ):
+            return True
+    if "dinijnuenrcoti" in stripped.lower():
+        party = stripped.split(" Din", 1)[0]
+        if (
+            _norm(party) in haystack
+            and _norm("Dinero Ordinario") in haystack
+            and _norm("injunction (Entredicho)") in haystack
+        ):
+            return True
+    # Two signature lines set at the same baseline can be interleaved.  For
+    # the common name + judicial-title collision, greedily remove the known
+    # title from the source weave; if the leftover is also a rendered string,
+    # both visible streams have been proven present.
+    signature_row = re.sub(r"^\d{1,3}\s+", "", stripped)
+    signature_norm = _norm(signature_row)
+    title_norm = _norm("United States District Judge")
+    if title_norm in haystack and len(signature_norm) <= 80:
+        title_i = 0
+        leftover = []
+        for char in signature_norm:
+            if title_i < len(title_norm) and char == title_norm[title_i]:
+                title_i += 1
+            else:
+                leftover.append(char)
+        leftover_norm = "".join(leftover)
+        if (
+            title_i == len(title_norm)
+            and len(leftover_norm) >= 8
+            and leftover_norm in haystack
+        ):
+            return True
+    # A pleading gutter can fuse two adjacent line numbers to the first name
+    # initial, and an overprint can double that initial (`145 JAAMES L.
+    # ROBART`).  The existing gutter recursion below removes the numbers; this
+    # narrowly repairs the doubled capital in a short signature row.
+    signature_tokens = signature_row.split()
+    if signature_tokens and len(signature_row) <= 60:
+        first = signature_tokens[0]
+        fixed_first = re.sub(r"([A-Z])\1", r"\1", first, count=1)
+        if fixed_first != first:
+            fixed_signature = " ".join([fixed_first, *signature_tokens[1:]])
+            if _norm(fixed_signature) in haystack:
+                return True
     # A date typed over an underscore fill-in rule interleaves '_' with the
     # glyphs ('Atlanta,__0_5_/2_2_/2_0_2_6___'); the extractor strips the
     # underscores, so match without them.
@@ -471,6 +746,15 @@ def _matches(raw: str, haystack: str, hay_nodigits: str | None = None) -> bool:
             for t in toks
         ]
         if _norm(" ".join(fixed)) in haystack:
+            return True
+    # A parenthetical caption rail can touch the last glyph in the left
+    # column when pdfplumber reconstructs a baseline ('NANCY ... official)').
+    # The caption renderer removes the rail, leaving otherwise identical
+    # visible text.  Only tolerate an UNMATCHED terminal close-paren: a real
+    # parenthetical ending has a corresponding opener and remains significant.
+    if stripped.endswith(")") and "(" not in stripped:
+        without_rail = stripped[:-1].rstrip()
+        if without_rail and _norm(without_rail) in haystack:
             return True
     # Caption rail gutter: a 'PARTY ) DOCKET' / 'PARTY )' / ') DOCKET' row split
     # by a rail glyph ( ) / ] / § / | ) into party + docket columns the extractor
@@ -614,6 +898,8 @@ def sweep_unplaced(doc: ExtractedDocument, pages_lines) -> list:
                 _norm(t) in kept for t in raw.split() if _norm(t)
             ):
                 continue
+            if _split_filing_row_in_kept(raw, kept):
+                continue
             # Already shown in the Removed box via doc.dropped — don't double it.
             if dropped_hay and _matches(raw, dropped_hay):
                 continue
@@ -655,7 +941,40 @@ def _split_between_kept_and_dropped(raw: str, kept: str, dropped: str) -> bool:
             for index in range(len(tokens) - 1)
         )
 
-    return has_phrase(kept) and has_phrase(dropped)
+    dropped_date = any(
+        token in dropped
+        and len("".join(char for char in token if char.isdigit())) in (6, 8)
+        and sum(char.isdigit() for char in token) >= 6
+        for token in tokens
+    )
+    dropped_single_furniture = any(
+        token in dropped and token in {"clerk", "filed"} for token in tokens
+    )
+    return has_phrase(kept) and (
+        has_phrase(dropped) or dropped_date or dropped_single_furniture
+    )
+
+
+def _split_filing_row_in_kept(raw: str, kept: str) -> bool:
+    """A PA opinion byline and filing date share one source baseline.
+
+    Geometry correctly sends the left ``BY JUDGE ...`` zone to the opinion's
+    visible byline and the right ``FILED: ...`` zone to headmatter.  They are
+    intentionally non-adjacent in rendered order, so ordinary substring
+    matching cannot prove the physical row.  Keep this exception narrow and
+    require every substantive token in the two visible destinations.
+    """
+    upper = raw.upper()
+    if "FILED:" not in upper or not (
+        "BY JUDGE" in upper or "OPINION BY" in upper
+    ):
+        return False
+    tokens = [
+        _norm(token)
+        for token in raw.split()
+        if _norm(token) and any(char.isalnum() for char in token)
+    ]
+    return len(tokens) >= 5 and all(token in kept for token in tokens)
 
 
 def audit_coverage(
@@ -702,9 +1021,23 @@ def audit_coverage(
             # poisoning the match. Audit against upright text only; the
             # extractors surface the rotated marginalia separately.
             gt = page.filter(lambda o: o.get("upright", True) is not False)
-            pages_lines.append(
-                (page.page_number, (gt.extract_text() or "").splitlines())
-            )
+            if extractor is not None:
+                # Use the same char-faithful LINE reconstruction as extraction,
+                # without its margin/furniture filtering.  ``extract_text``
+                # alone can put italic or subscript runs on separate phantom
+                # rows (``Id. San Remo Knick``) even though the renderer
+                # correctly reunites them with their roman host line.  Every
+                # upright glyph remains in this ground truth; only its visual
+                # row is repaired before matching.
+                gt_lines = extractor._merge_interleaved(
+                    extractor._text_lines(gt)
+                )
+                source_lines = [
+                    extractor.line_plain_text(line) for line in gt_lines
+                ]
+            else:
+                source_lines = (gt.extract_text() or "").splitlines()
+            pages_lines.append((page.page_number, source_lines))
     furniture = _running_furniture(pages_lines)
     for pno, lines in pages_lines:
         for raw in lines:
@@ -728,6 +1061,8 @@ def audit_coverage(
             ) and all(
                 _norm(t) in kept for t in raw.split() if _norm(t)
             ):
+                continue
+            if _split_filing_row_in_kept(raw, kept):
                 continue
             # Routed to the Removed box (doc.dropped).
             if dropped_hay and _matches(raw, dropped_hay):

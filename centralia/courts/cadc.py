@@ -28,3 +28,20 @@ class DCCircuit(FederalCircuitBase):
 
     def find_footnote_separator(self, page):
         return self._sep_at(page, 150, 165)
+
+    def extract_page_tables(self, page):
+        """Reject a three-line prose false positive in dense footnotes.
+
+        pdfplumber can interpret word gaps in a fully justified D.C. Circuit
+        footnote as eight or nine narrow columns.  A real table with that many
+        columns is not only three prose baselines tall; retaining this guard at
+        the court boundary avoids weakening table support elsewhere.
+        """
+        out = []
+        for table in super().extract_page_tables(page):
+            rows = table.get("rows") or []
+            n_cols = max((len(row) for row in rows), default=0)
+            if len(rows) <= 3 and n_cols >= 8:
+                continue
+            out.append(table)
+        return out

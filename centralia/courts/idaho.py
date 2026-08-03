@@ -26,11 +26,13 @@ def _separate_byline(text: str):
     if not t.endswith("."):
         return None
     parts = [p.strip() for p in t[:-1].split(",")]
-    if len(parts) < 3:
+    if len(parts) < 2:
         return None
     title = _SEPARATE_TITLES.get(parts[1].replace(".", "").upper())
     if not title or not is_caps_name(parts[0]):
         return None
+    if len(parts) == 2:
+        return parts[0], title, None
     kind_text = " ".join(parts[2:]).lower()
     has_c, has_d = "concurring" in kind_text, "dissenting" in kind_text
     if has_c and has_d:
@@ -57,6 +59,35 @@ class IdahoSupreme(StateSupreme):
     # a block quote; shift them down so 14→single and 21→body (see idahoctapp).
     gap_tight_max = 11
     gap_single_max = 17
+
+    def find_footnote_separator(self, page):
+        sep = super().find_footnote_separator(page)
+        if sep is None or page.page_number != 1:
+            return sep
+        # A long Idaho caption/counsel block can put its bottom rule in the
+        # lower half of page 1.  If a real judicial byline occurs below that
+        # rule, the rule closes headmatter; it does not open footnotes.
+        for line in page.extract_text_lines():
+            if line.get("top", 0) <= sep:
+                continue
+            if self.parse_author_line((line.get("text") or "").strip()):
+                return None
+        return sep
+
+    def find_authors(self, all_segments) -> list:
+        """Idaho bylines may be in a tight segment classified as notice.
+
+        They remain structurally unambiguous (``ZAHN, Justice.`` or the
+        all-caps abbreviated ``ZAHN, J.``), so do not let the gap label hide
+        the entire opinion in headmatter.
+        """
+        out = []
+        for index, (_page, segment, _kind) in enumerate(all_segments):
+            if segment and self.parse_author_line(
+                self.line_plain_text(segment[0]).strip()
+            ):
+                out.append(index)
+        return out
 
     # ------------------------------------------------- separate-writing byline
     def parse_author_line(self, text):

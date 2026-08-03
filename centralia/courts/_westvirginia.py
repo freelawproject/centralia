@@ -46,6 +46,29 @@ _WV_REV_TITLES = (
 class WestVirginiaStyle:
     rev_titles = _WV_REV_TITLES
 
+    def parse_author_line(self, text):
+        parsed = super().parse_author_line(text)
+        if parsed is not None:
+            return parsed
+        # Dissent slips sometimes use title case and put the kind after the
+        # name: ``Justice Wooton, dissenting:``.
+        t = (text or "").strip().rstrip(":.")
+        for title in ("Chief Justice", "Justice", "Chief Judge", "Judge"):
+            if not t.startswith(title + " "):
+                continue
+            rest = t[len(title) + 1 :]
+            if "," not in rest:
+                return None
+            name, kind = (part.strip() for part in rest.split(",", 1))
+            if (
+                name
+                and len(name.split()) <= 4
+                and all(token[:1].isupper() for token in name.split())
+                and ("concur" in kind.lower() or "dissent" in kind.lower())
+            ):
+                return name, title, kind
+        return None
+
     def find_footnote_separator(self, page) -> Optional[float]:
         return self._footnote_sep_small_text_below(page)
 

@@ -44,8 +44,12 @@ class NewMexicoCourtOfAppeals(StateAppellate):
     # it in the flow so the size routing can surface it in Removed
     margin_top = 8
 
+    _SLIP_START = "the slip opinion is the first version"
+    _SLIP_END = "authenticated opinion"
+
     # ------------------------------------------------------------ sign-offs
     def extract(self, pdf_path: str):
+        self._notice_dropped = []
         doc = super().extract(pdf_path)
         # 'BUSTAMANTE, Judge, retired, sitting by designation.' — the
         # designation clause is byline furniture, not an opinion kind.
@@ -165,7 +169,42 @@ class NewMexicoCourtOfAppeals(StateAppellate):
         gx = self._gutter_x(page)
         if gx is not None:
             page = page.filter(lambda obj: obj.get("x0", 0) >= gx + 1)
-        return super().page_lines(page)
+        lines = super().page_lines(page)
+        if page.page_number != 1 or not lines:
+            return lines
+
+        texts = [self.line_plain_text(line).strip() for line in lines]
+        start = next(
+            (
+                index
+                for index, value in enumerate(texts)
+                if value.lower().startswith(self._SLIP_START)
+            ),
+            None,
+        )
+        if start is None:
+            return lines
+        end = next(
+            (
+                index
+                for index in range(start, len(lines))
+                if self._SLIP_END in texts[index].lower()
+            ),
+            start,
+        )
+        self._notice_dropped.extend(
+            text for text in texts[start : end + 1] if text
+        )
+        return lines[:start] + lines[end + 1 :]
+
+    def _sweep_residual(self, doc, source_pages):
+        # Surface the fixed publication notice before the completeness sweep
+        # checks the page source.  Its font size varies across slip templates,
+        # so the opening/closing boilerplate is the reliable discriminator.
+        notice = list(dict.fromkeys(getattr(self, "_notice_dropped", []) or []))
+        if notice:
+            doc.dropped = list(dict.fromkeys(list(doc.dropped) + notice))
+        super()._sweep_residual(doc, source_pages)
 
     def find_caption_divider(self, page):
         """nmctapp draws no caption divider — the verticals on every page are

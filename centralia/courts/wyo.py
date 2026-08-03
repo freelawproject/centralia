@@ -20,6 +20,16 @@ class WyomingSupreme(StateSupreme):
     court_label = "The Supreme Court, State of Wyoming."
     notice_max_size = 11.0
 
+    def _is_non_author_byline(self, text: str) -> bool:
+        # A district judge sitting by designation authors some Wyoming Supreme
+        # Court opinions.  The actual byline is the bare all-caps form; trial
+        # judges in the appeal history retain an ``Honorable``/``Appeal from``
+        # prefix and are still rejected by the shared guard.
+        parsed = self.parse_author_line(text)
+        if parsed and parsed[1] == "District Judge" and text.split(",", 1)[0].isupper():
+            return False
+        return super()._is_non_author_byline(text)
+
     def extract_headmatter(self, headmatter_segs, page1_rules=None) -> dict:
         return self._styled_headmatter(headmatter_segs, page1_rules)
 

@@ -10,7 +10,8 @@
 <h2 class="sec">Opinions <span class="pill">{{ opinions|length }}</span></h2>
 {% for o in opinions %}<section class="opinion">
  <span class="optype">{{ o.op.type }}</span>
- <div class="author">{{ o.op.author }}</div>
+ {% if o.caption %}<div class="opinion-caption">{{ o.caption }}</div>{% endif %}
+ {% if o.show_author %}<div class="author">{{ o.op.author }}</div>{% endif %}
  {{ o.body }}
  {% if o.footnotes %}<div class="footnotes">{% for label,txt in o.footnotes %}<div><span class="label">{{ label }}</span>{{ txt }}</div>{% endfor %}</div>{% endif %}
 </section>{% endfor %}

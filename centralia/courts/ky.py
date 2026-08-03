@@ -53,6 +53,48 @@ class KentuckySupreme(StateSupreme):
     # which indents to the same x0=108.
     blockquote_by_indent = True
 
+    def correct_page_geometry(self, page) -> None:
+        """Align mixed-font runs by the PDF text matrix baseline.
+
+        Kentucky's Bookman/Cambria footnotes sometimes give italic glyphs a
+        bounding box roughly 24 points above the roman text on the *same*
+        matrix baseline.  Top-based clustering then interleaves two visual
+        rows and corrupts citations.  Matrix Y is the reliable baseline here;
+        when glyphs on one baseline have a large top spread, move the raised
+        run to the lowest declared top before ordinary line extraction.
+        """
+        rows = {}
+        for char in page.chars:
+            matrix = char.get("matrix")
+            if not matrix or len(matrix) < 6:
+                continue
+            rows.setdefault(round(float(matrix[5]), 2), []).append(char)
+        broken = any(
+            len(printable) >= 4
+            and max(float(c.get("top") or 0) for c in printable)
+            - min(float(c.get("top") or 0) for c in printable) >= 4
+            for chars in rows.values()
+            if (printable := [c for c in chars if (c.get("text") or "").strip()])
+        )
+        if broken:
+            # Once a page exhibits the broken mixed-font boxes, use the matrix
+            # baseline as the Y coordinate for every glyph on that page.  A
+            # uniform coordinate system is important: shifting just the italic
+            # run reunites its row but can still sort the following Bookman row
+            # ahead of it because those two faces declare opposite ascenders.
+            for char in page.chars:
+                matrix = char.get("matrix")
+                if not matrix or len(matrix) < 6:
+                    continue
+                top = float(char.get("top") or 0)
+                target = float(page.height) - float(matrix[5])
+                delta = target - top
+                char["top"] = target
+                char["bottom"] = float(char.get("bottom") or top) + delta
+                if "doctop" in char:
+                    char["doctop"] = float(char["doctop"]) + delta
+        super().correct_page_geometry(page)
+
     def extract_page_images(self, page) -> list:
         """Kentucky slip opinions carry a court-seal watermark image centered
         on every page (the same 'Im2' object, 363x294 at x≈124/top≈249). The

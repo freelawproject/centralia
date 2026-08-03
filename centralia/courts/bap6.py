@@ -34,6 +34,29 @@ class SixthCircuitBAP(StateSupreme):
     # identify those geometrically after the ordinary body leading is fixed.
     blockquote_by_indent = True
 
+    def parse_author_line(self, text):
+        parsed = super().parse_author_line(text)
+        if parsed is not None:
+            return parsed
+        t = (text or "").strip().rstrip(".")
+        for title in _TITLES:
+            suffix = ", " + title
+            if not t.endswith(suffix):
+                continue
+            name = t[: -len(suffix)].strip()
+            tokens = name.replace("-", " ").split()
+            # BAP bylines can begin with an initial (``C. KATHRYN
+            # PRESTON``), which the generic full-name grammar intentionally
+            # excludes.  The BAP's all-caps name plus its distinctive full
+            # title is sufficiently narrow.
+            if 2 <= len(tokens) <= 5 and all(
+                token.rstrip(".").replace("'", "").isupper()
+                and token.rstrip(".").replace("'", "").isalpha()
+                for token in tokens
+            ):
+                return name, title, None
+        return None
+
     def _is_indented_blockquote(self, seg):
         # Issue-list continuations use a deeper hanging indent (x≈144), while
         # an actual BAP6 block quote begins at the normal quote edge (x≈108).

@@ -243,7 +243,37 @@ class SecondCircuit(FederalCircuitBase):
                 lambda c: c.get("top", 0) < gutter_start
                 or c.get("x0", 0) >= gx
             )
-        return super().page_lines(page)
+        lines = super().page_lines(page)
+        # A separate writing can wrap its byline after "and":
+        # ``CABRANES, Circuit Judge, concurring in the judgment and`` /
+        # ``opinion of the Court:``.  Join those two physical lines so the
+        # federal byline grammar sees the complete kind and terminator.
+        out, index = [], 0
+        while index < len(lines):
+            line = lines[index]
+            text = self.line_plain_text(line).strip()
+            if (
+                index + 1 < len(lines)
+                and "Circuit Judge," in text
+                and text.lower().endswith(" and")
+            ):
+                nxt = lines[index + 1]
+                tail = self.line_plain_text(nxt).strip()
+                if tail.lower().startswith("opinion of the court"):
+                    merged = dict(line)
+                    merged["chars"] = (line.get("chars") or []) + (nxt.get("chars") or [])
+                    merged["text"] = f"{text} {tail}"
+                    merged["x1"] = max(line.get("x1", 0), nxt.get("x1", 0))
+                    merged["bottom"] = max(
+                        line.get("bottom", line.get("top", 0)),
+                        nxt.get("bottom", nxt.get("top", 0)),
+                    )
+                    out.append(merged)
+                    index += 2
+                    continue
+            out.append(line)
+            index += 1
+        return out
 
     def find_footnote_separator(self, page):
         """CA2 uses two related footnote-rule indents.
@@ -289,17 +319,37 @@ class SecondCircuit(FederalCircuitBase):
         digits = [
             c for c in page.chars if c.get("text", "").isdigit() and c.get("x0", 0) < 75
         ]
-        if len(digits) < 5:
-            return None
-        mode = Counter(round(c["x0"]) for c in digits).most_common(1)[0][0]
+        if len(digits) >= 5:
+            mode = Counter(round(c["x0"]) for c in digits).most_common(1)[0][0]
+        else:
+            mode = 999
         # Ordinary CA2 body text starts at x≈72. A sentence beginning with a
         # digit can therefore create a convincing-looking cluster of digits at
         # the body margin, but a real numbered-paper gutter is materially
         # farther left (≈44–48pt). Do not clip the first character of normal
         # prose merely because several paragraphs start with citations.
-        if mode >= 65:
+        if mode < 65:
+            col = [c for c in digits if abs(c["x0"] - mode) <= 12]
+            if len(col) >= 5:
+                return max(c["x1"] for c in col) + 2
+
+        # Some later CA2 writings restart line numbering immediately beside
+        # an inset body column (numbers at x≈79/84, prose at x≈108), rather
+        # than using the far-left x≈44 gutter present on the lead writing.
+        # Identify the column by a long consecutive run of number-only words.
+        words = [
+            w
+            for w in page.extract_words()
+            if (w.get("text") or "").isdigit()
+            and int(w["text"]) <= 40
+            and w.get("x0", 999) < 95
+            and w.get("x1", 999) < 105
+        ]
+        if len(words) < 8:
             return None
-        col = [c for c in digits if abs(c["x0"] - mode) <= 12]
-        if len(col) < 5:
+        words.sort(key=lambda word: word["top"])
+        values = [int(word["text"]) for word in words]
+        consecutive = sum(1 for a, b in zip(values, values[1:]) if b == a + 1)
+        if consecutive < 6:
             return None
-        return max(c["x1"] for c in col) + 2
+        return max(word["x1"] for word in words) + 4

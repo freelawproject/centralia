@@ -996,9 +996,12 @@ def _render_opinion(op: Opinion) -> list:
     out.append(
         f'<div class="optype-badge t-{escape(op.type)}">' f"{escape(op.type)}</div>"
     )
+    visible_byline = False
     if getattr(op, "caption", None):
         out.append('<div class="opinion-caption">')
         for b in op.caption:
+            role = (b.payload or {}).get("role")
+            visible_byline = visible_byline or role in ("byline", "announcement")
             if b.kind == "heading":
                 out.append(f"<h3>{_inline_to_html(b.text)}</h3>")
             elif b.kind == "blockquote":
@@ -1014,7 +1017,8 @@ def _render_opinion(op: Opinion) -> list:
             else:
                 out.append(f"<p>{_inline_to_html(b.text)}</p>")
         out.append("</div>")
-    out.append(f'<div class="author">{escape(op.author)}</div>')
+    if not visible_byline:
+        out.append(f'<div class="author">{escape(op.author)}</div>')
     list_tag = None
     for b in op.blocks:
         if b.kind in ("list-item", "ordered-list-item"):
@@ -1048,7 +1052,19 @@ def _render_opinion(op: Opinion) -> list:
                 f'alt="figure on page {b.page}"{size}>'
             )
         elif b.kind == "table":
-            out.extend(_render_table(b.payload.get("rows") or []))
+            out.extend(
+                _render_table(
+                    b.payload.get("rows") or [],
+                    has_header=b.payload.get("has_header", True),
+                    continued=b.payload.get("continuation", False),
+                )
+            )
+        elif b.kind == "p" and b.payload.get("first_line_indent"):
+            indent = float(b.payload["first_line_indent"])
+            out.append(
+                f'<p style="text-indent:{indent:.1f}pt">'
+                f'{_inline_to_html(b.text)}</p>'
+            )
         elif b.kind == "heading":
             out.append(f"<h3>{_inline_to_html(b.text)}</h3>")
         elif b.kind == "rule":
@@ -1101,12 +1117,12 @@ def _render_footnote(fn: Footnote) -> str:
     )
 
 
-def _render_table(rows: list) -> list:
+def _render_table(rows: list, has_header=True, continued=False) -> list:
     if not rows:
         return []
-    out = ["<table>"]
+    out = ['<table class="continued">' if continued else "<table>"]
     for ri, row in enumerate(rows):
-        tag = "th" if ri == 0 else "td"
+        tag = "th" if has_header and ri == 0 else "td"
         # Keep the cell's internal line breaks — a multi-line citation cell
         # ('State v. Clark,\n2022 ND 85\n999 N.W.2d 632') reads as the PDF
         # stacks it, not as one run-on line.

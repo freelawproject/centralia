@@ -24,6 +24,7 @@ from __future__ import annotations
 from typing import Optional
 
 from ._appellate import StateAppellate
+from ..models import Block
 
 # Abbreviated titles this court uses, longest first ('P.J.'/'C.J.' before 'J.').
 _TCCA_TITLES = (("P.J.", "Presiding Judge"), ("C.J.", "Chief Judge"), ("J.", "Judge"))
@@ -168,6 +169,7 @@ class TexasCourtOfCriminalAppeals(StateAppellate):
     def build_opinion(self, op_start, op_end, **kwargs):
         op = super().build_opinion(op_start, op_end, **kwargs)
         author_line = kwargs["all_segments"][op_start][1][0]
+        author_page = kwargs["all_segments"][op_start][0]
         parsed = self._tcca_byline(self.line_plain_text(author_line).strip())
         if parsed is not None:
             if parsed[0] == "PER CURIAM":
@@ -186,12 +188,35 @@ class TexasCourtOfCriminalAppeals(StateAppellate):
                 (
                     i
                     for i, block in enumerate(op.blocks[:6])
-                    if "OPINION" in str(block.text or "").upper()
+                    if "OPINION" in "".join(
+                        str(block.text or "").upper().split()
+                    ).replace("<STRONG>", "").replace(
+                        "</STRONG>", ""
+                    )
                 ),
                 None,
             )
+            pieces = [self.line_inline_text(author_line).strip()]
             if banner is not None:
+                pieces.extend(
+                    str(block.text or "").strip()
+                    for block in op.blocks[:banner]
+                    if str(block.text or "").strip()
+                )
                 op.blocks = op.blocks[banner:]
+            marker = self.page_marker(author_page)
+            if marker:
+                pieces = [piece.replace(marker, "").strip() for piece in pieces]
+            announcement = " ".join(pieces).strip()
+            if announcement:
+                op.caption.append(
+                    Block(
+                        kind="p",
+                        text=announcement,
+                        page=author_page,
+                        payload={"role": "announcement"},
+                    )
+                )
         if getattr(self, "_tcca_pc", None) == op_start:
             op.author = "PER CURIAM"
             op.type = "majority"

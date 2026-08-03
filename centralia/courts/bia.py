@@ -17,6 +17,7 @@ class BoardOfImmigrationAppeals(StateSupreme):
     court_id = "bia"
     court_label = "Board of Immigration Appeals."
     author_titles = (
+        "Deputy Chief Appellate Immigration Judge",
         "Appellate Immigration Judge",
         "Temporary Appellate Immigration Judge",
         "Board Member",

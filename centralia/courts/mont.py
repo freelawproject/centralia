@@ -13,7 +13,7 @@ from __future__ import annotations
 from ._statesupreme import StateSupreme
 
 _TITLES = ("Chief Justice", "Justice")
-_DELIVERS = "delivered the opinion of the court"
+_DELIVERS = "delivered the opinion"
 
 
 def _is_title_name(name: str) -> bool:
@@ -39,7 +39,7 @@ class MontanaSupreme(StateSupreme):
                 continue
             rest = t[len(title) + 1 :]
             low = rest.lower()
-            if _DELIVERS in low:
+            if _DELIVERS in low and "of the court" in low:
                 name = rest[: low.find("delivered")].strip().rstrip(",")
                 if _is_title_name(name):
                     return name, title, None

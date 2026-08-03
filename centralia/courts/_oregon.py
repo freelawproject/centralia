@@ -38,6 +38,40 @@ class OregonReports:
     # not length, is the gate (40pt clears the rule, rejects tiny stray fills).
     footnote_sep_text_min_width = 40.0
 
+    def page_lines(self, page):
+        lines = super().page_lines(page)
+        out, index = [], 0
+        while index < len(lines):
+            line = lines[index]
+            text = self.line_plain_text(line).strip()
+            low = text.lower()
+            if (
+                index + 1 < len(lines)
+                and ", j.," in low
+                and low.endswith(("concurring", "dissenting"))
+            ):
+                nxt = lines[index + 1]
+                tail = self.line_plain_text(nxt).strip()
+                if tail.lower().startswith("in part"):
+                    merged = dict(line)
+                    lead_chars = list(line.get("chars") or [])
+                    tail_chars = list(nxt.get("chars") or [])
+                    spacer = dict(lead_chars[-1]) if lead_chars else {}
+                    spacer.update({"text": " ", "x0": 0.0, "x1": 0.0})
+                    merged["chars"] = lead_chars + [spacer] + tail_chars
+                    merged["text"] = f"{text} {tail}"
+                    merged["x1"] = max(line.get("x1", 0), nxt.get("x1", 0))
+                    merged["bottom"] = max(
+                        line.get("bottom", line.get("top", 0)),
+                        nxt.get("bottom", nxt.get("top", 0)),
+                    )
+                    out.append(merged)
+                    index += 2
+                    continue
+            out.append(line)
+            index += 1
+        return out
+
     # Style-preserving headmatter (the shared 'Florida look').
     def extract_headmatter(self, headmatter_segs, page1_rules=None) -> dict:
         return self._styled_headmatter(headmatter_segs, page1_rules)

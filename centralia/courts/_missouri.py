@@ -130,6 +130,13 @@ class MissouriStyle:
             centered = abs((line["x0"] + line["x1"]) / 2 - pw / 2) < 25
             return centered and line["x1"] < right - 20
 
+        # The appeal line and named trial judge are the final caption rows;
+        # Missouri then prints the opinion title immediately before its prose.
+        for i, (_p, seg, _kind) in enumerate(all_segments[:-1]):
+            text = " ".join(self.line_plain_text(l).strip() for l in seg).lower()
+            if "the honorable" in text and "judge" in text:
+                return i + 1
+
         first_body = None
         for i, (_p, seg, kind) in enumerate(all_segments):
             if kind != "body":

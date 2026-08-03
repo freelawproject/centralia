@@ -54,7 +54,96 @@ class FileResult:
     residual_content: int = 0
     warnings: list[str] = field(default_factory=list)
     flags: list[str] = field(default_factory=list)
+    headmatter_signals: list[dict] = field(default_factory=list)
     error: str | None = None
+
+
+def _plain_headmatter(text: str) -> str:
+    """Small tag stripper for detector evidence; keeps no rendering markup."""
+    out, pos = [], 0
+    text = str(text or "")
+    while pos < len(text):
+        opening = text.find("<", pos)
+        if opening < 0:
+            out.append(text[pos:])
+            break
+        out.append(text[pos:opening])
+        closing = text.find(">", opening)
+        if closing < 0:
+            break
+        pos = closing + 1
+    return " ".join("".join(out).replace("&nbsp;", " ").split())
+
+
+def _headmatter_boundary_signals(doc) -> list[dict]:
+    """Return conservative, evidence-bearing misplaced-body candidates.
+
+    Completeness cannot see text in the wrong section.  This detector therefore
+    looks for a body heading followed by a sustained run of ordinary left-set
+    prose, or for an opinion/order whose only substantial prose is headmatter.
+    It deliberately reports a review signal rather than moving any content.
+    """
+    rows = []
+    for index, row in enumerate(doc.summary or []):
+        if not isinstance(row, dict) or not row.get("__hm__"):
+            continue
+        plain = _plain_headmatter(row.get("html", ""))
+        words = len(plain.split())
+        rows.append((index, row, plain, words))
+    if not rows:
+        return []
+
+    def body_like(item) -> bool:
+        _index, row, _plain, words = item
+        rel = float(row.get("rel", 1.0) or 1.0)
+        return row.get("align", "L") == "L" and 0.78 <= rel <= 1.25 and words >= 7
+
+    prose = [item for item in rows if body_like(item)]
+    prose_words = sum(item[3] for item in prose)
+    if len(prose) < 12 or prose_words < 250:
+        return []
+
+    marker = None
+    marker_words = (
+        "BACKGROUND", "FACTUAL BACKGROUND", "ANALYSIS", "DISCUSSION",
+        "STANDARD OF REVIEW", "CONCLUSION",
+    )
+    for position, item in enumerate(rows):
+        plain = item[2].strip()
+        upper = plain.upper().rstrip(":")
+        original_first = plain.split(maxsplit=1)[0] if plain else ""
+        first = upper.split(maxsplit=1)[0] if upper else ""
+        roman = (
+            original_first == original_first.upper()
+            and first.rstrip(".") in {"I", "II", "III", "IV", "V", "VI"}
+        )
+        numbered = plain.startswith("¶") and plain[1:2].isdigit()
+        named = any(upper.startswith(value) for value in marker_words)
+        if roman or numbered or named:
+            tail = [candidate for candidate in rows[position + 1 :] if body_like(candidate)]
+            if len(tail) >= 12 and sum(candidate[3] for candidate in tail) >= 250:
+                marker = item
+                break
+
+    no_body = doc.doc_type in (DocType.OPINION, DocType.ORDER) and not doc.opinions
+    if not no_body and marker is None:
+        return []
+    evidence = marker or prose[0]
+    index, row, plain, _words = evidence
+    geometry = {
+        key: row[key]
+        for key in ("top", "align", "rel", "ind")
+        if key in row
+    }
+    return [{
+        "kind": "body-only-in-headmatter" if no_body else "body-like-headmatter",
+        "page": row.get("page"),
+        "row": index,
+        "geometry": geometry,
+        "text": plain[:240],
+        "prose_rows": len(prose),
+        "prose_words": prose_words,
+    }]
 
 
 def _inline_values(text: str, tag: str, attr: str) -> list[str]:
@@ -198,6 +287,11 @@ def inspect_pdf(task: tuple[str, str]) -> dict:
         result.layout_ok = doc.layout_ok
         result.opinions = len(doc.opinions)
         result.warnings = list(doc.warnings)
+        result.headmatter_signals = _headmatter_boundary_signals(doc)
+        for signal in result.headmatter_signals:
+            result.flags.append(
+                f"{signal['kind']}:{signal['prose_rows']}"
+            )
         result.headmatter_footnotes = len(doc.headmatter_footnotes)
         # A certificate of judgment is an administrative record, deliberately
         # classified but not parsed into an opinion body. Keep its residual
@@ -339,6 +433,7 @@ def _severity(flag: str) -> str:
         (
             "extraction-error", "missing-source-lines", "unresolved-content",
             "no-opinion-returned", "empty-opinion", "layout-mismatch",
+            "body-only-in-headmatter",
         )
     ):
         return "confirmed"
@@ -358,7 +453,10 @@ def _court_status(court: str, rows: list[dict], registered: bool) -> str:
         return "hard failure"
     if any(
         flag.startswith(
-            ("unresolved-content", "no-opinion-returned", "empty-opinion")
+            (
+                "unresolved-content", "no-opinion-returned", "empty-opinion",
+                "body-only-in-headmatter",
+            )
         )
         for flag in flags
     ):
@@ -627,6 +725,64 @@ def _write_indexes(output: Path, summaries: list[dict]) -> None:
         )
 
 
+def _write_headmatter_queue(output: Path, by_court: dict[str, list[dict]]) -> None:
+    """Materialize misplaced-body signals as a reviewable, durable work queue."""
+    candidates = []
+    for court, rows in by_court.items():
+        for row in rows:
+            for signal in row.get("headmatter_signals", []):
+                candidates.append((court, row, signal))
+    candidates.sort(
+        key=lambda item: (
+            item[2].get("kind") != "body-only-in-headmatter",
+            item[0],
+            item[1]["file"],
+            item[2].get("row", 0),
+        )
+    )
+    confirmed = sum(
+        signal.get("kind") == "body-only-in-headmatter"
+        for _court, _row, signal in candidates
+    )
+    review = len(candidates) - confirmed
+    lines = [
+        "# Headmatter-boundary review queue",
+        "",
+        "These signals find content that is covered but may be in the wrong "
+        "section. They are intentionally separate from the unplaced-content "
+        "counter: moving or suppressing content requires comparison with the PDF.",
+        "",
+        f"- High-confidence structural gaps: {confirmed}",
+        f"- Review candidates: {review}",
+        f"- Total signals: {len(candidates)}",
+        "",
+        "`body-only-in-headmatter` means an opinion/order has substantial prose "
+        "but no extracted opinion body. `body-like-headmatter` means substantial "
+        "headmatter prose continues after a body-style marker while some body "
+        "content also exists.",
+        "",
+        "| Confidence | Court | File | Type | Opinions | Page/row | Evidence | Prose |",
+        "|---|---|---|---|---:|---|---|---:|",
+    ]
+    for court, row, signal in candidates:
+        kind = signal.get("kind", "body-like-headmatter")
+        confidence = "high" if kind == "body-only-in-headmatter" else "review"
+        page = signal.get("page")
+        location = f"{page if page is not None else '?'} / {signal.get('row', '?')}"
+        evidence = " ".join(str(signal.get("text", "")).split())
+        evidence = evidence.replace("|", "\\|")
+        lines.append(
+            f"| {confidence} | [{court}](courts/{court}.md) | "
+            f"`{row['file']}` | {row.get('doc_type') or '—'} | "
+            f"{row.get('opinions', 0)} | {location} | {evidence or '—'} | "
+            f"{signal.get('prose_rows', 0)} rows / "
+            f"{signal.get('prose_words', 0)} words |"
+        )
+    (output / "HEADMATTER.md").write_text(
+        "\n".join(lines) + "\n", encoding="utf-8"
+    )
+
+
 def render_saved_results(output: Path) -> None:
     """Re-render Markdown after report-language changes without re-extracting."""
     payload = json.loads((output / "results.json").read_text(encoding="utf-8"))
@@ -668,6 +824,7 @@ def render_saved_results(output: Path) -> None:
         json.dumps(payload, indent=2, ensure_ascii=False), encoding="utf-8"
     )
     _write_indexes(output, summaries)
+    _write_headmatter_queue(output, by_court)
 
 
 def main(argv=None) -> int:

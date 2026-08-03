@@ -38,6 +38,17 @@ class OhioCourtOfAppeals(StateAppellate):
     blockquote_by_indent = True
     indent_step = 24
 
+    def _footnote_sep_structural(self, page):
+        sep = super()._footnote_sep_structural(page)
+        if sep is None:
+            return None
+        for line in page.extract_text_lines():
+            if line.get("top", 0) > sep and self.parse_author_line(
+                (line.get("text") or "").strip()
+            ):
+                return None
+        return sep
+
     # ------------------------------------------------------ margin furniture
     def extract(self, pdf_path):
         self._oh_dropped = []

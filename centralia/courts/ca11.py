@@ -23,6 +23,18 @@ class EleventhCircuit(FederalCircuitBase):
     gap_double_max = 30.0
     fold_page_numbers = True
 
+    def extract(self, pdf_path):
+        self._ca11_dropped_headers = []
+        return super().extract(pdf_path)
+
+    def _sweep_residual(self, doc, source_pages):
+        headers = list(dict.fromkeys(getattr(self, "_ca11_dropped_headers", [])))
+        if headers:
+            doc.dropped = list(doc.dropped) + [
+                text for text in headers if text not in doc.dropped
+            ]
+        super()._sweep_residual(doc, source_pages)
+
     def detect_printed_folio(self, page, lines):
         """Read the folio embedded at either end of the running header."""
         for line in lines:
@@ -99,6 +111,9 @@ class EleventhCircuit(FederalCircuitBase):
         drops from the body (drop_notice_in_body) — and so the cross-page
         paragraph merge spans the gap and inserts a <pagenumber> marker."""
         if seg and self._running_header_name(self.line_plain_text(seg[0])):
+            text = self.line_plain_text(seg[0]).strip()
+            if text:
+                self._ca11_dropped_headers.append(text)
             return "notice"
         return super().classify_segment(seg)
 

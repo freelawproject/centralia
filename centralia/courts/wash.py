@@ -30,6 +30,7 @@ from __future__ import annotations
 import re
 
 from ._abbrevtitle import AbbrevTitleSupreme
+from ..models import Block
 
 
 class WashingtonSupreme(AbbrevTitleSupreme):
@@ -297,6 +298,37 @@ class WashingtonSupreme(AbbrevTitleSupreme):
                 body["text"] = "".join(c.get("text") or "" for c in body_chars).lstrip()
                 return "PER CURIAM", [body] if body["text"] else []
         return super().split_author_line(line)
+
+    def build_opinion(self, op_start, op_end, **kwargs):
+        op = super().build_opinion(op_start, op_end, **kwargs)
+        page_no, seg, _kind = kwargs["all_segments"][op_start]
+        if not seg:
+            return op
+        plain = self.line_plain_text(seg[0]).strip()
+        if plain.upper().startswith("PER CURIAM") and any(mark in plain for mark in "—–"):
+            chars = seg[0].get("chars") or []
+            dash_i = next(
+                (i for i, char in enumerate(chars) if (char.get("text") or "") in "—–"),
+                None,
+            )
+            if dash_i is not None:
+                prefix = dict(seg[0])
+                prefix["chars"] = chars[: dash_i + 1]
+                prefix["text"] = "".join(
+                    char.get("text") or "" for char in chars[: dash_i + 1]
+                )
+                exact = self.line_inline_text(prefix).strip()
+                if exact:
+                    op.caption.insert(
+                        0,
+                        Block(
+                            kind="p",
+                            text=exact,
+                            page=page_no,
+                            payload={"role": "byline"},
+                        ),
+                    )
+        return op
 
     @staticmethod
     def _is_wash_banner(block) -> bool:

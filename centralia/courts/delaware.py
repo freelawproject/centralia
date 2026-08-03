@@ -133,6 +133,16 @@ class DelawareSupreme(StateSupreme):
         for l in lines:
             if self._is_colored(l):
                 continue  # already recorded off the raw page above
+            text = self.line_plain_text(l).strip()
+            if (
+                text in (", Justice.", ", Chief Justice.")
+                and l.get("x0", 0) > page.width / 2
+            ):
+                # Blank title line under a proposed-order signature rule.  The
+                # actual File & Serve authorization is retained in ending
+                # matter; this unfilled form field is template furniture.
+                if text not in self._del_dropped:
+                    self._del_dropped.append(text)
             out.append(l)
         return out
 

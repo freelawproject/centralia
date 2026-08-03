@@ -23,6 +23,7 @@ No regex (project rule); headings and titles are matched with string sets.
 from __future__ import annotations
 
 from .generic import GenericExtractor
+from ..models import Block
 
 # Document-type headings that open a district ruling (lowercased, exact match
 # after stripping trailing punctuation). Longest/most-specific are not needed —
@@ -424,12 +425,64 @@ class DistrictBase(GenericExtractor):
         ]
         if len(nums) < 8:
             return None
-        nums.sort(key=lambda n: n[2])  # top-to-bottom
-        vals = [n[0] for n in nums]
+        # The gutter is ONE narrow column, so its numbers share a right edge to
+        # within a digit's width. Cluster on that edge and keep the biggest
+        # cluster before measuring anything.
+        #
+        # Taking the max over the raw candidate set is what made this wrong: a
+        # body line that opens on a small integer — a citation like '27 I&N
+        # Dec. 509' or '28 U.S.C. § 2243' — qualifies as a candidate too, and
+        # sits far to the right of the real column. One such citation dragged
+        # the cut past the body's own left margin, so the char filter below ate
+        # the first word of every full-width line on the page ("1 Opp'n at 1,
+        # 2." came out as "at 1, 2."). Structural loss, invisible in the text.
+        edges = sorted(n[1] for n in nums)
+        best: list[float] = []
+        cluster: list[float] = []
+        for e in edges:
+            if cluster and e - cluster[0] > 8:
+                if len(cluster) > len(best):
+                    best = cluster
+                cluster = []
+            cluster.append(e)
+        if len(cluster) > len(best):
+            best = cluster
+        lo, hi = best[0], best[-1]
+        column = [n for n in nums if lo <= n[1] <= hi]
+        if len(column) < 8:
+            return None
+        column.sort(key=lambda n: n[2])  # top-to-bottom
+        vals = [n[0] for n in column]
         runs = sum(1 for a, b in zip(vals, vals[1:]) if b == a + 1)
         if runs < 6:
             return None
-        return max(n[1] for n in nums)
+        # A gutter sits BESIDE the body, never inside it: nothing but the
+        # numbers themselves may lie to the left of the cut. Count the words
+        # that would be sacrificed and refuse the cut if there are more than a
+        # stray one or two.
+        #
+        # Without this gate the run test alone was satisfied on filings that
+        # are not pleading paper at all — a footnote block's stacked markers
+        # read as a sequential column at x≈78 on a body whose left margin is
+        # x=72, and the char filter then shaved the first LETTER off every line
+        # ('hearing.' → 'earing.', 'Court.' → 'ourt.').
+        #
+        # Measuring intruders rather than the page's modal text column is what
+        # makes this hold on a SPARSE page: on a caption or signature page the
+        # line-number column is itself the most common x0 on the page, so a
+        # modal test rejects the gutter exactly where it is real and dumps all
+        # 28 line numbers into the body as standalone blocks.
+        intruders = sum(
+            1
+            for w in page.extract_words()
+            if w["x0"] < hi - 1
+            and not (
+                w["text"].isdigit() and w["x1"] <= hi + 1 and w["x0"] < 90
+            )
+        )
+        if intruders > 2:
+            return None
+        return hi
 
     @staticmethod
     def _pleading_gutter_x(page):
@@ -993,10 +1046,17 @@ class DistrictBase(GenericExtractor):
             while chars and not (chars[-1].get("text") or "").strip():
                 chars.pop()
             if railg and chars and (chars[-1].get("text") or "") == railg:
-                state["rail"] = railg
-                chars.pop()
-                while chars and not (chars[-1].get("text") or "").strip():
+                # A ')' is both the common caption rail and meaningful docket
+                # punctuation.  Strip it only when it is unmatched in this
+                # run (``Defendant. )`` or ``(official capacity) )``), never
+                # when it closes a real value such as ``(WO)`` or ``(KAD)``.
+                plain = "".join(c.get("text") or "" for c in chars)
+                unmatched = railg != ")" or plain.count(")") > plain.count("(")
+                if unmatched:
+                    state["rail"] = railg
                     chars.pop()
+                    while chars and not (chars[-1].get("text") or "").strip():
+                        chars.pop()
             return chars
 
         def push(side, html, x0, top):
@@ -1246,6 +1306,8 @@ class DistrictBase(GenericExtractor):
                     "html": self.line_inline_text({"chars": all_chars}),
                     "rel": round(size / base, 3) if base else 1.0,
                     "align": "C" if centered else ("R" if right_aligned else "L"),
+                    "page": _pno,
+                    "top": round(_top, 1),
                 }
             )
         flush()
@@ -1288,6 +1350,8 @@ class DistrictBase(GenericExtractor):
                     "html": " ".join(cells[k]),
                     "rel": 1.0,
                     "align": {"l": "L", "c": "C", "r": "R"}[k],
+                    "page": pno,
+                    "top": round(top, 1),
                 })
             else:
                 out.append({
@@ -1803,6 +1867,29 @@ class DistrictBase(GenericExtractor):
         if byline:
             return (author or byline, [])
         return (author or "", [line])
+
+    def build_opinion(self, op_start, op_end, **kwargs):
+        """Retain an exact printed opening byline without changing author ID.
+
+        ``Opinion.author`` remains the concise name used by grouping and XML
+        consumers.  The role-marked caption block is the visible, source-exact
+        form (judicial title, honorific, punctuation and footnote marks).
+        """
+        op = super().build_opinion(op_start, op_end, **kwargs)
+        page_no, seg, _kind = kwargs["all_segments"][op_start]
+        if seg and self._judge_byline_name(seg[0]):
+            exact = self.line_inline_text(seg[0]).strip()
+            if exact:
+                op.caption.insert(
+                    0,
+                    Block(
+                        kind="p",
+                        text=exact,
+                        page=page_no,
+                        payload={"role": "byline"},
+                    ),
+                )
+        return op
 
     def classify_document_type(self, all_segments, author_indices, n_pages):
         from ..models import DocType

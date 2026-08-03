@@ -59,6 +59,35 @@ class AGLetterBase(StateSupreme):
                     start = i
                     break
         if start is None:
+            # A reporter-form opinion may put the addressee and opening answer
+            # in one uninterrupted segment. Split at the request line only
+            # after the date-based format has had first claim; otherwise a
+            # later phrase such as ``You have asked whether`` can steal page 11
+            # from an opinion that began on page 1.
+            for i, (pno, seg, kind) in enumerate(all_segments):
+                cut = next(
+                    (
+                        j
+                        for j, line in enumerate(seg)
+                        if self.line_plain_text(line).strip().lower().startswith(
+                            ("you have asked", "you ask whether")
+                        )
+                    ),
+                    None,
+                )
+                if cut is None:
+                    continue
+                if cut:
+                    before, body = seg[:cut], seg[cut:]
+                    all_segments[i : i + 1] = [
+                        (pno, before, self.classify_segment(before)),
+                        (pno, body, self.classify_segment(body)),
+                    ]
+                    start = i + 1
+                else:
+                    start = i
+                break
+        if start is None:
             return []
         self._letter_start = start
         self._letter_author = self._signature_author(all_segments)

@@ -37,13 +37,61 @@ class WisconsinSupreme(AbbrevTitleSupreme):
     indent_step = 20.0
     blockquote_by_indent = True
 
-    _running_writing = re.compile(r"^JUSTICE .+?,\s+(?:concurring|dissenting)$", re.I)
+    _running_writing = re.compile(
+        r"^JUSTICE .+?,\s+(?:concurring|dissenting)"
+        r"(?:\s+in\s+part(?:,\s+(?:concurring|dissenting)\s+in\s+part)?)?$",
+        re.I,
+    )
 
     _separate_byline = re.compile(
-        r"^(?P<name>.+?,\s*[A-Z]\.)(?:,\s*with whom .+? joins,)?\s*"
-        r"(?P<kind>concurring|dissenting)\.?$",
+        r"^(?P<name>.+?,\s*(?:[A-Z]\.)+)(?:,\s*with whom .+? joins?,)?\s*"
+        r"(?P<kind>concurring|dissenting)"
+        r"(?:\s+in(?:\s+part|\s+the\s+judgment))?\.?$",
         re.IGNORECASE,
     )
+
+    def _join_wrapped_bylines(self, lines):
+        """Join wrapped separate-writing bylines before segmentation."""
+        out, index = [], 0
+        while index < len(lines):
+            line = lines[index]
+            text = self.line_plain_text(line).strip()
+            if "with whom" in text.lower():
+                joined_chars = list(line.get("chars") or [])
+                joined_text = text
+                end = index + 1
+                while end < min(len(lines), index + 3):
+                    tail = self.line_plain_text(lines[end]).strip()
+                    low_tail = tail.lower()
+                    if not tail:
+                        break
+                    prior = dict(joined_chars[-1]) if joined_chars else {}
+                    prior.update({"text": " ", "x0": 0.0, "x1": 0.0})
+                    joined_chars.extend([prior] + list(lines[end].get("chars") or []))
+                    joined_text += " " + tail
+                    end += 1
+                    if (
+                        ("concurr" in low_tail or "dissent" in low_tail)
+                        and tail.rstrip().endswith(".")
+                    ):
+                        break
+                if self._separate_byline.match(joined_text):
+                    merged = dict(line)
+                    merged["chars"] = joined_chars
+                    merged["text"] = joined_text
+                    merged["x1"] = max(
+                        candidate.get("x1", 0) for candidate in lines[index:end]
+                    )
+                    merged["bottom"] = max(
+                        candidate.get("bottom", candidate.get("top", 0))
+                        for candidate in lines[index:end]
+                    )
+                    out.append(merged)
+                    index = end
+                    continue
+            out.append(line)
+            index += 1
+        return out
 
     def find_authors(self, all_segments) -> list:
         starts = list(super().find_authors(all_segments))
@@ -59,18 +107,21 @@ class WisconsinSupreme(AbbrevTitleSupreme):
             # The court often wraps the final `with whom ... joins,
             # dissenting.` clause over one or two text lines immediately
             # before paragraph 1.
-            for j in range(i + 1, min(i + 3, len(all_segments))):
-                nxt = all_segments[j][1]
-                if not nxt:
-                    break
-                first = self.line_plain_text(nxt[0]).strip()
-                candidate += " " + first
-                consumed.append(j)
-                if self._separate_byline.match(candidate):
-                    break
             match = self._separate_byline.match(candidate)
-            if match and i not in starts:
-                starts.append(i)
+            if not match:
+                for j in range(i + 1, min(i + 3, len(all_segments))):
+                    nxt = all_segments[j][1]
+                    if not nxt:
+                        break
+                    first = self.line_plain_text(nxt[0]).strip()
+                    candidate += " " + first
+                    consumed.append(j)
+                    match = self._separate_byline.match(candidate)
+                    if match:
+                        break
+            if match:
+                if i not in starts:
+                    starts.append(i)
                 self._wis_extra_authors[i] = (
                     candidate,
                     match.group("kind").lower(),
@@ -103,7 +154,8 @@ class WisconsinSupreme(AbbrevTitleSupreme):
                         all_segments[nxt][0], [first] + all_segments[nxt][1], old_kind
                     )
         if extra:
-            op.author, op.type = extra[:2]
+            op.author = extra[0]
+            op.type = self.normalize_opinion_type(extra[1])
         return op
 
     def _begins_paragraph_block(self, lines):
@@ -139,7 +191,7 @@ class WisconsinSupreme(AbbrevTitleSupreme):
                     and text not in furniture
                 ):
                     furniture.append(text)
-        lines = super().page_lines(page)
+        lines = self._join_wrapped_bylines(super().page_lines(page))
         if furniture is None:
             return lines
         kept = []

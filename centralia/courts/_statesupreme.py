@@ -570,6 +570,11 @@ class StateSupreme(GenericExtractor):
                     "html": p["html"],
                     "rel": round(p["size"] / base, 3),
                     "align": p["align"],
+                    # Audit provenance. Renderers ignore these keys, while the
+                    # misplaced-headmatter detector can name the physical page
+                    # and baseline that triggered a review signal.
+                    "page": pno,
+                    "top": round(top, 1),
                 }
                 # ``html`` is left intact so the caption folds (which read it)
                 # and the audit keep working; ``zones`` is additive.
@@ -894,6 +899,19 @@ class StateSupreme(GenericExtractor):
                 and r["x0"] < left_max
             ]
 
+        def guard_author_below(sep):
+            if sep is None:
+                return None
+            # A caption/opinion divider can look exactly like a footnote rule.
+            # If a valid opinion byline is printed beneath it, the rule cannot
+            # open a terminal footnote zone without swallowing that opinion.
+            for line in page.extract_text_lines():
+                if line.get("top", 0) <= sep:
+                    continue
+                if self.parse_author_line((line.get("text") or "").strip()):
+                    return None
+            return sep
+
         rules = scan(page.rects)
         if not rules:
             # Some courts STROKE the separator as a vector line instead of
@@ -903,7 +921,9 @@ class StateSupreme(GenericExtractor):
             # already resolves via rects is untouched.
             rules = scan(page.lines)
         if not rules:
-            return self._fenceless_sep(page) or self._footnote_sep_text(page)
+            return guard_author_below(
+                self._fenceless_sep(page) or self._footnote_sep_text(page)
+            )
         text_lines = page.extract_text_lines()
 
         def is_caption_pair(r):
@@ -938,8 +958,10 @@ class StateSupreme(GenericExtractor):
 
         cands = [r for r in rules if not is_caption_pair(r) and not is_underline(r)]
         if not cands:
-            return self._fenceless_sep(page) or self._footnote_sep_text(page)
-        return min(cands, key=lambda r: r["top"])["top"]
+            return guard_author_below(
+                self._fenceless_sep(page) or self._footnote_sep_text(page)
+            )
+        return guard_author_below(min(cands, key=lambda r: r["top"])["top"])
 
     def _fenceless_sep(self, page):
         """Second pass with the bottom-half fence removed.

@@ -11,6 +11,7 @@ the 'APPEAL FROM …' history, the trial judge, and counsel — all headmatter.
 
 from __future__ import annotations
 
+from ..models import DocType
 from ._statesupreme import StateSupreme
 
 
@@ -20,8 +21,22 @@ class SouthDakotaSupreme(StateSupreme):
 
     def extract(self, pdf_path):
         self._sd_footer = []
+        self._sd_header = []
+        self._sd_advisory = False
         doc = super().extract(pdf_path)
-        doc.dropped = _dedupe(list(doc.dropped) + list(self._sd_footer))
+        if self._sd_advisory and doc.opinions:
+            blocks = doc.opinions[0].blocks
+            if (
+                len(blocks) >= 2
+                and "AN OPINION REQUESTED BY " in blocks[0].text
+                and "SOUTH DAKOTA CONSTITUTION" in blocks[1].text
+            ):
+                blocks[0].kind = "heading"
+                blocks[0].text = blocks[0].text + " " + blocks[1].text
+                del blocks[1]
+        doc.dropped = _dedupe(
+            list(doc.dropped) + list(self._sd_header) + list(self._sd_footer)
+        )
         return doc
 
     def correct_page_geometry(self, page) -> None:
@@ -44,17 +59,141 @@ class SouthDakotaSupreme(StateSupreme):
             objs[:] = [c for c in objs if (c.get("size") or 9.0) > 1.5]
 
     def page_lines(self, page):
-        """Record the bottom-margin filing stamp before the margin filter drops
-        it. The page foot carries the centered folio and, on page 1, the clerk's
-        'OPINION FILED 11/25/25' stamp at the right — furniture, but it has to be
-        surfaced in the Removed box rather than silently discarded."""
+        """Remove and surface SD's running docket/header and filing stamp.
+
+        ``#30723`` is printed at the upper-left of every opinion page.  It is
+        neither a paragraph nor part of a page-break continuation; leaving it
+        in the line stream fused it into prose immediately after the generated
+        page marker.  The centered copy inside the cover caption sits much
+        lower and remains content.
+        """
         for ln in page.extract_text_lines():
             if ln.get("top", 0) <= self.margin_bottom:
                 continue
             text = (ln.get("text") or "").strip()
             if text and not self._is_page_number_text(text):
                 self._sd_footer.append(text)
-        return super().page_lines(page)
+        lines = super().page_lines(page)
+        kept = []
+        for line in lines:
+            text = self.line_plain_text(line).strip()
+            if (
+                line.get("top", 0) < 65
+                and text.startswith("#")
+                and text[1:].isdigit()
+            ):
+                self._sd_header.append(text)
+                continue
+            kept.append(line)
+        return kept
+
+    # ------------------------------------------------------ opinion structure
+    @staticmethod
+    def _paragraph_number(line) -> bool:
+        text = (line.get("text") or "").strip()
+        if not text.startswith("[¶"):
+            return False
+        close = text.find(".]")
+        return close > 2 and text[2:close].isdigit()
+
+    def split_body_paragraphs(self, segment) -> list:
+        """Every ``[¶N.]`` line opens a paragraph, at any page or depth."""
+        out = []
+        for paragraph in super().split_body_paragraphs(segment):
+            current = []
+            for line in paragraph:
+                if current and self._paragraph_number(line):
+                    out.append(current)
+                    current = []
+                current.append(line)
+            if current:
+                out.append(current)
+        return out
+
+    def _begins_paragraph_block(self, lines) -> bool:
+        return bool(lines and self._paragraph_number(lines[0]))
+
+    def _issue_heading_start(self, line) -> bool:
+        text = self.line_plain_text(line).strip()
+        first = text.split(maxsplit=1)[0] if text else ""
+        return bool(
+            first.endswith(".")
+            and first[:-1].isdigit()
+            and line.get("x0", 0) >= self.body_baseline_x0 + 50
+            and self._line_all_emphasized(line)
+        )
+
+    def segment_lines(self, lines, page_width) -> list:
+        """Keep a tightly-led, wrapped numbered issue title in one segment."""
+        segments = super().segment_lines(lines, page_width)
+        out = []
+        i = 0
+        while i < len(segments):
+            segment = segments[i]
+            if not segment or not self._issue_heading_start(segment[0]):
+                out.append(segment)
+                i += 1
+                continue
+            merged = list(segment)
+            j = i + 1
+            while j < len(segments):
+                candidate = segments[j]
+                if not candidate:
+                    break
+                gap = candidate[0]["top"] - merged[-1]["top"]
+                if (
+                    not 0 < gap <= 18
+                    or candidate[0].get("x0", 0) < self.body_baseline_x0 + 50
+                    or not all(self._line_all_emphasized(line) for line in candidate)
+                ):
+                    break
+                merged.extend(candidate)
+                j += 1
+            for line in merged:
+                line["_sd_issue_heading"] = True
+            out.append(merged)
+            i = j
+        return out
+
+    def classify_segment(self, segment) -> str:
+        if segment and all(line.get("_sd_issue_heading") for line in segment):
+            return "single"
+        text = self.line_plain_text(segment[0]).strip() if segment else ""
+        if text.startswith("AN OPINION REQUESTED BY "):
+            return "single"
+        return super().classify_segment(segment)
+
+    def classify_paragraph(self, lines) -> str:
+        if lines and (
+            all(line.get("_sd_issue_heading") for line in lines)
+            or self.line_plain_text(lines[0]).strip().startswith(
+                "AN OPINION REQUESTED BY "
+            )
+        ):
+            return "heading"
+        return super().classify_paragraph(lines)
+
+    def find_authors(self, all_segments) -> list:
+        found = super().find_authors(all_segments)
+        if found:
+            return found
+        for index, (_page, segment, _kind) in enumerate(all_segments):
+            if segment and self.line_plain_text(segment[0]).strip().startswith(
+                "AN OPINION REQUESTED BY "
+            ):
+                self._sd_advisory = True
+                return [index]
+        return []
+
+    def split_author_line(self, line):
+        if self.line_plain_text(line).strip().startswith("AN OPINION REQUESTED BY "):
+            return "", [line]
+        return super().split_author_line(line)
+
+    def classify_document_type(self, all_segments, author_indices, n_pages):
+        if getattr(self, "_sd_advisory", False):
+            return DocType.OPINION
+        return super().classify_document_type(all_segments, author_indices, n_pages)
 
     # ------------------------------------------------------------- footnotes
     def detect_footnote_label(self, line):
@@ -85,9 +224,10 @@ class SouthDakotaSupreme(StateSupreme):
     def _sweep_residual(self, doc, source_pages):
         # The sweep runs inside super().extract(), so the stamp has to reach
         # doc.dropped before it, not after.
+        headers = [t for t in getattr(self, "_sd_header", None) or [] if t]
         stamps = [t for t in getattr(self, "_sd_footer", None) or [] if t]
-        if stamps:
-            doc.dropped = _dedupe(list(doc.dropped) + stamps)
+        if headers or stamps:
+            doc.dropped = _dedupe(list(doc.dropped) + headers + stamps)
         super()._sweep_residual(doc, source_pages)
 
 

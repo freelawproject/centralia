@@ -88,6 +88,14 @@ class EasternDistrictOfTexas(DistrictBase):
             size, _font, bold = self.line_meta(line)
             if not bold or size < 11 or line.get("x1", 0) - line.get("x0", 0) > 250:
                 continue
+            # Once validated tables are lifted before segmentation, the
+            # schedule rows no longer appear in ``all_segments``. The court's
+            # exact centered bold title is itself a sufficient body anchor;
+            # the rows are independently proved as tables by the strict
+            # multi-row/multi-column geometry validator.
+            if text.upper() == "DOCKET CONTROL ORDER":
+                schedule_start = i
+                break
             # Confirm this is the schedule template by its immediately
             # following geometry: an introductory line, then a two-column
             # deadline row with a left date rail and a right text rail.

@@ -19,7 +19,7 @@ the two sides onto one line.
 
 from __future__ import annotations
 
-from ._reversedjustice import ReversedJusticeSupreme
+from ._reversedjustice import ReversedJusticeSupreme, _allcaps_token
 
 _TYPE_LABELS = {
     "OPINION": "majority",
@@ -56,6 +56,40 @@ class PennsylvaniaSupreme(ReversedJusticeSupreme):
         if getattr(self, "_pa_type", None):
             op.type = self._pa_type
         return op
+
+    def _pa_bare_byline(self, text: str):
+        """Pennsylvania separate writings may use only ``JUSTICE NAME``.
+
+        The page's explicit CONCURRING/DISSENTING OPINION label supplies the
+        kind, so no verb/date is needed on the byline itself.
+        """
+        if not getattr(self, "_pa_type", None):
+            return None
+        text = text.strip()
+        upper = text.upper()
+        title = next(
+            (item for item in self.rev_titles if upper.startswith(item + " ")),
+            None,
+        )
+        if title is None:
+            return None
+        name = text[len(title) + 1 :].strip()
+        tokens = name.split()
+        if not tokens or len(tokens) > 4 or not all(_allcaps_token(t) for t in tokens):
+            return None
+        return name, title.title(), self._pa_type
+
+    def parse_author_line(self, text):
+        return super().parse_author_line(text) or self._pa_bare_byline(text)
+
+    def _byline_split(self, line):
+        split = super()._byline_split(line)
+        if split is not None:
+            return split
+        text = self.line_plain_text(line).strip()
+        if self._pa_bare_byline(text) is not None:
+            return text, ""
+        return None
 
     # ------------------------------------------------------- headmatter
     def extract_headmatter(self, headmatter_segs, page1_rules=None) -> dict:

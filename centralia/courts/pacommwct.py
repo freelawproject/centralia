@@ -10,6 +10,7 @@ caption's right column ('BY JUDGE McCULLOUGH   FILED: May 18, 2026').
 from __future__ import annotations
 
 from ._statesupreme import StateSupreme
+from ..models import Block
 
 _BY_KEYS = (
     "OPINION BY ",
@@ -121,7 +122,21 @@ class PennsylvaniaCommonwealthCourt(StateSupreme):
                 best, cut = gap, k
             prev = max(prev, c.get("x1", 0))
         if cut is None:
-            return line
+            # Some generators pad the zones with literal space glyphs rather
+            # than a geometric gap.  Map the visible FILED token back to its
+            # character index and split there.
+            visible = "".join(c.get("text") or "" for c in chars)
+            filed_at = visible.upper().find("FILED")
+            if filed_at < 0:
+                return line
+            seen = 0
+            for k, char in enumerate(chars):
+                if seen >= filed_at:
+                    cut = k
+                    break
+                seen += len(char.get("text") or "")
+            if cut is None:
+                return line
         left = [c for c in chars[:cut] if not (c.get("text") or "").isspace()]
         right = chars[cut:]
         rtext = self.line_plain_text({"chars": right}).strip()
@@ -178,6 +193,30 @@ class PennsylvaniaCommonwealthCourt(StateSupreme):
         BY JUDGE …', 'CONCURRING OPINION BY …'); a bare signature never does, so
         the bare form is the order."""
         op = super().build_opinion(op_start, op_end, **kwargs)
+        page_no, seg, _kind = kwargs["all_segments"][op_start]
+        if seg:
+            exact = self.line_inline_text(seg[0]).strip()
+            parsed = self.parse_author_line(self.line_plain_text(seg[0]).strip())
+            if parsed is not None and " BY " in f" {exact.upper()} ":
+                filed = exact.upper().find("FILED:")
+                if filed > 0:
+                    exact = exact[:filed].rstrip()
+                op.author = parsed[0]
+                op.caption.insert(
+                    0,
+                    Block(
+                        kind="p",
+                        text=exact,
+                        page=page_no,
+                        payload={"role": "byline"},
+                    ),
+                )
         if op.author and "BY" not in op.author.upper().split():
-            op.type = "order"
+            # A role-marked announced byline is still the opinion.  Only a
+            # bare signature-derived author denotes the following order.
+            if not any(
+                (block.payload or {}).get("role") == "byline"
+                for block in op.caption
+            ):
+                op.type = "order"
         return op

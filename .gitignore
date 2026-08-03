@@ -25,3 +25,11 @@ db.sqlite3
 /reference/
 
 .env
+
+# Corpus files pulled from RECAP that are not free-on-PACER written opinions
+# (see output/recap-audit/). Quarantined, not deleted.
+_removed/
+
+# SQLite WAL sidecars
+db.sqlite3-shm
+db.sqlite3-wal
