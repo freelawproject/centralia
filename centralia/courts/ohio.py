@@ -295,6 +295,50 @@ class OhioSupreme(AbbrevTitleSupreme):
         html = html.replace("</em><em>", "").replace("</em> <em>", " ")
         return [{"__hm__": True, "html": html, "rel": 1.0, "align": "L"}] if html else []
 
+    # ------------------------------------------------------------- footnotes
+    def detect_footnote_label(self, line):
+        """Ohio prints a footnote's label as a full-size 'N.' flush at the
+        footnote block's left rail — the same 9.96pt Times as the note's prose,
+        on the same baseline (state_v._turner p4: '1' at x0=108.0, size 9.96,
+        y1=129.39, exactly the glyph metrics of the 'T' that follows it).
+
+        The base detector proves a label by SUPERSCRIPTING — a first char set
+        at least 1.5pt below the line's type size — and there is nothing raised
+        here to see. So every note in the zone read as a continuation, and a
+        document's whole footnote apparatus fused into one entry labelled '?'
+        (31 of the 50 documents in the corpus, four merged notes in
+        state_v._turner alone).
+
+        Unlike South Dakota's hanging number-dot, Ohio gives the label NO
+        hanging indent: the continuation lines sit at the same x0=108.0 rail.
+        What identifies it is that a note's first line OPENS with a bare
+        one-or-two digit integer and a period, at the rail — measured over the
+        corpus, 68 footnote-zone lines match that description and every one of
+        them is a real label (the labels run 1..N in order through each
+        document, with no interior line matching). A wrapped citation year is
+        four digits and cannot match; a mid-note line at the rail never begins
+        with a numbered token."""
+        if abs(line.get("x0", 9999) - self.body_baseline_x0) <= 2:
+            toks = (line.get("text") or "").split()
+            if toks:
+                head = toks[0]
+                num = head[:-1]
+                if head.endswith(".") and num.isdigit() and len(num) <= 2:
+                    return num
+        return super().detect_footnote_label(line)
+
+    def build_footnote(self, label, lines):
+        """Strip the leading 'N.' marker off the note's text — it is the label,
+        which the renderer draws in its own column, not the first word of the
+        prose."""
+        fn = super().build_footnote(label, lines)
+        if fn.paragraphs and label and label.isdigit():
+            tag, txt = fn.paragraphs[0]
+            stripped = txt.lstrip()
+            if stripped.startswith(label + "."):
+                fn.paragraphs[0] = (tag, stripped[len(label) + 1 :].lstrip())
+        return fn
+
     # ------------------------------------------------------------- unbylined
     def find_authors(self, all_segments) -> list:
         """An Ohio clerk order carries no byline: no 'PER CURIAM', no justice

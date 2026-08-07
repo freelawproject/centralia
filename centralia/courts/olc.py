@@ -9,6 +9,7 @@ Legal Counsel' — lifted to the Signature section and used as the author.
 
 from __future__ import annotations
 
+from ..base import BaseExtractor
 from .generic import GenericExtractor
 
 
@@ -22,6 +23,29 @@ class OfficeOfLegalCounsel(GenericExtractor):
     # OLC body is single-spaced small type — its tight line pitch reads as
     # 'notice' to the classifier; keep those segments in the body
     drop_notice_in_body = False
+
+    def find_footnote_separator(self, page):
+        """Fall through to base's measured separator chain.
+
+        OLC prints on a 423pt slip sheet and draws its footnote rule ~72pt wide
+        at the body rail (x0=48.3, the text column's own left edge).  That is a
+        proportionally NORMAL separator — 17% of the sheet, the same share a
+        100pt rule takes on a letter page — but ``GenericExtractor`` screens
+        candidates against a flat 100pt width, which no OLC rule can clear.  The
+        separator therefore read as None on every page carrying a note, and the
+        whole footnote zone was delivered as body prose in 18 of 20 documents.
+
+        ``base.find_footnote_separator`` measures the floor from the page it is
+        given (``footnote_sep_min_width`` -> ~68pt here) and still demands the
+        rule be corroborated by smaller text below it (OLC sets 11pt body over
+        9pt notes), so nothing widens except the sheet-relative floor.  Generic's
+        scan runs first and is left intact — it reaches a little further right
+        (x0 < 100) than base's body-rail window.
+        """
+        sep = super().find_footnote_separator(page)
+        if sep is not None:
+            return sep
+        return BaseExtractor.find_footnote_separator(self, page)
 
     def extract_page_tables(self, page):
         """Rebuild OLC's four-column immigration-status comparison table.

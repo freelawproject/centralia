@@ -2075,7 +2075,13 @@ class BaseExtractor:
         lines.sort(key=lambda l: l["top"])
         sizes = [self._line_type_size(l["chars"]) for l in lines]
         common = Counter(sizes).most_common()
-        body = max((s for s, hits in common if hits >= 3), default=None)
+        # The body is the size the page sets MOST of, not its largest. Taking
+        # the largest made any page whose headings run one step above the body
+        # read the body itself as a footnote zone: la/in_re_henry_l._klein p2
+        # turned the opinion's opening paragraph into a footnote, and
+        # la/monroe p26 swallowed an entire separate writing, because a 15pt
+        # caption outranked the 14pt opinion under it.
+        body = next((s for s, hits in common if hits >= 3), None)
         if body is None:
             return None
 

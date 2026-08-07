@@ -216,12 +216,130 @@ class NewMexicoSupreme(StateSupreme):
         gaps = [b - a for a, b in zip(tops, tops[1:]) if 8 < (b - a) < 40]
         return round(median(gaps), 1) if gaps else 15.0
 
+    # ------------------------------------------------------------- footnotes
+    # Flush footnote numbers found by ``_measure_flush_labels``, as
+    # {page number: {label, …}}. Empty for the Times layout, whose labels are
+    # genuinely raised and belong to the base detector.
+    _nm_flush: dict = {}
+
+    def _nm_flush_label(self, line):
+        """A FLUSH footnote number on ``line``, as ``(label, glued)`` — or None.
+
+        The Arial slip sets a note's number at the note's OWN size, on the
+        note's own baseline, hard against its left rail: '1We note that the
+        district court erred …' is 9.96pt throughout, digit included. Nothing
+        is raised, so the base detector — which proves a label by its smaller
+        glyph — reads the line as ordinary prose, every note on the page fuses
+        into one unlabelled block, and the document reports a single footnote.
+
+        Two measurements separate a number that opens a note from a numeral
+        carried over from the previous line:
+
+        * the number is one or two digits (a carried-over year or page is
+          three or four: '141 (2023)). This Court …', '2013-NMSC-040');
+        * the next glyph opens a sentence — a capital or an opening quote —
+          and the space before it is either nothing at all (the number is set
+          tight against the word, which a citation never is) or a single word
+          space. Punctuation, a hyphen or a lowercase ordinal ('3, Perry',
+          '21-15 fills', '5th Cir.') is a citation.
+
+        A raised label returns None so the Times layout stays with the base
+        test."""
+        chars = [c for c in (line.get("chars") or []) if (c.get("text") or "").strip()]
+        if not chars:
+            return None
+        size = self._line_type_size(line.get("chars") or [])
+        if round(chars[0].get("size", 0), 1) <= size - 1.5:
+            return None
+        digits = []
+        for c in chars:
+            if (c.get("text") or "").isdigit():
+                digits.append(c)
+            else:
+                break
+        if not 1 <= len(digits) <= 2 or len(digits) == len(chars):
+            return None
+        nxt = chars[len(digits)]
+        head = (nxt.get("text") or "")[:1]
+        if not (head.isupper() or head in "“\"‘'"):
+            return None
+        gap = nxt.get("x0", 0) - digits[-1].get("x1", 0)
+        if gap > size * 0.45:  # wider than a word space: a column, not a label
+            return None
+        return "".join(c["text"] for c in digits), gap <= size * 0.12
+
+    def _measure_flush_labels(self, pdf) -> dict:
+        """Which flush numbers really open a note, per page.
+
+        Walked in reading order, because the shape alone is not proof. Both
+        forms have a twin among ordinary footnote prose: a citation carried
+        over from the line above sets a numeral against a capital across a
+        word space ('28 P.3d 1143 (holding that laboratory reports are …'),
+        and a wrapped URL sets one hard against a capital with no space at all
+        ('…uploads/2021/09/Kevin-S.%2' / '0Kevin-S.%20Corrective Action …').
+
+        What the twins cannot imitate is the COUNT. Labels run 1, 2, 3 … in
+        page order through the document, so a flush number is read as a label
+        only when it is the number the document owes next. Raised labels
+        advance the count as well, so both layouts share one sequence.
+
+        ``glued`` is still measured and carried: it is what tells
+        ``build_footnote`` the number is set into the prose and has to be
+        stripped off it."""
+        found: dict = {}
+        expect = 1
+        for page in pdf.pages:
+            sep = self.find_footnote_separator(page)
+            if sep is None:
+                continue
+            zone = sorted(
+                (l for l in self._text_lines(page) if l["top"] >= sep),
+                key=lambda l: l["top"],
+            )
+            for line in zone:
+                raised = super().detect_footnote_label(line)
+                if raised is not None:
+                    if raised.isdigit():
+                        expect = int(raised) + 1
+                    continue
+                shape = self._nm_flush_label(line)
+                if shape is None or int(shape[0]) != expect:
+                    continue
+                found.setdefault(page.page_number, set()).add(shape[0])
+                expect += 1
+        return found
+
+    def detect_footnote_label(self, line):
+        allowed = self._nm_flush
+        if allowed:
+            chars = line.get("chars") or []
+            page_no = (chars[0].get("page_number") if chars else None) or 0
+            shape = self._nm_flush_label(line)
+            if shape is not None and shape[0] in allowed.get(page_no, ()):
+                return shape[0]
+        return super().detect_footnote_label(line)
+
+    def build_footnote(self, label, lines):
+        """Strip the flush number off the note's first paragraph — it is the
+        label, which the renderer draws in its own column. A raised label is
+        already lifted out as a ``<footnotemark>`` by the base."""
+        flush = bool(lines) and self._nm_flush_label(lines[0]) is not None
+        fn = super().build_footnote(label, lines)
+        if flush and fn.paragraphs and label and label.isdigit():
+            tag, txt = fn.paragraphs[0]
+            stripped = txt.lstrip()
+            if stripped.startswith(label):
+                fn.paragraphs[0] = (tag, stripped[len(label) :].lstrip())
+        return fn
+
     def extract(self, pdf_path):
         import pdfplumber
 
         self._nm_dropped = []
+        self._nm_flush = {}
         with pdfplumber.open(pdf_path) as pdf:
             line_h = self._body_line_height(pdf)
+            self._nm_flush = self._measure_flush_labels(pdf)
         # The single-spaced Arial layout needs indent-based quotes + retuned
         # gap bands (its quotes match the body leading); the double-spaced Times
         # layout finds quotes by gap and must be left EXACTLY as-is. Set the

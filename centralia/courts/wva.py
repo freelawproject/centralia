@@ -34,6 +34,8 @@ removed row in the Removed box.
 
 from __future__ import annotations
 
+from typing import Optional
+
 from ._reversedjustice import ReversedJusticeSupreme
 from ._westvirginia import WestVirginiaStyle
 
@@ -138,8 +140,96 @@ class WestVirginiaFiledStamp:
         super()._sweep_residual(doc, source_pages)
 
 
+class WestVirginiaFootnoteRule:
+    """Footnote separator = the SHORT rule at the page's own left text rail.
+
+    Belongs in :mod:`_westvirginia` beside the rest of the shared template —
+    both West Virginia courts publish off it — and lives here for the same
+    reason :class:`WestVirginiaFiledStamp` does.
+
+    West Virginia sets its footnotes at BODY size and raises only the label
+    digit ('8' at 8.52pt opening a 12.96pt line), so the shared 'is the text
+    under the rule smaller?' test cannot see the zone whenever it opens with a
+    line that carries no label — and it opens that way whenever a footnote is
+    carried over from the previous page, which is precisely when the zone is
+    biggest. That test also fenced the rule to the bottom 60% of the sheet, and
+    a carried-over note pushes its own rule far above that: in_re_k.s. p7 rules
+    at 0.22 of the page, in_re_k.l. p16 at 0.32, state_of_west_virginia_ex_rel.
+    p7 at 0.37. Between them, 18 of 50 documents delivered footnote zones as
+    body prose.
+
+    Neither the type size nor the position is read here. The separator is
+    identified by its own geometry against the page's: it is a SHORT rule
+    standing at the page's left text rail. The title-page rule this court file
+    has always had to defend against — the divider between the caption/counsel
+    and the byline, which is also thin and also left-aligned — is a FULL-
+    measure rule, and that is what separates them. Over the 459 thin rules in
+    the corpus the two populations are nowhere near each other: all 400
+    separators span 0.294-0.308 of their page's measured text width, every
+    divider 0.77 or more (the 0.31 figure is the 2-inch Word/CM-ECF footnote
+    rule against a 6.5-inch measure). The remaining rules — caption ornaments
+    under the docket number, the conformed-signature rule over 'Clerk of
+    Court', a rule inside an indented quotation — all stand well inside the
+    rail and drop out on that test alone.
+    """
+
+    # Tolerances, not measurements: everything below is taken from the page.
+    footnote_rule_rail_slack = 4.0
+    footnote_rule_max_measure_frac = 0.5
+    footnote_rule_min_measure_frac = 0.15
+
+    def find_footnote_separator(self, page) -> Optional[float]:
+        lines = page.extract_text_lines()
+        if not lines:
+            return None
+        rail = min(line["x0"] for line in lines)
+        measure = max(line["x1"] - line["x0"] for line in lines)
+        # Some pages stroke a rule as a vector line rather than filling a thin
+        # rect; read both so a stroked separator is not invisible.
+        shapes = [
+            (r["top"], r["x0"], r["x1"])
+            for r in page.rects
+            if abs(r.get("height", 0)) < 2.5
+        ]
+        shapes += [
+            (ln["top"], min(ln["x0"], ln["x1"]), max(ln["x0"], ln["x1"]))
+            for ln in page.lines
+            if abs(ln["bottom"] - ln["top"]) < 2.5
+        ]
+
+        best = None
+        for top, x0, x1 in shapes:
+            width = x1 - x0
+            if x0 - rail > self.footnote_rule_rail_slack:
+                continue
+            if not (
+                measure * self.footnote_rule_min_measure_frac
+                <= width
+                <= measure * self.footnote_rule_max_measure_frac
+            ):
+                continue
+            # A rule drawn across the band of a text line it overlaps is
+            # underlining that text, not opening a zone.
+            if any(
+                line["top"] - 1 <= top <= line["bottom"] + 5
+                and line["x0"] < x1
+                and line["x1"] > x0
+                for line in lines
+            ):
+                continue
+            # A zone with nothing under it is not a zone.
+            if not any(line["top"] > top + 1 for line in lines):
+                continue
+            if best is None or top < best:
+                best = top
+        return best
+
+
 class WestVirginiaSupreme(
-    WestVirginiaFiledStamp, WestVirginiaStyle, ReversedJusticeSupreme
+    WestVirginiaFiledStamp,
+    WestVirginiaFootnoteRule,
+    WestVirginiaStyle,
+    ReversedJusticeSupreme,
 ):
     court_id = "wva"
     court_label = "Supreme Court of Appeals of West Virginia."

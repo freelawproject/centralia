@@ -56,6 +56,16 @@ class WashingtonSupreme(AbbrevTitleSupreme):
     # real prose remains reviewable.
     _CID_FURNITURE = re.compile(r"^(?:\s*\(cid:\d+\)\s*)+$")
 
+    # The family's bottom margin fence sits at y=740, above the deepest line
+    # Washington actually prints. Measured over the corpus, exactly three
+    # non-page-number lines print below 740 — and two of them are footnotes
+    # (polinder's '† See Appendix for a list of all defendants.' at 743.2,
+    # magana-arevalo's footnote 2 at 742.1). The other 511 lines down there
+    # are the bare centered page digits, which ``page_lines`` identifies and
+    # drops by measurement anyway, so the numeric fence buys nothing here and
+    # costs a footnote. Move it below the deepest print.
+    margin_bottom = 750
+
     # ------------------------------------------------------------- byline
     def _abbrev_parse(self, text):
         """One rule for every Washington byline: an ALL-CAPS surname, a
@@ -418,47 +428,141 @@ class WashingtonSupreme(AbbrevTitleSupreme):
         and chops the majority byline into the footnote flow (the 'first
         opinion missing' root cause). Returns the topmost qualifying rule.
 
+        The size comparison must be LOCAL — the type just above the rule
+        against the type just below it. Measuring 'body size' as the modal
+        size over the whole page inverts on exactly the pages that matter:
+        a page carrying four long footnotes runs 921 chars of 13pt note
+        against 751 chars of 14pt body (state_v._thompson p29), so the page
+        mode IS the footnote size and the real separator reads as 'not
+        smaller than body'. That single statistic lost footnotes in 28 of 50
+        wash documents. ``_rule_over_notes`` measures the two bands around
+        the rule instead, which is both correct here and still rejects a
+        caption shelf (caption text above and byline below are the same
+        size, so nothing drops).
+
         Divisions that set footnotes at body size (washctapp) opt into the
         shared structural test instead."""
         if self.footnote_sep_structural:
             return self._footnote_sep_structural(page)
-        from collections import Counter
 
         chars = [c for c in page.chars if (c.get("text") or "").strip()]
         if not chars:
             return None
-        body = Counter(round(c.get("size", 0)) for c in chars).most_common(1)[0][0]
         pw, cutoff = page.width, page.height * 0.45
+        # A footnote long enough to fill the page pushes the NEXT page's rule
+        # far up it — in_re_dependency_of_c.j.j.i. p16 sets its rule at y=259
+        # of 792 and state_v._magana-arevalo p25 at y=295, both well above the
+        # usual band, and both lost their zone to the position test alone. The
+        # band is therefore extended upward, and a candidate found in the
+        # extension has to earn it (``_sets_a_note_column``).
+        reach = page.height * 0.25
 
         cands = []  # tops of thin, left-anchored horizontal rules, lower page
-        for r in page.rects:
+        for r in list(page.rects) + list(page.lines):
             if (
-                r["bottom"] - r["top"] < 2.5
-                and (r["x1"] - r["x0"]) >= 60
-                and r["x0"] < pw * 0.35
-                and r["top"] > cutoff
+                abs(r["bottom"] - r["top"]) < 2.5
+                and abs(r["x1"] - r["x0"]) >= 60
+                and min(r["x0"], r["x1"]) < pw * 0.35
+                and r["top"] > reach
             ):
                 cands.append(r["top"])
-        for ln in page.lines:
-            if (
-                abs(ln["bottom"] - ln["top"]) < 2.5
-                and abs(ln["x1"] - ln["x0"]) >= 60
-                and min(ln["x0"], ln["x1"]) < pw * 0.35
-                and ln["top"] > cutoff
-            ):
-                cands.append(ln["top"])
         for tl in page.extract_text_lines():  # typed underscore rule
             t = (tl.get("text") or "").strip()
-            if len(t) >= 6 and all(c == "_" for c in t) and tl["top"] > cutoff:
+            # Left-anchored, like the drawn rule: Washington types its
+            # SIGNATURE rules as underscore runs too, in the right-hand
+            # signature column ('__________' at x0~340 over 'Melody, J.'), and
+            # they are not footnote separators.
+            if (
+                len(t) >= 6
+                and all(c == "_" for c in t)
+                and tl["x0"] < pw * 0.35
+                and tl["top"] > reach
+            ):
                 cands.append(tl["top"])
 
-        good = []
-        for top in cands:
-            below = [
-                round(c.get("size", 0)) for c in chars if top < c["top"] < top + 24
-            ]
-            # footnote-sized type directly below = a real separator; a caption
-            # shelf has body-size (or larger) text, or none, below it
-            if below and Counter(below).most_common(1)[0][0] < body:
-                good.append(top)
+        # footnote-sized type directly below = a real separator; a caption
+        # shelf carries the same body/caption size above and below it
+        good = [
+            top
+            for top in sorted(set(cands))
+            if self._rule_over_notes(page, top)
+            and not self._has_signature_twin(page, top)
+            and (top > cutoff or self._sets_a_note_column(page, top))
+        ]
         return min(good) if good else None
+
+    def _has_signature_twin(self, page, rule_top) -> bool:
+        """Is ``rule_top`` the left half of a two-column SIGNATURE roster?
+
+        Washington rules off its signature roster in two columns — one rule
+        at the body rail and a companion on the same baseline in the right
+        half (in_re_recall_of_hobbs p6 draws four such pairs at 51pt pitch).
+        The left rule of a pair has exactly the footnote separator's
+        geometry, so width and position cannot tell them apart; the
+        COMPANION can. A footnote separator never has one."""
+        return any(
+            abs(r["top"] - rule_top) < 1 and min(r["x0"], r["x1"]) > page.width * 0.5
+            for r in list(page.rects) + list(page.lines)
+        )
+
+    def _sets_a_note_column(self, page, rule_top) -> bool:
+        """Extra corroboration for a rule found ABOVE the usual footnote band.
+
+        High on the page, a thin left-anchored rule is far more often a
+        SIGNATURE rule than a footnote separator, so the rule has to be
+        followed by something shaped like a footnote column: a footnote
+        column is SET SOLID — its lines follow at footnote leading (13.8pt on
+        12pt type) — while a signature roster leaves the signing space open
+        (a 51-300pt gap between lines)."""
+        below = [
+            ln
+            for ln in page.extract_text_lines()
+            if ln["top"] > rule_top and (ln.get("chars") or [])
+        ]
+        if len(below) < 3:
+            return False
+        tops = sorted(ln["top"] for ln in below)
+        gaps = sorted(b - a for a, b in zip(tops, tops[1:]))
+        lead = gaps[len(gaps) // 2]
+        sizes = sorted(self._line_type_size(ln["chars"]) for ln in below)
+        return lead <= sizes[len(sizes) // 2] * 1.5
+
+    def _rule_over_notes(self, page, rule_top) -> bool:
+        """Is ``rule_top`` a footnote separator rather than a caption shelf?
+
+        Read the type on both sides of the rule and require it to DROP.
+        Equal type above and below is the caption shelf (caption block above,
+        byline below) — the 'first opinion missing' root cause — and is
+        always rejected.
+
+        How big a drop counts is not one number, because Washington does not
+        set one. Most files drop a full point or more (14.04 body over 12.96
+        note, state_v._thompson); j.m.i. drops 12.96 to 12.48, well inside
+        the shared test's 0.75pt margin, so requiring that margin alone
+        loses its footnote 6. A small drop is real when the typesetter
+        corroborates it the other way a footnote zone is marked — a RAISED
+        label on the first line beneath the rule (j.m.i.'s '6' at 8.04pt on a
+        12.48pt line). So: an unambiguous drop stands on its own; a narrow
+        one needs the label."""
+        from statistics import median
+
+        above, below = [], []
+        for ln in page.extract_text_lines():
+            sizes = [c["size"] for c in (ln.get("chars") or []) if c.get("size")]
+            if not sizes:
+                continue
+            med = median(sizes)
+            if rule_top - 120 <= ln["top"] < rule_top:
+                above.append(med)
+            elif rule_top < ln["top"] <= rule_top + 200:
+                below.append(med)
+        if not below:
+            return False  # nothing below -> not a separator
+        if not above:
+            return True  # a page that opens in the footnote zone
+        drop = median(above) - median(below)
+        if drop <= 0:
+            return False
+        if drop > 0.75:
+            return True
+        return self._labelled_note_below(page, rule_top)
