@@ -17,6 +17,104 @@ class ThirdCircuit(FederalCircuitBase):
     court_id = "ca3"
     court_label = "United States Court of Appeals for the Third Circuit."
     circuit_phrase = "third circuit"
+
+    # Headmatter criteria: typed rules; 'Before:' roster runs the argued/decided dates on the same row.
+    parse_criteria_enabled = True
+    criteria_lift_publication = True
+    counsel_label_trails = True
+    # CA3 runs the roster onto the submission row and the origin onto the
+    # caption's last row; both splits now live in the family base.
+    roster_can_share_row = True
+    history_can_share_row = True
+
+    # CA3 usually prints no appearances at all — court, docket, case name,
+    # prior history, then the roster or a submission/filing date. Where it DOES
+    # print them, the identifying label comes AFTER the names:
+    #     Donovan J. Cocas  Laura S. Irwin  OFFICE OF UNITED STATES ATTORNEY...
+    #     Counsel for Appellee
+    # so the block is claimed backwards from its label (see
+    # ``counsel_label_trails``). Everything else stays unrecorded.
+
+    # CA3 runs the submission line and the panel roster together on ONE row:
+    #   'Submitted Pursuant to Third Circuit LAR 34.1(a) June 5, 2026
+    #    Before:  BIBAS, CHUNG, and ROTH, Circuit Judges'
+    # Every other circuit opens the roster at the start of its own row, so the
+    # shared opener test never sees this one and the panel goes unread.
+    # The qualifiers CA3 puts in front of the bench word, so the clause is
+    # taken from its start ('Magistrate Judge ...') and not from 'Judge'.
+    _BENCH_QUALIFIERS = (
+        "district", "magistrate", "circuit", "chief", "senior", "bankruptcy",
+        "u.s.", "us", "united", "states", "honorable",
+    )
+
+    @staticmethod
+    def _split_lower_docket(text):
+        """(forum, lower docket, lower judge) for CA3's own history line.
+
+        CA3 states all three inline and in two different arrangements:
+
+            ... for the Middle District of Pennsylvania
+                (District Court No.: 3:23-cr-00095-001)
+                District Judge: Honorable Julia K. Munley
+            ... the U.S. District Court, D.N.J.
+                Magistrate Judge Cathy L. Waldor, No. 2:17-cv-07386
+
+        The shared reader knows the bracketed CA1 judge and the CA11 'D.C.
+        Docket No.' marker, neither of which CA3 prints, so it left the whole
+        sentence in ``prior_history``. Read the parenthesis and the bench
+        clause out of it first, then hand the remainder to the family reader
+        for anything it still recognises."""
+        docket = judge = None
+        # The parenthesised docket — '(District Court No.: 3:23-cr-00095-001)'.
+        open_at = text.find("(")
+        if open_at >= 0:
+            close_at = text.find(")", open_at)
+            inner = (text[open_at + 1 : close_at] if close_at > open_at
+                     else text[open_at + 1 :]).strip()
+            if "No" in inner and any(c.isdigit() for c in inner):
+                docket = inner
+                end = close_at + 1 if close_at > open_at else len(text)
+                text = (text[:open_at] + " " + text[end:]).strip()
+        # The bench clause — from its qualifier to the comma that closes it,
+        # or to the end of the line where nothing closes it.
+        tokens = text.split()
+        for i, tok in enumerate(tokens):
+            if tok.strip(".,:;").lower() != "judge":
+                continue
+            start = i
+            while start and tokens[start - 1].strip(".,:").lower() \
+                    in ThirdCircuit._BENCH_QUALIFIERS:
+                start -= 1
+            end = len(tokens)
+            for j in range(i + 1, len(tokens)):
+                if tokens[j].endswith(","):
+                    end = j + 1
+                    break
+            judge = " ".join(tokens[start:end]).strip(" ,")
+            tokens = tokens[:start] + tokens[end:]
+            text = " ".join(tokens)
+            break
+        forum, more_docket, more_judge = FederalCircuitBase._split_lower_docket(text)
+        # What is left can still carry a bare 'No. 2:17-cv-07386'.
+        if docket is None and more_docket is None:
+            at = forum.find("No. ")
+            if at > 0 and any(c.isdigit() for c in forum[at:]):
+                docket = forum[at:].strip(" ,.")
+                forum = forum[:at].strip(" ,")
+        return forum.strip(" ,"), docket or more_docket, judge or more_judge
+
+    def _tail_kind(self, text):
+        """CA3 tags the advocate who argued inside the appearance itself —
+        'Joel S. Sansone (Argued) Law Offices of Joel Sansone 603 Stanwix
+        Street ...', 'Christian T. Haugsby [ARGUED]'. That marker is the
+        court's own announcement that the row is an appearance, and it is the
+        only announcement the first entry of a block carries: the 'Counsel for
+        Appellant' label comes at the END of the entry, not the start."""
+        flat = " ".join(text.split()).lower()
+        if "(argued)" in flat or "[argued]" in flat:
+            return "counsel"
+        return super()._tail_kind(text)
+
     # Published CA3 opinions use a narrow x≈144..468 body measure. The federal
     # default x≈72 makes ordinary prose appear deeply indented and therefore
     # quote-like.
@@ -79,8 +177,14 @@ class ThirdCircuit(FederalCircuitBase):
 
     def find_footnote_separator(self, page):
         """CA3's 144pt footnote rule is anchored at the body rail x≈144."""
+        # The rule sits AT the body rail on most of the corpus and INDENTED
+        # from it on some documents (x0=162 against a 144pt rail), so the
+        # window has to reach right as well. A 144pt rule in that band is the
+        # footnote separator by construction; the tight +/-4 window missed the
+        # indented form and the label-scan fallback then picked a line far
+        # below it, dropping the footnotes in between (3 and 6 here).
         separator = self._sep_at(
-            page, self.body_baseline_x0 - 4, self.body_baseline_x0 + 4
+            page, self.body_baseline_x0 - 4, self.body_baseline_x0 + 24
         )
         if separator is not None:
             return separator

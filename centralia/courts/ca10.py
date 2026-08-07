@@ -12,6 +12,10 @@ class TenthCircuit(FederalCircuitBase):
     court_id = "ca10"
     court_label = "United States Court of Appeals for the Tenth Circuit."
     circuit_phrase = "tenth circuit"
+
+    # Headmatter criteria: PUBLISH flag; caption BLOCK carries the docket, so no docket zone.
+    parse_criteria_enabled = True
+    criteria_lift_publication = True
     # ca10 has no centered 'No. <docket>' running header; the body opens at
     # top~75 while the only top-margin furniture (the 'Appellate Case: …
     # Document: … Date Filed: …' CM/ECF band) sits at top~23. The inherited
@@ -42,40 +46,16 @@ class TenthCircuit(FederalCircuitBase):
     # Tenth Circuit / <clerk> / Clerk of Court') is set in 12pt bold Times; the
     # centered court banner is 13pt, so this drops the stamp and keeps the banner.
     efile_stamp_font = "TimesNewRomanPS-BoldMT"
-    efile_stamp_size = 12.0
+    # The block is 12pt but the filing DATE inside it is 14pt.
+    efile_stamp_size = (12.0, 14.0)
 
-    def _maybe_drop_running_header(self, page, lines):
-        lines = super()._maybe_drop_running_header(page, lines)
-        if page.page_number != 1:
-            return lines
-        kept = []
-        for line in lines:
-            text = self.line_plain_text(line).strip()
-            low = text.lower()
-            if (
-                line.get("top", 999) < 180
-                and (
-                    "clerk of court" in low
-                    or low == "christopher m. wolpert"
-                    or low == "for the tenth circuit"
-                )
-            ):
-                self._record_dropped(text)
-                continue
-            kept.append(line)
-        return kept
-
-    def page_lines(self, page):
-        lines = super().page_lines(page)
-        kept = []
-        for line in lines:
-            text = self.line_plain_text(line).strip()
-            low = text.lower()
-            if "clerk of court" in low and line.get("top", 999) < 220:
-                self._record_dropped(text)
-                continue
-            kept.append(line)
-        return kept
+    # NOTE: CA10 used to delete 'FOR THE TENTH CIRCUIT', 'Clerk of Court' and
+    # the clerk's name by matching those exact strings near the top of page 1.
+    # That was a workaround for the stamp MERGING with the banner beside it,
+    # and it deleted the court's own banner line along with the stamp. The
+    # font+size stamp filter now separates the two structurally (see
+    # ``_is_stamp_char``), so the name list is gone: nothing here is matched by
+    # what it says, only by how it is set.
 
     def _sweep_residual(self, doc, source_pages):
         # Some CA10 clerk stamps are outside the extractor's text-line margin

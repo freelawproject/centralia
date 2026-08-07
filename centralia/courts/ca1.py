@@ -18,6 +18,11 @@ class FirstCircuit(FederalCircuitBase):
     # disciplinary action…') or left as a stray '- 13 -' body block.
     fold_page_numbers = True
 
+    # CA1 rules its headmatter with DRAWN dividers into the same zone
+    # sequence: court, docket + case caption (one zone), prior history with
+    # the district judge in brackets, panel, counsel, date filed.
+    parse_criteria_enabled = True
+
     # The clerk's sign-off that closes an order of court.
     _CLERK_ATTEST = "by the court"
 
@@ -119,7 +124,16 @@ class FirstCircuit(FederalCircuitBase):
         early). Match CA1's separator by its exact ≈144pt width instead, so a
         real page-1 footnote rule (e.g. buckley's '*' note) still registers
         while a counsel underline does not."""
-        cutoff = page.height * 0.55
+        # The 'bottom of the page' guard belongs to the CAPTION PAGE ONLY.
+        # Counsel underlines are a page-1 hazard, and page 1 is where a false
+        # positive is costly. On a later page the guard has nothing to protect
+        # against and only does harm: a LONG footnote starts high, so a rule at
+        # top=385 on a 792pt page (footnote 2 here, and 18 on page 41) fell
+        # under a flat 0.55 cutoff and the whole note was never read as a
+        # footnote — it simply vanished, with the label sequence left jumping
+        # 1 -> 3 and nothing flagged.
+        first_page = page.page_number == getattr(self, "_caption_pno", 1)
+        cutoff = page.height * (0.55 if first_page else 0.22)
         text_lines = page.extract_text_lines()
 
         def is_underline(r):

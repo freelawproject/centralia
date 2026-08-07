@@ -71,14 +71,25 @@ _CSS = """
   h2.sec .raw-tag, h2.sec .count { float: right; font-weight: normal;
            letter-spacing: .04em; text-transform: none; }
   h2.sec .raw-tag { color: var(--accent); }
-  .headmatter .raw, .syllabus .raw, .headnotes .raw { background: #faf8f4;
+  .headmatter .raw, .syllabus .raw, .headnotes .raw, .attorneys .raw { background: #faf8f4;
                      border: 1px solid var(--rule);
                      border-radius: .3rem; padding: .9rem 1.1rem; }
   .rawline { font-family: ui-monospace, monospace; font-size: .8rem;
              line-height: 1.5; color: #333; white-space: pre-wrap;
              word-break: break-word; }
   .rawline .centered { display: block; text-align: center; }  /* keep centering */
+  .rawline .flushright { display: block; text-align: right; }  /* keep right margin */
   .hmline { line-height: 1.45; color: #222; }
+  details.crit > summary { cursor: pointer; }
+  details.crit .crit-body { background: #faf8f4; border: 1px solid var(--rule);
+             border-radius: .3rem; padding: .7rem 1rem; margin-top: .5rem; }
+  .crit-row { display: flex; gap: .8rem; align-items: baseline;
+              padding: .12rem 0; font-size: .82rem; }
+  .crit-k { flex: 0 0 9rem; font-family: ui-monospace, monospace;
+            color: #7a1f1f; text-align: right; }
+  .crit-v { flex: 1; min-width: 0; color: #222; word-break: break-word; }
+  .crit-case { margin: .55rem 0 .2rem; font-size: .82rem; color: #555; }
+  .crit-block { white-space: normal; line-height: 1.45; }
   .hm-logo { display: block; margin: 0 auto .9rem; max-height: 90px;
              width: auto; }
   hr.divider { border: 0; border-top: 1px solid #999; margin: .55rem auto;
@@ -152,6 +163,7 @@ _CSS = """
                         font-size: .78rem; background: #faf8f4; padding: .75rem;
                         border-radius: .3rem; }
   .centered { display: block; text-align: center; }
+  .flushright { display: block; text-align: right; }
   .warnings { background: #fff5f5; border: 1px solid #f0c0c0; color: #7a1f1f;
               padding: .6rem .9rem; border-radius: .3rem; margin-bottom: 1.5rem;
               font-size: .85rem; }
@@ -238,8 +250,10 @@ def _render_content(doc: ExtractedDocument) -> list:
     out.extend(_render_fingerprint(doc))
     out.extend(_render_dropped(doc))
     out.extend(_render_headmatter(doc))
+    out.extend(_render_criteria(doc))
     out.extend(_render_headnotes(doc))
     out.extend(_render_syllabus(doc))
+    out.extend(_render_attorneys(doc))
     out.extend(_render_opinions(doc))
     out.extend(_render_signature(doc))
     out.extend(_render_trailer(doc))
@@ -542,6 +556,109 @@ def _render_headnotes(doc: ExtractedDocument) -> list:
     return out
 
 
+def _render_attorneys(doc: ExtractedDocument) -> list:
+    """The COUNSEL block — who argued and who was on the brief.
+
+    Its own section rather than a run of headmatter rows: the reporter prints
+    it under its own heading, and leaving it in the caption made a page of
+    counsel read as though it were part of the case caption."""
+    text = getattr(doc, "attorneys", None)
+    if not text:
+        return []
+    # The criteria panel already lists counsel when the headmatter parse found
+    # it, and ``attorneys`` is mirrored from that same text — render it once,
+    # in the parsed area, rather than twice under two headings.
+    if (getattr(doc, "criteria", None) or {}).get("counsel"):
+        return []
+    out = [
+        '<section class="block attorneys">',
+        '<h2 class="sec">Counsel</h2>',
+        '<div class="raw">',
+    ]
+    for line in str(text).split("\n"):
+        if not line.strip():
+            out.append('<div class="rawgap"></div>')
+        else:
+            out.append(f'<div class="rawline">{_inline_to_html(line)}</div>')
+    out.append("</div></section>")
+    return out
+
+
+def _render_criteria(doc: ExtractedDocument) -> list:
+    """The structured headmatter criteria, collapsed.
+
+    Rendered — not merely stored — for two reasons. The reviewer needs to see
+    what the dissection actually pulled out in order to trust it, and a row the
+    court lifts OUT of the headmatter (CA11's 'FOR PUBLICATION') has no other
+    home on the page; the audit only excuses text the reader can reach."""
+    crit = getattr(doc, "criteria", None)
+    if not crit:
+        return []
+
+    def row(label, value):
+        return (
+            f'<div class="crit-row"><span class="crit-k">{escape(str(label))}</span>'
+            f'<span class="crit-v">{_inline_to_html(str(value))}</span></div>'
+        )
+
+    cases = crit.get("cases") or []
+    n = len(cases)
+    label = "Parsed criteria" + (f" · {n} cases heard together" if n > 1 else "")
+    out = [
+        '<section class="block criteria">',
+        f'<details class="crit" open><summary class="sec">{escape(label)}'
+        ' <span class="raw-tag">parsed</span></summary>',
+        '<div class="crit-body">',
+    ]
+    def block_row(label, value):
+        """A row whose value keeps its own line structure (caption, counsel)."""
+        body = "<br>".join(
+            _inline_to_html(line) if line.strip() else ""
+            for line in str(value).split("\n")
+        )
+        return (
+            f'<div class="crit-row"><span class="crit-k">{escape(str(label))}</span>'
+            f'<span class="crit-v crit-block">{body}</span></div>'
+        )
+
+    for key in ("headmatter_style", "publication", "title", "court",
+                "short_case_name", "term", "date_filed",
+                "date_argued", "date_argued_and_submitted", "date_submitted",
+                "date_decided", "date_decided_and_filed", "date_reargued",
+                "date_amended", "summary", "panel_line", "disposition"):
+        if crit.get(key):
+            out.append(row(key.replace("_", " "), crit[key]))
+    if crit.get("panel"):
+        out.append(row("panel", " · ".join(crit["panel"])))
+    for i, case in enumerate(cases, 1):
+        head = f"case {i}" if n > 1 else "case"
+        out.append(f'<div class="crit-case"><b>{escape(head)}</b></div>')
+        for key in ("docket", "case_name", "prior_history",
+                    "lower_court", "lower_docket", "lower_judge"):
+            if case.get(key):
+                out.append(row(key.replace("_", " "), case[key]))
+        # The CAPTION keeps its own line structure — the party rows, their status
+        # labels, the hinge, and the blank line where the page separates one
+        # consolidated case's parties from the next. Flattened into one row it
+        # reads as a run-on list.
+        if case.get("caption_text"):
+            out.append(block_row("caption", case["caption_text"]))
+    if crit.get("counsel"):
+        # ONE BLOCK, spacing intact — the empty rows are what separate one
+        # side's appearance from the other's. Listed line by line under a
+        # repeated label the entries ran together.
+        body = "<br>".join(
+            _inline_to_html(line) if line.strip() else ""
+            for line in str(crit["counsel"]).split("\n")
+        )
+        out.append(
+            '<div class="crit-row"><span class="crit-k">counsel</span>'
+            f'<span class="crit-v crit-block">{body}</span></div>'
+        )
+    out.append("</div></details></section>")
+    return out
+
+
 def _render_syllabus(doc: ExtractedDocument) -> list:
     """Official syllabus / case summary that precedes the opinion (Colorado's
     SUMMARY page, Connecticut's Syllabus) — its own block, not opinion body."""
@@ -781,10 +898,21 @@ def _render_headmatter(doc: ExtractedDocument) -> list:
     """Raw, unparsed pre-opinion content, verbatim and at the top. Structured
     caption parsing is deliberately deferred — this is the dump."""
     court_class = " court-bap6" if doc.court_id == "bap6" else ""
-    out = [
-        f'<section class="block headmatter{court_class}">',
-        '<h2 class="sec">Headmatter <span class="raw-tag">raw</span></h2>',
-    ]
+    # When the headmatter has been DISSECTED, the parsed panel above is the
+    # useful view and this raw dump is the backup — so collapse it. Where no
+    # criteria were parsed the dump is all there is, and it stays open.
+    parsed = bool(getattr(doc, "criteria", None))
+    if parsed:
+        out = [
+            f'<section class="block headmatter{court_class}">',
+            '<details class="crit"><summary class="sec">Headmatter'
+            ' <span class="raw-tag">raw</span></summary>',
+        ]
+    else:
+        out = [
+            f'<section class="block headmatter{court_class}">',
+            '<h2 class="sec">Headmatter <span class="raw-tag">raw</span></h2>',
+        ]
     if (
         doc.summary
         and isinstance(doc.summary[0], dict)
@@ -949,6 +1077,8 @@ def _render_headmatter(doc: ExtractedDocument) -> list:
         for fn in doc.headmatter_footnotes:
             out.append(_render_footnote(fn))
         out.append("</div>")
+    if parsed:
+        out.append("</details>")
     out.append("</section>")
     return out
 
@@ -1147,6 +1277,8 @@ def _inline_to_html(text: str) -> str:
         .replace("</footnotemark>", "</sup>")
         .replace("<centered>", '<span class="centered">')
         .replace("</centered>", "</span>")
+        .replace("<flushright>", '<span class="flushright">')
+        .replace("</flushright>", "</span>")
     )
     return _rewrite_pagenumbers(text)
 

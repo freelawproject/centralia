@@ -4,8 +4,13 @@
 <h1>{{ doc.stem }}</h1>
 <div class="badge">{{ doc.doc_type }} · {{ doc.n_pages }} pages · coverage {{ doc.coverage }}%{% if doc.suspect %} · <span class="susp">⚠ suspect</span>{% endif %}</div>
 {% if dropped or residual %}<h2 class="sec">Removed (notices / furniture)</h2><div class="raw">{% for d in dropped %}<div class="rawline">{{ d }}</div>{% endfor %}{% for r in residual %}{% if r.kind != 'furniture' %}<div class="rawline">⚠ unplaced content <span class="pill">p{{ r.page }}</span> {{ r.text }}</div>{% endif %}{% endfor %}{% for r in residual %}{% if r.kind == 'furniture' %}<div class="rawline">furniture <span class="pill">p{{ r.page }}</span> {{ r.text }}</div>{% endif %}{% endfor %}</div>{% endif %}
-<h2 class="sec">Headmatter</h2><div class="raw">{{ headmatter }}</div>
+{% if criteria %}<details class="crit" open><summary class="sec">Parsed criteria</summary>
+<div class="crit-body">
+{% for label, value, is_case in criteria %}{% if is_case %}<div class="crit-case"><b>{{ label }}</b></div>{% else %}<div class="crit-row"><span class="crit-k">{{ label }}</span><span class="crit-v">{{ value }}</span></div>{% endif %}{% endfor %}
+</div></details>{% endif %}
+{% if criteria %}<details class="crit"><summary class="sec">Headmatter <span style="color:#7a1f1f">raw</span></summary><div class="raw">{{ headmatter }}</div></details>{% else %}<h2 class="sec">Headmatter</h2><div class="raw">{{ headmatter }}</div>{% endif %}
 {% if headnotes %}<h2 class="sec">Headnotes <span class="pill">not part of the opinion</span></h2><div class="raw">{{ headnotes }}</div>{% endif %}
+{% if attorneys and show_attorneys %}<h2 class="sec">Counsel</h2><div class="raw">{{ attorneys }}</div>{% endif %}
 {% if syllabus %}<h2 class="sec">Syllabus <span class="pill">not part of the opinion</span></h2><div class="raw">{{ syllabus }}</div>{% endif %}
 <h2 class="sec">Opinions <span class="pill">{{ opinions|length }}</span></h2>
 {% for o in opinions %}<section class="opinion">

@@ -107,6 +107,13 @@ class BaseAlaskaExtractor(BaseExtractor):
         out = [lines[0]]
         for ln in lines[1:]:
             prev = out[-1]
+            # The caption's two columns share a baseline but are NOT one line:
+            # ``page_lines`` has just split them at the ')' rail, and merging
+            # them back is what produced 'ANITA THORNE, ) Supreme Court No.
+            # S-19231' as a single run with the rail glued mid-text.
+            if prev.get("_caption_col") != ln.get("_caption_col"):
+                out.append(ln)
+                continue
             overlap = min(prev["bottom"], ln["bottom"]) - max(
                 prev["top"], ln["top"]
             )
@@ -352,15 +359,40 @@ class BaseAlaskaExtractor(BaseExtractor):
     # ---------------------------------------------------------------- caption
     def find_caption_divider(self, page):
         """(x, top, bottom) of the caption column divider, or None. A vertical
-        rect/line (Ct of App) or a column of `)` chars (Supreme)."""
+        rect/line (Ct of App) or a column of `)` chars (Supreme).
+
+        A divider has to DIVIDE: it only counts when the caption sets text on
+        both sides of it within its own vertical span. Without that test a bar
+        drawn down the left margin qualified on height alone (x=76 on a 612pt
+        page), and since every caption line then fell to its right the left
+        column came out empty and the whole caption read as one column."""
+        def divides(x, top, bottom):
+            left = right = False
+            for c in page.chars:
+                if not (top - 2 <= c["top"] <= bottom + 2):
+                    continue
+                if not (c.get("text") or "").strip():
+                    continue
+                if c["x1"] <= x - 2:
+                    left = True
+                elif c["x0"] >= x + 2:
+                    right = True
+                if left and right:
+                    return True
+            return False
+
         for r in page.rects:
             if r["width"] < 2 and r["height"] > 30:
-                return r["x0"], r["top"], r["bottom"]
+                if divides(r["x0"], r["top"], r["bottom"]):
+                    self._alaska_rail = None  # drawn, not a glyph rail
+                    return r["x0"], r["top"], r["bottom"]
         for ln in page.lines:
             x0 = ln["x0"]
             x1 = ln.get("x1", x0)
             if abs(x1 - x0) < 2 and (ln["bottom"] - ln["top"]) > 30:
-                return x0, ln["top"], ln["bottom"]
+                if divides(x0, ln["top"], ln["bottom"]):
+                    self._alaska_rail = None
+                    return x0, ln["top"], ln["bottom"]
         from collections import Counter
 
         paren_chars = [c for c in page.chars if c.get("text") == ")"]
@@ -371,11 +403,12 @@ class BaseAlaskaExtractor(BaseExtractor):
         if count < 3:
             return None
         matching = [c for c in paren_chars if abs(c["x0"] - bucket_x) < 2]
-        return (
-            float(bucket_x),
-            min(c["top"] for c in matching),
-            max(c["bottom"] for c in matching),
-        )
+        top = min(c["top"] for c in matching)
+        bottom = max(c["bottom"] for c in matching)
+        if not divides(float(bucket_x), top, bottom):
+            return None
+        self._alaska_rail = ")"
+        return float(bucket_x), top, bottom
 
     def page_lines(self, page):
         """Extract lines, column-splitting caption rows that span a vertical
@@ -419,10 +452,18 @@ class BaseAlaskaExtractor(BaseExtractor):
                 and obj["x0"] >= div_x
             )
 
+        # Remember the rail so ``extract_headmatter`` can rebuild the caption
+        # as two real columns rather than as space-padded text.
+        self._alaska_divider = divider
+
         lines = []
         lines += self._text_lines(page.filter(outside_caption))
-        lines += self._text_lines(page.filter(left_of_divider))
-        lines += self._text_lines(page.filter(right_of_divider))
+        for ln in self._text_lines(page.filter(left_of_divider)):
+            ln["_caption_col"] = "L"
+            lines.append(ln)
+        for ln in self._text_lines(page.filter(right_of_divider)):
+            ln["_caption_col"] = "R"
+            lines.append(ln)
         lines.sort(key=lambda l: (l["top"], l["x0"]))
         lines = self._merge_interleaved(lines)
         self._tag_underlined_chars(page, lines)
@@ -476,6 +517,34 @@ class BaseAlaskaExtractor(BaseExtractor):
             "judges": None,
             "otherdocket": None,
         }
+        # Measure this document's own glyph advance for the caption
+        # reconstruction below (see ``_layout_rows``).
+        # Measure the advance of the CAPTION's own face. Averaging every
+        # headmatter line together answers the wrong question: the notice above
+        # the banner is set 11pt italic (advance ~5.9) and the caption 13.6pt
+        # (~8.4), so a single median lands on neither and the columns stay out
+        # of true. Take the dominant size among the lines being laid out and
+        # measure only those.
+        sized = [
+            (round(self.line_meta(ln)[0], 1), ln)
+            for seg in headmatter_segs
+            for ln in seg
+            if (ln.get("text") or "").strip()
+            and len((ln.get("text") or "").strip()) > 12
+            and ln.get("x1") is not None
+        ]
+        if sized:
+            from collections import Counter
+
+            main = Counter(sz for sz, _ in sized).most_common(1)[0][0]
+            widths = sorted(
+                (ln["x1"] - ln["x0"]) / len((ln.get("text") or "").strip())
+                for sz, ln in sized
+                if sz == main
+            )
+            if widths:
+                self._caption_char_w = widths[len(widths) // 2]
+
         party_lines = []
         summary_pos = []  # (page, top, x0, text) for layout-preserved summary
         notice_lines = []
@@ -496,6 +565,7 @@ class BaseAlaskaExtractor(BaseExtractor):
                 if not text:
                     continue
 
+                col = line.get("_caption_col")
                 if not seen_banner:
                     if self._is_banner(text):
                         seen_banner = True
@@ -505,6 +575,7 @@ class BaseAlaskaExtractor(BaseExtractor):
                                 round(line["top"]),
                                 line["x0"],
                                 text,
+                                col,
                             )
                         )
                     else:
@@ -517,6 +588,7 @@ class BaseAlaskaExtractor(BaseExtractor):
                         round(line["top"]),
                         line["x0"],
                         text,
+                        col,
                     )
                 )
                 x0 = line["x0"]
@@ -566,13 +638,29 @@ class BaseAlaskaExtractor(BaseExtractor):
         # recover it from the unfiltered page-one rule spans by its caption
         # measure and left anchor. Short opinion-label underlines and genuine
         # footnote rules occupy different width bands.
+        # ... but never a rule that is part of a caption BOX. An order drawn in
+        # a ruled box puts its top and bottom edges at exactly this measure and
+        # left anchor, and recovering them added the box's own borders as
+        # free-standing dividers above and below the caption.
+        #
+        # Only a DRAWN divider can belong to a box. Where the columns are held
+        # by a ')' glyph rail there are no borders to confuse, and the rule the
+        # recovery exists for sits directly under the rail's last glyph — so
+        # excluding the rail's own span there deleted the caption's closing
+        # rule instead.
+        div = getattr(self, "_alaska_divider", None)
+        boxed = div is not None and getattr(self, "_alaska_rail", None) is None
         for top, x0, x1 in getattr(self, "_p1_rule_spans", []):
             width = x1 - x0
+            if boxed and div[1] - 2 <= top <= div[2] + 8:
+                continue
             if x0 < 100 and page1_rules is not None and 200 <= width <= 270:
                 if not any(abs(top - seen) < 3 for seen in divider_tops):
                     divider_tops.append(top)
         for top in sorted(divider_tops):
-            summary_pos.append((cap_page, round(top), 72.0, self.HEADMATTER_DIVIDER))
+            summary_pos.append(
+                (cap_page, round(top), 72.0, self.HEADMATTER_DIVIDER, None)
+            )
 
         out["parties"] = party_lines
         out["summary"] = self._layout_rows(summary_pos)
@@ -621,17 +709,102 @@ class BaseAlaskaExtractor(BaseExtractor):
                 return " ".join(words[i:]).strip()
         return None
 
-    @staticmethod
-    def _layout_rows(items: list) -> list:
-        """Reconstruct the caption's visual layout: lines sharing a row (same
-        ``top``) are placed on one text line, each at a column derived from its
-        x0, so the two-column caption lines up when rendered in a whitespace-
-        preserving block. Page number is the primary key; sorting by ``top``
-        alone moves a page-two continuation above page-one caption material."""
+    def _layout_rows(self, items: list, char_w: float = None) -> list:
+        """Emit the headmatter rows.
+
+        The caption itself comes out as ONE ``__caption__`` block holding its
+        two real columns and the ')' rail between them. It used to be rebuilt
+        as space-padded plain text on a measured glyph advance — a positional
+        facsimile, which the project's headmatter rule rejects — and because a
+        proportional face never lines up on a character grid the columns drifted
+        and the rail landed mid-word ('ALASKA DEMOCRATIC PARTY and)').
+
+        Everything outside the caption zone (the banner above it, the appeal
+        history / appearances / panel below it) stays a plain row: those run the
+        full measure and have no column structure to keep."""
         if not items:
             return []
+        items = [it if len(it) > 4 else (*it, None) for it in items]
         items.sort(key=lambda r: (r[0], r[1], r[2]))
-        char_w = 6.2  # approx caption glyph advance (pt)
+
+        # The rail is what the page actually drew: ')' for a glyph rail, and
+        # nothing for a divider drawn as a rect/line — claiming ')' for a drawn
+        # divider put a paren rail between columns the page rules with a line.
+        rail = getattr(self, "_alaska_rail", None) if getattr(
+            self, "_alaska_divider", None
+        ) else None
+        out_rows = []
+        pending_left, pending_right = [], []
+
+        def flush_caption():
+            if not (pending_left or pending_right):
+                return
+            out_rows.append(
+                {
+                    "__caption__": True,
+                    "left": list(pending_left),
+                    "right": list(pending_right),
+                    "rail": rail,
+                }
+            )
+            pending_left.clear()
+            pending_right.clear()
+
+        plain_items = []
+        for page, top, x0, text, col in items:
+            if col is None:
+                # A caption row already open must close before this row, so the
+                # banner above and the appeal history below stay in document
+                # order around the block.
+                if pending_left or pending_right:
+                    plain_items.append(None)  # placeholder: caption sits here
+                    flush_caption()
+                plain_items.append((page, top, x0, text))
+                continue
+            body = text.strip()
+            if col == "L":
+                body = body.rstrip(") ").strip()
+                if body:
+                    pending_left.append(body)
+            else:
+                body = body.lstrip(") ").strip()
+                if body:
+                    pending_right.append(body)
+        if pending_left or pending_right:
+            plain_items.append(None)
+            flush_caption()
+
+        # Re-thread the plain rows around the caption block(s) in order.
+        laid = self._pad_rows(
+            [it for it in plain_items if it is not None], char_w
+        )
+        result, ip, ic = [], 0, 0
+        for it in plain_items:
+            if it is None:
+                if ic < len(out_rows):
+                    result.append(out_rows[ic])
+                    ic += 1
+            else:
+                if ip < len(laid):
+                    result.append(laid[ip])
+                ip += 1
+        return result
+
+    def _pad_rows(self, items: list, char_w: float = None) -> list:
+        """Lay out the NON-caption rows: lines sharing a ``top`` go on one text
+        line at a column derived from their x0. Page number is the primary key;
+        sorting by ``top`` alone moves a page-two continuation above page-one
+        material."""
+        if not items:
+            return []
+        items = sorted(items, key=lambda r: (r[0], r[1], r[2]))
+        # The glyph advance is MEASURED from the document, not assumed. The
+        # caption is set in a proportional face, and a fixed 6.2pt estimate ran
+        # 35% under this corpus's actual 8.4 — which put the ')' rail at column
+        # 37 instead of 27 and pulled every column out of true, so the
+        # reconstructed caption did not line up with the page.
+        if not char_w:
+            char_w = getattr(self, "_caption_char_w", None) or 6.2
         rows, segs, cur_page, cur_top = [], [], None, None
 
         def emit(parts):
@@ -643,7 +816,16 @@ class BaseAlaskaExtractor(BaseExtractor):
 
         for page, top, x0, text in items:
             page_changed = cur_page is not None and page != cur_page
-            if cur_top is not None and (page_changed or abs(top - cur_top) > 3):
+            # A DIVIDER IS ALWAYS ITS OWN ROW. Two rules drawn within a few
+            # points of each other share a ``top`` band, and packing same-top
+            # items onto one line emitted the marker twice on one row —
+            # '__DIVIDER__ __DIVIDER__', which the renderer then showed
+            # literally because it is no longer a row of its own.
+            solo = text == self.HEADMATTER_DIVIDER
+            if segs and (
+                page_changed or solo or abs(top - (cur_top or top)) > 3
+                or segs[-1][1] == self.HEADMATTER_DIVIDER
+            ):
                 rows.append(emit(segs))
                 segs = []
                 if page_changed:

@@ -39,8 +39,10 @@ _KNOWN_TAGS = frozenset(
     # 'table'/'tr'/'th'/'td' appear when a footnote carries a table printed
     # inside it: the extractor stores that as one ('table', markup) paragraph,
     # so the cell text has to be readable through the markup here.
+    # 'centered'/'flushright' are the headmatter alignment markers the
+    # extractor wraps a row in; they carry layout, not content.
     ("em", "strong", "u", "footnotemark", "pagenumber", "sup", "sub",
-     "table", "tr", "th", "td")
+     "table", "tr", "th", "td", "centered", "flushright")
 )
 
 
@@ -207,6 +209,18 @@ def _chunk(x):
         yield str(x)
 
 
+def _criteria_chunks(crit):
+    """Every string the criteria panel renders, at any nesting depth."""
+    if isinstance(crit, dict):
+        for value in crit.values():
+            yield from _criteria_chunks(value)
+    elif isinstance(crit, (list, tuple)):
+        for value in crit:
+            yield from _criteria_chunks(value)
+    elif crit:
+        yield _strip_tags(str(crit))
+
+
 def _doc_chunks(doc: ExtractedDocument):
     """Kept content ONLY — everything the extractor surfaced as real content.
     ``doc.dropped`` is deliberately excluded so the audit can match kept and
@@ -220,8 +234,17 @@ def _doc_chunks(doc: ExtractedDocument):
             yield _strip_tags(str(s))
     for s in getattr(doc, "syllabus", []) or []:
         yield from _chunk(s)
+    # attorneys is rendered as its own section, so it IS a home for content.
+    # The other derived scalars below are not.
+    if getattr(doc, "attorneys", None):
+        yield from _chunk(str(doc.attorneys))
     for s in getattr(doc, "headnotes", []) or []:
         yield from _chunk(s)
+    # ``criteria`` is audited for the SAME reason as attorneys and for no other:
+    # the review HTML draws it, collapsed but present, so a row a court lifts
+    # out of the headmatter into it (CA11's 'FOR PUBLICATION') is still text the
+    # reader can reach. Everything below stays excluded — see the note.
+    yield from _criteria_chunks(getattr(doc, "criteria", None))
     # NOTE: the parsed metadata fields (court_label, decision_date,
     # docket_number, parties, attorneys, …) are deliberately NOT audited.
     # The audit must match ONLY text the review HTML actually renders as
@@ -572,6 +595,17 @@ def _matches(raw: str, haystack: str, hay_nodigits: str | None = None) -> bool:
             return True
     if trimmed.endswith(")") and "(" not in trimmed[:-1]:
         inner = _norm(trimmed[:-1])
+        if inner and inner in haystack:
+            return True
+    # The same glyph LEADING the row. Where the caption's rail points into the
+    # docket cell the source prints '> Nos. 25-1601/1602/1603'; the extractor
+    # now records the rail on the block and keeps 'Nos. …' as the cell text, so
+    # the arrow is the one character left over. Shed a single leading glyph for
+    # the same reason as a trailing one — it is drawn furniture, and the rule
+    # applies to both sides, so a genuinely absent row still fails.
+    led = raw.lstrip()
+    if led and led[0] in "<>]|§*":
+        inner = _norm(led[1:])
         if inner and inner in haystack:
             return True
     # SUBSCRIPTS the ground truth dropped. A chemical formula sets its digits

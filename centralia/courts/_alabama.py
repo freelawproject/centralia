@@ -40,6 +40,8 @@ class AlabamaAppellate(BaseExtractor):
     # document's lead; quote-run splitting of body segments) must not move
     # its output.
     measured_gap_bands = False
+    measured_space_gap = False
+    mark_flush_right = False
     split_quote_runs = False
     order_heading_fallback = False
     surface_margin_furniture = False

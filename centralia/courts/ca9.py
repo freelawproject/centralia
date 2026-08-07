@@ -2,7 +2,11 @@
 
 from __future__ import annotations
 
-from ._circuit import FederalCircuitBase
+from ._circuit import (
+    FederalCircuitBase,
+    _LOWER_DOCKET_MARKERS,
+    _plain,
+)
 from .generic import _is_name
 
 
@@ -10,6 +14,143 @@ class NinthCircuit(FederalCircuitBase):
     court_id = "ca9"
     court_label = "United States Court of Appeals for the Ninth Circuit."
     circuit_phrase = "ninth circuit"
+
+    # CA9 draws NO rules or dividers in its headmatter — the sections are held
+    # apart by spacing alone. The row-by-row criteria walk needs no walls, so
+    # the court parses on the same footing as the rest of the family.
+    parse_criteria_enabled = True
+    # CA9's memorandum dispositions do not fence their bands. The court
+    # appealed from, the date and place of submission and the panel roster all
+    # arrive on ONE row ('On Petition for Review of an Order of the Board of
+    # Immigration Appeals Argued and Submitted May 19, 2026 Pasadena,
+    # California Before: ..., Circuit Judges.'), so the roster has to be split
+    # off the end of it or the panel goes unread.
+    roster_can_share_row = True
+    history_can_share_row = True
+
+    def parse_criteria(self, doc):
+        """The shared walk, then CA9's two-column caption read as two things.
+
+        CA9 holds the caption in columns: the parties on the left, and on the
+        right the docket, the agency numbers the petition is from, and the
+        document's own label —
+
+            ALFREDO SILVA-PALOMARES;            No. 16-72588
+            ...                                 Agency Nos. A206-373-927
+            Petitioners,                        A206-373-929
+            v.                                  ...
+            TODD BLANCHE, Acting Attorney       MEMORANDUM*
+            General,
+            Respondent.
+
+        Flattened into one roll the right column ran onto the end of the case
+        name, so the parties came out followed by five agency numbers and the
+        word MEMORANDUM."""
+        super().parse_criteria(doc)
+        crit = doc.criteria or {}
+        cases = crit.get("cases") or []
+        # A CAPTION CAN RUN OVER THE PAGE. CA9 sets a long roll of real
+        # parties in interest across page 1 and page 2, which arrives as TWO
+        # caption blocks — the second with no right column at all. Reading
+        # only the first stopped the case name half way through its parties.
+        blocks = [
+            r
+            for r in doc.summary
+            if isinstance(r, dict) and r.get("__caption__")
+        ]
+        if not blocks or not cases:
+            return
+
+        def cells(rows):
+            out = []
+            for cell in rows or []:
+                text = _plain(cell).strip()
+                # The court rules OFF the 'In re' half of a mandamus caption
+                # inside the column; the rule is a wall, not a party.
+                if not text or not text.strip("_- "):
+                    continue
+                out.append(text)
+            return out
+
+        left = [t for b in blocks for t in cells(b.get("left"))]
+        right = next(
+            (cells(b.get("right")) for b in blocks if cells(b.get("right"))), []
+        )
+        if not left or not right:
+            return
+        case = cases[0]
+        case["caption"] = left
+        case["case_name"] = " ".join(left)
+        # The right column, in the order CA9 sets it: the docket, then the
+        # numbers the case carries below, then the document's label.
+        agency, title = [], None
+        for text in right:
+            if self._is_docket_text(text) and not case.get("docket"):
+                case["docket"] = self._split_docket(text)[0]
+            elif any(m.lower() in text.lower() for m in _LOWER_DOCKET_MARKERS) \
+                    or text.lower().startswith(("agency no", "bia no", "tax ct")):
+                # THE LABEL OPENS THE GROUP; ITS NUMBERS MAY BE BELOW IT. CA9
+                # sets the district court's docket over two rows ('D.C. No.' /
+                # '5:21-cv-01978'), so a label read on its own published a
+                # lower docket with no number in it at all.
+                agency.append(text)
+            elif agency and not self._is_party_text(text) and (
+                any(ch.isdigit() for ch in text) or agency[-1].endswith("-")
+            ):
+                # A DOCKET BROKEN OVER TWO ROWS KEEPS ITS HYPHEN. CA9's column
+                # is narrow enough to split one ('5:24-cv-06147-' / 'EJD'), and
+                # the tail carries no digits of its own.
+                if agency[-1].endswith("-"):
+                    agency[-1] += text
+                else:
+                    agency.append(text)
+            elif self._is_party_text(text):
+                title = title or text
+        if agency:
+            # THE AGENCY NUMBERS ARE THE DOCKET BELOW. A petition for review
+            # comes from a tribunal, not a district court, and these are that
+            # tribunal's own numbers — one per petitioner on a family's case.
+            # Run together they read as one long number, so the label is kept
+            # once and the numbers listed.
+            head, rest = agency[0], agency[1:]
+            label, first = head, ""
+            for marker in ("Nos.", "No.", "Nos", "No"):
+                at = head.find(marker)
+                if at >= 0:
+                    label = head[: at + len(marker)]
+                    first = head[at + len(marker) :].strip()
+                    break
+            numbers = [n for n in ([first] + rest) if n]
+            case["lower_docket"] = f"{label} " + "; ".join(numbers) \
+                if numbers else head
+        if title:
+            # The court hangs a footnote on its own label ('MEMORANDUM*'); the
+            # mark belongs to the note, not to the title.
+            crit["title"] = title.rstrip("*†‡∗ ")
+        # ...and on the submission date the same way ('February 11, 2026**').
+        for key, value in list(crit.items()):
+            if key.startswith("date_") and isinstance(value, str):
+                crit[key] = value.rstrip("*†‡∗ ")
+        # THE CLERK'S STAMP IS NOT PART OF THE COURT'S NAME. CA9 sets 'FILED /
+        # <date> / MOLLY C. DWYER, CLERK / U.S. COURT OF APPEALS' in the top
+        # right corner, and its last line merged onto the banner's own row.
+        court = crit.get("court")
+        if court:
+            at = court.lower().find(self.circuit_phrase)
+            if at >= 0:
+                crit["court"] = court[: at + len(self.circuit_phrase)].strip()
+        self._publish_criteria(doc, crit)
+
+    def _tail_kind(self, text):
+        """CA9 DOES NOT PRINT APPEARANCES IN ITS HEADMATTER, or so rarely that
+        anything the shared reader claims is something else wearing an
+        appearance's clothes.
+
+        Its order is: the caption in two columns — parties on the left, docket
+        numbers on the right — then the court below, then the dates and the
+        place of submission, then the panel, then the authors. No counsel
+        band anywhere in it, so the field stays absent."""
+        return "summary"
     body_baseline_x0 = 54.0
     gap_tight_max = 10.0
     gap_single_max = 12.0
@@ -271,7 +412,19 @@ class NinthCircuit(FederalCircuitBase):
         return None
 
     def find_footnote_separator(self, page):
-        return self._sep_at(page, 50, 60)
+        """The separator is anchored at the BODY's left margin, so measure that
+        margin rather than assume it.
+
+        The corpus carries two layouts: the reporter format sets its body at
+        x0≈54, and a slip format sets it at x0≈72. A window fixed on the
+        reporter's margin (50–60) missed every rule in the slip format, so
+        those opinions returned no footnotes at all while their marks stayed in
+        the text (dickinson_v._trump: 8 marks, 0 footnotes)."""
+        from collections import Counter
+
+        starts = Counter(round(w["x0"]) for w in page.extract_words())
+        anchor = starts.most_common(1)[0][0] if starts else 54
+        return self._sep_at(page, anchor - 6, anchor + 6)
 
     def skip_headmatter_segment(self, seg) -> bool:
         if seg and (seg[0].get("text") or "").strip().upper() in (
@@ -280,3 +433,82 @@ class NinthCircuit(FederalCircuitBase):
         ):
             return True
         return super().skip_headmatter_segment(seg)
+
+    def extract_headmatter(self, headmatter_segs, page1_rules=None):
+        """Give the SUMMARY and COUNSEL blocks their own fields.
+
+        CA9 prints two named sections between the panel line and the opinion:
+        a court-written SUMMARY (a topic head plus several paragraphs, marked
+        with an asterisk noting it is not part of the opinion) and the COUNSEL
+        block. Both were landing in the headmatter as undifferentiated rows —
+        ``syllabus`` and ``attorneys`` were empty on every file — so the
+        summary read as though it were part of the caption.
+
+        The page names both sections, so the boundaries are read off the
+        headings rather than guessed."""
+        result = super().extract_headmatter(headmatter_segs, page1_rules)
+        rows = result.get("summary", [])
+
+        def heading(row):
+            if not isinstance(row, str):
+                return ""
+            return " ".join(_plain(row).split()).rstrip("*").strip().upper()
+
+        start = next(
+            (i for i, r in enumerate(rows) if heading(r) == "SUMMARY"), None
+        )
+        counsel = next(
+            (i for i, r in enumerate(rows) if heading(r) == "COUNSEL"), None
+        )
+        if start is None and counsel is None:
+            return result
+
+        def content(chunk):
+            return [
+                r
+                for r in chunk
+                if isinstance(r, str) and _plain(r).strip()
+                and not _plain(r).strip().startswith("__")
+            ]
+
+        keep = list(rows)
+        keep_source = list(rows)
+        if start is not None:
+            end = counsel if counsel is not None and counsel > start else len(rows)
+            # From the heading INCLUSIVE. The asterisks on 'SUMMARY**' carry a
+            # footnote saying the summary is not part of the opinion, so the
+            # row is content; starting one row later dropped it from every
+            # section and it surfaced as unplaced.
+            body = content(rows[start:end])
+            if body:
+                result["syllabus"] = body
+            keep = [r for i, r in enumerate(keep) if not (start <= i < end)]
+        if counsel is not None:
+            # Everything after the COUNSEL heading is the counsel block. It
+            # moves OUT of the headmatter into its own section — the reporter
+            # prints it under its own heading, and a page of counsel sitting in
+            # the caption read as though it were part of the case caption.
+            # The OPINION banner trails the counsel block; it belongs to the
+            # opinion, not to counsel, so it stays behind for the banner
+            # rehoming to pick up.
+            end = len(rows)
+            for i in range(len(rows) - 1, counsel, -1):
+                text = " ".join(_plain(rows[i]).split()) if isinstance(rows[i], str) else ""
+                if not text:
+                    continue
+                if text.rstrip("*").upper() in ("OPINION", "ORDER"):
+                    end = i
+                break
+            # From the heading INCLUSIVE, for the same reason as the summary:
+            # taking only the rows AFTER it left 'COUNSEL' with no home and it
+            # surfaced as unplaced content on every published file.
+            tail = content(rows[counsel:end])
+            if tail:
+                result["attorneys"] = "\n".join(tail)
+                keep = [
+                    r for i, r in enumerate(keep_source)
+                    if not (counsel <= i < end)
+                    and not (start is not None and start <= i < counsel)
+                ]
+        result["summary"] = keep
+        return result

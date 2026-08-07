@@ -39,6 +39,23 @@ from .models import (
 )
 
 
+# Bench words that can never be a judge's surname. The wrapped continuation of
+# a byline-shaped sentence opens with one of these, and reading it as a name
+# manufactures a byline mid-sentence.
+_BENCH_WORDS = frozenset(
+    {
+        "judge",
+        "judges",
+        "justice",
+        "justices",
+        "chief",
+        "chancellor",
+        "magistrate",
+        "commissioner",
+    }
+)
+
+
 def _is_per_curiam(text: str) -> bool:
     """True for an uppercase 'PER CURIAM' byline (optional trailing period),
     case-sensitive, whitespace-insensitive. No regex."""
@@ -270,6 +287,14 @@ def _reunite_offset_glyphs(lines: list) -> list:
     if not absorbed:
         return lines
     return [l for l in lines if id(l) not in absorbed]
+
+
+def _is_typed_rule_text(text: str) -> bool:
+    """A rule the page TYPES rather than draws ('______' / '------'). It marks
+    a boundary between headmatter components, so a tight run must not run
+    through it."""
+    bare = (text or "").strip()
+    return len(bare) >= 3 and set(bare) <= set("_-—–= *")
 
 
 class BaseExtractor:
@@ -865,6 +890,42 @@ class BaseExtractor:
             doc.residual = sweep_unplaced(doc, source_pages)
         except Exception as e:  # the sweep is a safety net, never a hard failure
             doc.warnings.append(f"residual sweep failed: {type(e).__name__}: {e}")
+        self._warn_footnote_gaps(doc)
+
+    @staticmethod
+    def _warn_footnote_gaps(doc: ExtractedDocument) -> None:
+        """Flag a BREAK in the numbered footnote sequence.
+
+        A whole footnote can go missing without the coverage audit noticing:
+        its text is prose, and prose that appears nowhere else still matches
+        the audit's substring test often enough to read as covered — CA1's
+        footnote 2 vanished with the labels running 1, 3, 4 and nothing said a
+        word. The numbering is the court's own checksum, so read it: any gap
+        in an otherwise consecutive run means a note was dropped on the floor.
+
+        Numbered notes only. A court that labels with '*' / '†' is not
+        sequential and has nothing to check."""
+        labels = []
+        for op in doc.opinions:
+            for fn in op.footnotes:
+                text = str(fn.label or "").strip().rstrip(".")
+                if text.isdigit():
+                    labels.append(int(text))
+        if len(labels) < 2:
+            return
+        ordered = sorted(set(labels))
+        gaps = [
+            n
+            for a, b in zip(ordered, ordered[1:])
+            for n in range(a + 1, b)
+        ]
+        if gaps:
+            shown = ", ".join(str(n) for n in gaps[:8])
+            more = "" if len(gaps) <= 8 else f" (+{len(gaps) - 8} more)"
+            doc.warnings.append(
+                f"footnote sequence breaks: missing {shown}{more} "
+                f"(found {ordered[0]}-{ordered[-1]})"
+            )
 
     def _apply_headmatter(self, doc: ExtractedDocument, hm: dict) -> None:
         """Copy the recognized headmatter dict onto the document fields."""
@@ -978,18 +1039,20 @@ class BaseExtractor:
         self._p1_rule_spans = sorted(spans)
         self._p1_vrule_spans = sorted(vspans)
 
+        min_w = self._rule_min_width(p1)
+
         tops = []
         for r in p1.rects:
             if (
                 r["height"] < 2
-                and (r["x1"] - r["x0"]) > 50
+                and (r["x1"] - r["x0"]) > min_w
                 and _outside_caption(r["top"])
                 and not _is_underline(r["top"])
             ):
                 tops.append(r["top"])
         for ln in p1.lines:
             if (
-                (ln["x1"] - ln["x0"]) > 50
+                (ln["x1"] - ln["x0"]) > min_w
                 and _outside_caption(ln["top"])
                 and not _is_underline(ln["top"])
             ):
@@ -997,12 +1060,46 @@ class BaseExtractor:
         for img in p1.images:
             if (
                 (img.get("height") or 0) < 5
-                and img.get("width", 0) > 50
+                and img.get("width", 0) > min_w
                 and _outside_caption(img["top"])
                 and not _is_underline(img["top"])
             ):
                 tops.append(img["top"])
         return sorted(tops)
+
+    # Default floor for a drawn horizontal rule to count as a divider. Short
+    # marks are normally underlines or artefacts.
+    rule_width_min = 50.0
+
+    def _rule_min_width(self, p1) -> float:
+        """The narrowest drawn rule on THIS page that is still a divider.
+
+        The D.C. Circuit separates its caption components with a 36pt
+        ornament centred on the page axis, repeated between each one — under
+        the flat 50pt floor all four were discarded and the caption lost
+        every rule the page draws.
+
+        An ornament is identifiable by construction rather than by width: it
+        is centred on the page, and it REPEATS at exactly the same span. A
+        one-off short mark (an underline, a stray box edge) does neither, so
+        the floor only comes down when both hold."""
+        page_mid = float(p1.width) / 2
+        spans = Counter()
+        for r in p1.rects:
+            if r["height"] < 2:
+                spans[(round(r["x0"], 1), round(r["x1"], 1))] += 1
+        for ln in p1.lines:
+            if abs(ln["bottom"] - ln["top"]) < 2:
+                lo, hi = sorted((ln["x0"], ln["x1"]))
+                spans[(round(lo, 1), round(hi, 1))] += 1
+        floor = self.rule_width_min
+        for (x0, x1), count in spans.items():
+            width = x1 - x0
+            if count < 2 or width >= floor or width < 10:
+                continue
+            if abs((x0 + x1) / 2 - page_mid) <= 6:
+                floor = min(floor, width - 1)
+        return floor
 
     # ====================================================================
     # TABLES
@@ -2434,8 +2531,18 @@ class BaseExtractor:
         m = self._author_pattern().match(text)
         if not m:
             return None
+        # A judge's SURNAME is never itself a bench word. When a byline-shaped
+        # sentence wraps, its continuation can open with the tail of the title
+        # ('Judge, Joseph F. Bianco, and Michael H. Park, Circuit Judges,
+        # dissents by opinion' — the second line of 'Richard J. Sullivan,
+        # Circuit Judge, joined by Debra Ann Livingston, Chief / Judge, …'),
+        # and the grammar then reads 'Judge' as the name. That false byline is
+        # a segment boundary, so the sentence was cut in half mid-phrase.
+        name = m.group("name")
+        if name.rstrip(".").lower() in _BENCH_WORDS:
+            return None
         kind = m.group("kind1") or m.group("kind2")
-        return m.group("name"), m.group("title"), kind
+        return name, m.group("title"), kind
 
     def _byline_at(self, line) -> bool:
         """True if ``line`` begins an opinion (an author byline). Default uses
@@ -2589,6 +2696,10 @@ class BaseExtractor:
                 out_events.append((pno, top, marker))
                 i = j
                 continue
+            if align == "L" and _is_typed_rule_text(self.line_plain_text(line)):
+                out_events.append((pno, top, self.paragraph_text([line])))
+                i += 1
+                continue
             if align == "L":
                 group = [line]
                 j = i + 1
@@ -2603,8 +2714,31 @@ class BaseExtractor:
                     this_x0 = l2.get("x0", 0)
                     if this_x0 > prev_x0 + 12 and prev_x0 <= baseline + 6:
                         break
+                    # A CHANGE OF TYPE SIZE ends the run. CA11 sets each party
+                    # at 14pt and its qualifier at 12pt directly under it
+                    # ('EDDIE LAMPERT,' over 'individually,'); both are
+                    # left-aligned and single-spaced, and the qualifier's
+                    # indent is under the 12pt bar, so gap and indent alone
+                    # merged the entire party list into one paragraph. Size is
+                    # the signal the page itself uses to separate them.
+                    # Size, NOT font name: an italic case name can dominate a
+                    # prose line's font without ending the paragraph.
+                    prev_size = self.line_meta(group[-1])[0]
+                    this_size = self.line_meta(l2)[0]
+                    if prev_size and this_size and abs(this_size - prev_size) > 0.6:
+                        break
+                    # A TYPED rule ('------' / '______') separates components;
+                    # it is a divider the page draws in text, so a run must end
+                    # at it and the next run must start after it. Without this
+                    # the panel line, the caption's top border and the party
+                    # names all merged into one row (ca2), because they are all
+                    # left-aligned and tightly spaced.
+                    if _is_typed_rule_text(self.line_plain_text(l2)):
+                        break
                     group.append(l2)
                     j += 1
+                    if _is_typed_rule_text(self.line_plain_text(l2)):
+                        break
                 text = " ".join(self.paragraph_text([l]) for l in group)
                 out_events.append((pno, top, text))
                 i = j
@@ -2612,6 +2746,13 @@ class BaseExtractor:
                 text = self.paragraph_text([line])
                 if align == "C":
                     text = f"<centered>{text}</centered>"
+                elif align == "R" and self.mark_flush_right:
+                    # A row pinned to the RIGHT margin kept its text but lost
+                    # its alignment: only 'C' was marked, so CA11's italic
+                    # status labels ('Plaintiff-Appellant' / 'Cross-Appellees')
+                    # — set flush right against the parties on the left — came
+                    # back left-aligned and the caption read as a flat list.
+                    text = f"<flushright>{text}</flushright>"
                 out_events.append((pno, top, text))
                 i += 1
 
@@ -3037,6 +3178,63 @@ class BaseExtractor:
             i = j
         return out
 
+    # Floor for the inferred word-break gap.  Historic fixed threshold; the
+    # measured value below only ever rises above it.
+    space_gap_min = 1.5
+    # Alabama is fidelity-locked and opts out: measuring the threshold closes
+    # the space it sets between a double and a single quote ('" \'Access' ->
+    # '"\'Access'), which moves its byte-identical output.
+    measured_space_gap: bool = True
+    # Mark a headmatter row that is set flush RIGHT, so the renderer can hold
+    # it at the margin.  Alabama opts out for the same fidelity reason: its
+    # 'Clerk, Supreme Court of Alabama' sits flush right and would gain the
+    # marker.
+    mark_flush_right: bool = True
+
+    def _inferred_space_gap(self, chars) -> float:
+        """The x-gap that means a word break on THIS line, measured.
+
+        A fixed threshold misreads a letter-spaced line.  CA10's 13pt bold
+        caption tracks every glyph ~1.0pt apart and opens ~2.0pt after a
+        hyphen, so ``(D.C. No. 1:21-CV-00923-GPG-STV)`` rebuilt as
+        ``1:21-CV-00923- GPG- STV`` — spaces the page never set.
+
+        Read the line's own typography instead of guessing.  The modal gap
+        between adjacent glyphs is the line's tracking; the width of its own
+        space glyph is what a word break costs.
+
+        When the page sets real space glyphs, every word break is already
+        encoded — so a gap narrower than one of those spaces cannot be a
+        break, it is justification tracking (CA10 opens 3.0pt inside
+        'Plaintiffs' on a justified line whose spaces are all explicit).
+        Require the full measured word-break advance there.
+
+        A line carrying NO space glyph keeps the historic floor.  There is
+        nothing to measure against on such a line, and its modal gap is not
+        tracking at all — on an ornamental break ('* * *') the only gaps
+        present ARE the word gaps, so treating them as tracking raised the
+        threshold above them and closed the rule up to '***'."""
+        if not self.measured_space_gap:
+            return self.space_gap_min
+        gaps = []
+        widths = []
+        prev = None
+        for c in chars:
+            text = c.get("text") or ""
+            if text == " ":
+                widths.append(c["x1"] - c["x0"])
+            elif prev is not None:
+                gaps.append(c["x0"] - prev)
+            prev = None if text == " " else c["x1"]
+        if not gaps:
+            return self.space_gap_min
+        gaps.sort()
+        track = gaps[len(gaps) // 2]
+        if not widths:
+            return self.space_gap_min
+        widths.sort()
+        return max(self.space_gap_min, track + widths[len(widths) // 2])
+
     def line_inline_text(self, line) -> str:
         """Render a line's text with inline formatting preserved:
           - <footnotemark>N</footnotemark> for superscript label chars
@@ -3048,6 +3246,7 @@ class BaseExtractor:
         if not chars:
             return ""
         body_size = max(round(c["size"], 1) for c in chars)
+        space_gap = self._inferred_space_gap(chars)
         mark_ok = self._footnote_mark_chars(chars, body_size)
         parts = []
         buf = ""
@@ -3095,7 +3294,7 @@ class BaseExtractor:
 
             if prev_x1 is not None:
                 gap = c["x0"] - prev_x1
-                if gap > 1.5:
+                if gap > space_gap:
                     if cur_fn:
                         parts.append(f"<footnotemark>{escape(cur_fn)}</footnotemark>")
                         cur_fn = ""
@@ -3152,6 +3351,7 @@ class BaseExtractor:
         if not chars:
             return ""
         out = []
+        space_gap = self._inferred_space_gap(chars)
         prev_x1 = None
         prev_pos = None
         for c in chars:
@@ -3161,7 +3361,7 @@ class BaseExtractor:
             prev_pos = pos
             if (
                 prev_x1 is not None
-                and (c["x0"] - prev_x1) > 1.5
+                and (c["x0"] - prev_x1) > space_gap
                 and out
                 and not out[-1].endswith(" ")
             ):

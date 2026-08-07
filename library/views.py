@@ -15,6 +15,7 @@ from django.http import (
     JsonResponse,
 )
 from django.shortcuts import get_object_or_404, render
+from django.utils.html import escape
 from django.utils.safestring import mark_safe
 from django.views.decorators.csrf import csrf_exempt
 
@@ -465,11 +466,51 @@ def _stored_block_html(block):
     return f"<p>{_inline_to_html(text)}</p>"
 
 
+def _criteria_rows(crit):
+    """Flatten the parsed criteria into (label, value) rows for the collapsed
+    panel, keeping each consolidated case as its own labelled group."""
+    if not crit:
+        return []
+    rows = []
+    for key in ("publication", "title", "court", "date_filed",
+                "date_argued", "date_argued_and_submitted", "date_submitted",
+                "date_decided", "date_decided_and_filed", "date_reargued",
+                "summary", "panel_line", "disposition"):
+        if crit.get(key):
+            rows.append((key.replace("_", " "), crit[key], False))
+    if crit.get("panel"):
+        rows.append(("panel", " \u00b7 ".join(crit["panel"]), False))
+    cases = crit.get("cases") or []
+    for i, case in enumerate(cases, 1):
+        rows.append((f"case {i}" if len(cases) > 1 else "case", "", True))
+        for key in ("docket", "case_name", "prior_history",
+                    "lower_court", "lower_docket", "lower_judge"):
+            if case.get(key):
+                rows.append((key.replace("_", " "), case[key], False))
+    if crit.get("counsel"):
+        # ONE BLOCK — see the note in render/html.py. The blank rows between
+        # entries are the only thing separating one side's counsel from the
+        # other's, so they are kept.
+        rows.append((
+            "counsel",
+            mark_safe("<br>".join(
+                escape(line) if line.strip() else ""
+                for line in str(crit["counsel"]).split("\n")
+            )),
+            False,
+        ))
+    return rows
+
+
 def document_detail(request, court_id, stem):
     doc = get_object_or_404(Document, court__court_id=court_id, stem=stem)
     headmatter = mark_safe("".join(_row_html(r) for r in doc.summary))
     syllabus = mark_safe("".join(_row_html(r) for r in doc.syllabus))
     headnotes = mark_safe("".join(_row_html(r) for r in doc.headnotes))
+    criteria = _criteria_rows(doc.criteria)
+    # Counsel renders once: the parsed panel owns it when the headmatter
+    # parse found it (``attorneys`` is mirrored from that same text).
+    show_attorneys = doc.attorneys and not (doc.criteria or {}).get("counsel")
     opinions = []
     for op in doc.opinions.all():
         caption_rows = list(op.caption or [])
@@ -492,7 +533,8 @@ def document_detail(request, court_id, stem):
         })
     return render(request, "library/document_detail.html", {
         "doc": doc, "headmatter": headmatter, "syllabus": syllabus,
-        "headnotes": headnotes,
+        "headnotes": headnotes, "criteria": criteria,
+        "show_attorneys": show_attorneys,
         "opinions": opinions, "dropped": doc.dropped, "trailer": doc.trailer,
         "residual": doc.residual})
 

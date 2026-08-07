@@ -14,6 +14,20 @@ class EleventhCircuit(FederalCircuitBase):
     # indent / wrap / centering, so it must match the real column.
     body_baseline_x0 = 126.0
 
+    # The running head sits at top≈102 on pages 2+ — BELOW the family's blanket
+    # 95pt cutoff, so it survived into the caption. Worse, it was recognised
+    # only as a whole line: once anything merged with it ('Defendant.' + '2
+    # Opinion of the Court 24-13309' across a page break) ``_running_header_name``
+    # no longer matched and the furniture rode into the headmatter. Cut it by
+    # the band it actually occupies, BEFORE any joining can reach it, and
+    # record it so it shows in the Removed box.
+    page2_header_cutoff = 30.0
+    running_head_max_top = 115.0
+
+    def _maybe_drop_running_header(self, page, lines):
+        lines = super()._maybe_drop_running_header(page, lines)
+        return self._drop_head_band(page, lines)
+
     # ca11's body is single-spaced at ~19pt (14pt type), not the ~1.5-spaced
     # ~27pt of a Times circuit. The inherited bands (single<22, double<32) read
     # that 19pt body as a blockquote, mislabeling nearly every paragraph. Retune
@@ -23,9 +37,15 @@ class EleventhCircuit(FederalCircuitBase):
     gap_double_max = 30.0
     fold_page_numbers = True
 
+    # CA11 rules its headmatter into zones and prints 'FOR PUBLICATION' above
+    # the caption as a flag, not caption text — lift it out.
+    parse_criteria_enabled = True
+    criteria_lift_publication = True
+
     def extract(self, pdf_path):
         self._ca11_dropped_headers = []
-        return super().extract(pdf_path)
+        doc = super().extract(pdf_path)
+        return doc
 
     def _sweep_residual(self, doc, source_pages):
         headers = list(dict.fromkeys(getattr(self, "_ca11_dropped_headers", [])))

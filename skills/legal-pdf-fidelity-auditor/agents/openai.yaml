@@ -1,0 +1,4 @@
+interface:
+  display_name: "Legal PDF Fidelity Auditor"
+  short_description: "Audit and repair court PDF extraction fidelity"
+  default_prompt: "Use $legal-pdf-fidelity-auditor to find, fix, regenerate, and validate the next legal PDF extraction issues."

@@ -140,6 +140,13 @@ class ExtractedDocument:
     panel: list[str] = field(default_factory=list)
     judges: str | None = None
     submitted: str | None = None
+    # Structured headmatter criteria dissected out of ``summary`` — docket,
+    # case caption, prior history, panel, publication status. A court fills
+    # this by reading the zones its headmatter is ruled into; the rows stay in
+    # ``summary`` unless the court says the zone is redundant there.
+    # ``audit._doc_chunks`` reads it, so a row that MOVES here is still
+    # accounted for.
+    criteria: dict = field(default_factory=dict)
     # Raw, loss-resistant headmatter dump (verbatim lines / caption columns /
     # divider markers) for anything the structured parser doesn't categorize.
     summary: list = field(default_factory=list)

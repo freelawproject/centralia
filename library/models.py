@@ -46,10 +46,14 @@ class Document(models.Model):
     docket_number = models.CharField(max_length=128, blank=True, null=True)
     parties = models.JSONField(default=list, blank=True)
     judges = models.CharField(max_length=512, blank=True, null=True)
+    # Structured headmatter dissection (docket / caption / prior history /
+    # panel / publication), shown collapsed in the review detail page.
+    criteria = models.JSONField(default=dict, blank=True)
     # Layout-preserved / styled headmatter rows, official syllabus, dropped
     # furniture, trailing matter — kept verbatim as the extractor returned them.
     summary = models.JSONField(default=list, blank=True)
     syllabus = models.JSONField(default=list, blank=True)
+    attorneys = models.TextField(blank=True, default="")
     headnotes = models.JSONField(default=list, blank=True)
     dropped = models.JSONField(default=list, blank=True)
     trailer = models.JSONField(default=list, blank=True)

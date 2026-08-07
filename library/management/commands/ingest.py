@@ -142,9 +142,15 @@ class Command(BaseCommand):
                     for f, d, error, cov in extracted:
                         stem = os.path.basename(f)[:-4]
                         if error is not None:
+                            # Every NOT NULL text column has to be given a value
+                            # on the ERROR path too — it does not go through the
+                            # normal field mapping below, and a missing one
+                            # failed the whole re-run ('NOT NULL constraint
+                            # failed: library_document.attorneys').
                             Document.objects.create(
                                 court=court, stem=stem, source_path=f,
-                                doc_type="error", warnings=[error], suspect=True)
+                                doc_type="error", warnings=[error], suspect=True,
+                                attorneys="")
                             n_docs += 1
                             continue
                         has_body = any(op.blocks for op in d.opinions)
@@ -163,6 +169,8 @@ class Command(BaseCommand):
                             docket_number=d.docket_number, parties=list(d.parties),
                             judges=d.judges, summary=_jsonable(d.summary),
                             syllabus=_jsonable(getattr(d, "syllabus", []) or []),
+                        attorneys=getattr(d, "attorneys", "") or "",
+                        criteria=getattr(d, "criteria", {}) or {},
                             headnotes=_jsonable(getattr(d, "headnotes", []) or []),
                             dropped=_jsonable(d.dropped),
                             trailer=_jsonable(d.trailer),

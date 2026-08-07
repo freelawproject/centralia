@@ -30,6 +30,8 @@ Furniture and geometry:
 
 from __future__ import annotations
 
+import html
+
 from ._reversedjustice import _KIND_ENDINGS, ReversedJusticeSupreme, _allcaps_token
 
 _SECTION_LABELS = ("Syllabus", "Opinion of the Court", "Per Curiam")
@@ -68,7 +70,274 @@ class SupremeCourtUS(ReversedJusticeSupreme):
         doc = super().extract(pdf_path)
         self._apply_sections(doc)
         self._remap_printed_pages(doc)
+        self._read_criteria(doc)
         return doc
+
+    # ------------------------------------------------------------- criteria
+    # The bench opinion's headmatter is SHORT and in fixed order, ruled into its
+    # parts by the Court itself, so it is read positionally rather than by
+    # recognising each row's shape:
+    #
+    #     SUPREME COURT OF THE UNITED STATES        the court (bold banner)
+    #     __DIVIDER__
+    #     No. 25–5146                               the docket
+    #     __DIVIDER__
+    #     AHMAD ABOUAMMO, PETITIONER v.             the case name, over two rows
+    #     UNITED STATES
+    #     ON WRIT OF CERTIORARI TO THE UNITED STATES COURT OF   the origin, ditto
+    #     APPEALS FOR THE NINTH CIRCUIT
+    #     [June 11, 2026]                           the decision date, bracketed
+    #
+    # The SYLLABUS carries the sitting dates on one line that the headmatter
+    # never states ('No. 25–5146.  Argued March 30, 2026—Decided June 11,
+    # 2026'), so it is read for those.
+    _ORIGIN_OPENERS = (
+        "on writ of certiorari",
+        "on certiorari",
+        "on appeal from",
+        "on appeals from",
+        "on petition for",
+        "on petitions for",
+        "on writs of certiorari",
+        "on application for",
+        "on motion for",
+        "on bill of complaint",
+        "on remand from",
+        "on writ of habeas corpus",
+    )
+
+    @staticmethod
+    def _row_text(row) -> str:
+        """A headmatter row's plain text, whatever form the row takes.
+
+        Entities are resolved: '&amp;' otherwise carries lower-case letters into
+        a row that is set entirely in caps ('AT&amp;T, INC.')."""
+        if isinstance(row, dict):
+            row = row.get("html", "")
+        text = str(row or "")
+        out, depth = [], 0
+        for char in text:
+            if char == "<":
+                depth += 1
+            elif char == ">":
+                depth = max(0, depth - 1)
+            elif depth == 0:
+                out.append(char)
+        return " ".join(html.unescape("".join(out)).split()).strip()
+
+    def _read_criteria(self, doc) -> None:
+        """Dissect the bench-opinion headmatter into ``doc.criteria``.
+
+        A CONSOLIDATED record states each case in full — its docket, its name,
+        and the application or writ it comes on — and then one bracketed date
+        governing all of them:
+
+            No. 25A1314
+            WES ALLEN, ALABAMA SECRETARY OF STATE, ET AL. v. EVAN MILLIGAN, ET AL.
+            ON APPLICATION FOR STAY
+            No. 25A1315
+            … v. BOBBY SINGLETON, ET AL.
+            ON APPLICATION FOR STAY
+            [June 2, 2026]
+
+        So a docket row OPENS a case rather than filling a single one, and the
+        rows after it belong to that case until the next docket row."""
+        rows = [self._row_text(r) for r in (doc.summary or [])]
+        crit: dict = {}
+        cases: list = []
+        # Rows that arrive before any docket. An ORDER states the case name and
+        # the writ FIRST and puts the docket last, carrying the date with it
+        # ('DISTRICT OF COLUMBIA v. R.W.' / 'ON PETITION FOR WRIT OF CERTIORARI
+        # TO THE DISTRICT OF' / 'COLUMBIA COURT OF APPEALS' / 'No. 25–248.
+        # Decided April 20, 2026'), so what precedes the docket is held and
+        # attached to the case the docket opens.
+        pending: dict = {"_name": [], "_origin": []}
+
+        def open_case(docket):
+            cases.append({
+                "docket": docket,
+                "_name": pending["_name"],
+                "_origin": pending["_origin"],
+            })
+            pending["_name"], pending["_origin"] = [], []
+
+        for text in rows:
+            if not text or text == self.HEADMATTER_DIVIDER:
+                continue
+            low = text.lower()
+            if "supreme court of the united states" in low:
+                crit.setdefault("court", text)
+                continue
+            if low.startswith(("no. ", "nos. ")):
+                docket, dates = self._split_docket_dates(text)
+                crit.update(dates)
+                open_case(docket)
+                continue
+            if text.startswith("[") and text.endswith("]"):
+                crit["date_filed"] = text.strip("[]").strip()
+                continue
+            # A CONSOLIDATED record headed by both dockets ('Nos. 25–406 and
+            # 25–567') then tags each case's own versus row with the docket it
+            # belongs to ('25–406 v.'). That tag is what separates one case from
+            # the next; the shared header alone cannot.
+            inline = self._inline_docket(text)
+            if inline:
+                # The tag marks this case's hinge. Everything buffered above it
+                # is its appellant side; the rows below it, up to the next
+                # appellant, are its appellee side. The tag itself is dropped
+                # from the NAME (the docket already records it) and the bare
+                # hinge kept in its place.
+                pending["_name"].append("v.")
+                open_case(f"No. {inline}")
+                continue
+            # A row closing with a party STATUS opens the next case's appellant
+            # side. Consolidated appeals share one trailing origin ('LOUISIANA,
+            # APPELLANT' / '24–109 v.' / 'PHILLIP CALLAIS, ET AL.' / 'PRESS
+            # ROBINSON, ET AL., APPELLANTS' / '24–110 v.' / … / 'ON APPEALS
+            # FROM …'), so waiting for an origin to close a case merged the two
+            # and overwrote the first one's docket.
+            if cases and not cases[-1]["_origin"] and self._opens_next_party(text):
+                pending["_name"].append(text)
+                continue
+            # THE CAPTION IS SET IN CAPS; the order's own text is not. Without
+            # that bound the reader kept appending, and florida_v._california's
+            # disposition ('The motion for leave to file a bill of complaint is
+            # denied.') landed on the end of the case name.
+            if not self._is_caption_row(text):
+                continue
+            target = cases[-1] if cases else pending
+            # The writ wraps once or twice and no further; past that, caps rows
+            # are the next case's parties, not more of this one's origin.
+            if low.startswith(self._ORIGIN_OPENERS) or (
+                target["_origin"] and len(target["_origin"]) < 3
+            ):
+                target["_origin"].append(text)
+            else:
+                target["_name"].append(text)
+
+        if pending["_name"] or pending["_origin"]:
+            open_case(None)
+
+        for case in cases:
+            if case["_name"]:
+                case["case_name"] = " ".join(case["_name"])
+            if case["_origin"]:
+                joined = " ".join(case["_origin"])
+                case["prior_history"] = joined
+                low = joined.lower()
+                for lead in (" to the ", " from the "):
+                    if lead in low:
+                        case["lower_court"] = joined[
+                            low.index(lead) + len(lead):
+                        ].strip()
+                        break
+            del case["_name"], case["_origin"]
+
+        # A consolidated record headed by all its dockets ('Nos. 24–109 and
+        # 24–110') states each case again below, tagged; the header itself is
+        # then not a case and comes back empty.
+        cases = [c for c in cases if c.get("case_name") or c.get("prior_history")]
+        if cases:
+            crit["cases"] = cases
+        crit.update(self._syllabus_dates(doc))
+        if not crit:
+            return
+        doc.criteria = crit
+        dockets = [c["docket"] for c in cases if c.get("docket")]
+        if dockets:
+            doc.docket_number = dockets[0]
+            if len(dockets) > 1:
+                doc.other_docket = "; ".join(dockets[1:])
+        lower = next((c["lower_court"] for c in cases if c.get("lower_court")), None)
+        if lower:
+            doc.lower_court = lower
+        history = [c["prior_history"] for c in cases if c.get("prior_history")]
+        if history:
+            doc.history = "; ".join(dict.fromkeys(history))
+        decided = crit.get("date_decided") or crit.get("date_filed")
+        if decided and not doc.decision_date:
+            doc.decision_date = decided
+        if crit.get("date_argued") and not doc.submitted:
+            doc.submitted = crit["date_argued"]
+
+    @staticmethod
+    def _is_caption_row(text) -> bool:
+        """True when a row can be part of the CAPTION — i.e. it is set in caps.
+
+        The hinge is the one lower-case thing a caption contains, so it comes out
+        before the test."""
+        kept = [
+            token
+            for token in text.split()
+            if token.strip(".,").lower() not in ("v", "vs")
+        ]
+        return not any(ch.islower() for ch in " ".join(kept))
+
+    _PARTY_STATUS_END = (
+        "appellant", "appellants", "petitioner", "petitioners",
+    )
+
+    @classmethod
+    def _opens_next_party(cls, text) -> bool:
+        """True when a caps row closes with a party status, i.e. names a side."""
+        words = text.rstrip(".,").split()
+        # A BARE status word is the continuation of the party named on the row
+        # above it ('FEDERAL COMMUNICATIONS COMMISSION, ET AL.,' / 'PETITIONERS'),
+        # not a new party — a new one names itself before its status.
+        if len(words) < 2:
+            return False
+        return words[-1].strip(".,").lower() in cls._PARTY_STATUS_END
+
+    @staticmethod
+    def _inline_docket(text) -> str:
+        """'25–406' from a versus row tagged with its own docket, else ''."""
+        parts = text.split()
+        if len(parts) < 2 or parts[1].rstrip(".").lower() not in ("v", "vs"):
+            return ""
+        head = parts[0]
+        return head if any(c.isdigit() for c in head) else ""
+
+    @staticmethod
+    def _split_docket_dates(text):
+        """('No. 25–248', {'date_decided': 'April 20, 2026'}).
+
+        An order runs the docket and the disposition date together on one row."""
+        dates = {}
+        body = text.rstrip(".")
+        for label, key in (("Decided", "date_decided"), ("Argued", "date_argued")):
+            if label in body:
+                head, _, tail = body.partition(label)
+                for stop in ("\u2014", "\u2013", "-"):
+                    if stop in tail:
+                        tail = tail.split(stop, 1)[0]
+                dates[key] = tail.strip(" .,")
+                body = head.strip(" .,")
+        return body.strip(" .,"), dates
+
+    def _syllabus_dates(self, doc) -> dict:
+        """{'date_argued': …, 'date_decided': …} off the syllabus's docket line.
+
+        'No. 25–5146.  Argued March 30, 2026—Decided June 11, 2026' — the only
+        statement of when the case was argued; the headmatter gives the decision
+        day alone, in brackets."""
+        for row in (doc.syllabus or [])[:12]:
+            text = self._row_text(row)
+            low = text.lower()
+            if "argued" not in low or "decided" not in low:
+                continue
+            out = {}
+            # Split on the en dash / em dash / hyphen the Court sets between them.
+            body = text
+            for label, key in (("Argued", "date_argued"), ("Decided", "date_decided")):
+                if label not in body:
+                    continue
+                tail = body.split(label, 1)[1]
+                for stop in ("—", "–", "—", "–"):
+                    if stop in tail:
+                        tail = tail.split(stop, 1)[0]
+                out[key] = tail.strip(" .,")
+            return out
+        return {}
 
     def _apply_sections(self, doc) -> None:
         """Move the collected syllabus rows and the recorded furniture onto the
