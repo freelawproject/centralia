@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 from ._circuit import (
+    _DOC_TITLE_WORDS,
     FederalCircuitBase,
     _HISTORY_OPENERS,
     _plain,
@@ -22,6 +23,69 @@ class DCCircuit(FederalCircuitBase):
     # A district court's own number, as CADC prints it under the appeal's
     # docket: a chamber, a colon, the year, the case type, the number.
     _TRIAL_TYPES = ("-cv-", "-cr-", "-mc-", "-md-", "-ms-", "-sc-")
+
+    # ------------------------------------------------ unpublished judgments
+    # Below this share of the document left after a byline, the 'byline' is
+    # the closing signature. Measured, not absolute: see _is_closing_signature.
+    _SIGNATURE_TAIL_MAX = 0.08
+
+    def find_authors(self, all_segments) -> list:
+        """Drop a lone byline that turns out to be the closing signature.
+
+        Only when it is the ONLY one found — a genuine short concurrence at
+        the end of a multi-writing opinion leaves just as little behind it, and
+        must not be discarded."""
+        found = super().find_authors(all_segments)
+        if len(found) == 1 and self._is_closing_signature(all_segments, found[0]):
+            return []
+        return found
+
+    def _is_closing_signature(self, all_segments, i) -> bool:
+        """A 'byline' with almost nothing after it is the closing signature.
+
+        An unpublished judgment carries no author byline at all. It prints a
+        centered bold 'Per Curiam' near the END, above the clerk's 'FOR THE
+        COURT:' block. Read as a byline that anchors the opinion's start at the
+        signature — and since headmatter is *defined* as everything preceding
+        the first opinion, municipal_energy_agency_of_nebraska came out as 75
+        caption rows against 3 body blocks, and np_red_rock as 68 against 3.
+
+        Judged as a SHARE of the document rather than by what sits below it. An
+        earlier attempt asked whether any line below returned to the body rail;
+        np_red_rock defeated it, because page 9 ends with two lines of a
+        footnote carried over from page 8, set at the body rail and at body
+        size, with no rule and no size drop to separate them."""
+        counts = [len(seg) for _p, seg, _k in all_segments]
+        total = sum(counts)
+        if not total:
+            return False
+        return sum(counts[i + 1:]) / total <= self._SIGNATURE_TAIL_MAX
+
+    def _order_fallback(self, all_segments) -> list:
+        """Anchor an unsigned judgment on its own title row.
+
+        The shared fallback looks for a title opening with 'ORDER'. A judgment
+        titles itself 'J U D G M E N T' — letter-spaced, bold, centered — so
+        the spacing has to come out before the word is recognisable."""
+        start = next(
+            (
+                i
+                for i, (_p, seg, _k) in enumerate(all_segments)
+                if seg and self._is_judgment_title(seg[0])
+            ),
+            None,
+        )
+        if start is None:
+            return super()._order_fallback(all_segments)
+        self._order_start = start
+        self._order_author = "Per Curiam"
+        return [start]
+
+    def _is_judgment_title(self, line) -> bool:
+        text = "".join(self.line_plain_text(line).split())
+        if not text or len(text) > 40:
+            return False
+        return text.lower() in _DOC_TITLE_WORDS
 
     @classmethod
     def _is_trial_docket(cls, text):
@@ -181,8 +245,12 @@ class DCCircuit(FederalCircuitBase):
     # furniture. Lower the cutoff to the page edge and let ``margin_top`` bound it.
     page2_header_cutoff = 30.0
 
+    # Several CADC documents draw no footnote rule at all — the zone is marked
+    # by the type dropping from 12pt to 11pt and nothing else.
+    footnote_zone_by_size = True
+
     def find_footnote_separator(self, page):
-        return self._sep_at(page, 150, 165)
+        return self._sep_at(page, 150, 165) or self._footnote_zone_by_size(page)
 
     def extract_page_tables(self, page):
         """Reject a three-line prose false positive in dense footnotes.

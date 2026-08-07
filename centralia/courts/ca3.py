@@ -563,8 +563,17 @@ class ThirdCircuit(FederalCircuitBase):
             # list and never reach it — that is what separates them from body.
             self.body_right_rail = float(x1s.most_common(1)[0][0])
         gaps = Counter()
+        # Leading measured PER PAGE as well as document-wide. A stapled
+        # decision sets each writing to its own measure: hartmann's majority
+        # runs on a 15.0pt lead and PHIPPS's dissent on 13.0pt, so the single
+        # document-wide value put gap_single_max at 13.5 and every line of the
+        # dissent read as tighter-than-body — the whole writing came out as
+        # block quotation. A quotation is set tighter than the body on ITS OWN
+        # page, which is the only comparison that holds across writings.
+        self._page_leading = {}
         for lines in page_rows:
             ordered = sorted(lines, key=lambda line: line["top"])
+            here = Counter()
             for above, below in zip(ordered, ordered[1:]):
                 gap = below["top"] - above["top"]
                 if (
@@ -573,12 +582,42 @@ class ThirdCircuit(FederalCircuitBase):
                     and 10 <= gap <= 24
                 ):
                     gaps[round(gap, 1)] += 1
+                    here[round(gap, 1)] += 1
+            if here and ordered:
+                pno = (ordered[0].get("chars") or [{}])[0].get("page_number")
+                if pno is not None:
+                    self._page_leading[pno] = here.most_common(1)[0][0]
         self.body_baseline_x0 = baseline
         if gaps:
             leading = gaps.most_common(1)[0][0]
             # Put the dominant body leading just inside the body band. Inset
             # quote geometry remains available independently.
             self.gap_single_max = max(self.gap_tight_max + 0.5, leading - 1.5)
+
+    def classify_segment(self, seg):
+        """Judge 'tighter than the body' against THIS PAGE's leading.
+
+        The shared bands are set from one document-wide leading, which cannot
+        describe a stapled decision whose writings are set differently
+        (hartmann: majority 15.0pt, dissent 13.0pt). A segment running at its
+        own page's body leading is body, whatever the document-wide band says
+        — otherwise the more tightly set writing is read as one long
+        quotation."""
+        kind = super().classify_segment(seg)
+        if kind != "blockquote" or len(seg) < 2:
+            return kind
+        pno = (seg[0].get("chars") or [{}])[0].get("page_number")
+        lead = getattr(self, "_page_leading", {}).get(pno)
+        if lead is None:
+            return kind
+        ordered = sorted(seg, key=lambda line: line["top"])
+        gaps = [
+            round(b["top"] - a["top"], 1) for a, b in zip(ordered, ordered[1:])
+        ]
+        inner = [g for g in gaps if 8 <= g <= 24]
+        if inner and Counter(inner).most_common(1)[0][0] >= lead - 0.6:
+            return "body"
+        return kind
 
     @staticmethod
     def _plain(text):
@@ -607,6 +646,9 @@ class ThirdCircuit(FederalCircuitBase):
     def build_opinion(self, op_start, op_end, *, all_segments, **kwargs):
         if op_start in getattr(self, "_wrapped_starts", ()):
             all_segments = self._join_wrapped_byline(all_segments, op_start)
+        all_segments, op_end = self._isolate_counsel_segment(
+            all_segments, op_start, op_end
+        )
         cut = self._counsel_block_start(all_segments, op_start, op_end)
         if cut is not None:
             for _pno, seg, _kind in all_segments[cut:op_end]:
@@ -678,6 +720,61 @@ class ThirdCircuit(FederalCircuitBase):
         op.blocks = blocks
         return op
 
+    def _isolate_counsel_segment(self, all_segments, op_start, op_end):
+        """Split a segment that holds the opinion's LAST PARAGRAPH and the
+        counsel addendum together, so the cut can fall between them.
+
+        The addendum is cut at segment granularity, which assumes the boundary
+        is a segment boundary. In difraia it is not: the closing paragraph
+        ('… VACATE the dismissal of the state-law negligence claim, and
+        REMAND.') and 'Counsel for Appellant' land in ONE segment, so taking
+        the addendum took the conclusion with it — seven lines of the holding
+        delivered as trailing matter, unjoined, line by line.
+
+        The boundary is measurable. The addendum is set as its own column, at
+        its own left edge and ragged right; the body is justified to the rail.
+        So the split is the first line that both starts at the caption's x0 and
+        stops short of the right measure — which the conclusion's short last
+        line ('… and REMAND.') does not, because it sits at the paragraph
+        continuation margin, not the caption's."""
+        rail = getattr(self, "body_right_rail", None)
+        if rail is None:
+            return all_segments, op_end
+        out, shift = [], 0
+        for idx, entry in enumerate(all_segments):
+            pno, seg, kind = entry
+            if not (op_start < idx < op_end) or not self._has_counsel_caption(seg):
+                out.append(entry)
+                continue
+            cap = next(
+                (
+                    j for j, line in enumerate(seg)
+                    if self._plain(line.get("text")).startswith("Counsel for")
+                    and self._line_all_italic(line)
+                ),
+                None,
+            )
+            if cap is None:
+                out.append(entry)
+                continue
+            cap_x0 = seg[cap].get("x0", 0)
+            while cap - 1 >= 0:
+                prev = seg[cap - 1]
+                if (
+                    abs(prev.get("x0", 0) - cap_x0) <= 2
+                    and prev.get("x1", 0) < rail - 6
+                ):
+                    cap -= 1
+                else:
+                    break
+            if cap == 0:
+                out.append(entry)
+                continue
+            out.append((pno, seg[:cap], kind))
+            out.append((pno, seg[cap:], kind))
+            shift += 1
+        return out, op_end + shift
+
     def _counsel_block_start(self, all_segments, op_start, op_end):
         """Index of the segment opening the counsel addendum, or None.
 
@@ -697,9 +794,32 @@ class ThirdCircuit(FederalCircuitBase):
         )
         if cap is None:
             return None
-        while cap - 1 > op_start and self._is_list_segment(all_segments[cap - 1][1]):
+        while (
+            cap - 1 > op_start
+            and self._is_list_segment(all_segments[cap - 1][1])
+            and not self._is_closing_prose(all_segments[cap - 1][1])
+        ):
             cap -= 1
         return cap
+
+    def _is_closing_prose(self, seg) -> bool:
+        """A short segment that is nonetheless a SENTENCE, not a name run.
+
+        ``_is_list_segment`` asks only whether any line reaches the justified
+        measure, and a one-line closing paragraph never does — so
+        rohan_lyttle's holding ('For the stated reasons, we will affirm the
+        judgment.') was ragged, short, and swept into the counsel addendum
+        along with the '***' above it.
+
+        Geometry cannot separate those two: one indented short line looks
+        exactly like a name. What separates them is that a holding is a
+        finished sentence and an appearance is a label — 'Robert J. Daniels'
+        and 'Office of United States Attorney' neither run to a full clause nor
+        close on a stop."""
+        text = " ".join(
+            self._plain(line.get("text")) for line in seg
+        ).strip()
+        return text.endswith((".", "!", "?")) and len(text.split()) >= 6
 
     def _has_counsel_caption(self, seg) -> bool:
         """True if a segment carries an italic ``Counsel for …`` caption."""

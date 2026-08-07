@@ -2771,18 +2771,45 @@ class FederalCircuitBase(GenericExtractor):
         first_page = page.page_number == getattr(self, "_caption_pno", 1)
         floor = page.height * (0.30 if first_page else 0.10)
         rects = [r for r in page.rects if r["height"] < 2]
+        rail = self._page_text_rail(page)
         cands = []
         for r in rects:
-            if not (
-                120 <= (r["x1"] - r["x0"]) <= 170
-                and x_lo <= r["x0"] <= x_hi
-                and r["top"] > floor
-            ):
+            if not (120 <= (r["x1"] - r["x0"]) <= 170 and r["top"] > floor):
                 continue
             if any(o is not r and abs(o["top"] - r["top"]) <= 2 for o in rects):
                 continue
-            cands.append(r)
+            if x_lo <= r["x0"] <= x_hi:
+                cands.append(r)
+                continue
+            # The x band is a property of the court's USUAL margin, not of the
+            # footnote rule: measured across cadc, the rule starts at the page's
+            # own left text rail in 371 of 377 cases — at 156 most of the time,
+            # but at 72 and at 144 in documents set to a different measure. The
+            # fixed 150-165 band rejected those outright, and eight cadc
+            # documents delivered their footnotes as body prose in silence.
+            #
+            # Corroborated rather than merely widened: a rule away from the
+            # configured band is taken only with footnote-sized text beneath it,
+            # so a caption shelf or a table rule at the rail cannot pass.
+            if rail is not None and abs(r["x0"] - rail) <= 4 and (
+                self._rule_over_footnotes(page, r["top"])
+                or self._labelled_note_below(page, r["top"])
+            ):
+                cands.append(r)
         return min(cands, key=lambda r: r["top"])["top"] if cands else None
+
+    @staticmethod
+    def _page_text_rail(page):
+        """The page's own left text rail — the leftmost x0 that RECURS among
+        its full-measure lines. Recurrence is what makes 'leftmost' safe: one
+        outdented stray cannot move the rail."""
+        xs = {}
+        for line in page.extract_text_lines():
+            if line.get("x1", 0) - line.get("x0", 0) < page.width * 0.45:
+                continue
+            xs[round(line.get("x0", 0))] = xs.get(round(line.get("x0", 0)), 0) + 1
+        recurring = [x for x, hits in xs.items() if hits >= 2]
+        return float(min(recurring)) if recurring else None
 
     def matches_expected_layout(self, pdf) -> bool:
         if not pdf.pages:

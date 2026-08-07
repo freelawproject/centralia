@@ -18,6 +18,7 @@ import dataclasses
 import json
 import os
 import sys
+from concurrent.futures import ProcessPoolExecutor
 from pathlib import Path
 
 from .audit import audit_coverage, format_report
@@ -96,6 +97,13 @@ def main(argv=None):
         help="completeness check: report any source-PDF line not "
         "accounted for anywhere in the extraction",
     )
+    ap.add_argument(
+        "--workers",
+        type=int,
+        default=0,
+        help="parallel extraction workers in batch mode, 0 = auto "
+        "(cores - 2, max 8). Rendering and writing stay in this process.",
+    )
     args = ap.parse_args(argv)
 
     extractor = get_extractor(args.court_id)
@@ -134,12 +142,40 @@ def main(argv=None):
     ext = _ext(args)
     entries = []
     n_ok = n_err = 0
-    for pdf in pdfs:
+    # Extraction is CPU-bound in pdfplumber at ~3s a document, so a whole-corpus
+    # HTML refresh ran for hours on one core while the rest of the machine sat
+    # idle. Only the EXTRACT is farmed out; rendering and writing stay here, so
+    # the index is still assembled in document order.
+    workers = args.workers or (
+        max(1, min(8, (os.cpu_count() or 2) - 2)) if len(pdfs) > 1 else 1
+    )
+    workers = max(1, min(workers, len(pdfs)))
+    executor = ProcessPoolExecutor(max_workers=workers) if workers > 1 else None
+
+    def _extracted():
+        """(pdf, doc, error) per input, streamed in order."""
+        if executor is None:
+            for pdf in pdfs:
+                try:
+                    yield pdf, extractor.extract(str(pdf)), None
+                except Exception as e:
+                    yield pdf, None, f"{type(e).__name__}: {e}"
+            return
+        jobs = [(args.court_id, str(p)) for p in pdfs]
+        for pdf, (_p, doc, err) in zip(
+            pdfs, executor.map(_extract_one, jobs, chunksize=2)
+        ):
+            yield pdf, doc, err
+
+    for pdf, doc, err in _extracted():
         out_path = _dest(pdf, ext, args)
+        if err is not None:  # keep the batch going; report at the end
+            n_err += 1
+            print(f"!! {pdf.name}: {err}", file=sys.stderr)
+            continue
         try:
-            doc = extractor.extract(str(pdf))
             text = _render(doc, args, pdf, out_path)
-        except Exception as e:  # keep the batch going; report at the end
+        except Exception as e:
             n_err += 1
             print(f"!! {pdf.name}: {type(e).__name__}: {e}", file=sys.stderr)
             continue
@@ -170,11 +206,24 @@ def main(argv=None):
             encoding="utf-8",
         )
         print(f"wrote {idx}")
+    if executor is not None:
+        executor.shutdown()
     if len(pdfs) > 1:
         print(
             f"done: {n_ok} written, {n_err} failed -> "
             f"{args.output or 'beside source'}"
         )
+
+
+def _extract_one(job):
+    """Extract one PDF in a worker process. Module scope so macOS spawn can
+    pickle it; returns the error rather than raising so one bad document
+    cannot take down the batch."""
+    court_id, path = job
+    try:
+        return path, get_extractor(court_id).extract(path), None
+    except Exception as e:
+        return path, None, f"{type(e).__name__}: {e}"
 
 
 def _ext(args) -> str:

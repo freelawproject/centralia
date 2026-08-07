@@ -43,6 +43,9 @@ class AlabamaAppellate(BaseExtractor):
     measured_space_gap = False
     mark_flush_right = False
     split_quote_runs = False
+    # The old casebody left a wrapped word's hyphen and the space after it in
+    # place ('Switzer- land'); healing them would move the locked bytes.
+    rejoin_wrapped_hyphens = False
     order_heading_fallback = False
     surface_margin_furniture = False
     footnote_sep_rect = (72.0, 216.0)

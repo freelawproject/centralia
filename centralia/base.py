@@ -361,6 +361,12 @@ class BaseExtractor:
     # Alabama's fidelity-locked output joins its no-opinion order rosters and
     # transcript-quote continuations, so the rule must not fire there.
     split_line_stacks: bool = False
+    # OPT-IN: fold a block QUOTATION that a page break interrupted, the way a
+    # paragraph is already folded. Off by default because the fold rests on the
+    # court setting a justified right measure — where the measure is ragged,
+    # 'this line reached the margin' proves nothing and two adjacent quotations
+    # would fuse.
+    fold_quotes_across_pages: bool = False
 
     underline_offset_min: float = 0.0
     underline_offset_max: float = 5.0
@@ -562,6 +568,13 @@ class BaseExtractor:
         # than swallowed. Deduped on the way into the Removed box, so a header
         # repeated on 28 pages shows once, not 28 times.
         self._running_header_dropped = []
+        # This document's own word list (see _learn_vocabulary). Reset per
+        # document so one PDF's vocabulary can't decide another's hyphens.
+        self._doc_words = set()
+        # Per-page ink and image coverage — see the page loop and
+        # _warn_image_only_pages.
+        self._page_ink = {}
+        self._page_img_share = {}
         source_pages = []  # (page_number, [text lines]) — ground truth for the residual sweep
         with pdfplumber.open(pdf_path) as pdf:
             n_pages = len(pdf.pages)
@@ -637,14 +650,30 @@ class BaseExtractor:
                     value = self._page_number_value(self.line_plain_text(line))
                     if value != folio:
                         return False
-                    near_edge = (
+                    if self.line_alignment(line, page.width) not in ("C", "R"):
+                        return False
+                    if (
                         line.get("top", 0) < 100
                         or line.get("top", 0) > page.height - 120
-                    )
-                    return near_edge and self.line_alignment(line, page.width) in (
-                        "C",
-                        "R",
-                    )
+                    ):
+                        return True
+                    # The fixed band above disagrees with the one
+                    # ``detect_printed_folio`` uses to REGISTER a folio (85pt),
+                    # so a folio between the two is registered as this page's
+                    # number and then not filtered out of the footnote zone.
+                    # ca3/hartmann sets its folio at y=668.4 of 792 — 3.6pt
+                    # outside the band — and the dissent gained two footnotes
+                    # whose entire text was '2' and '3'.
+                    #
+                    # Measure against the PAGE'S OWN content instead of a
+                    # constant: a footer is the last line on the page and a
+                    # header is the first, wherever the court chooses to set
+                    # it. Additive to the band, so this only ever removes
+                    # furniture that was leaking through.
+                    tops = [l["top"] for l in lines if l is not line]
+                    if not tops:
+                        return True
+                    return line["top"] >= max(tops) or line["top"] <= min(tops)
                 # Capture ground-truth text from the corrected line objects,
                 # not raw ``page.extract_text()``. Some PDFs emit overlapping
                 # glyphs twice (e.g. ``TTuucckkeerr`` in Kentucky transcripts)
@@ -709,6 +738,27 @@ class BaseExtractor:
                 imgs = self.extract_page_images(page)
                 if imgs:
                     images_by_page[page.page_number] = imgs
+                # A page whose content is a picture is a scan stapled into a
+                # born-digital document. Whatever it says is pixels, so no
+                # parsing will recover it, and the gap it leaves is
+                # indistinguishable downstream from a parsing failure —
+                # ca11/roger_tejon's footnote 5 lives on such a page, and the
+                # document reported only 'footnote sequence breaks: missing 5'.
+                #
+                # Recorded for EVERY page, not just those bearing an image:
+                # the test is against the document's own norm, and a norm
+                # measured only over its scanned pages calls the scan typical.
+                # Judged later, in _warn_image_only_pages.
+                self._page_ink[page.page_number] = sum(
+                    1 for c in page.chars if (c.get("text") or "").strip()
+                )
+                self._page_img_share[page.page_number] = max(
+                    (
+                        (i["x1"] - i["x0"]) * (i["bottom"] - i["top"])
+                        for i in page.images
+                    ),
+                    default=0,
+                ) / max(1.0, page.width * page.height)
                 # A table drawn BELOW the footnote separator belongs to the
                 # footnote, not the opinion body. Its rows are already kept out
                 # of ``fn_lines`` by ``in_any_table``, so emitting it as a body
@@ -729,6 +779,14 @@ class BaseExtractor:
                 if tables:
                     tables_by_page[page.page_number] = tables
 
+        # Before ANY text is joined — extract_headmatter builds the syllabus
+        # rows, and those wrap-heal too.
+        self._learn_vocabulary(source_pages)
+        # The residual sweep proves every source LINE lands somewhere, but an
+        # image is not a line — a full-page screenshot leaves no text for the
+        # sweep to miss, so images fell outside the completeness guarantee
+        # entirely. Count them here so the guarantee can cover them too.
+        self._images_found = sum(len(v) for v in images_by_page.values())
         self._measure_doc_geometry(all_segments)
         all_segments = [
             (page_no, seg, self.classify_segment(seg))
@@ -891,6 +949,187 @@ class BaseExtractor:
         except Exception as e:  # the sweep is a safety net, never a hard failure
             doc.warnings.append(f"residual sweep failed: {type(e).__name__}: {e}")
         self._warn_footnote_gaps(doc)
+        self._warn_mis_zoned_footnotes(doc)
+        self._warn_orphan_footnote_refs(doc)
+        self._warn_body_in_headmatter(doc)
+        self._warn_dropped_images(doc)
+        self._warn_image_only_pages(doc)
+
+    def _warn_image_only_pages(self, doc: ExtractedDocument) -> None:
+        """Pages whose content is a picture rather than text — OCR territory.
+
+        The image is kept, but any TEXT drawn inside it is pixels and cannot be
+        read. Saying so is the difference between a known limit and an apparent
+        bug: ca11/roger_tejon's footnote 5 sits on such a page, and the
+        document reported only 'footnote sequence breaks: missing 5'.
+
+        Measured against the document's OWN pages, because a scan is not always
+        textless — cacd 996274's scanned cover carries a 91-character stamp
+        layer over a full-page image while its digital pages run to ~2,800.
+        A page is a scan when a picture covers most of it and its text is a
+        small fraction of what this document sets on a normal page."""
+        ink = getattr(self, "_page_ink", None) or {}
+        share = getattr(self, "_page_img_share", None) or {}
+        if not ink:
+            return
+        typical = median(sorted(ink.values())) if ink else 0
+        # Compare against the fullest pages, not the median of a document whose
+        # pages are mostly scans — otherwise a wholly scanned filing calls its
+        # own blank norm 'typical' and reports nothing.
+        busiest = max(ink.values(), default=0)
+        norm = max(typical, busiest * 0.4)
+        pages = sorted(
+            pno
+            for pno, n in ink.items()
+            if share.get(pno, 0) >= 0.5 and n <= max(norm * 0.15, 0)
+        )
+        if not pages:
+            return
+        shown = ", ".join(str(p) for p in pages[:8])
+        more = "" if len(pages) <= 8 else f" (+{len(pages) - 8} more)"
+        doc.warnings.append(
+            f"page {shown}{more}: scanned image, not text — the picture is "
+            f"kept, but its content needs OCR and is not extracted"
+        )
+
+    def _warn_dropped_images(self, doc: ExtractedDocument) -> None:
+        """An embedded image that reached no section.
+
+        The completeness proof reads ``source_pages``, which holds text LINES,
+        so an image is invisible to it: ca11/roger_tejon dropped three
+        full-page screenshots out of five images and the sweep reported nothing
+        unplaced, because a page carrying only an image contributes no line to
+        miss. Counting extracted images against placed ones closes that hole."""
+        found = getattr(self, "_images_found", 0)
+        if not found:
+            return
+        # A document with no opinion body has nowhere to place an image, so the
+        # count proves nothing — Alabama's no-opinion orders carry a seal and
+        # a signature graphic and would report both as lost on every run.
+        if not any(op.blocks for op in doc.opinions):
+            return
+        placed = sum(
+            1
+            for op in doc.opinions
+            for block in op.blocks
+            if block.kind == "image"
+        )
+        if placed < found:
+            doc.warnings.append(
+                f"{found - placed} of {found} embedded image(s) were not "
+                f"placed in any section"
+            )
+
+    @staticmethod
+    def _warn_body_in_headmatter(doc: ExtractedDocument) -> None:
+        """The byline was matched too late and the opinion is in headmatter.
+
+        Headmatter is *defined* as whatever precedes the first opinion start,
+        so a byline matched near the END of a document silently converts almost
+        all of it into front matter. cadc/municipal_energy_agency_of_nebraska
+        matched 'Per Curiam' on page 6 — the conformed signature standing above
+        the clerk's block — and a six-page judgment came out as 75 headmatter
+        rows against 3 body blocks. Nothing objected: doc_type stayed
+        'opinion', no warning was raised, and ingest's ``suspect`` flag asks
+        only whether the body is EMPTY, which the signature satisfied.
+
+        Judged against the document's own size rather than a fixed count: a
+        real opinion sets far more body than front matter, so front matter that
+        outweighs a body of under one block per page means the anchor is
+        wrong."""
+        if doc.n_pages < 3:
+            return
+        blocks = sum(len(op.blocks) for op in doc.opinions)
+        rows = len([r for r in (doc.summary or []) if r])
+        if blocks < doc.n_pages and rows > max(blocks, 4):
+            doc.warnings.append(
+                f"body may be misfiled as headmatter: {rows} headmatter rows "
+                f"against {blocks} body block(s) over {doc.n_pages} pages — "
+                f"check that the opinion's byline was found in the right place"
+            )
+
+    _MARK_OPEN = "<footnotemark>"
+    _MARK_CLOSE = "</footnotemark>"
+
+    @classmethod
+    def _footnote_marks(cls, text: str) -> list:
+        """Every footnote-mark value in ``text``, in order of appearance."""
+        out, i = [], 0
+        while True:
+            a = text.find(cls._MARK_OPEN, i)
+            if a == -1:
+                return out
+            b = text.find(cls._MARK_CLOSE, a)
+            if b == -1:
+                return out
+            value = text[a + len(cls._MARK_OPEN) : b].strip()
+            if value:
+                out.append(value)
+            i = b + len(cls._MARK_CLOSE)
+
+    @classmethod
+    def _warn_mis_zoned_footnotes(cls, doc: ExtractedDocument) -> None:
+        """A body block that OPENS with a footnote mark is a footnote the zone
+        logic missed.
+
+        Footnote capture hangs on ONE boolean per page — whether
+        ``find_footnote_separator`` found the rule. ``extract`` builds
+        ``fn_lines`` only ``if sep_y is not None``, so when that gate fails the
+        page's whole footnote zone is delivered as body text instead, and
+        nothing says a word. A 194-page SCOTUS opinion lost footnotes 14-16 to
+        a position test, and ca2 lost Salters' footnote 1 to a mis-measured
+        rail; neither produced a warning, and both were found only by hand.
+
+        The loss is self-evident in the output, though. ``line_inline_text``
+        had already recognised the raised, reduced-size label and wrapped it in
+        <footnotemark> — so the inline renderer and the zone logic contradict
+        each other about the same line, and the contradiction costs nothing to
+        detect. A block that STARTS with a mark is a footnote's opening line
+        sitting in the body."""
+        hits = []
+        for op in doc.opinions:
+            for block in op.blocks:
+                if block.text.lstrip().startswith(cls._MARK_OPEN):
+                    marks = cls._footnote_marks(block.text)
+                    hits.append((block.page, marks[0] if marks else "?"))
+        if not hits:
+            return
+        shown = ", ".join(f"{label} (p{page})" for page, label in hits[:6])
+        more = "" if len(hits) <= 6 else f" (+{len(hits) - 6} more)"
+        doc.warnings.append(
+            f"footnote text left in the body: {shown}{more} — the page's "
+            f"footnote separator was not found, so the zone was read as prose"
+        )
+
+    @classmethod
+    def _warn_orphan_footnote_refs(cls, doc: ExtractedDocument) -> None:
+        """A mark in the body with no footnote to match it.
+
+        This is the direct statement of 'the footnote was not found', and it
+        catches what the sequence check structurally cannot: a missing FIRST
+        note leaves no gap at all (ca2 Salters ran 2, 3 and read as complete).
+        Headmatter notes count toward the pool — a caption-page note about
+        party substitution is a real footnote, and treating it as missing was
+        what made an earlier hand scan report three false failures."""
+        pool = {
+            str(fn.label or "").strip()
+            for fn in (doc.headmatter_footnotes or [])
+        }
+        missing = []
+        for op in doc.opinions:
+            labels = pool | {str(fn.label or "").strip() for fn in op.footnotes}
+            seen = set()
+            for block in op.blocks:
+                for mark in cls._footnote_marks(block.text):
+                    if mark not in labels and mark not in seen:
+                        seen.add(mark)
+                        missing.append(mark)
+        if missing:
+            shown = ", ".join(missing[:8])
+            more = "" if len(missing) <= 8 else f" (+{len(missing) - 8} more)"
+            doc.warnings.append(
+                f"footnote referenced but never built: {shown}{more}"
+            )
 
     @staticmethod
     def _warn_footnote_gaps(doc: ExtractedDocument) -> None:
@@ -903,28 +1142,34 @@ class BaseExtractor:
         word. The numbering is the court's own checksum, so read it: any gap
         in an otherwise consecutive run means a note was dropped on the floor.
 
+        Read PER WRITING. Pooling every opinion's labels into one set was a
+        blind spot exactly where it mattered: SCOTUS restarts its numbering at
+        1 for each writing, so the concurrence's missing 14, 15 and 16 were
+        'filled' by the dissents' own 14, 15 and 16 and the check stayed
+        silent through a 194-page loss.
+
         Numbered notes only. A court that labels with '*' / '†' is not
         sequential and has nothing to check."""
-        labels = []
+        gaps = []
         for op in doc.opinions:
-            for fn in op.footnotes:
-                text = str(fn.label or "").strip().rstrip(".")
-                if text.isdigit():
-                    labels.append(int(text))
-        if len(labels) < 2:
-            return
-        ordered = sorted(set(labels))
-        gaps = [
-            n
-            for a, b in zip(ordered, ordered[1:])
-            for n in range(a + 1, b)
-        ]
+            labels = sorted(
+                {
+                    int(text)
+                    for fn in op.footnotes
+                    if (text := str(fn.label or "").strip().rstrip("."))
+                    and text.isdigit()
+                }
+            )
+            if len(labels) < 2:
+                continue
+            gaps.extend(
+                n for a, b in zip(labels, labels[1:]) for n in range(a + 1, b)
+            )
         if gaps:
-            shown = ", ".join(str(n) for n in gaps[:8])
-            more = "" if len(gaps) <= 8 else f" (+{len(gaps) - 8} more)"
+            shown = ", ".join(str(n) for n in sorted(set(gaps))[:8])
+            more = "" if len(set(gaps)) <= 8 else f" (+{len(set(gaps)) - 8} more)"
             doc.warnings.append(
-                f"footnote sequence breaks: missing {shown}{more} "
-                f"(found {ordered[0]}-{ordered[-1]})"
+                f"footnote sequence breaks: missing {shown}{more}"
             )
 
     def _apply_headmatter(self, doc: ExtractedDocument, hm: dict) -> None:
@@ -1681,41 +1926,91 @@ class BaseExtractor:
                 if r["x0"] == sx0 and r["x1"] == sx1:
                     return r["top"]
             return None
-        cutoff = page.height * 0.55
         x0_max = self.body_baseline_x0 + 4
         divider = self.find_caption_divider(page)
         cap_bot = divider[2] if divider else None
         min_w = self.footnote_sep_min_width(page)
 
-        def scan(objs):
+        def scan(objs, width_min, floor, corroborate):
             out = []
             for r in objs:
                 if not (
                     abs(r.get("height", 0)) < 2
-                    and (r["x1"] - r["x0"]) >= min_w
+                    and (r["x1"] - r["x0"]) >= width_min
                     and r["x0"] <= x0_max
-                    and r["top"] > cutoff
+                    and r["top"] > floor
                 ):
                     continue
                 if cap_bot is not None and abs(r["top"] - cap_bot) <= 4:
                     continue
-                if not self._rule_over_footnotes(page, r["top"]):
+                if not corroborate(r["top"]):
                     continue
                 out.append(r)
             return out
 
-        candidates = scan(page.rects)
-        if not candidates:
-            # Some courts STROKE the separator as a vector line instead of
-            # filling a thin rect (neb, nd, conn, gactapp, nysurct ...). Their
-            # ``page.rects`` is empty, so the rect scan finds nothing and every
-            # footnote in the volume is silently lost — body text and all.
-            # Consulted only when the rects found nothing, so a court that
-            # already resolves via rects is unaffected.
-            candidates = scan(page.lines)
-        if candidates:
-            return min(candidates, key=lambda r: r["top"])["top"]
-        return self._footnote_sep_text(page)
+        # Some courts STROKE the separator as a vector line instead of filling
+        # a thin rect (neb, nd, conn, gactapp, nysurct ...). Their page.rects is
+        # empty, so a rect-only scan finds nothing and every footnote in the
+        # volume is silently lost — body text and all.
+        shapes = (page.rects, page.lines)
+
+        def first_hit(width_min, floor, corroborate):
+            for objs in shapes:
+                hits = scan(objs, width_min, floor, corroborate)
+                if hits:
+                    return min(hits, key=lambda r: r["top"])["top"]
+            return None
+
+        # STEP 1 — the rule, corroborated by SMALLER TEXT below it.
+        by_size = lambda top: self._rule_over_footnotes(page, top)
+        sep = first_hit(min_w, page.height * 0.55, by_size)
+        if sep is not None:
+            return sep
+
+        # STEP 2 — the rule, corroborated by a RAISED LABEL below it. Size
+        # proves nothing on a court that sets footnotes at BODY size and raises
+        # only the label digit: cadc/np_red_rock and cod 252728 run 12pt on
+        # both sides of the rule, so step 1 rejected a rule sitting right on
+        # top of the notes and lost every footnote on the page.
+        #
+        # The label is strong enough evidence to relax the two geometric floors
+        # that step 1 needs. Width: olc draws its rule 72pt wide, under the
+        # ~98pt minimum. Height: a footnote long enough to fill a page pushes
+        # the next page's rule far up it (scotus trump_v._barbara p37, y=291 of
+        # 792), and 0.55 threw that away.
+        sep = first_hit(
+            min(min_w, 60.0),
+            page.height * 0.25,
+            lambda top: self._labelled_note_below(page, top),
+        )
+        if sep is not None:
+            return sep
+
+        # STEP 3 — a separator drawn as TEXT rather than as a shape.
+        sep = self._footnote_sep_text(page)
+        if sep is not None:
+            return sep
+
+        # STEP 4 — NO separator drawn at all (pasuperct draws none anywhere;
+        # several cadc documents mark the zone only by a 12pt -> 11pt drop).
+        return self._footnote_zone_by_size(page)
+
+    def _labelled_note_below(self, page, rule_top) -> bool:
+        """Does the first text line under ``rule_top`` open with a raised
+        footnote label?
+
+        This is the corroboration that survives body-size footnotes, where
+        'smaller text below' cannot help: np_red_rock sets 12pt above the rule
+        and 12pt below it, and raises only the label — '1' at 8.04pt on a 12pt
+        line."""
+        below = [
+            line
+            for line in page.extract_text_lines()
+            if line["top"] > rule_top + 1 and (line.get("chars") or [])
+        ]
+        if not below:
+            return False
+        return self.detect_footnote_label(min(below, key=lambda l: l["top"])) is not None
 
     def footnote_sep_fixed_left_rule(self, page, width=144.0, tol=6.0, x0_max=None):
         """Footnote separator = the fixed-width thin rule the court draws at the
@@ -1749,6 +2044,74 @@ class BaseExtractor:
             if best is None or r["top"] < best:
                 best = r["top"]
         return best
+
+    # Last step of the separator chain: find the footnote zone on a page that
+    # draws NO separator at all, from the drop in type size. On by default —
+    # pasuperct draws no rule anywhere in the corpus and lost its footnotes in
+    # 28 of 30 documents. Opt OUT on a court that sets small-print matter in
+    # the BODY (a block quotation in reduced type), where the drop means
+    # something else.
+    footnote_zone_by_size: bool = True
+
+    def _footnote_zone_by_size(self, page) -> Optional[float]:
+        """Top of a footnote zone identified by TYPE SIZE, not by a rule.
+
+        Footnote capture is gated on ``find_footnote_separator`` returning a y,
+        and several cadc documents draw no separator whatsoever — no rect, no
+        line. The zone is marked the way a typesetter marks it: the type drops
+        (12pt body to 11pt), the first line carries a raised label in its
+        hanging indent, and it runs to the foot of the page. Eight cadc
+        documents delivered their footnotes as body prose because none of that
+        was read.
+
+        Requires all three, so a stray small line cannot open a zone: the run
+        must reach the bottom of the page, its first line must carry a footnote
+        label, and there must be body-size text above it."""
+        if not self.footnote_zone_by_size:
+            return None
+        lines = [l for l in page.extract_text_lines() if (l.get("chars") or [])]
+        if len(lines) < 2:
+            return None
+        lines.sort(key=lambda l: l["top"])
+        sizes = [self._line_type_size(l["chars"]) for l in lines]
+        common = Counter(sizes).most_common()
+        body = max((s for s, hits in common if hits >= 3), default=None)
+        if body is None:
+            return None
+
+        def is_folio(line):
+            # The printed folio sits BELOW the footnotes at body size; it must
+            # not close the run before it starts.
+            return self._page_number_value(self.line_plain_text(line)) is not None
+
+        start = None
+        for i in range(len(lines) - 1, -1, -1):
+            if is_folio(lines[i]):
+                continue
+            if sizes[i] <= body - 0.5:
+                start = i
+            else:
+                break
+        if start is None or start == 0:
+            return None
+        # A zone normally opens on a labelled note. One that does not is a
+        # CONTINUATION carried over from the previous page — np_red_rock's
+        # page 9 ends with the tail of page 8's footnote — and requiring a
+        # label there left those lines in the body, where they also defeated
+        # the 'nothing below this byline' test that identifies the closing
+        # signature, so the whole judgment stayed in headmatter.
+        #
+        # A continuation is admitted on position instead: it must run to the
+        # FOOT of the page, which a mid-page run of small type never does.
+        if self.detect_footnote_label(lines[start]) is None:
+            last = max(
+                (l for l in lines[start:] if not is_folio(l)),
+                key=lambda l: l.get("bottom", l["top"]),
+                default=None,
+            )
+            if last is None or last.get("bottom", last["top"]) < page.height * 0.82:
+                return None
+        return lines[start]["top"] - 1
 
     def _footnote_sep_structural(self, page) -> Optional[float]:
         """Structural footnote-separator detection for body-size-footnote
@@ -3119,6 +3482,27 @@ class BaseExtractor:
     # ====================================================================
     # TEXT (inline formatting)
     # ====================================================================
+    @staticmethod
+    def _line_type_size(chars) -> float:
+        """The line's own type size — measured from glyphs that print INK.
+
+        A blank glyph's size is not evidence about the size of the type it sits
+        in. Justified setting can widen an inter-sentence space by giving it its
+        own larger font instance: berk_v._choy p16 sets a single 11pt SPACE in
+        the middle of a 9pt footnote line. Counting it made the line read as
+        11pt type, which put the 9pt PROSE inside the small-glyph band — so the
+        footnote's own 7pt label stopped being the shortest run on the line and
+        the mark test rejected it, leaving '1To the extent that ...' with the
+        label welded to the first word."""
+        inked = [
+            round(c.get("size", 0), 1)
+            for c in chars
+            if (c.get("text") or "").strip()
+        ]
+        return max(inked) if inked else max(
+            (round(c.get("size", 0), 1) for c in chars), default=0.0
+        )
+
     def _footnote_mark_chars(self, chars, body_size) -> list:
         """Per-char: may this small glyph be read as a footnote MARK?
 
@@ -3245,7 +3629,7 @@ class BaseExtractor:
         chars = line.get("chars") or []
         if not chars:
             return ""
-        body_size = max(round(c["size"], 1) for c in chars)
+        body_size = self._line_type_size(chars)
         space_gap = self._inferred_space_gap(chars)
         mark_ok = self._footnote_mark_chars(chars, body_size)
         parts = []
@@ -3370,8 +3754,147 @@ class BaseExtractor:
             prev_x1 = c["x1"]
         return "".join(out)
 
+    # Rejoin a word the page broke across a line with a hyphen. Alabama is
+    # fidelity-locked to the old ca1/casebody output and opts out.
+    rejoin_wrapped_hyphens: bool = True
+
+    def _learn_vocabulary(self, source_pages) -> None:
+        """The document's own word list, used to tell a line-break hyphen from a
+        real compound hyphen.
+
+        There is no geometric difference between the two: 'Switzer-' at the end
+        of a justified line and 'natural-' in 'natural-born' are the same glyph
+        in the same font at the same right measure. What DOES separate them is
+        the document's own vocabulary — an opinion repeats its terms, so
+        'Switzerland' appears unbroken somewhere else on the page or in the
+        footnotes, and 'natural-born' appears unbroken WITH its hyphen. Measured
+        on trump_v._barbara: of 518 hyphen line-breaks, 422 are proved soft this
+        way outright, and the handful of genuine compounds ('natural-born',
+        'quasi-sovereign', 'domicile-based') are the ones the hyphenated form
+        rescues."""
+        words = set()
+        for _pno, lines in source_pages:
+            for line in lines:
+                for tok in line.split():
+                    tok = tok.strip("“”\"'’‘()[]{}.,;:!?*†‡§¶").lower()
+                    # A token that ENDS in a hyphen is itself a broken word; it
+                    # is no evidence of anything unbroken.
+                    if tok.endswith("-"):
+                        continue
+                    if tok and all(c.isalpha() or c in "-’'" for c in tok):
+                        words.add(tok)
+        self._doc_words = words
+
+    def _hyphen_break_at(self, markup):
+        """``(index_of_hyphen, word_before_it)`` when ``markup`` ends — ignoring
+        inline tags and trailing space — on a hyphen that closes a word; else
+        None. The hyphen may sit inside markup ('<em>Switzer-</em>')."""
+        depth = 0
+        vis = []  # (index in markup, char)
+        for i, ch in enumerate(markup):
+            if ch == "<":
+                depth += 1
+            elif ch == ">":
+                depth = max(0, depth - 1)
+            elif depth == 0:
+                vis.append((i, ch))
+        while vis and vis[-1][1].isspace():
+            vis.pop()
+        if not vis or vis[-1][1] != "-":
+            return None
+        word = []
+        for _i, ch in reversed(vis[:-1]):
+            if ch.isalpha() or ch in "’'":
+                word.append(ch)
+            else:
+                break
+        if not word:
+            return None  # a dash standing alone, not a broken word
+        return vis[-1][0], "".join(reversed(word))
+
+    @staticmethod
+    def _head_word_span(markup) -> tuple:
+        """``(leading word of markup's visible text, index just past it)``.
+        Inline tags and leading space are skipped, so the word is found even
+        behind a ``<pagenumber .../>`` marker or an opening ``<em>``."""
+        depth = 0
+        out = []
+        end = 0
+        for i, ch in enumerate(markup):
+            if ch == "<":
+                depth += 1
+            elif ch == ">":
+                depth = max(0, depth - 1)
+            elif depth == 0:
+                if ch.isalpha() or (out and ch in "’'"):
+                    out.append(ch)
+                    end = i + 1
+                elif out or not ch.isspace():
+                    break
+        return "".join(out), end
+
+    def _head_word(self, markup) -> str:
+        """The leading word of ``markup``'s visible text, tags skipped."""
+        return self._head_word_span(markup)[0]
+
+    def _compound_hyphen(self, left, right) -> bool:
+        """Was the hyphen between ``left`` and ``right`` PRINTED, or inserted by
+        the line breaker? True = printed, so it survives the join.
+
+        Read off the document's own vocabulary, in order of how much each
+        reading proves:
+
+        1. the halves appear joined and unbroken somewhere ('Switzerland') —
+           the hyphen was the line breaker's. This settles about two thirds of
+           them on its own.
+        2. they appear joined WITH the hyphen ('natural-born', 'state-created',
+           'pre-certification') — printed.
+
+        Otherwise the hyphen came from the line break. That is the right
+        default by a wide margin, and it is the only reading with evidence
+        behind it: a rule inferring a compound from each HALF being a word the
+        document uses ('of' + 'access') was measured at roughly even odds — it
+        rescued 'of-access' and 'so-called' but also produced 'Like-wise' and
+        'an-swer', because a prefix syllable is often a word too. What survives
+        is 'cross-jurisdictional' read as one word in a document that never
+        prints it unbroken — rare, and far less damage than 'Switzer- land'."""
+        vocab = getattr(self, "_doc_words", None) or set()
+        if (left + right).lower() in vocab:
+            return False
+        return (left + "-" + right).lower() in vocab
+
+    def join_wrapped_lines(self, texts) -> str:
+        """Join a paragraph's rendered lines, healing words the page broke with
+        a hyphen. Without this the text reads 'Switzer- land', 'citizen- ship',
+        'malprac- tice' — and those survive all the way into CourtListener's
+        rendered HTML."""
+        if not self.rejoin_wrapped_hyphens:
+            # Byte-for-byte the join this replaced, empty rows included.
+            return " ".join(texts)
+        texts = [t for t in texts if t]
+        if not texts:
+            return ""
+        out = texts[0]
+        for nxt in texts[1:]:
+            broken = self._hyphen_break_at(out)
+            head = self._head_word(nxt) if broken else ""
+            # Only a LOWERCASE continuation is a broken word. A capitalized one
+            # is the second element of a compound ('Franco-American'), which
+            # keeps its printed hyphen and its line break.
+            if broken and head and head[:1].islower():
+                hy, left = broken
+                if self._compound_hyphen(left, head):
+                    out = out + nxt  # a real compound: close the space, keep '-'
+                else:
+                    out = out[:hy] + out[hy + 1 :] + nxt
+                continue
+            out = out + " " + nxt
+        return out
+
     def paragraph_text(self, lines) -> str:
-        return " ".join(self.line_inline_text(l) for l in lines)
+        return self.join_wrapped_lines(
+            [self.line_inline_text(l) for l in lines]
+        )
 
     # ====================================================================
     # BODY BUILDING (structured model, not XML)
@@ -3427,6 +3950,43 @@ class BaseExtractor:
             if all_segments[k][2] == "blockquote"
         ]
         quote_left = min(quote_xs) if quote_xs else self.body_baseline_x0
+        # This opinion's right measure, for judging whether a line WRAPPED.
+        op_right = max(
+            (
+                l["x1"]
+                for k in range(op_start, op_end)
+                for l in all_segments[k][1]
+            ),
+            default=None,
+        )
+        # (page_no, lines) of the last block added under each kind, so a
+        # quotation broken by a page break can be folded back together.
+        last_of_kind: dict = {}
+
+        def folds_after_page_break(tag, lines, page_no) -> bool:
+            """Does ``lines`` continue the quotation in ``blocks[-1]``?
+
+            A page break must not break a paragraph (and a block quotation is a
+            paragraph). The ``p`` branch below has always folded; quotations
+            never did, so THOMAS's Speck denial came out as one block ending
+            'after his' and a second starting 'father returned with him'.
+
+            Three things have to hold, all measured: the quotation above ran to
+            the RIGHT MEASURE (a line ending short of it had finished, so
+            nothing follows it), the new lines resume in the same column, and
+            they do not open a new item of their own."""
+            if tag != "blockquote" or not self.fold_quotes_across_pages:
+                return False
+            if not blocks or blocks[-1].kind != "blockquote":
+                return False
+            prev = last_of_kind.get("blockquote")
+            if not prev or prev[0] == page_no or op_right is None:
+                return False
+            if lines[0].get("_hang_marker"):
+                return False
+            if abs(lines[0]["x0"] - prev[1][0]["x0"]) > 3:
+                return False
+            return prev[1][-1]["x1"] >= op_right - 6
 
         def add_para(tag, lines, page_no):
             if not lines:
@@ -3458,10 +4018,30 @@ class BaseExtractor:
                 and page_no != last_body_page[0]
                 and first_x0 < wrap_max
                 and not self._begins_paragraph_block(lines)
-            ):
+            ) or folds_after_page_break(tag, lines, page_no):
                 marker = self.page_marker(page_no)
-                middle = f" {marker}" if marker else ""
-                blocks[-1].text += f"{middle} {txt}"
+                prev_text = blocks[-1].text
+                broken = (
+                    self._hyphen_break_at(prev_text)
+                    if self.rejoin_wrapped_hyphens
+                    else None
+                )
+                head, cut = self._head_word_span(txt) if broken else ("", 0)
+                if broken and head[:1].islower():
+                    # The page broke a WORD across the fold. Heal it, and set
+                    # the page marker down after the whole word rather than
+                    # inside it.
+                    hy, _left = broken
+                    blocks[-1].text = (
+                        prev_text[:hy]
+                        + prev_text[hy + 1 :]
+                        + txt[:cut]
+                        + (f" {marker}" if marker else "")
+                        + txt[cut:]
+                    )
+                else:
+                    middle = f" {marker}" if marker else ""
+                    blocks[-1].text = f"{prev_text}{middle} {txt}"
             else:
                 payload = {}
                 first_line_indent = lines[0].get("_first_line_indent")
@@ -3481,6 +4061,7 @@ class BaseExtractor:
                 blocks.append(Block(kind=tag, text=txt, page=page_no, payload=payload))
             if tag == "p":
                 last_body_page[0] = page_no
+            last_of_kind[tag] = (page_no, lines)
 
         events = []
         for k in range(op_start, op_end):
@@ -3535,6 +4116,16 @@ class BaseExtractor:
         # absent, and its image silently disappeared. The last opinion owns
         # any trailing image-only pages; nothing else can.
         img_pages = set(op_pages)
+        if op_pages:
+            # A page whose ENTIRE content is one image contributes no segment,
+            # so it never reaches op_pages and its image was dropped without a
+            # word. The trailing case was already covered; the MIDDLE was not —
+            # ca11/roger_tejon sets three full-page screenshots at pages 12, 17
+            # and 19 of a dissent running from 11 to 25, and all three
+            # vanished. A page inside this writing's own span belongs to it:
+            # no other writing can claim it.
+            lo, hi = min(op_pages), max(op_pages)
+            img_pages |= {p for p in images_by_page if lo < p < hi}
         if op_end >= len(all_segments) and op_pages:
             last_body_pg = max(op_pages)
             img_pages |= {p for p in images_by_page if p > last_body_pg}
@@ -3721,7 +4312,7 @@ class BaseExtractor:
             and all(char in self.FOOTNOTE_LABEL_CHARS for char in plain)
         ):
             return plain
-        body_size = max(round(c["size"], 1) for c in chars)
+        body_size = self._line_type_size(chars)
         first = chars[0]
         first_small = round(first["size"], 1) <= body_size - 1.5
         if not (first_small and first["text"] in self.FOOTNOTE_LABEL_CHARS):
@@ -3816,7 +4407,9 @@ class BaseExtractor:
         for i, plines in enumerate(paras):
             groups = self._split_footnote_structure(plines, fn_baseline)
             for group_i, (group, is_quote) in enumerate(groups):
-                txt = " ".join(self.line_inline_text(l) for l in group).strip()
+                txt = self.join_wrapped_lines(
+                    [self.line_inline_text(l) for l in group]
+                ).strip()
                 if i == 0 and group_i == 0 and txt.startswith("<footnotemark>"):
                     end = txt.find("</footnotemark>")
                     if end != -1:

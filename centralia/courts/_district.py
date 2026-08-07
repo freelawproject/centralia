@@ -641,7 +641,20 @@ class DistrictBase(GenericExtractor):
         carry = None
         if sep_top is not None:
             lines = self._footnote_zone_lines(page, sep_top)
-            if len(lines) >= 2:
+            if len(lines) == 1:
+                # A ONE-LINE zone carries no leading to measure, so the carry
+                # was abandoned entirely — and with it the only evidence that
+                # the next page opens with a continuation. cod 252728 sets a
+                # single line of footnote 1 at the foot of page 4; page 5 then
+                # opened with 17 lines of that footnote under a rule whose
+                # footnotes are BODY-sized, so neither the size test nor the
+                # label test could confirm it and footnote 2 was lost with it.
+                # Remember the left edge alone and let the continuation test
+                # match on that.
+                only = lines[0]
+                if only["bottom"] >= page.height - 120:
+                    carry = {"x0": only["x0"], "lead": None}
+            elif len(lines) >= 2:
                 last, prev = lines[-1], lines[-2]
                 same_indent = abs(last["x0"] - prev["x0"]) <= 4
                 lead = last["top"] - prev["top"]
@@ -680,11 +693,19 @@ class DistrictBase(GenericExtractor):
         if len(lines) < 2:
             return False
         first, second = lines[:2]
-        return (
-            abs(first["x0"] - carry["x0"]) <= 4
-            and abs(second["x0"] - carry["x0"]) <= 4
-            and abs((second["top"] - first["top"]) - carry["lead"]) <= 3
-        )
+        if abs(first["x0"] - carry["x0"]) > 4 or abs(second["x0"] - carry["x0"]) > 4:
+            return False
+        if carry["lead"] is None:
+            # Carried over from a one-line zone, so there is no leading to
+            # compare. The left edge plus a zone that runs single-spaced to the
+            # foot of the page is what remains, and a stray rule over body text
+            # does not produce that.
+            lead = second["top"] - first["top"]
+            return (
+                8 <= lead <= self.gap_single_max
+                and lines[-1]["bottom"] >= page.height - 120
+            )
+        return abs((second["top"] - first["top"]) - carry["lead"]) <= 3
 
     def _gutter_footnote_rule(self, page, gx):
         """A footnote separator on pleading paper: a thin, left-anchored

@@ -24,8 +24,11 @@ Furniture and geometry:
   section label). They are dropped by position and recorded; the label
   drives the Syllabus boundary, and the PRINTED page number (slip numbering
   restarts for each writing) replaces the PDF page index on every block.
-* 9pt body, lines lead ~13.2pt, indented quotes ~10.8pt; the footnote rule
-  is a row of em-dashes drawn as text, not a graphic.
+* 11pt body on a 13.2pt lead; footnotes are the 9pt tier, on a 10.8pt lead.
+  Quotations are set at BODY size and BODY lead — they are marked only by
+  indent (156.2 body / 167.2 paragraph indent / 178.3 quotation), so nothing
+  about size or leading separates a quotation from prose. The footnote rule is
+  a row of em-dashes drawn as text, not a graphic.
 """
 
 from __future__ import annotations
@@ -49,13 +52,18 @@ class SupremeCourtUS(ReversedJusticeSupreme):
     _ROMAN_OUTLINE = _ROMAN_OUTLINE
 
     _HEAD_BAND = 150.0  # running heads at y≈115/139; content starts y≈158
-    # 9pt body: lines lead ~13.2pt, block quotes ~10.8pt.
+    # Bands measured on the page: footnotes lead 10.8pt, body 13.2pt. The body
+    # lead therefore sits in the DOUBLE band on purpose — it is the paragraph
+    # indent, not the leading, that separates one body paragraph from the next.
     gap_tight_max = 9.5
     gap_single_max = 12.4
     gap_double_max = 28
     # Body baseline x≈156.2 with an ~11pt paragraph indent.
     body_baseline_x0 = 156.0
     para_indent_min = 8
+    # The slip measure is justified to x1≈455.8 on every full line, so a
+    # quotation line that stops short of it demonstrably ended there.
+    fold_quotes_across_pages = True
 
     # ------------------------------------------------------------- extract
     def extract(self, pdf_path):
@@ -453,9 +461,43 @@ class SupremeCourtUS(ReversedJusticeSupreme):
                 if txt0:
                     self._notice_dropped.append(txt0)
                 continue
+            self._unhang_marker(ln)
             kept.append(ln)
         self._record_head(page.page_number, head_texts)
         return kept
+
+    @staticmethod
+    def _unhang_marker(line) -> None:
+        """Read a bulleted item's indent from its TEXT column, not from the
+        marker hanging left of it.
+
+        The slip style sets a list bullet (SymbolMT U+F0B7) out in the hanging
+        indent at x0 167.2 while every word of the item — first line and
+        continuations alike — is set at 178.3. Taking the bullet's x0 as the
+        line's own made the item's first line look a level shallower than its
+        body, so the level splitter cut it off and the generic paragraph
+        splitter then read all 35 lines of THOMAS's Speck/Hausding quotations
+        as fresh first lines: 33 one-line blocks instead of three quotations.
+
+        The bullet stays in ``chars``, so it still renders and the coverage
+        audit still finds it; only the line's measured left edge moves to where
+        the type actually starts."""
+        chars = [c for c in (line.get("chars") or []) if (c.get("text") or "").strip()]
+        if len(chars) < 2:
+            return
+        first, second = chars[0], chars[1]
+        if (first.get("text") or "").isalnum():
+            return
+        # A real hanging marker stands ALONE — the type resumes a full space or
+        # more to its right. An opening quote or parenthesis butts against the
+        # word it belongs to and is not a marker.
+        if second["x0"] - first["x1"] < 3.0:
+            return
+        line["x0"] = second["x0"]
+        # With the marker no longer moving the left edge, the glyph itself is
+        # the only thing left that says 'a new item starts here' — every line of
+        # every item now shares one column. Record it for the splitter.
+        line["_hang_marker"] = True
 
     def _record_head(self, pno: int, head_texts: list) -> None:
         """The running head carries the section label (center line) and the
@@ -492,14 +534,21 @@ class SupremeCourtUS(ReversedJusticeSupreme):
         best = None
         for line in page.extract_text_lines():
             t = (line.get("text") or "").strip()
-            if (
-                len(t) >= 4
-                and all(c in "—–-" for c in t)
-                and line["top"] > page.height * 0.4
-                and line["x0"] < page.width * 0.4
-            ):
-                if best is None or line["top"] < best:
-                    best = line["top"]
+            if len(t) < 4 or any(c not in "—–-" for c in t):
+                continue
+            if line["top"] <= self._HEAD_BAND or line["x0"] >= page.width * 0.4:
+                continue
+            # WHERE on the page the rule falls proves nothing: a footnote long
+            # enough to run over a page pushes the next page's rule high up
+            # (trump_v._barbara p37, rule at y=291 of 792 — footnotes 14-16 fill
+            # the page). A fixed 0.4-of-height floor rejected it and dumped
+            # three footnotes into the body as a blockquote. The sound test is
+            # what sits BELOW the rule: footnote-size text, set smaller than the
+            # body just above it.
+            if not self._rule_over_footnotes(page, line["top"]):
+                continue
+            if best is None or line["top"] < best:
+                best = line["top"]
         return best
 
     # ------------------------------------------------------------ writings
@@ -795,6 +844,14 @@ class SupremeCourtUS(ReversedJusticeSupreme):
                     run = []
                 out.append([line])
             else:
+                # A hanging bullet opens a new list item. Its lines share the
+                # item column with the item above it (see _unhang_marker), so
+                # the marker is the only boundary there is; without this cut
+                # THOMAS's three denials — Speck, Hausding, Greisser — fuse
+                # into one quotation.
+                if run and line.get("_hang_marker"):
+                    out.extend(self._split_indent_levels(run))
+                    run = []
                 run.append(line)
         if run:
             out.extend(self._split_indent_levels(run))
@@ -883,8 +940,8 @@ class SupremeCourtUS(ReversedJusticeSupreme):
 
         def flush():
             if para:
-                text = " ".join(
-                    self.line_inline_text(l).strip() for l in para
+                text = self.join_wrapped_lines(
+                    [self.line_inline_text(l).strip() for l in para]
                 ).strip()
                 if text:
                     gap()

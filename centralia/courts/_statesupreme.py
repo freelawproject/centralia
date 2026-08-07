@@ -921,8 +921,16 @@ class StateSupreme(GenericExtractor):
             # already resolves via rects is untouched.
             rules = scan(page.lines)
         if not rules:
+            # Nothing is drawn and no text rule stands in. The zone is then
+            # marked only by the type dropping below the body's — pasuperct
+            # draws no rule anywhere in its corpus and built ZERO footnotes
+            # across 30 documents. Guarded by ``guard_author_below`` and by the
+            # detector's own corroboration (a label, a size drop, body-size
+            # text above, a run reaching the foot of the page).
             return guard_author_below(
-                self._fenceless_sep(page) or self._footnote_sep_text(page)
+                self._fenceless_sep(page)
+                or self._footnote_sep_text(page)
+                or self._footnote_zone_by_size(page)
             )
         text_lines = page.extract_text_lines()
 

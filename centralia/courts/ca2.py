@@ -2060,15 +2060,30 @@ class SecondCircuit(FederalCircuitBase):
     def _page_rail(self, page):
         """The left rail of this page's own body text.
 
-        The modal x0 of its full-measure lines: a writing's wrapped
-        continuations all return to its rail, so the mode is the rail even
-        though first lines are indented past it and footnotes may sit on it."""
+        The LEFTMOST recurring x0 among its full-measure lines. Nothing in a
+        writing is set left of its rail — first lines indent past it, quotations
+        indent further, and footnotes sit on it — so the leftmost column that
+        recurs is the rail.
+
+        It used to be the MODAL x0, on the reasoning that wrapped continuations
+        all return to the rail. They do, but so do a block quotation's, and on a
+        page the quotation dominates the mode is the QUOTATION's indent:
+        Salters p5 measured 108 on a document railed at 72, which put the 144pt
+        footnote rule at x0=72 outside every rail candidate. No separator was
+        found, and the majority's footnote 1 was delivered as body prose with
+        its <footnotemark> still attached.
+
+        Recurrence is what makes 'leftmost' safe — a single outdented stray
+        cannot move the rail."""
         x0s = Counter()
         for line in page.extract_text_lines():
             if line.get("x1", 0) - line.get("x0", 0) < page.width * 0.45:
                 continue
             x0s[round(line.get("x0", 0))] += 1
-        return float(x0s.most_common(1)[0][0]) if x0s else self.body_baseline_x0
+        if not x0s:
+            return self.body_baseline_x0
+        recurring = [x for x, hits in x0s.items() if hits >= 2]
+        return float(min(recurring) if recurring else x0s.most_common(1)[0][0])
 
     @staticmethod
     def _linenum_gutter_x(page):
