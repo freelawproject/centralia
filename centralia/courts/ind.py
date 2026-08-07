@@ -17,6 +17,7 @@ rules no longer chop the headmatter.
 
 from __future__ import annotations
 
+from collections import Counter
 from typing import Optional
 
 from ._abbrevtitle import AbbrevTitleSupreme
@@ -42,14 +43,22 @@ class IndianaSupreme(AbbrevTitleSupreme):
         """
         super().prepare_document(pdf)
         nbsp = ordinary = 0
+        sizes: Counter = Counter()
         for page in pdf.pages:
             for char in page.chars:
                 text = char.get("text") or ""
                 nbsp += text.count("\xa0")
                 ordinary += text.count(" ")
+                if text and not text.isspace():
+                    sizes[round(char.get("size") or 0.0, 1)] += 1
         total = nbsp + ordinary
         self._normalize_dominant_nbsp = (
             nbsp >= 100 and total > 0 and nbsp / total >= 0.90
+        )
+        # The document's body type size, measured once over every glyph in the
+        # file rather than page by page (see find_footnote_separator).
+        self._doc_type_size = (
+            float(sizes.most_common(1)[0][0]) if sizes else None
         )
 
     def correct_page_geometry(self, page) -> None:
@@ -164,7 +173,73 @@ class IndianaSupreme(AbbrevTitleSupreme):
         return super().classify_paragraph(lines)
 
     def find_footnote_separator(self, page) -> Optional[float]:
-        return self._footnote_sep_small_text_below(page)
+        """Indiana's separator, told from a caption divider by the TYPE under it.
+
+        The shared ``_footnote_sep_small_text_below`` gets the idea right and
+        the two measurements wrong, and both failures are visible in this
+        corpus (13 rules across 10 of the 50 documents, every footnote on those
+        pages lost to the body):
+
+        * It compares the type below the rule against **the page's** modal
+          glyph size. On a page carrying a long footnote the footnote type IS
+          the mode — south_bend p19 is 375 glyphs at 9.5pt against 95 at 12pt —
+          so the page reports a 9.5pt body and its own 9.5pt footnote reads as
+          full size. The body size is a fact about the document, not a page:
+          measured over every glyph in the file it is 12.0pt in all 50
+          documents, and in all 239 rules here (``_doc_type_size``).
+        * It fences the rule into the bottom 60% of the page. A footnote long
+          enough to fill a page pushes its own rule up — edgerock's footnote 7
+          rule sits at y=284 of 792 — and the fence rejects it. Position is not
+          what makes a rule a separator; what makes it one is that the zone
+          beneath it is TERMINAL: footnote-sized text directly under the rule
+          and no body-sized text anywhere below it, all the way to the foot.
+          A caption divider fails that on both counts, since the caption's next
+          band is body-sized and there is more body below it still.
+
+        Measured over the whole corpus, the two populations do not overlap:
+        129 rules have footnote type under them and a terminal zone (every one
+        the 144pt separator at the body rail), 11 have body type under them and
+        body type below them (the title page's caption dividers and the
+        in-text rules of edgerock/elzey), and 99 have no text within 22pt below
+        (page furniture). No rule falls in between.
+        """
+        body = getattr(self, "_doc_type_size", None)
+        if not body:
+            return self._footnote_sep_small_text_below(page)
+        # A footnote's type sits a clear step below the body's: the smallest
+        # footnote type measured here is 9.96pt against a 12.0pt body, the
+        # largest non-footnote type under a rule is 11.04pt. 1.5pt is the
+        # midpoint of that gap and the same step ``_footnote_mark_chars`` uses
+        # to call a glyph a footnote marker.
+        limit = body - 1.5
+        chars = [c for c in page.chars if not (c.get("text") or "").isspace()]
+        if not chars:
+            return None
+        cands = []
+        for rule in page.rects:
+            if not (
+                abs(rule.get("height") or 0.0) < 2.5
+                and (rule["x1"] - rule["x0"]) >= 80
+            ):
+                continue
+            band = [
+                c
+                for c in chars
+                if rule["top"] < c["top"] < rule["top"] + self._fnsep_band
+            ]
+            if not band:
+                continue
+            # The line directly under the rule must be footnote-sized...
+            if min(band, key=lambda c: c["top"]).get("size", 99.0) > limit:
+                continue
+            # ...and nothing body-sized may follow it down the page.
+            if any(
+                c["top"] > rule["top"] + 1 and (c.get("size") or 0.0) > limit
+                for c in chars
+            ):
+                continue
+            cands.append(rule["top"])
+        return min(cands) if cands else None
 
     def extract(self, pdf_path):
         self._footer_dropped = []

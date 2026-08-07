@@ -345,6 +345,81 @@ class NebraskaSupreme(NebraskaReporterStyle, AbbrevTitleSupreme):
                 op.blocks.insert(at, block)
         return op
 
+    # ---------------------------------------------------------------- footnotes
+    # The reporter's separator is a STROKED vector line (page.rects is empty on
+    # every page of every file), one third of the 288pt measure wide, drawn on
+    # the body margin: 96pt at x0=54, 478 of them across the 50 documents.
+    # The type drops a full step across that rule — 11pt body above, 9pt
+    # footnote below, with the raised label at 5.8pt. Measured on every thin
+    # horizontal vector in the corpus, the drop separates the two populations
+    # with no exceptions: all 478 96pt rules show it, and none of the 48 144pt
+    # reporter/table rules does (44 have same-size text below, 4 have none).
+    footnote_sep_size_drop = 1.5
+
+    def find_footnote_separator(self, page):
+        """Recover a separator the family base's bottom-half fence rejects.
+
+        ``StateSupreme`` only considers a rule in the bottom half of the page.
+        A footnote long enough to fill most of a page pushes its own separator
+        up above that line, and then every footnote on the page is read as
+        prose: damore p11 draws its rule at y=175 of 612 (footnotes 34-36),
+        cyboron p13 at y=261 (22-27), prososki p27 at y=224. Nine such rules
+        across eight of the 50 documents.
+
+        Position is not what makes a rule a separator. What makes it one is the
+        TYPE DROPPING ACROSS IT — the last line above is body, the first line
+        below is footnote — which is measurable on the page itself and needs no
+        constant. Reading the body size off the line above also sidesteps the
+        page's modal glyph size, which on exactly these footnote-heavy pages
+        reports the footnote's 9pt as the body (damore p11: 2,447 glyphs at 9pt
+        against 241 at 11pt).
+
+        The family base runs first and always wins, so no page it already
+        resolves can move; this only fills in where it returned nothing.
+        """
+        found = super().find_footnote_separator(page)
+        if found is not None:
+            return found
+        chars = [c for c in page.chars if not (c.get("text") or "").isspace()]
+        if not chars:
+            return None
+        min_w = self.footnote_sep_min_width(page)
+        x0_max = self.footnote_sep_x0_max or page.width * 0.25
+        cands = []
+        for rule in list(page.rects) + list(page.lines):
+            if not (
+                abs(rule.get("height") or 0.0) < 2
+                and (rule["x1"] - rule["x0"]) >= min_w
+                and rule["x0"] < x0_max
+            ):
+                continue
+            above = [c for c in chars if c["top"] < rule["top"] - 2]
+            below = [c for c in chars if rule["top"] < c["top"] < rule["top"] + 22]
+            if not above or not below:
+                continue
+            # The body's size, read off the line that sits directly on the rule.
+            last_top = max(c["top"] for c in above)
+            body = max(
+                (c.get("size") or 0.0)
+                for c in above
+                if abs(c["top"] - last_top) < 3
+            )
+            top_below = min(below, key=lambda c: c["top"])
+            if body - (top_below.get("size") or 0.0) >= self.footnote_sep_size_drop:
+                cands.append(rule["top"])
+        if not cands:
+            return None
+        sep = min(cands)
+        # Same guard the family base applies: a rule with an opinion byline
+        # printed under it is an opinion divider, and treating it as a footnote
+        # zone would swallow that writing.
+        for line in page.extract_text_lines():
+            if line.get("top", 0) > sep and self.parse_author_line(
+                (line.get("text") or "").strip()
+            ):
+                return None
+        return sep
+
     # ---------------------------------------------------------------- residuals
     def _sweep_residual(self, doc, source_pages):
         """Surface the recorded running header BEFORE the completeness sweep.

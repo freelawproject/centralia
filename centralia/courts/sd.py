@@ -196,6 +196,73 @@ class SouthDakotaSupreme(StateSupreme):
         return super().classify_document_type(all_segments, author_indices, n_pages)
 
     # ------------------------------------------------------------- footnotes
+    # Tolerance, not a measurement: how far right of the page's own measured
+    # left text rail a typed rule may start and still count as flush with it.
+    _sd_typed_rule_rail_slack = 2.0
+    # A separator is SHORT against the page's own measured text width; the
+    # conformed-signature rules are long. Measured over the corpus below.
+    _sd_typed_rule_max_measure_frac = 0.45
+    _sd_typed_rule_min_measure_frac = 0.15
+
+    def find_footnote_separator(self, page):
+        """Fall back to the separator South Dakota TYPES instead of drawing.
+
+        The Court draws its footnote rule as a filled 144pt rect on the page
+        where a footnote begins — but where a footnote is long enough to run
+        onto the next page, the carried-over zone is opened by a row of
+        underscore CHARACTERS instead ('________________________' over
+        '(. . . continued)'). Nothing in the shared chain can see that row: the
+        court sets its footnotes at BODY size with a body-size hanging label,
+        so there is no type drop to read and no raised label to corroborate a
+        typed rule with. The zone therefore fell into the body whole, and with
+        it any footnote that *started* on that page — one internal hole each in
+        9 of 50 documents (jessop_v._combs footnote 5, kaiser_trucking 11,
+        trigger_energy 14).
+
+        Neither the type size nor the position is read here; the row is
+        identified by its own geometry against the page's. Two populations of
+        typed underscore rows exist in the corpus and they do not come close to
+        overlapping: all 39 separators span 0.308-0.316 of their page's
+        measured text width, standing flush on its measured left rail; the only
+        others are the 5 conformed-signature rules over the advisory opinion's
+        justices, which stand on the same rail at 0.564. The separator's width
+        is also exactly that of the drawn rule it stands in for (144pt of a
+        466pt measure — the 2-inch Word footnote rule), which is why the two
+        agree to three decimals.
+        """
+        sep = super().find_footnote_separator(page)
+        if sep is not None:
+            return sep
+        return self._sd_typed_separator(page)
+
+    def _sd_typed_separator(self, page):
+        lines = page.extract_text_lines()
+        if len(lines) < 3:
+            return None
+        rail = min(line["x0"] for line in lines)
+        measure = max(line["x1"] - line["x0"] for line in lines)
+        if measure <= 0:
+            return None
+        best = None
+        for index, line in enumerate(lines):
+            if not self.is_rule_text(line.get("text") or "", "_"):
+                continue
+            if line["x0"] - rail > self._sd_typed_rule_rail_slack:
+                continue
+            width = line["x1"] - line["x0"]
+            if not (
+                measure * self._sd_typed_rule_min_measure_frac
+                <= width
+                <= measure * self._sd_typed_rule_max_measure_frac
+            ):
+                continue
+            # A zone with nothing under it is not a zone.
+            if index + 1 >= len(lines):
+                continue
+            if best is None or line["top"] < best:
+                best = line["top"]
+        return best
+
     def detect_footnote_label(self, line):
         """South Dakota numbers its footnotes '1.', '2.', … set at BODY size and
         flush with the footnote block's left edge, not as a raised superscript —
