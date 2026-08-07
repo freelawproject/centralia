@@ -2178,8 +2178,15 @@ class BaseExtractor:
         for courts (e.g. Utah) that draw the separator as a line of '_' text
         rather than a vector rule. The line itself is later dropped from the
         footnote flow by ``_is_separator_text``."""
-        if self.footnote_sep_text_min_width is None:
-            return None
+        # Width is the gate only when a court has CONFIGURED one. Left
+        # unconfigured this returned None outright, so a court whose separator
+        # is a typed underscore rule lost every footnote it had: pasuperct
+        # draws no rect and no vector line anywhere, marks the zone with a row
+        # of 8pt underscores, and sets the notes themselves at body size —
+        # nothing else in the chain can see that. Unconfigured, the rule is
+        # accepted on corroboration instead: a raised footnote label on the
+        # first line beneath it.
+        configured = self.footnote_sep_text_min_width
         cutoff = page.height * 0.5
         best = None
         for ln in page.extract_text_lines():
@@ -2191,7 +2198,10 @@ class BaseExtractor:
                 continue
             if ln["top"] <= cutoff:
                 continue
-            if (ln["x1"] - ln["x0"]) < self.footnote_sep_text_min_width:
+            if configured is not None:
+                if (ln["x1"] - ln["x0"]) < configured:
+                    continue
+            elif not self._labelled_note_below(page, ln["top"]):
                 continue
             if best is None or ln["top"] < best:
                 best = ln["top"]
