@@ -86,6 +86,9 @@ class OregonReports:
         base = super().find_footnote_separator(page)
         if base is not None:
             return base
+        drawn = self._reporter_sep_rule(page)
+        if drawn is not None:
+            return drawn
         from collections import Counter
         from statistics import median
 
@@ -103,6 +106,69 @@ class OregonReports:
                 break
         # only a footnote block anchored low on the page
         return sep - 1 if sep is not None and sep > page.height * 0.45 else None
+
+    @staticmethod
+    def _page_measure(page):
+        """The page's own text column — (left rail, right measure) — read from
+        the x0/x1 that RECUR among its full-measure lines. Recurrence is what
+        makes leftmost/rightmost safe: one outdented stray cannot move either
+        edge. Returns (None, None) on a page too sparse to measure."""
+        x0s, x1s = {}, {}
+        for line in page.extract_text_lines():
+            if line.get("x1", 0) - line.get("x0", 0) < page.width * 0.45:
+                continue
+            a, b = round(line.get("x0", 0)), round(line.get("x1", 0))
+            x0s[a] = x0s.get(a, 0) + 1
+            x1s[b] = x1s.get(b, 0) + 1
+        left = [x for x, hits in x0s.items() if hits >= 2]
+        right = [x for x, hits in x1s.items() if hits >= 2]
+        return (
+            float(min(left)) if left else None,
+            float(max(right)) if right else None,
+        )
+
+    def _reporter_sep_rule(self, page):
+        """The Oregon Reports separator, drawn as a vector line rather than
+        typed as underscores.
+
+        Measured over all 50 or documents (1,455 thin rules), the page draws
+        exactly two kinds of rail-anchored rule and they do not overlap:
+
+          * the RUNNING-HEADER rule — 302pt, spanning the full text measure,
+            at the top of every page (996 of them, all at 0.1 of page height);
+          * the FOOTNOTE separator — left-anchored but stopping well short of
+            the measure: 58.5pt over a fresh note (366), or ~180pt where the
+            zone opens with a footnote CONTINUED from the previous page (39),
+            plus a handful at 151/162/248pt. 410 of those 413 carry
+            footnote-size text or a raised label directly beneath.
+
+        So the separator is 'anchored at the rail, short of the measure, with
+        a note below' — no width floor and no page-position fence. Both of the
+        shared finder's gates fail here: the 58.5pt rule is far under the 100pt
+        minimum width, and a long footnote pushes its rule above mid-page
+        (sheppard p24's continuation rule sits at 0.33 of the sheet).
+
+        A rule that shares its y with another (the two-column statutory box in
+        fernandez) is a box edge, not a separator, and is skipped."""
+        rail, measure = self._page_measure(page)
+        if rail is None or measure is None:
+            return None
+        rules = [
+            r
+            for r in list(page.rects) + list(page.lines)
+            if abs(r.get("height", 0)) < 2.5 and (r["x1"] - r["x0"]) >= 20
+        ]
+        tops = []
+        for r in rules:
+            if abs(r["x0"] - rail) > 2 or r["x1"] >= measure - 8:
+                continue
+            if any(o is not r and abs(o["top"] - r["top"]) <= 2 for o in rules):
+                continue
+            if self._rule_over_footnotes(page, r["top"]) or self._labelled_note_below(
+                page, r["top"]
+            ):
+                tops.append(r["top"])
+        return min(tops) if tops else None
 
     def detect_footnote_label(self, line):
         """Oregon foot-marks are same-size '*' / '**' stars set flush with the
