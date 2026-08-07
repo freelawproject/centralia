@@ -18,7 +18,10 @@ Slip-print anatomy (every file shares it):
     AT the rail — the generic footnote-separator detector must not mistake
     that shelf for a footnote rule (it chops the majority byline off into
     the footnote flow — the root cause of the 'first opinion missing'
-    failures). The REAL separator is a TYPED underscore run;
+    failures). The REAL separator is a short rule at the body rail, drawn
+    on almost every page and typed as an underscore run on a few; the
+    signature roster is ruled the same way but in two columns, so its left
+    rule is told apart by its right-hand companion;
   * running heads: 'No. <docket>' on majority pages; separate opinions
     restart with 'State v. <name>' / 'No. <docket>' / '(<Justice>, J.,
     concurring/dissenting)' heads and RESTART their printed page numbers
