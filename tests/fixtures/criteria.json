@@ -605,7 +605,7 @@
    "FLOYD",
    "David J. NOVAK"
   ],
-  "panel_line": "Before WILKINSON, Circuit Judge, FLOYD, Senior Circuit Judge, and David J. NOVAK, United States District Judge for the Eastern District of Virginia, sitting bydesignation.",
+  "panel_line": "Before WILKINSON, Circuit Judge, FLOYD, Senior Circuit Judge, and David J. NOVAK, United States District Judge for the Eastern District of Virginia, sitting by designation.",
   "publication": "PUBLISHED"
  },
  "ca4/richard_harrold_v._lewis_hagen": {
@@ -1642,8 +1642,7 @@
    "CHILDS",
    "RANDOLPH"
   ],
-  "panel_line": "Before: MILLETT and CHILDS, Circuit Judges, and RANDOLPH, Senior Circuit Judge.",
-  "title": "RANDOLPH."
+  "panel_line": "Before: MILLETT and CHILDS, Circuit Judges, and RANDOLPH, Senior Circuit Judge."
  },
  "cadc/np_red_rock_llc_v._nlrb": {
   "cases": [
@@ -1656,13 +1655,11 @@
      "RESPONDENT",
      "LOCAL JOINT EXECUTIVE BOARD OF LAS VEGAS,",
      "INTERVENOR",
-     "__DIVIDER__",
-     "Consolidated with 24-1239, 24-1240",
-     "__DIVIDER__"
+     "Consolidated with 24-1239, 24-1240"
     ],
-    "case_name": "NP RED ROCK LLC, D/B/A RED ROCK CASINO RESORT SPA, PETITIONER v. NATIONAL LABOR RELATIONS BOARD, RESPONDENT LOCAL JOINT EXECUTIVE BOARD OF LAS VEGAS, INTERVENOR __DIVIDER__ Consolidated with 24-1239, 24-1240 __DIVIDER__",
+    "case_name": "NP RED ROCK LLC, D/B/A RED ROCK CASINO RESORT SPA, PETITIONER v. NATIONAL LABOR RELATIONS BOARD, RESPONDENT LOCAL JOINT EXECUTIVE BOARD OF LAS VEGAS, INTERVENOR Consolidated with 24-1239, 24-1240",
     "docket": "Nos. 24-1221",
-    "prior_history": "On Petitions for Review and Cross-Application for Enforcement of an Order of the National Labor Relations Board __DIVIDER__"
+    "prior_history": "On Petitions for Review and Cross-Application for Enforcement of an Order of the National Labor Relations Board"
    }
   ],
   "court": "United States Court of Appeals FOR THE DISTRICT OF COLUMBIA CIRCUIT",
