@@ -2203,7 +2203,24 @@ class BaseExtractor:
             else:
                 break
         if start is None or start == 0:
-            return None
+            # THE MODE IS THE NOTE'S OWN SIZE WHEN THE NOTE FILLS THE PAGE. A
+            # footnote long enough to take two thirds of its page sets more
+            # lines than the body standing above it, so the page's commonest
+            # size IS the footnote's and no drop is visible from it:
+            # cadc/venezuela_us_srl p12 is 21 lines of 11pt note under 14 of
+            # 12pt body, and footnote 5 was delivered as body prose.
+            #
+            # Read the trailing run against the type ABOVE it instead — and
+            # require that run to open on a LABEL, because the label is the
+            # only cue separating it from a page whose body merely sits under a
+            # larger heading. That page has the identical size profile:
+            # la/in_re_henry_l._klein p2 is 19 lines of 14pt opinion under a
+            # 5-line 15pt caption, and reading it this way turned the opinion's
+            # opening paragraph into a footnote. Its first line begins 'This
+            # disciplinary matter arises...' at full body size; venezuela's
+            # begins with a 6.96pt '5' on an 11pt line.
+            start = self._labelled_size_drop(lines, sizes, is_folio)
+            return None if start is None else lines[start]["top"] - 1
         # A zone normally opens on a labelled note. One that does not is a
         # CONTINUATION carried over from the previous page — np_red_rock's
         # page 9 ends with the tail of page 8's footnote — and requiring a
@@ -2232,6 +2249,35 @@ class BaseExtractor:
             if last is None or last.get("bottom", last["top"]) < page.height * 0.82:
                 return None
         return lines[start]["top"] - 1
+
+    def _labelled_size_drop(self, lines, sizes, is_folio) -> Optional[int]:
+        """Index of a trailing run of smaller type that OPENS ON A LABEL.
+
+        The second reading of ``_footnote_zone_by_size``, used only where the
+        first found no drop at all. It asks nothing of how much of the page the
+        run covers — that is exactly the question the first reading gets wrong
+        — but pays for it by demanding two things the first does not: every
+        line above the run is a clear step larger, and the run's first line
+        carries a footnote label. No continuation is admitted here; an unlabelled
+        run is what a body under a heading looks like."""
+        idx = [i for i in range(len(lines)) if not is_folio(lines[i])]
+        if len(idx) < 4:
+            return None
+        note = sizes[idx[-1]]
+        start = None
+        for i in reversed(idx):
+            if sizes[i] <= note + 0.25:
+                start = i
+            else:
+                break
+        if start is None:
+            return None
+        above = [sizes[i] for i in idx if i < start]
+        if len(above) < 3 or min(above) <= note + 0.5:
+            return None
+        if self.detect_footnote_label(lines[start]) is None:
+            return None
+        return start
 
     @staticmethod
     def _page_text_rail(page):
