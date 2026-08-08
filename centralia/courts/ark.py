@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+from ._footnoteattr import reattribute_footnotes_by_mark
 from ._statesupreme import StateSupreme
 
 
@@ -13,6 +14,19 @@ class ArkansasSupreme(StateSupreme):
     # ordinary paragraphs merely indent their first line.  The shared detector
     # requires the former multi-line geometry.
     blockquote_by_indent = True
+
+    def extract(self, pdf_path):
+        """Return each footnote to the writing whose body calls it.
+
+        A separate writing opens PARTWAY DOWN the page here — the byline runs
+        inline with the first sentence — so the page's footnote zone belongs to
+        the writing above the split while page ownership hands it to the one
+        below. rodney_bunch's concurrence calls notes 1 and 2 and the dissent
+        was delivering them; state_v._ramirez's concurrence calls 3 and the
+        dissent held it. The mark settles it without geometry."""
+        doc = super().extract(pdf_path)
+        reattribute_footnotes_by_mark(doc)
+        return doc
 
     def find_footnote_separator(self, page):
         """Do not treat the bottom edge of Arkansas's page-1 caption as a
