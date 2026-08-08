@@ -35,6 +35,23 @@ class GenericExtractor(BaseExtractor):
         "Judge",
     )
 
+    # The base chain's LAST step opens a footnote zone with no rule drawn at
+    # all, on the type dropping and the run reaching the foot of the page.
+    # Every one of those cues is also true of a running FOOTER, and this
+    # family's documents are full of them: 'CASE NO: 3:26cv3359-MCR-ZCB'
+    # repeated on ten flnd pages, 'ORDER GRANTING DEFENDANT'S MOTION FOR' on
+    # ortc's, 'Page 2 of 11' on ilsd's, a chambers Word path on kyed's, a
+    # conformed signature block on lawd's. Measured over 2,973 documents,
+    # letting the step run here contaminated fifteen documents' footnotes with
+    # that furniture and pulled wyd 67555's decretal paragraph into a note.
+    #
+    # The step was written for, and measured on, courts that draw no rule
+    # ANYWHERE (pasuperct) — StateSupreme turns it back on below. It has never
+    # been measured on this family, so it stays off here rather than shipping
+    # unvalidated: the corroborated rule-based steps of the chain are what
+    # these courts were missing.
+    footnote_zone_by_size: bool = False
+
     # ---------------------------------------------------------------- bylines
     # The common opinion-start marker across courts: a BOLD judge-name line,
     # often running inline with the opinion text — 'AFRAME, Circuit Judge. This
@@ -133,6 +150,23 @@ class GenericExtractor(BaseExtractor):
         return text[: end + 1], text[end + 1 :].strip()
 
     def find_footnote_separator(self, page) -> Optional[float]:
+        """The quick path: a wide thin rect at the left margin, low on the
+        page, with footnote-size text under it.
+
+        Everything in that sentence is a CONSTANT standing in for a
+        measurement — ``page.rects`` only (a stroked vector line is invisible
+        to it), a flat 100pt width floor (a narrow reporter sheet draws its
+        separator under it), and a 0.55 x height fence (a footnote long enough
+        to fill a page pushes its own rule above mid-page). Each one is a way
+        to return None, and None means every footnote on the page is delivered
+        as body prose.
+
+        The base carries an ordered, corroborated chain that handles all three
+        — but this method never called it, and ``DistrictBase`` calls
+        ``super()``, which lands HERE rather than on the base. So this one
+        early return shadowed the chain for every district and generic court.
+        Keep the fast path (it is what these courts usually need) and fall
+        through to the chain when it finds nothing."""
         cutoff = page.height * 0.55
         # A full-width rule may be a section/caption divider rather than a
         # footnote separator (taking it as the footnote rule shoves the body
@@ -148,7 +182,7 @@ class GenericExtractor(BaseExtractor):
             and self._rule_over_footnotes(page, r["top"])
         ]
         if not candidates:
-            return None
+            return super().find_footnote_separator(page)
         return min(candidates, key=lambda r: r["top"])["top"]
 
     def extract_headmatter(self, headmatter_segs, page1_rules=None) -> dict:

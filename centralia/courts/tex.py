@@ -43,7 +43,7 @@ class TexasSupreme(ReversedJusticeSupreme):
         """The 2-inch separator, read at the page's OWN measured rail and with
         no vertical fence. Corroborated by what sits beneath it, so the
         right-hand disposition rule cannot stand in for it."""
-        rail = self._page_rail(page)
+        rail = self._page_text_rail(page)
         if rail is None:
             return super()._fenceless_sep(page)
         tops = [
@@ -59,16 +59,10 @@ class TexasSupreme(ReversedJusticeSupreme):
         ]
         return min(tops) if tops else super()._fenceless_sep(page)
 
-    @staticmethod
-    def _page_rail(page):
-        """The page's own left text rail — the leftmost x0 that RECURS among
-        its full-measure lines. Recurrence is what makes 'leftmost' safe: one
-        outdented stray cannot move the rail."""
-        xs: dict = {}
-        for line in page.extract_text_lines():
-            if line.get("x1", 0) - line.get("x0", 0) < page.width * 0.45:
-                continue
-            key = round(line.get("x0", 0))
-            xs[key] = xs.get(key, 0) + 1
-        recurring = [x for x, hits in xs.items() if hits >= 2]
-        return float(min(recurring)) if recurring else None
+    # ``_page_rail`` was a third copy of ``BaseExtractor._page_text_rail``;
+    # it calls the shared one now. The method itself stays: the shared
+    # ``footnote_sep_fixed_left_rule`` reads only ``page.rects`` and takes a
+    # rule on width and position alone, where Texas also needs the stroked
+    # vector lines, a window out to the half-inch indent some documents use,
+    # and corroboration to tell its 144pt separator from the 180pt
+    # 'OPINION DELIVERED' rule.

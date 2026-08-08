@@ -867,15 +867,43 @@ class StateSupreme(GenericExtractor):
         return text[: pi + 1], text[pi + 1 :].strip()
 
     def find_footnote_separator(self, page) -> Optional[float]:
-        """Footnote rule: a thin (<2pt), reasonably wide (>=100pt) horizontal
-        rule in the bottom half of the page. Caption-box rules — which come as a
-        LEFT+RIGHT pair at the same height, split by the vertical divider — are
-        excluded so a low caption box (on a short page) isn't mistaken for the
-        footnote separator. Text underlines (a rule sitting directly under a
-        line of text, e.g. an underlined attorney/firm name in the counsel
-        block) are excluded too — otherwise such a rule chops the opinion body
-        beneath it."""
-        cutoff = page.height * 0.5
+        """Footnote rule: a thin (<2pt), reasonably wide horizontal rule at the
+        body's left edge, with FOOTNOTE MATTER under it. Caption-box rules —
+        which come as a LEFT+RIGHT pair at the same height, split by the
+        vertical divider — are excluded so a low caption box (on a short page)
+        isn't mistaken for the footnote separator. Text underlines (a rule
+        sitting directly under a line of text, e.g. an underlined attorney/firm
+        name in the counsel block) are excluded too — otherwise such a rule
+        chops the opinion body beneath it.
+
+        NOTE ON THE HALF-PAGE FENCE. It is still here, and it is still the
+        constant that loses the most footnotes in this file: a note long
+        enough to fill a page pushes its own rule UP, and the fence throws the
+        rule away — neb/damore p11 strokes its rule at y=175 of 612,
+        ind/edgerock p30 at y=284 of 792, tex/greystar_1 p8 at y=323,
+        dc/brooks at 234, hawapp/yang_1 at 234, fladistctapp/dunlap at 278.
+        Each of those courts now removes it LOCALLY, keyed on its own measured
+        rule signature.
+
+        Removing it HERE was tried and measured over 3,263 documents in 91
+        courts, admitting a high rule on corroboration instead — the type
+        dropping across it, or a raised label below. Corroboration is not
+        enough on its own at this altitude, because a court sets its closing
+        matter smaller than its body too: nmariana then read the rule above
+        'ALEXANDRO C. CASTRO, Chief Justice / ... / COUNSEL Michael W. Dotts
+        ...' as a separator and delivered the signature roster and the counsel
+        block as a footnote, in 18 of 20 documents. Requiring corroboration of
+        every rule instead of relaxing the fence was also measured, and costs
+        ariz 9 notes across 13 documents — it prints '∗ Justice Maria Elena
+        Cruz is recused ...' at 12pt under a 12pt body, so there is no drop
+        and no raised label to find.
+
+        What a court-local fix has and this does not is the court's own rule
+        POPULATION: tex knows its separator is 144.0pt at the rail and its
+        disposition rule 180pt in the right half; or knows its separator stops
+        short of the page's measure. Lifting the fence here needs that same
+        evidence per court, so it stays until there is a shared measurement
+        that carries it."""
         # A footnote separator is anchored at the body's left edge; a centered,
         # short rule high on a title page (e.g. a section divider under a
         # running header) is not one and must not chop the body beneath it. The
@@ -888,6 +916,35 @@ class StateSupreme(GenericExtractor):
         wmax = self.footnote_sep_max_width
         min_w = self.footnote_sep_min_width(page)
 
+        cutoff = page.height * 0.5
+
+        thin = [
+            r
+            for r in list(page.rects) + list(page.lines)
+            if abs(r.get("height", 0)) < 2
+        ]
+
+        def shares_row(r):
+            """A second rule at the same height, in a different part of the
+            measure, means this one is a BOX EDGE — the side of a table cell or
+            of a caption box — not a footnote separator.
+
+            Width and position cannot make this call — a cell edge is a thin
+            left-anchored rule of exactly the separator's shape, and the cell's
+            contents are set in reduced type, so it corroborates like one too.
+            Being one of a ROW is what gives it away. The same test is
+            already what ``_circuit._sep_at`` and ``_oregon._reporter_sep_rule``
+            use — there, unqualified. The one qualification here: a PDF that
+            represents the SAME rule as both a rect and a vector line must not
+            count as its own partner."""
+            for o in thin:
+                if o is r or abs(o["top"] - r["top"]) > 2:
+                    continue
+                if abs(o["x0"] - r["x0"]) <= 2 and abs(o["x1"] - r["x1"]) <= 2:
+                    continue
+                return True
+            return False
+
         def scan(objs):
             return [
                 r
@@ -897,6 +954,7 @@ class StateSupreme(GenericExtractor):
                 and (wmax is None or (r["x1"] - r["x0"]) <= wmax)
                 and r["top"] > cutoff
                 and r["x0"] < left_max
+                and not shares_row(r)
             ]
 
         def guard_author_below(sep):
@@ -1005,6 +1063,13 @@ class StateSupreme(GenericExtractor):
     # page's left quarter; a court whose separator is right-shifted raises it
     # (Georgia: separator at x0≈162, a right-aligned ~324pt rule).
     footnote_sep_x0_max: float | None = None
+    # The ruleless size-only zone detector, measured on this family: pasuperct
+    # draws no rule anywhere in its corpus and built ZERO footnotes across 30
+    # documents without it. GenericExtractor turns it off for the district
+    # family, where a running footer looks exactly like a ruleless zone; state
+    # reporters do not print those, and this branch is additionally guarded by
+    # ``guard_author_below``.
+    footnote_zone_by_size: bool = True
 
     def _footnote_sep_small_text_below(self, page):
         """Footnote separator identified by footnote-sized text below the rule —

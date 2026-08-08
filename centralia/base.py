@@ -1931,6 +1931,34 @@ class BaseExtractor:
         cap_bot = divider[2] if divider else None
         min_w = self.footnote_sep_min_width(page)
 
+        thin_rules = [
+            r
+            for r in list(page.rects) + list(page.lines)
+            if abs(r.get("height", 0)) < 2
+        ]
+
+        def shares_row(r):
+            """A second rule at the same height, spanning a different part of
+            the measure: this one is a BOX EDGE — a table cell's side, a form
+            grid, a caption box — not a footnote separator.
+
+            The test only starts to matter once the rule no longer has to sit
+            low on the page, because a table's cells are set in reduced type
+            and so corroborate exactly like a separator: ortc/d.e._shaw
+            appended 881 words of a statutory comparison table to footnote 2,
+            and nysupct's disposition checkbox grid ('CASE DISPOSED X
+            NON-FINAL DISPOSITION ...') became a footnote. ``_circuit._sep_at``
+            and ``_oregon._reporter_sep_rule`` already use it. A PDF that
+            represents the same rule as both a rect and a vector line must not
+            count as its own partner."""
+            for o in thin_rules:
+                if o is r or abs(o["top"] - r["top"]) > 2:
+                    continue
+                if abs(o["x0"] - r["x0"]) <= 2 and abs(o["x1"] - r["x1"]) <= 2:
+                    continue
+                return True
+            return False
+
         def scan(objs, width_min, floor, corroborate):
             out = []
             for r in objs:
@@ -1942,6 +1970,8 @@ class BaseExtractor:
                 ):
                     continue
                 if cap_bot is not None and abs(r["top"] - cap_bot) <= 4:
+                    continue
+                if shares_row(r):
                     continue
                 if not corroborate(r["top"]):
                     continue
@@ -1962,8 +1992,18 @@ class BaseExtractor:
             return None
 
         # STEP 1 — the rule, corroborated by SMALLER TEXT below it.
+        #
+        # The floor is a property of the CAPTION PAGE, not of footnotes. There
+        # it earns its keep: the caption's own shelf sits low on a long caption
+        # and, with the syllabus set under it in reduced type, corroborates
+        # like a separator. On a continuation page there is no caption to
+        # confuse, and a rule is high only because its own footnote is long —
+        # olc/lifeline p5 draws its separator at y=360.1 of a 657pt sheet and
+        # missed the 0.55 line by 1.25 points, losing five footnotes to the
+        # body. (``_circuit._sep_at`` splits its floor the same way.)
+        caption_page = page.page_number == getattr(self, "_caption_pno", 1)
         by_size = lambda top: self._rule_over_footnotes(page, top)
-        sep = first_hit(min_w, page.height * 0.55, by_size)
+        sep = first_hit(min_w, page.height * (0.55 if caption_page else 0.10), by_size)
         if sep is not None:
             return sep
 
@@ -1978,8 +2018,16 @@ class BaseExtractor:
         # ~98pt minimum. Height: a footnote long enough to fill a page pushes
         # the next page's rule far up it (scotus trump_v._barbara p37, y=291 of
         # 792), and 0.55 threw that away.
+        #
+        # That width relaxation was written as a flat 60pt, which is the letter
+        # sheet's measure smuggled in as a constant — 60/612 of the page. Six
+        # courts print on a narrow reporter sheet (neb, nebctapp, or, orctapp,
+        # ca9 at 396pt; olc at 423), where a proportionally WIDER rule falls
+        # under it: ortc draws 58.5pt on a 396pt sheet and missed by 1.5pt,
+        # losing footnotes in 16 of 30 documents. Written as the share it
+        # always was, a letter page keeps exactly today's 60pt.
         sep = first_hit(
-            min(min_w, 60.0),
+            min(min_w, (getattr(page, "width", 612.0) or 612.0) * (60.0 / 612.0)),
             page.height * 0.25,
             lambda top: self._labelled_note_below(page, top),
         )
@@ -2025,9 +2073,32 @@ class BaseExtractor:
         divider (full-width) or a right-shifted signature rule, so no page-
         position fence is needed. A court whose template indents the separator
         past the body margin (flnd draws the 2-inch rule at a 1.5-inch indent)
-        can widen the left-edge window via ``x0_max``."""
+        can widen the left-edge window via ``x0_max``.
+
+        The left-edge window also reaches the PAGE's own rail, not only
+        ``body_baseline_x0``. That class constant is a court-wide guess, and
+        as a bound it excluded by construction every court whose body sits
+        right of it: Texas sets its body at 108 and mdag at 133.2 against a
+        default window of 76, so no rule could ever match and every footnote
+        on those pages was delivered as prose.
+
+        A rule beyond the configured margin has to open a LABELLED note,
+        though. At the configured margin the rule's own width is the signature
+        and nothing else need be true — that is the whole point of this
+        finder: it is for courts whose notes are body-sized, where 'smaller
+        text below' cannot see the boundary. Out at the page's rail it is not
+        enough, because a conformed SIGNATURE rule is also a 144pt rule at the
+        text rail: nmariana stacks three of them above 'ALEXANDRO C. CASTRO,
+        Chief Justice / ...', and an uncorroborated widening delivered the
+        signature roster and counsel block as a footnote in 15 of 20
+        documents. A signature rule has a name under it, never a raised
+        label."""
+        strict_x0 = self.body_baseline_x0 + 4
         if x0_max is None:
-            x0_max = self.body_baseline_x0 + 4
+            rail = self._page_text_rail(page)
+            x0_max = max(strict_x0, (rail + 4) if rail is not None else strict_x0)
+        else:
+            strict_x0 = x0_max
         best = None
         for r in page.rects:
             if r["height"] >= 2.5:
@@ -2040,6 +2111,8 @@ class BaseExtractor:
                 r["top"] < c["top"] < page.height and (c.get("text") or "").strip()
                 for c in page.chars
             ):
+                continue
+            if r["x0"] > strict_x0 and not self._labelled_note_below(page, r["top"]):
                 continue
             if best is None or r["top"] < best:
                 best = r["top"]
@@ -2066,10 +2139,27 @@ class BaseExtractor:
 
         Requires all three, so a stray small line cannot open a zone: the run
         must reach the bottom of the page, its first line must carry a footnote
-        label, and there must be body-size text above it."""
+        label, and there must be body-size text above it.
+
+        Read over the MARGIN BAND, not the raw page. Every cue here — 'set
+        smaller than the body', 'runs to the foot of the page' — is also true
+        of a running FOOTER, and a footer is exactly what prints below the
+        bottom margin. Scanning the raw page let one open a zone on every page
+        of a document that had a real footnote higher up, and the footnote was
+        delivered as body prose while the footer became its text: wawd
+        356996's 'ORDER DENYING PLAINTIFF'S MOTION ... - 1' at y=753 of 792
+        (bottom margin 725), ilsd 106722's 'Page 2 of 11', flnd 541641's
+        'CASE NO: 3:26cv3359-MCR-ZCB', kyed's Word source path. The pipeline
+        has already ruled all of those out as furniture by position; asking
+        the same predicate here keeps the two decisions from contradicting
+        each other on the same line."""
         if not self.footnote_zone_by_size:
             return None
-        lines = [l for l in page.extract_text_lines() if (l.get("chars") or [])]
+        lines = [
+            l
+            for l in page.extract_text_lines()
+            if (l.get("chars") or []) and self._line_in_margin_band(l)
+        ]
         if len(lines) < 2:
             return None
         lines.sort(key=lambda l: l["top"])
@@ -2081,7 +2171,21 @@ class BaseExtractor:
         # turned the opinion's opening paragraph into a footnote, and
         # la/monroe p26 swallowed an entire separate writing, because a 15pt
         # caption outranked the 14pt opinion under it.
-        body = next((s for s, hits in common if hits >= 3), None)
+        #
+        # It must stay a PER-PAGE statistic. A document-wide type size reads
+        # every page a court sets in reduced type — a syllabus, a panel line —
+        # as a footnote zone: measured against conn's document body it opened
+        # one on 36 of 50 syllabus pages.
+        #
+        # On a TIE the body is the larger of the two. A page whose lower two
+        # thirds is footnote sets as much footnote type as body type, and
+        # which one won was down to dict insertion order: olc/lifeline p5 is
+        # 20 lines at 9pt against 20 at 11pt, called a 9pt body, and lost four
+        # footnotes.
+        top_hits = max((hits for _s, hits in common if hits >= 3), default=0)
+        body = (
+            max(s for s, hits in common if hits == top_hits) if top_hits else None
+        )
         if body is None:
             return None
 
@@ -2108,8 +2212,18 @@ class BaseExtractor:
         # signature, so the whole judgment stayed in headmatter.
         #
         # A continuation is admitted on position instead: it must run to the
-        # FOOT of the page, which a mid-page run of small type never does.
+        # FOOT of the page, which a mid-page run of small type never does —
+        # and there must BE a previous page for it to continue. On the caption
+        # page there is not, and everything the court sets under the caption
+        # (the panel line, the syllabus, the counsel block) is smaller than the
+        # body and runs to the foot: conn/state_of_connecticut_judicial_branch
+        # delivered 'McDonald, D'Auria, Ecker, Dannehy and Suarez, Js.
+        # Syllabus The complainant, M, ...' as a footnote on 41 of 50
+        # documents. A real caption-page note carries its label ('*', '1'), so
+        # the labelled path still finds it.
         if self.detect_footnote_label(lines[start]) is None:
+            if page.page_number <= getattr(self, "_caption_pno", 1):
+                return None
             last = max(
                 (l for l in lines[start:] if not is_folio(l)),
                 key=lambda l: l.get("bottom", l["top"]),
@@ -2118,6 +2232,42 @@ class BaseExtractor:
             if last is None or last.get("bottom", last["top"]) < page.height * 0.82:
                 return None
         return lines[start]["top"] - 1
+
+    @staticmethod
+    def _page_text_rail(page):
+        """The page's own left text rail — the leftmost x0 that RECURS among
+        its full-measure lines. Recurrence is what makes 'leftmost' safe: one
+        outdented stray cannot move the rail. None on a page too sparse to
+        measure, so a caller keeps its own fallback.
+
+        Lifted here from ``_circuit``, where it was written, after ``tex`` and
+        ``_oregon`` each grew their own copy on the same day for the same
+        reason: the separator starts at the measure the DOCUMENT is set to,
+        which is not the court-wide ``body_baseline_x0`` constant. Measured
+        across cadc, the rule starts at the page's own rail in 371 of 377
+        cases."""
+        xs: dict = {}
+        for line in page.extract_text_lines():
+            if line.get("x1", 0) - line.get("x0", 0) < page.width * 0.45:
+                continue
+            key = round(line.get("x0", 0))
+            xs[key] = xs.get(key, 0) + 1
+        recurring = [x for x, hits in xs.items() if hits >= 2]
+        return float(min(recurring)) if recurring else None
+
+    def _line_in_margin_band(self, line) -> bool:
+        """Would the pipeline KEEP this text line, or is it margin furniture?
+
+        Asked of the line's own chars with the court's own ``filter_margins``,
+        so a per-court override (a font-keyed stamp filter, a page-1 exception)
+        answers for itself rather than being second-guessed here."""
+        for char in line.get("chars") or []:
+            try:
+                if self.filter_margins(char):
+                    return True
+            except Exception:
+                return True
+        return False
 
     def _footnote_sep_structural(self, page) -> Optional[float]:
         """Structural footnote-separator detection for body-size-footnote

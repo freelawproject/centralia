@@ -2798,18 +2798,8 @@ class FederalCircuitBase(GenericExtractor):
                 cands.append(r)
         return min(cands, key=lambda r: r["top"])["top"] if cands else None
 
-    @staticmethod
-    def _page_text_rail(page):
-        """The page's own left text rail — the leftmost x0 that RECURS among
-        its full-measure lines. Recurrence is what makes 'leftmost' safe: one
-        outdented stray cannot move the rail."""
-        xs = {}
-        for line in page.extract_text_lines():
-            if line.get("x1", 0) - line.get("x0", 0) < page.width * 0.45:
-                continue
-            xs[round(line.get("x0", 0))] = xs.get(round(line.get("x0", 0)), 0) + 1
-        recurring = [x for x, hits in xs.items() if hits >= 2]
-        return float(min(recurring)) if recurring else None
+    # ``_page_text_rail`` now lives on BaseExtractor — it was written here,
+    # then copied into tex and _oregon on the same day. One copy.
 
     def matches_expected_layout(self, pdf) -> bool:
         if not pdf.pages:
