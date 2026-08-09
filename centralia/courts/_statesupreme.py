@@ -1066,10 +1066,14 @@ class StateSupreme(GenericExtractor):
     # The ruleless size-only zone detector, measured on this family: pasuperct
     # draws no rule anywhere in its corpus and built ZERO footnotes across 30
     # documents without it. GenericExtractor turns it off for the district
-    # family, where a running footer looks exactly like a ruleless zone; state
-    # reporters do not print those, and this branch is additionally guarded by
-    # ``guard_author_below``.
-    footnote_zone_by_size: bool = True
+    # family, where a running footer looks exactly like a ruleless zone.
+    #
+    # OFF as of this commit — inherit base's False. The reasoning that state
+    # reporters do not print footers was true and beside the point: kan sets
+    # its BLOCK QUOTATIONS at 11pt against a 13pt body, so a quotation running
+    # to the folio reads as a ruleless zone and is lifted out of the opinion.
+    # Every footnote kan and kanctapp produce is a phantom. guard_author_below
+    # does not catch it — there is no byline below a block quotation.
 
     def _footnote_sep_small_text_below(self, page):
         """Footnote separator identified by footnote-sized text below the rule —

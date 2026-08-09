@@ -245,9 +245,10 @@ class DCCircuit(FederalCircuitBase):
     # furniture. Lower the cutoff to the page edge and let ``margin_top`` bound it.
     page2_header_cutoff = 30.0
 
-    # Several CADC documents draw no footnote rule at all — the zone is marked
-    # by the type dropping from 12pt to 11pt and nothing else.
-    footnote_zone_by_size = True
+    # CADC once needed the ruleless size-drop path; it no longer does. Since
+    # a2c4b77 taught the chain to read page.curves, every cadc separator is
+    # found as a rect, line or curve — measured: ZERO cadc pages reach the
+    # size-drop path. The opt-in is removed rather than left as a latent risk.
 
     def find_footnote_separator(self, page):
         return self._sep_at(page, 150, 165) or self._footnote_zone_by_size(page)

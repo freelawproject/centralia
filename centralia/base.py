@@ -2563,13 +2563,29 @@ class BaseExtractor:
                 best = r["top"]
         return best
 
-    # Last step of the separator chain: find the footnote zone on a page that
-    # draws NO separator at all, from the drop in type size. On by default —
-    # pasuperct draws no rule anywhere in the corpus and lost its footnotes in
-    # 28 of 30 documents. Opt OUT on a court that sets small-print matter in
-    # the BODY (a block quotation in reduced type), where the drop means
-    # something else.
-    footnote_zone_by_size: bool = True
+    # OFF. Nothing may GUESS a footnote zone without a separator.
+    #
+    # This path infers a zone from a drop in type size where nothing is drawn.
+    # That inference cannot be made safe: every cue it reads — 'set smaller
+    # than the body', 'runs to the foot of the page' — is equally true of a
+    # block quotation set in reduced type, and of a running footer. It was
+    # turned on for every court in 6805968 and the result was that EVERY
+    # footnote kan and kanctapp produce is a phantom: 48 documents, 58 '?'
+    # notes, 47 of them on pages that draw nothing at all. kan sets its body
+    # at 13pt and its block quotations at 11pt, so a quotation running to the
+    # folio satisfies the test perfectly and is lifted out of the opinion.
+    #
+    # Its docstring below records six separate hardenings, each added after it
+    # misfired — a running footer at y=753 in wawd, ilsd's 'Page 2 of 11',
+    # flnd's case number, kyed's Word source path, a modal-size fix after it
+    # ate nj syllabus. A rule needing that many patches is inferring a
+    # structure that is not there.
+    #
+    # A footnote zone REQUIRES a separator: drawn (rect, line or curve) or
+    # typed (a row of underscores or em-dashes). The code is kept, unused, in
+    # case a genuine case for it ever appears — opt in per court, with
+    # measurements.
+    footnote_zone_by_size: bool = False
 
     def _footnote_zone_by_size(self, page) -> Optional[float]:
         """Top of a footnote zone identified by TYPE SIZE, not by a rule.
