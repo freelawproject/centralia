@@ -101,6 +101,7 @@ class FirstCircuit(FederalCircuitBase):
         footnote_lines_by_page,
         seen_labels=None,
         footnote_tables_by_page=None,
+        owed_marks=None,
     ):
         cleaned = {
             pno: self._drop_pageno_lines(lines)
@@ -111,6 +112,7 @@ class FirstCircuit(FederalCircuitBase):
             cleaned,
             seen_labels=seen_labels,
             footnote_tables_by_page=footnote_tables_by_page,
+            owed_marks=owed_marks,
         )
 
     def find_footnote_separator(self, page) -> Optional[float]:
@@ -149,11 +151,21 @@ class FirstCircuit(FederalCircuitBase):
                     return True
             return False
 
+        # The rail is MEASURED, not assumed to be 72. The court's usual measure
+        # is 72, but a document set to another one takes its separator with it:
+        # premca_extra_income_fund rails at 76.58 and drew its 144.02pt rule
+        # there on nine pages, every one of which missed a hard-coded 72.0 by
+        # six tenths of a point and delivered its notes as body prose. The
+        # centered caption dividers this method exists to reject sit at x0=234
+        # — nowhere near any measured rail — and the underline test is what
+        # keeps a counsel underline out, not the constant.
+        rail = self._page_text_rail(page)
+        rails = [72.0] if rail is None else [72.0, rail]
         cands = [
             r
             for r in page.rects
             if r["height"] < 2
-            and abs(r["x0"] - 72.0) <= 1.5
+            and any(abs(r["x0"] - x) <= 1.5 for x in rails)
             and abs((r["x1"] - r["x0"]) - 144.0) <= 1.0
             and r["top"] > cutoff
             and not is_underline(r)

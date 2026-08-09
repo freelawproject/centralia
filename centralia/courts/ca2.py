@@ -1972,7 +1972,12 @@ class SecondCircuit(FederalCircuitBase):
         rail = self._page_rail(page)
         rails = {rail, rail + 36, self.body_baseline_x0, self.body_baseline_x0 + 36}
         candidates = []
-        for rect in page.rects:
+        # Some chambers FILL the rule as a path rather than stroking a rect, and
+        # pdfplumber returns those in ``page.curves``. provencher carries no
+        # thin rect on any of its twelve pages — its separator is a 143.9pt
+        # curve sitting on the page's own measured rail — so a rect-only scan
+        # found nothing and all of its footnotes shipped as body prose.
+        for rect in list(page.rects) + list(getattr(page, "curves", None) or []):
             width = rect.get("x1", 0) - rect.get("x0", 0)
             if not (
                 rect.get("height", 0) < 2
@@ -1987,7 +1992,20 @@ class SecondCircuit(FederalCircuitBase):
                 if rect["top"] + 2 <= char.get("top", 0) <= rect["top"] + 55
                 and (char.get("text") or "").strip()
             ]
-            if below and sum(char.get("size", 99) <= 12.5 for char in below) >= len(below) * 0.7:
+            small = (
+                bool(below)
+                and sum(char.get("size", 99) <= 12.5 for char in below)
+                >= len(below) * 0.7
+            )
+            # A FLAT 12.5pt IS THIS COURT'S USUAL BODY SIZE SMUGGLED IN AS A
+            # CONSTANT. provencher sets the whole document — body and notes
+            # alike — at 13.0pt and raises only the label digit to 8.0pt, so
+            # every character under a real separator measured 'not small' and
+            # the rule was thrown away. The raised label is the corroboration
+            # that survives a court whose notes are body-sized; it is the same
+            # test base step 2 uses, and a caption shelf or an underline has no
+            # label under it either way.
+            if small or self._labelled_note_below(page, rect["top"]):
                 candidates.append(rect)
         top = min(candidates, key=lambda rect: rect["top"])["top"] if candidates else None
         # NUMBERED PAPER DRAWS NO SEPARATOR. campbell keys its caption footnote

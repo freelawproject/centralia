@@ -488,7 +488,10 @@ class BaseAlaskaExtractor(BaseExtractor):
         """
         body_width = page.width - 2 * self.body_baseline_x0
         candidates = []
-        for rect in page.rects:
+        # Read the FILLED-PATH form of the same rule too (``page.curves``): the
+        # measure is the discriminator, and a producer that fills the rule
+        # instead of stroking it draws the identical measure.
+        for rect in list(page.rects) + list(getattr(page, "curves", None) or []):
             width = rect["x1"] - rect["x0"]
             full_measure = abs(width - body_width) <= 12
             short_measure = abs(width - 144) <= 18
