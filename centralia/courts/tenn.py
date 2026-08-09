@@ -16,18 +16,27 @@ from __future__ import annotations
 from ._abbrevtitle import AbbrevTitleSupreme
 from ._tennessee import (
     TennesseeBlockquotes,
+    TennesseeCriteria,
     TennesseeFurnitureDrop,
     TennesseeHeadmatter,
+    TennesseeOpinionHeading,
     _strip_inline,
 )
 
 
 class TennesseeSupreme(
-    TennesseeHeadmatter, TennesseeBlockquotes, TennesseeFurnitureDrop, AbbrevTitleSupreme
+    TennesseeOpinionHeading,
+    TennesseeCriteria,
+    TennesseeHeadmatter,
+    TennesseeBlockquotes,
+    TennesseeFurnitureDrop,
+    AbbrevTitleSupreme,
 ):
     court_id = "tenn"
     court_label = "Supreme Court of Tennessee."
     accept_delivered = True
+    # Headmatter criteria: the same template the intermediate courts publish.
+    parse_criteria_enabled = True
 
     def build_opinion(self, op_start, op_end, **kw):
         op = super().build_opinion(op_start, op_end, **kw)
