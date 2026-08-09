@@ -9,7 +9,6 @@ caption's right column ('BY JUDGE McCULLOUGH   FILED: May 18, 2026').
 
 from __future__ import annotations
 
-from ._footnoteattr import reattribute_footnotes_by_mark
 from ._statesupreme import StateSupreme
 from ..models import Block
 
@@ -151,20 +150,20 @@ class PennsylvaniaCommonwealthCourt(StateSupreme):
         return kept
 
     def extract(self, pdf_path):
-        """Parse, then return the majority's last footnote to the majority.
+        """Reset the per-document filing-date stash before the parse.
 
-        The conformed signature that closes every opinion here parses as a
-        byline, so the trailing ORDER writing opens on the majority's LAST page
-        (see ``build_opinion``) and page ownership hands it that page's whole
-        footnote zone. In 8 of 30 documents that is the majority's final note —
-        city_of_philadelphia 18 of 18, carlino 10 and 11 — plus, in
-        academy_house, the carried-over tail of note 11, which the court itself
-        marks '(Footnote continued on next page…)'. Nothing about the ORDER
-        calls those notes; the majority does."""
+        The majority's last footnote is returned to the majority by
+        ``base.extract`` (see ``_footnoteattr``): the conformed signature that
+        closes every opinion here parses as a byline, so the trailing ORDER
+        writing opens on the majority's LAST page (see ``build_opinion``) and
+        page ownership hands it that page's whole footnote zone. In 8 of 30
+        documents that is the majority's final note — city_of_philadelphia 18
+        of 18, carlino 10 and 11 — plus, in academy_house, the carried-over
+        tail of note 11, which the court itself marks '(Footnote continued on
+        next page…)'. Nothing about the ORDER calls those notes; the majority
+        does."""
         self._pa_filed = []
-        doc = super().extract(pdf_path)
-        reattribute_footnotes_by_mark(doc)
-        return doc
+        return super().extract(pdf_path)
 
     def extract_headmatter(self, headmatter_segs, page1_rules=None) -> dict:
         """Close the headmatter with the filing date lifted off the byline row —

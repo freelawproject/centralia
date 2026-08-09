@@ -911,6 +911,22 @@ class BaseExtractor:
         if fp and fp[2]:
             doc.caption_box = dict(doc.caption_box or {})
             doc.caption_box["fp_id"], doc.caption_box["fp_style"] = fp[1], fp[2]
+        # Page ownership above splits the footnote zones at each writing's FIRST
+        # SEGMENT, which is right only when a writing starts at the top of a
+        # page. A writing that opens PARTWAY DOWN one takes the whole of that
+        # page's footnote zone with it, including the notes the writing above
+        # called (pacommwct's conformed signature parses as a byline and hands
+        # the trailing ORDER the majority's last page — 18 of 18 notes in
+        # city_of_philadelphia). The body's own marks settle it; see
+        # ``courts/_footnoteattr``. Imported here, not at module scope, because
+        # that module imports this one.
+        #
+        # This runs BEFORE _sweep_residual so the two footnote warnings are
+        # stated against the CORRECTED document — otherwise a document this
+        # fixes keeps reporting itself broken.
+        from .courts._footnoteattr import reattribute_footnotes_by_mark
+
+        reattribute_footnotes_by_mark(doc)
         self._sweep_residual(doc, source_pages)
         return doc
 

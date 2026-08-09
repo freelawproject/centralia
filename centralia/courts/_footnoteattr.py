@@ -7,7 +7,10 @@ starts in the middle of one: the notes printed at the foot of that page were
 called by the writing ABOVE the split, and they follow the page to the writing
 below it.
 
-Two courts show the same failure from opposite ends:
+``base.extract`` runs this for EVERY court, immediately before the warnings
+are stated, because the defect is not court-specific — it is a property of the
+page-ownership split. It was first proved on two courts, which show the same
+failure from opposite ends:
 
   * ``pacommwct`` closes every opinion with a conformed signature and then
     prints the ORDER on its own page. The signature parses as a byline, so the
@@ -32,6 +35,13 @@ writing, and a writing that calls the note itself always keeps it.
 from __future__ import annotations
 
 from ..base import BaseExtractor
+
+# The two warnings that read the per-writing footnote distribution, and so go
+# stale the moment a note changes hands.
+_RESTATE = (
+    "footnote referenced but never built",
+    "footnote sequence breaks",
+)
 
 
 def _label_of(footnote) -> str:
@@ -111,16 +121,18 @@ def reattribute_footnotes_by_mark(doc) -> int:
             held[j].add(_label_of(fn))
             moved += 1
 
-    if moved:
-        # The two footnote warnings were raised while the notes were still on
-        # the wrong writing; re-state them against the corrected document, or a
-        # fixed file keeps reporting itself broken.
-        doc.warnings[:] = [
-            w
-            for w in doc.warnings
-            if not w.startswith("footnote referenced but never built")
-            and not w.startswith("footnote sequence breaks")
-        ]
+    if moved and any(w.startswith(_RESTATE) for w in doc.warnings):
+        # Called AFTER the warnings were emitted (a court's own ``extract``, a
+        # caller working on a finished document): the two footnote warnings
+        # were raised while the notes were still on the wrong writing, so
+        # re-state them against the corrected document or a fixed file keeps
+        # reporting itself broken.
+        #
+        # ``base.extract`` calls this BEFORE the warnings are emitted, which is
+        # where the correction belongs — there is nothing to re-state there,
+        # and re-stating would duplicate what ``_sweep_residual`` is about to
+        # say.
+        doc.warnings[:] = [w for w in doc.warnings if not w.startswith(_RESTATE)]
         BaseExtractor._warn_orphan_footnote_refs(doc)
         BaseExtractor._warn_footnote_gaps(doc)
     return moved
