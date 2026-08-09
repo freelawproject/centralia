@@ -964,12 +964,40 @@ class BaseExtractor:
             doc.residual = sweep_unplaced(doc, source_pages)
         except Exception as e:  # the sweep is a safety net, never a hard failure
             doc.warnings.append(f"residual sweep failed: {type(e).__name__}: {e}")
-        self._warn_footnote_gaps(doc)
+        # Measured once and shared: a note printed on a scanned page cannot be
+        # read at all, so the footnote checks have to know which pages those
+        # are before they call a missing note a loss.
+        scanned = self._scanned_page_numbers()
+        self._warn_footnote_gaps(doc, scanned)
         self._warn_mis_zoned_footnotes(doc)
         self._warn_orphan_footnote_refs(doc)
         self._warn_body_in_headmatter(doc)
         self._warn_dropped_images(doc)
         self._warn_image_only_pages(doc)
+
+    def _scanned_page_numbers(self) -> list:
+        """The document's image-only pages, measured against its own pages.
+
+        A scan is not always textless — cacd 996274's scanned cover carries a
+        91-character stamp layer over a full-page image while its digital pages
+        run to ~2,800. A page is a scan when a picture covers most of it and
+        its text is a small fraction of what this document sets on a normal
+        page."""
+        ink = getattr(self, "_page_ink", None) or {}
+        share = getattr(self, "_page_img_share", None) or {}
+        if not ink:
+            return []
+        typical = median(sorted(ink.values()))
+        # Compare against the fullest pages, not the median of a document whose
+        # pages are mostly scans — otherwise a wholly scanned filing calls its
+        # own blank norm 'typical' and reports nothing.
+        busiest = max(ink.values(), default=0)
+        norm = max(typical, busiest * 0.4)
+        return sorted(
+            pno
+            for pno, n in ink.items()
+            if share.get(pno, 0) >= 0.5 and n <= max(norm * 0.15, 0)
+        )
 
     def _warn_image_only_pages(self, doc: ExtractedDocument) -> None:
         """Pages whose content is a picture rather than text — OCR territory.
@@ -983,22 +1011,11 @@ class BaseExtractor:
         textless — cacd 996274's scanned cover carries a 91-character stamp
         layer over a full-page image while its digital pages run to ~2,800.
         A page is a scan when a picture covers most of it and its text is a
-        small fraction of what this document sets on a normal page."""
-        ink = getattr(self, "_page_ink", None) or {}
-        share = getattr(self, "_page_img_share", None) or {}
-        if not ink:
-            return
-        typical = median(sorted(ink.values())) if ink else 0
-        # Compare against the fullest pages, not the median of a document whose
-        # pages are mostly scans — otherwise a wholly scanned filing calls its
-        # own blank norm 'typical' and reports nothing.
-        busiest = max(ink.values(), default=0)
-        norm = max(typical, busiest * 0.4)
-        pages = sorted(
-            pno
-            for pno, n in ink.items()
-            if share.get(pno, 0) >= 0.5 and n <= max(norm * 0.15, 0)
-        )
+        small fraction of what this document sets on a normal page.
+
+        The measurement itself lives in ``_scanned_page_numbers`` because the
+        footnote checks read it too."""
+        pages = self._scanned_page_numbers()
         if not pages:
             return
         shown = ", ".join(str(p) for p in pages[:8])
@@ -1070,6 +1087,16 @@ class BaseExtractor:
     @classmethod
     def _footnote_marks(cls, text: str) -> list:
         """Every footnote-mark value in ``text``, in order of appearance."""
+        return [value for value, _before in cls._footnote_mark_uses(text)]
+
+    @classmethod
+    def _footnote_mark_uses(cls, text: str) -> list:
+        """Every mark in ``text`` as ``(value, text preceding it)``.
+
+        The preceding text is what tells a footnote reference apart from a
+        typographic look-alike, and it can only be read at the point of use —
+        the same '*' is a real mark in one sentence and a reporter pincite in
+        the next, so the judgement has to be per occurrence, not per label."""
         out, i = [], 0
         while True:
             a = text.find(cls._MARK_OPEN, i)
@@ -1080,8 +1107,158 @@ class BaseExtractor:
                 return out
             value = text[a + len(cls._MARK_OPEN) : b].strip()
             if value:
-                out.append(value)
+                out.append((value, cls._visible_text(text[:a])))
             i = b + len(cls._MARK_CLOSE)
+
+    @staticmethod
+    def _visible_text(markup: str) -> str:
+        """``markup`` with its tags removed — the words a reader sees."""
+        out, depth = [], 0
+        for ch in markup:
+            if ch == "<":
+                depth += 1
+            elif ch == ">":
+                depth = max(0, depth - 1)
+            elif depth == 0:
+                out.append(ch)
+        return "".join(out)
+
+    # -- false-alarm rules -------------------------------------------------
+    # Everything below decides whether a mark/label really names a footnote.
+    # None of it touches extraction: no note is built, moved or dropped here.
+    # The rules exist because an unfounded warning costs more than silence —
+    # 192 documents carry a footnote warning and roughly a tenth of them were
+    # measured as false alarms, which is enough noise to make the count
+    # meaningless. Each rule below was confirmed by hand against the source.
+
+    @staticmethod
+    def _is_reporter_pincite(before: str) -> bool:
+        """'…, 2023 WL 12052104, *5' — the star points at a page, not a note.
+
+        Westlaw cites a slip opinion by a starred screen page, and the star is
+        set exactly like a footnote mark, so ``line_inline_text`` wraps it.
+        Read the citation backwards instead of the glyph: a star that follows
+        'WL <digits>,' (optionally 'at') is a pincite. Confirmed in five conn
+        documents, e.g. state_v._rohena_1's '2023 WL 12052104, *5'."""
+        s = before.rstrip()
+        if s.endswith(" at") or s.endswith(",at"):
+            s = s[:-2].rstrip()
+        if not s.endswith(","):
+            return False
+        s = s[:-1].rstrip()
+        digits = len(s)
+        while digits and s[digits - 1].isdigit():
+            digits -= 1
+        if digits == len(s):  # no volume/document number — not a citation
+            return False
+        s = s[:digits].rstrip()
+        return s.endswith("WL") and (len(s) == 2 or not s[-3].isalnum())
+
+    @staticmethod
+    def _numbering_of(labels) -> tuple:
+        """``(highest, widest)`` of the numeric labels a writing prints."""
+        values = [
+            int(text)
+            for label in labels
+            if (text := str(label or "").strip().rstrip(".")) and text.isdigit()
+        ]
+        if not values:
+            return (0, 0)
+        return (max(values), max(len(str(v)) for v in values))
+
+    @classmethod
+    def _outside_the_numbering(cls, mark: str, labels) -> bool:
+        """A numeric mark the writing's own numbering cannot account for.
+
+        Two shapes, both source typesetting rather than a missing note:
+
+        * **Marks printed hard against each other.** gamd 139124.28.0 sets
+          'GRANTED.123' where notes 1, 2 and 3 are each built and each has its
+          own separator rule; the three raised glyphs read as one mark '123'.
+          ark/mmsc_llc prints two contiguous 8.04pt glyphs '12' for a note
+          whose own label glyph is '1'.
+        * **A mark below the numbering.** alaska's democratic-party opinion
+          calls '0' where notes run 1-89; no court numbers a note 0.
+
+        The first guard is the WIDTH of the mark. '21' after a writing that
+        holds 1-20 is exactly what a genuinely lost last note looks like, and
+        it is kept — the mark has no more digits than a label the writing
+        prints. Only a mark wider than anything the court numbered, whose
+        opening digits are themselves a note that WAS built, is called an
+        artifact.
+
+        Width alone is NOT enough, and the caller supplies the second guard.
+        mich/people_v._kardasz numbers a writing to 58 and calls 105 and 106,
+        which this test would dismiss on width — but both notes are printed,
+        sitting in the body on pages 57-58 because the separator was missed.
+        ``_warn_orphan_footnote_refs`` therefore never asks this question about
+        a mark whose own note opens a body block."""
+        if not mark.isdigit():
+            return False
+        highest, widest = cls._numbering_of(labels)
+        if not highest:
+            return False
+        value = int(mark)
+        if value < 1:
+            return True
+        if len(mark) <= widest or value <= highest:
+            return False
+        held = {str(l or "").strip().rstrip(".") for l in labels}
+        return any(mark[:n] in held for n in range(1, len(mark)))
+
+    @classmethod
+    def _numbering_is_settled(cls, opinion, pool=()) -> bool:
+        """Is this writing's numbered footnote bookkeeping self-consistent?
+
+        Settled means the checks agree with one another: every NUMBER the body
+        calls is answered by a note, every numbered note is called by a mark,
+        the run has no break, and no note came out unlabelled. When all of
+        that holds there is nothing for a warning to be about, so a lone
+        contrary signal is far likelier to be a look-alike than the one true
+        sign of a loss.
+
+        Read on the numbers alone, because the symbols are exactly what is in
+        question when this is asked — an appendix legend's '*' would otherwise
+        make a document unable to vouch for the numbering it got right."""
+        held = set()
+        for fn in opinion.footnotes:
+            label = str(fn.label or "").strip()
+            if not label or label == "?":
+                return False  # an unlabelled note is itself an open question
+            held.add(label)
+        called = set()
+        for block in opinion.blocks:
+            called.update(cls._footnote_marks(block.text))
+        answerable = held | set(pool)
+        numbers = sorted(
+            int(text)
+            for label in held
+            if (text := label.rstrip(".")) and text.isdigit()
+        )
+        if any(b - a > 1 for a, b in zip(numbers, numbers[1:])):
+            return False
+        if any(m.isdigit() and m not in answerable for m in called):
+            return False
+        return all(label in called for label in held if label.isdigit())
+
+    @staticmethod
+    def _is_legend_marker(mark: str, uses: int) -> bool:
+        """A symbol that labels the ITEMS OF A LIST rather than a note.
+
+        olc/department_of_agriculture_preferences prints an appendix of statute
+        headings and marks them '*', '†' and '*†', explaining in the body what
+        each one means; its own six numbered notes are all built. Every one of
+        those asterisks is set exactly like a footnote mark, so 27 of them read
+        as one enormous missing note.
+
+        Two things separate a legend from a reference. A footnote is called
+        once, or twice where a court repeats a citation — a legend marker is
+        stamped on item after item. And a legend combines its symbols ('*†'
+        for an item that is both), which a footnote label never does: a court
+        that doubles a symbol repeats the SAME one ('**', '††')."""
+        if mark.isalnum() or any(ch.isalnum() for ch in mark):
+            return False
+        return uses > 2 or len(set(mark)) > 1
 
     @classmethod
     def _warn_mis_zoned_footnotes(cls, doc: ExtractedDocument) -> None:
@@ -1101,13 +1278,33 @@ class BaseExtractor:
         <footnotemark> — so the inline renderer and the zone logic contradict
         each other about the same line, and the contradiction costs nothing to
         detect. A block that STARTS with a mark is a footnote's opening line
-        sitting in the body."""
+        sitting in the body.
+
+        The one thing that looks identical and is not a footnote is an
+        ENUMERATED LIST whose numeral the court raised: wash/marquez_vargas
+        sets a raised 9pt '1' opening an indented item inside a quoted
+        certified question on page 21, and all 28 of its notes are built. The
+        discriminator is the writing's own bookkeeping — if the label is
+        already built here, and the writing's numbering is settled (every mark
+        answered by a note, every note called by a mark, no break in the run),
+        then nothing is missing and this opening numeral is a numeral. Any
+        inconsistency at all and the hit stands, which is why
+        ca3/international_brotherhood keeps its page-18 hit."""
         hits = []
+        pool = {
+            str(fn.label or "").strip()
+            for fn in (doc.headmatter_footnotes or [])
+        }
         for op in doc.opinions:
+            settled = cls._numbering_is_settled(op, pool)
+            held = pool | {str(fn.label or "").strip() for fn in op.footnotes}
             for block in op.blocks:
                 if block.text.lstrip().startswith(cls._MARK_OPEN):
                     marks = cls._footnote_marks(block.text)
-                    hits.append((block.page, marks[0] if marks else "?"))
+                    label = marks[0] if marks else "?"
+                    if settled and label in held:
+                        continue
+                    hits.append((block.page, label))
         if not hits:
             return
         shown = ", ".join(f"{label} (p{page})" for page, label in hits[:6])
@@ -1134,12 +1331,45 @@ class BaseExtractor:
         missing = []
         for op in doc.opinions:
             labels = pool | {str(fn.label or "").strip() for fn in op.footnotes}
-            seen = set()
+            uses = []
+            in_body = set()
             for block in op.blocks:
-                for mark in cls._footnote_marks(block.text):
-                    if mark not in labels and mark not in seen:
-                        seen.add(mark)
-                        missing.append(mark)
+                uses.extend(cls._footnote_mark_uses(block.text))
+                # The note's own opening line, left in the body because the
+                # page's separator was missed. Whatever else the mark looks
+                # like, a note that is PRINTED and not built is a real loss,
+                # so nothing below may dismiss it: mich/people_v._kardasz
+                # calls 105 and 106 out of a writing numbered to 58, and both
+                # notes are sitting on pages 57-58 as prose.
+                if block.text.lstrip().startswith(cls._MARK_OPEN):
+                    opening = cls._footnote_marks(block.text)
+                    if opening:
+                        in_body.add(opening[0])
+            times = Counter(mark for mark, _before in uses)
+            settled = cls._numbering_is_settled(op, pool)
+            seen = set()
+            for mark, before in uses:
+                if mark in labels or mark in seen:
+                    continue
+                if mark in in_body:
+                    seen.add(mark)
+                    missing.append(mark)
+                    continue
+                # Not every raised glyph is a reference. Judge each USE: a
+                # star following a Westlaw cite is a page pointer, and a mark
+                # wider than any number the writing prints is two marks set
+                # touching, or a source typo. Neither is a note the extractor
+                # failed to find. A legend's symbol is only dismissed where
+                # the writing's numbering is settled, so a document with a
+                # real footnote problem never has one waved through.
+                if set(mark) == {"*"} and cls._is_reporter_pincite(before):
+                    continue
+                if cls._outside_the_numbering(mark, labels):
+                    continue
+                if settled and cls._is_legend_marker(mark, times[mark]):
+                    continue
+                seen.add(mark)
+                missing.append(mark)
         if missing:
             shown = ", ".join(missing[:8])
             more = "" if len(missing) <= 8 else f" (+{len(missing) - 8} more)"
@@ -1147,8 +1377,8 @@ class BaseExtractor:
                 f"footnote referenced but never built: {shown}{more}"
             )
 
-    @staticmethod
-    def _warn_footnote_gaps(doc: ExtractedDocument) -> None:
+    @classmethod
+    def _warn_footnote_gaps(cls, doc: ExtractedDocument, scanned=()) -> None:
         """Flag a BREAK in the numbered footnote sequence.
 
         A whole footnote can go missing without the coverage audit noticing:
@@ -1165,7 +1395,28 @@ class BaseExtractor:
         silent through a 194-page loss.
 
         Numbered notes only. A court that labels with '*' / '†' is not
-        sequential and has nothing to check."""
+        sequential and has nothing to check.
+
+        A gap is only evidence of a LOSS if the court's numbering is the
+        court's own. Two things break that assumption, and both are reported
+        rather than assumed away:
+
+        * **The source itself skips.** ind/in_the_matter_of_james_steven_cox
+          really does number its sixth note '64' — the body reads 'sanction.64',
+          the note reads '64As mentioned…', and the file draws only two
+          separator rules. mass/khoda runs 8 → 10 with no mark 9 printed
+          anywhere. Nothing was lost, so nothing is reported: a gap has to be
+          CALLED by a mark in the body to count. That test is only trustworthy
+          when the writing's marks corroborate the notes it did build, so it is
+          applied only where every one of the writing's own labels is also
+          called — acca/nelson builds notes 9-12 that no mark calls, so its
+          missing 5 stays flagged, as it should.
+        * **The note is a picture.** ca11/roger_tejon's note 5 is printed on
+          page 17, a full-page image with no text layer, and acca/ayuso's notes
+          2 and 3 on its page 2. There is no reading it without OCR. The gap is
+          still reported — it is a real absence — but it says why, and the
+          mark test above is NOT applied, because a scan swallows the mark as
+          readily as the note."""
         gaps = []
         for op in doc.opinions:
             labels = sorted(
@@ -1178,14 +1429,31 @@ class BaseExtractor:
             )
             if len(labels) < 2:
                 continue
-            gaps.extend(
+            breaks = [
                 n for a, b in zip(labels, labels[1:]) for n in range(a + 1, b)
-            )
+            ]
+            if breaks and not scanned:
+                called = set()
+                for block in op.blocks:
+                    called.update(cls._footnote_marks(block.text))
+                corroborated = all(str(n) in called for n in labels)
+                if corroborated:
+                    breaks = [n for n in breaks if str(n) in called]
+            gaps.extend(breaks)
         if gaps:
             shown = ", ".join(str(n) for n in sorted(set(gaps))[:8])
             more = "" if len(set(gaps)) <= 8 else f" (+{len(set(gaps)) - 8} more)"
+            note = ""
+            if scanned:
+                pages = ", ".join(str(p) for p in scanned[:6])
+                note = (
+                    f" — page {pages} of this document is a scanned image with "
+                    f"no text layer, so a note printed there cannot be read "
+                    f"(see the scanned-image warning); OCR, not an extraction "
+                    f"fault"
+                )
             doc.warnings.append(
-                f"footnote sequence breaks: missing {shown}{more}"
+                f"footnote sequence breaks: missing {shown}{more}{note}"
             )
 
     def _apply_headmatter(self, doc: ExtractedDocument, hm: dict) -> None:
