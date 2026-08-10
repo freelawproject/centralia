@@ -654,8 +654,8 @@ class BaseExtractor:
                     )
 
                 def is_zone_folio(line):
-                    """The registered folio standing at the page's edge —
-                    asked only of lines INSIDE a footnote zone.
+                    """A bare page number standing at the page's edge — asked
+                    only of lines INSIDE a footnote zone.
 
                     ``is_registered_folio`` also requires the folio to measure
                     centred or flush right, and a court that centres it on its
@@ -671,10 +671,34 @@ class BaseExtractor:
                     leaves the BODY, and widening it there moved a caption's
                     own rows out of the headmatter on cacd 980704. Inside a
                     footnote zone there is nothing a bare page number can be
-                    except the page number."""
-                    if folio is None:
+                    except the page number.
+
+                    IT MUST NOT DEPEND ON THE FOLIO BEING REGISTERED. That is
+                    the same test read twice, and the second reading is the one
+                    with a false negative to spare: ``detect_printed_folio``
+                    identifies the folio by its distance from the sheet's edge
+                    (or, per court, from the prose above it), and a page whose
+                    text runs long fails that test while still printing its
+                    number. ca3/defense_distributed sets '9' at y=668.3 like
+                    every other page, 3.7pt inside the shared 120pt band and
+                    34.1pt under a full page of prose against a 38pt gap
+                    floor: unregistered on 20 of 39 pages, and on the six of
+                    those that draw a real separator the number was the last
+                    line inside the zone and shipped as a footnote whose text
+                    was '9'. The value is checked against the registered folio
+                    only when there IS one, so a page that disagrees with its
+                    own number is still refused.
+
+                    The three tests that remain are what make it safe, and
+                    each earns its place: the line is INSIDE a separator-proven
+                    footnote zone, it is the first or last row the page sets,
+                    and its whole text is a bare number. A label standing alone
+                    above its note is not at the page's edge — the note is
+                    below it and the body above — so it is untouched."""
+                    value = self._page_number_value(self.line_plain_text(line))
+                    if value is None:
                         return False
-                    if self._page_number_value(self.line_plain_text(line)) != folio:
+                    if folio is not None and value != folio:
                         return False
                     return at_page_edge(line)
 
@@ -2850,7 +2874,21 @@ class BaseExtractor:
         # accepted on corroboration instead: a raised footnote label on the
         # first line beneath it.
         configured = self.footnote_sep_text_min_width
-        cutoff = page.height * 0.5
+        # The constraint is the HEADMATTER, not the height of the page. A
+        # separator must not be found inside the caption block — a caption
+        # shelf, a banner rule and a section divider all sit high on the
+        # caption page. But a footnote long enough to fill a page pushes its
+        # own rule to the TOP of the next one, and a flat fraction threw
+        # every one of those away: measured at y=85 of 792 (ortc/ringo p5),
+        # y=99 (utah/najera p31), y=175 of 612 (neb/damore p11), 0.22 of the
+        # page (wva/in_re_k.s. p7). wisctapp p53 fails at 315.9 while p85
+        # passes at 319.7 — 3.8pt apart, identical rules, because 792*0.4 is
+        # 316.8. So: guard the caption page, and let the corroboration below
+        # (smaller text, or a raised label) decide everywhere else.
+        cutoff = page.height * (
+            0.5 if page.page_number == getattr(self, "_caption_pno", 1)
+            else 0.10
+        )
         best = None
         for ln in page.extract_text_lines():
             t = (ln.get("text") or "").strip()

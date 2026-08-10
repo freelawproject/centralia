@@ -916,7 +916,21 @@ class StateSupreme(GenericExtractor):
         wmax = self.footnote_sep_max_width
         min_w = self.footnote_sep_min_width(page)
 
-        cutoff = page.height * 0.5
+        # The constraint is the HEADMATTER, not the height of the page. A
+        # separator must not be found inside the caption block — a caption
+        # shelf, a banner rule and a section divider all sit high on the
+        # caption page. But a footnote long enough to fill a page pushes its
+        # own rule to the TOP of the next one, and a flat fraction threw
+        # every one of those away: measured at y=85 of 792 (ortc/ringo p5),
+        # y=99 (utah/najera p31), y=175 of 612 (neb/damore p11), 0.22 of the
+        # page (wva/in_re_k.s. p7). wisctapp p53 fails at 315.9 while p85
+        # passes at 319.7 — 3.8pt apart, identical rules, because 792*0.4 is
+        # 316.8. So: guard the caption page, and let the corroboration below
+        # (smaller text, or a raised label) decide everywhere else.
+        cutoff = page.height * (
+            0.5 if page.page_number == getattr(self, "_caption_pno", 1)
+            else 0.10
+        )
 
         thin = [
             r
@@ -1089,7 +1103,12 @@ class StateSupreme(GenericExtractor):
         h, cands = page.height, []
         for r in page.rects:
             if not (
-                r["height"] < 2.5 and (r["x1"] - r["x0"]) >= 80 and r["top"] > h * 0.4
+                r["height"] < 2.5
+                and (r["x1"] - r["x0"]) >= 80
+                and r["top"] > h * (
+                    0.4 if page.page_number == getattr(self, "_caption_pno", 1)
+                    else 0.10
+                )
             ):
                 continue
             below = [

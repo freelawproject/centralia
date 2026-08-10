@@ -3,7 +3,6 @@
 from __future__ import annotations
 
 from collections import Counter
-import re
 
 import pdfplumber
 
@@ -140,11 +139,6 @@ class ThirdCircuit(FederalCircuitBase):
     page2_header_cutoff = 30.0
     dedupe_footnote_labels = False
 
-    _star_break = re.compile(
-        r'^(?P<folio><pagenumber value="[^"]+"/>\s*)?'
-        r'(?P<stars>\*\s+\*\s+\*)\s+(?P<body>.+)$'
-    )
-
     def prepare_document(self, pdf):
         """Keep page-top prose when CA3 has no repeated running header.
 
@@ -176,29 +170,45 @@ class ThirdCircuit(FederalCircuitBase):
         return super().filter_margins(obj)
 
     def find_footnote_separator(self, page):
-        """CA3's 144pt footnote rule is anchored at the body rail x≈144."""
-        # The rule sits AT the body rail on most of the corpus and INDENTED
-        # from it on some documents (x0=162 against a 144pt rail), so the
-        # window has to reach right as well. A 144pt rule in that band is the
-        # footnote separator by construction; the tight +/-4 window missed the
-        # indented form and the label-scan fallback then picked a line far
-        # below it, dropping the footnotes in between (3 and 6 here).
+        """CA3's 2-inch footnote rule, wherever this document's template sets it.
+
+        The band below is the BOUND measure's rule: at the body rail x≈144, and
+        indented from it at x0=162 in some chambers, which is why the window
+        reaches right as well.
+
+        Everything else is left to the shared chain, which reads the WIDTH the
+        court draws instead of predicting an x0. That matters here because CA3
+        prints on two measures and the rule travels with the measure. Measured
+        over the 53-document corpus: on every one of the 22 pages where this
+        band answers None and the shared chain answers a y, the shape it takes
+        is exactly 144.0pt wide, and it sits either at x0=180 — the bound
+        measure's rule, drawn one paragraph indent right of its 144pt rail
+        (mccarthy pp. 3, 6, 8, 10, 12, 13; ibew pp. 16-18) — or at x0=72, which
+        is the SLIP measure's own rail (evans 7 pages, kovalev 2, bankole,
+        givey, yew, thompson). There is no third population, and every one of
+        the 22 opens a raised label.
+
+        WHAT USED TO BE HERE, AND WHY IT IS GONE: a fallback that took the
+        first line below 0.55 x page height whose ``detect_footnote_label``
+        answered anything, with no separator of any kind. A footnote requires a
+        separator. That fallback opened a zone on 589 of this corpus's pages;
+        566 of them held nothing but the printed page folio, which then shipped
+        as a footnote whose entire text was its own label — 33 of the 35 phantom
+        footnotes in the whole 6,707-document corpus were these. On three more
+        it took a CENTRED SECTION NUMBER ('1' under 'A' under 'III', set at
+        body size on the page axis, indistinguishable from a folio by that
+        test) and swallowed the rest of the page's prose into a fake note:
+        mcgoveran pp. 5-6, prospect_capital p14. And where it did land on a
+        real note it was worse than the rule it stood in for, because it starts
+        at the LABEL: mccarthy p12 draws its separator at y=357.8 and the
+        fallback answered 530.1, leaving footnote 7 in the body between them.
+        """
         separator = self._sep_at(
             page, self.body_baseline_x0 - 4, self.body_baseline_x0 + 24
         )
         if separator is not None:
             return separator
-
-        # Some CA3 opinions have no drawn rule. Their footnotes begin in the
-        # lower half of the page with a superscript-sized label followed by
-        # body-sized text; use the first such label as the zone boundary.
-        candidates = []
-        for line in page.extract_text_lines():
-            if line.get("top", 0) <= page.height * 0.55:
-                continue
-            if self.detect_footnote_label(line) is not None:
-                candidates.append(line["top"])
-        return min(candidates) if candidates else None
+        return BaseExtractor.find_footnote_separator(self, page)
 
     def matches_expected_layout(self, pdf):
         """Accept CA3's abbreviated first-page court banner.
@@ -240,13 +250,29 @@ class ThirdCircuit(FederalCircuitBase):
             return None
         if len(raw) < 2:
             return None
-        last, above = raw[-1], raw[-2]
+        last = raw[-1]
         if self._page_number_value((last.get("text") or "").strip()) is None:
             return None
         if self.line_alignment(last, page.width) != "C":
             return None
-        if (last.get("top", 0) - above.get("top", 0)) < self.gap_double_max:
-            return None
+        # POSITION, not the gap above it. This used to require the folio to
+        # stand more than gap_double_max (38pt) below the line above it, which
+        # is a paragraph-spacing constant asked of page furniture. CA3 prints
+        # the folio at a CONSTANT top=668.3 on every page, so whether the test
+        # passed depended only on where that page's text block happened to end
+        # on the 17.2pt body grid: 20 of defense_distributed's 39 pages cleared
+        # it and 19 did not, for an identical folio. A folio that fails to
+        # register is never filtered — both is_zone_folio and
+        # is_registered_folio open with `if folio is None: return False` — so
+        # the bare number survives into the footnote zone and becomes a
+        # footnote whose label and whose entire text are the page number.
+        # 33 such phantoms existed, every one of the corpus's total.
+        # international_brotherhood puts its folio one ordinary line (15.0pt)
+        # below the block, which no gap threshold could ever admit.
+        #
+        # What identifies it is what it IS: the last line on the page, standing
+        # alone, centred, and nothing but a bare integer. All four already hold
+        # by the time we are here.
         return self._page_number_value((last.get("text") or "").strip())
 
     def page_lines(self, page):
@@ -657,10 +683,11 @@ class ThirdCircuit(FederalCircuitBase):
                     if text:
                         self._counsel_lines.append(text)
             op_end = cut
+        rows = self._divider_rows(all_segments, op_start, op_end)
         op = super().build_opinion(
             op_start, op_end, all_segments=all_segments, **kwargs
         )
-        return self._split_star_breaks(op)
+        return self._split_star_breaks(op, rows)
 
     def _join_wrapped_byline(self, all_segments, op_start):
         """Fold a two-line byline into one line before the opinion is built.
@@ -696,26 +723,104 @@ class ThirdCircuit(FederalCircuitBase):
         out[op_start] = (pno, [merged] + list(seg[2:]), kind)
         return out
 
-    def _split_star_breaks(self, op):
+    def _divider_rows(self, all_segments, op_start, op_end) -> list:
+        """The centered glyph dividers this writing prints between its parts.
+
+        Read as SHAPE, from the lines, before anything is joined into a
+        paragraph — the way the Tennessee title anchor is read. Five tests, and
+        each one has a rival it exists to exclude:
+
+          * every token on the row is the SAME single non-alphanumeric glyph,
+            three or more of them — a run of one repeated mark, so a citation's
+            '*5' pincite or a lone '*' footnote mark cannot qualify;
+          * the row measures CENTERED on the page axis — the court sets these
+            on the axis, body prose is justified to the rail;
+          * it spans at most half the text measure — a full-measure row of
+            glyphs would be a rule, not a break;
+          * it stands clear of the row above it by more than the court's own
+            single space, which is what makes it a standalone row rather than
+            part of the paragraph above;
+          * the writing's own segments are the only place looked, so a divider
+            in another writing cannot split this one's prose.
+
+        Returned as TOKEN RUNS, longest first: the court sets two spaces
+        between the glyphs and the rendered paragraph carries one, so the row
+        is matched token by token and never as a raw substring. Longest first
+        so a five-star row is never taken for a three-star one with two stars
+        left over.
+
+        WHAT THIS REPLACES: a regex, ``^(<pagenumber/>)?(\\* \\* \\*)\\s+(.+)$``.
+        Per the working rules the author byline grammar in ``base`` is the only
+        sanctioned pattern in the codebase; a court file must be regex-free. It
+        was also wrong, and only measurement of the row could have caught it:
+        the pattern counts EXACTLY THREE stars, and CA3 prints five of them in
+        nine documents and four in one. united_states_v._jabar_evans p18 sets
+        '* * * *' and shipped a heading of '* * *' with the fourth star glued
+        to the front of the next paragraph ('* For these above-stated reasons,
+        we will affirm …'), which reads as a footnote mark on the holding."""
+        rows = []
+        measure = (self.body_right_rail or 0.0) - self.body_baseline_x0
+        page_width = getattr(self, "_page1_width", 612.0) or 612.0
+        for idx in range(max(0, op_start), min(op_end, len(all_segments))):
+            _pno, seg, _kind = all_segments[idx]
+            for i, line in enumerate(seg):
+                text = self._plain(line.get("text"))
+                tokens = text.split()
+                if len(tokens) < 3 or any(t != tokens[0] for t in tokens):
+                    continue
+                if len(tokens[0]) != 1 or tokens[0].isalnum():
+                    continue
+                if self.line_alignment(line, page_width) != "C":
+                    continue
+                if measure > 0 and (line["x1"] - line["x0"]) > measure * 0.5:
+                    continue
+                if i and (line["top"] - seg[i - 1]["top"]) <= self.gap_single_max:
+                    continue
+                run = tuple(tokens)
+                if run not in rows:
+                    rows.append(run)
+        rows.sort(key=len, reverse=True)
+        return rows
+
+    def _split_star_breaks(self, op, rows):
         """Keep CA3's centered ``* * *`` transitions as visible separators.
 
         The PDF text layer places the separator line immediately before the
         next paragraph, so the shared paragraph builder joins them. In the
         rendered review that makes the stars look like paragraph text instead
-        of the standalone centered break the court printed."""
+        of the standalone centered break the court printed.
+
+        ``rows`` names the divider by its own measured glyph run, so the split
+        here only has to find where that run ends — never to guess what a
+        divider might look like."""
+        if not rows:
+            return op
         blocks = []
         for block in op.blocks:
-            match = self._star_break.match(block.text or "")
-            if match and block.kind == "p":
+            rest = str(block.text or "")
+            folio = ""
+            # A page break falling on the divider puts the folio marker in
+            # front of it; it belongs to the prose that follows, as it did
+            # before.
+            if rest.startswith("<pagenumber "):
+                close = rest.find("/>")
+                if close > 0:
+                    folio, rest = rest[: close + 2], rest[close + 2 :].lstrip()
+            if block.kind != "p":
+                blocks.append(block)
+                continue
+            for run in rows:
+                parts = rest.split(None, len(run))
+                if len(parts) <= len(run) or tuple(parts[: len(run)]) != run:
+                    continue
+                tail = parts[len(run)].strip()
+                if not tail:
+                    continue
                 blocks.append(
-                    Block(
-                        kind="heading",
-                        text=match.group("stars"),
-                        page=block.page,
-                    )
+                    Block(kind="heading", text=" ".join(run), page=block.page)
                 )
-                folio = match.group("folio") or ""
-                block.text = folio + match.group("body")
+                block.text = f"{folio} {tail}" if folio else tail
+                break
             blocks.append(block)
         op.blocks = blocks
         return op

@@ -2791,7 +2791,20 @@ class FederalCircuitBase(GenericExtractor):
             # Corroborated rather than merely widened: a rule away from the
             # configured band is taken only with footnote-sized text beneath it,
             # so a caption shelf or a table rule at the rail cannot pass.
-            if rail is not None and abs(r["x0"] - rail) <= 4 and (
+            # INDENTED as well as at the rail. Requiring the rule to sit ON
+            # the rail (<= 4pt) rejected ca3/stephen_mccarthy's majority, which
+            # draws its 144pt rule at x0=180 against a 144pt body rail — 36pt
+            # in. Its concurrence draws the same rule at 144, which is why that
+            # writing was complete and the majority lost notes 2 and 7 to the
+            # body. The corroboration below already passed on every one of
+            # those pages; only the rail distance refused them.
+            #
+            # The corroboration is load-bearing, not decoration: widening the
+            # window alone would admit six non-separators in ca3 (hartmann p2
+            # x0=180 w=120.6, cardenas p2/p10/p12, lisenby p8 w=144.3, p14
+            # w=160) — every one passes the width band and fails both
+            # corroboration tests.
+            if rail is not None and -4 <= (r["x0"] - rail) <= 40 and (
                 self._rule_over_footnotes(page, r["top"])
                 or self._labelled_note_below(page, r["top"])
             ):

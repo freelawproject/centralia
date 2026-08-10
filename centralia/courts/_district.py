@@ -712,7 +712,7 @@ class DistrictBase(GenericExtractor):
         horizontal rule low on the page whose left edge sits at the body text
         column (a few points right of the line-number gutter). A page-1
         caption's closing shelf at the caption-band bottom is excluded."""
-        cutoff = page.height * 0.55
+        cutoff = page.height * (0.55 if page.page_number == 1 else 0.10)
         cap_bottom = (
             self._caption_band_bottom() if page.page_number == 1 else None
         )
