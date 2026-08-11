@@ -48,6 +48,14 @@ class AlabamaAppellate(BaseExtractor):
     rejoin_wrapped_hyphens = False
     order_heading_fallback = False
     surface_margin_furniture = False
+    # The bottom margin does NOT yield to text below it here. That rule reads a
+    # line the cut would delete and keeps it when it is neither a folio nor a
+    # repeated footer — which is right everywhere else and recovered fourteen
+    # lines of body prose on one virginislands opinion alone. Alabama prints
+    # 'Clerk, Supreme Court of Alabama' below its cut on the attestation page,
+    # and the old casebody dropped it, so honouring the rule here added a
+    # thirteenth headmatter row to ebsco_industries and broke the byte lock.
+    margin_bottom_yields = False
     footnote_sep_rect = (72.0, 216.0)
     underline_offset_min = -4.0
     underline_offset_max = 5.0

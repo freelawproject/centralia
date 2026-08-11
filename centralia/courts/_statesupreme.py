@@ -977,8 +977,32 @@ class StateSupreme(GenericExtractor):
             # A caption/opinion divider can look exactly like a footnote rule.
             # If a valid opinion byline is printed beneath it, the rule cannot
             # open a terminal footnote zone without swallowing that opinion.
+            #
+            # AT BODY SIZE, THOUGH. A court sets its notes smaller than its
+            # body, and a citation inside one can read as a byline: delch/
+            # wells_lory_hillblom wraps 'In re Walt Disney Co. Deriv. Litig.,
+            # C.A. No. 4635-VCL' mid-'C.A.', leaving a line that ends
+            # 'Litig., C.' — the grammar's NAME, C[hancellor]. This guard threw
+            # the separator away for it, so the whole zone became body text, so
+            # the citation became a REAL byline and opened a phantom second
+            # opinion across pages 43-66. Notes 267-272 fell in the seam.
+            #
+            # The guard was causing what it guards against, and the type size
+            # tells the two apart: a byline is set at the body's own size.
+            from collections import Counter as _C
+
+            sizes = _C(
+                round(c.get("size", 0), 1)
+                for c in page.chars
+                if (c.get("text") or "").strip()
+            )
+            body = sizes.most_common(1)[0][0] if sizes else None
             for line in page.extract_text_lines():
                 if line.get("top", 0) <= sep:
+                    continue
+                if body is not None and (
+                    self._line_type_size(line.get("chars") or []) <= body - 1.0
+                ):
                     continue
                 if self.parse_author_line((line.get("text") or "").strip()):
                     return None
@@ -1037,11 +1061,31 @@ class StateSupreme(GenericExtractor):
             return False
 
         cands = [r for r in rules if not is_caption_pair(r) and not is_underline(r)]
-        if not cands:
-            return guard_author_below(
-                self._fenceless_sep(page) or self._footnote_sep_text(page)
-            )
-        return guard_author_below(min(cands, key=lambda r: r["top"])["top"])
+        if cands:
+            return guard_author_below(min(cands, key=lambda r: r["top"])["top"])
+        # A SEPARATOR THAT HAS BEEN PROVED IS NOT THROWN AWAY. Everything below
+        # this point is keyed on evidence rather than on position: the fenceless
+        # pass asks for the 2-inch rule the court uses for nothing else, the
+        # text pass for a typed rule, and the shared chain corroborates every
+        # rule it admits (footnote-size type below it, a raised label, or a
+        # signature the document repeats). ``guard_author_below`` is there to
+        # judge a candidate the generic scan merely GUESSED at — a caption or
+        # opinion divider of the same shape — and applying it to a proved rule
+        # only discards good work, because footnote prose is full of lines that
+        # read like a byline ('see McNeil, 798 A.2d at 50').
+        sep = self._fenceless_sep(page) or self._footnote_sep_text(page)
+        if sep is not None:
+            return sep
+        # THE SHARED CHAIN, LAST. This method replaces the base one outright
+        # rather than extending it, so nothing base learns has ever been
+        # reachable from a state court — and ``_fenceless_sep`` asks for the
+        # 144pt rule and only that. ga/in_the_matter_of_darryl_j._ferguson rules
+        # its notes with a FULL-MEASURE 468pt rule and repeats it on 16 pages,
+        # which the document therefore proves and nothing here could ask about;
+        # all 16 of its notes were delivered as body prose. Reached only when
+        # every test above has declined, so no page that finds a separator today
+        # can change its answer.
+        return super().find_footnote_separator(page)
 
     def _fenceless_sep(self, page):
         """Second pass with the bottom-half fence removed.

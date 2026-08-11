@@ -92,8 +92,36 @@ class PuertoRicoSupreme(StateSupreme):
         the lower half of a legal-size page.  The generic ``>=100pt`` rule
         detector can mistake those shelves for footnote separators and swallow
         the writing below them.  Match the invariant 144pt footnote rule.
+
+        THE WIDTH IS THE INVARIANT; THE RAIL IS NOT. PR sets its opinions on a
+        deep left margin that varies from document to document — measured, the
+        modal text rail is 117 in flores_reyes, 122 in el_pueblo_v._ponce and
+        137 in in_re_edwin_r._colon_torres — and the rule starts at whatever
+        that measure is. 132 was a ceiling taken off one of them, so
+        in_re_edwin drew its separator five points outside it on all 21 pages
+        that have one, and every one of its 29 notes came out as body prose.
+
+        No x0 ceiling fits, because the rail moves WITHIN a document as well as
+        between them — el_pueblo_v._torres_huertas draws its rule at 74.5 on
+        page 3 and at 117.7 on pages 5 and 7. Both alternatives were measured
+        and both cost more than they earned:
+
+          * pinned to the measured rail (``_page_text_rail`` + 6): too tight,
+            since the rail is an estimate — torres_huertas p3 measures 63
+            against a rule at 74.5, and note 1 was lost.
+          * bounded by the page's own half: too loose. in_re_joaquin_nieves
+            _marrero sets a TABLE across pages 15-23 whose rules land squarely
+            in the 144pt band at x0=296.8, 262.5, 263.7; each opened a zone
+            mid-page and swallowed the line carrying a reference.
+
+        So the tight ceiling stays, doing what it was written to do, and the
+        documents it cannot predict fall through to the shared chain — where
+        step 6 answers from the width the DOCUMENT repeats rather than from any
+        prediction about where the rule starts.
         """
-        return self.footnote_sep_fixed_left_rule(page, x0_max=132)
+        return self.footnote_sep_fixed_left_rule(
+            page, x0_max=132
+        ) or super().find_footnote_separator(page)
 
     def _byline_at(self, line) -> bool:
         """PR writing markers are Spanish prose bylines or centered writing

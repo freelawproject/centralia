@@ -102,7 +102,17 @@ class TexasCourtOfCriminalAppeals(StateAppellate):
             ]
             if below and min(below, key=lambda c: c["top"]).get("size", 99) <= body - 1:
                 candidates.append(curve["top"])
-        return min(candidates) if candidates else None
+        if candidates:
+            return min(candidates)
+        # DECLINE, DON'T DENY. Both tests above want footnote-SIZE type directly
+        # under the rule, which a zone opening with the unlabelled tail of a
+        # note carried from the previous page cannot show — lewis_howard_wayne
+        # sets that tail at body size on page 77 and opens note 24 two lines
+        # below it. Returning None here put every shared path out of reach even
+        # though all of them find the rule (``_fenceless_sep`` and the base
+        # chain both return 331.32), and notes 24, 25, 28-31 and 43 were
+        # delivered as body prose.
+        return super().find_footnote_separator(page)
 
     @staticmethod
     def _tcca_name_ok(name: str) -> bool:

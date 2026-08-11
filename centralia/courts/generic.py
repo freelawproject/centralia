@@ -180,6 +180,14 @@ class GenericExtractor(BaseExtractor):
             and r["x0"] < 100
             and r["top"] > cutoff
             and self._rule_over_footnotes(page, r["top"])
+            # A HYPERLINK UNDERLINE IS NOT A SEPARATOR, and this quick path is
+            # where one wins: a URL note's underline starts at the text rail
+            # (x0=77.8) while the real 144pt separator sits at the body indent
+            # (x0=108.0) and fails the ``x0 < 100`` test above. pawd 323053 p9
+            # therefore took note 3's own underline at y=672.9 as the zone
+            # boundary, leaving note 3 above its own zone and in the body while
+            # notes 4 and 5 built normally.
+            and not self._rule_underlines_text(page, r)
         ]
         if not candidates:
             return super().find_footnote_separator(page)

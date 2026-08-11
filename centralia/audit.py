@@ -105,6 +105,17 @@ def _is_box_glyph(c: str) -> bool:
     return "─" <= c <= "╿"
 
 
+def _is_mark_glyph(c: str) -> bool:
+    """A footnote MARK glyph — the star family, the dagger family, the section
+    and pilcrow signs, and the Private Use codepoints a Symbol-font asterisk
+    arrives as (U+F000–U+F0FF, e.g.  for '*').
+
+    Not prose in any spelling: the extractor lifts a note's label into
+    ``Footnote.label`` and wraps a reference in <footnotemark>, so the glyph on
+    the source line frequently has no counterpart at all in the kept text."""
+    return c in "*∗⁎﹡＊†‡§¶" or "" <= c <= ""
+
+
 def _norm(s: str) -> str:
     """Whitespace-removed, tag-stripped, unescaped, ligature-expanded,
     lowercased — one extractor keeps 'Plaintiﬀ' where extract_text says
@@ -145,6 +156,20 @@ def _norm(s: str) -> str:
     # ``rail``. The rule is applied to both sides, so no prose is hidden.
     if any(_is_box_glyph(c) for c in s):
         s = "".join(c for c in s if not _is_box_glyph(c))
+    # FOOTNOTE MARK GLYPHS, for the same reason as the dashes and the rails: the
+    # mark is not content, and the two sides spell it differently.
+    #
+    # A star note's label is lifted into ``Footnote.label`` and a star reference
+    # is wrapped in <footnotemark>, so the glyph on the source line has no
+    # counterpart in the kept text — and where it does survive, the codepoints
+    # disagree: a Symbol-font asterisk arrives as the private-use  while
+    # the output stores U+2217. That one mismatch put 28 lines into the
+    # 'unplaced' bucket across 16 courts, every one of them already placed:
+    # 'EID, CARSON, and FEDERICO, Circuit Judges.∗' (ca10), 'OPINION∗' (ca3),
+    # '∗  Justice Maria Elena Cruz is recused …' (ariz), '   Judge Allison
+    # H. Penzato …' (la). Applied to both sides, so no prose can hide behind it.
+    if any(_is_mark_glyph(c) for c in s):
+        s = "".join(c for c in s if not _is_mark_glyph(c))
     for lig, exp in _LIGATURES:
         if lig in s:
             s = s.replace(lig, exp)
@@ -641,6 +666,16 @@ def _matches(raw: str, haystack: str, hay_nodigits: str | None = None) -> bool:
         and len(_norm(without_inline_mark)) >= 24
         and _norm(without_inline_mark) in haystack
     ):
+        return True
+    # A FOOTNOTE'S LABEL SET HARD AGAINST ITS TEXT. The label is stored in
+    # ``Footnote.label`` and stripped off the prose, so a source line that
+    # begins with the label and no space has that digit spare: mad 292795 draws
+    # its 6.48pt '1' at the left margin of the note's SECOND line, which
+    # pdfplumber assembles as '1state statute.'. The rest of the line must
+    # still match exactly, and only a 1-2 digit head is removed, so no prose
+    # can hide behind this.
+    head_label = re.match(r"^(\d{1,2})(\S.*)$", stripped)
+    if head_label and _norm(head_label.group(2)) and _norm(head_label.group(2)) in haystack:
         return True
     # A signature date typed over an underscore rule can be returned in the
     # opposite visual order (date first, then ``Dated:``).  Both components

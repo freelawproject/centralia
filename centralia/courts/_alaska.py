@@ -778,28 +778,53 @@ class BaseAlaskaExtractor(BaseExtractor):
             flush_caption()
 
         # Re-thread the plain rows around the caption block(s) in order.
-        laid = self._pad_rows(
-            [it for it in plain_items if it is not None], char_w
+        #
+        # BY OWNERSHIP, NOT BY COUNT. ``_pad_rows`` packs items that share a
+        # ``top`` onto ONE row, so it returns fewer rows than it was given —
+        # and the old walk advanced one index per ITEM, guarded by
+        # ``if ip < len(laid)``. Every merge therefore pushed the index past
+        # the end and silently dropped a row off the TAIL of the headmatter.
+        # Nine Alaska documents lost the second line of their justice roster
+        # that way ('Henderson, and Pate, Justices.', '[Borghesan, Justice, not
+        # participating.]'), which the completeness sweep then reported as
+        # unplaced content. Ask each row which items it consumed instead.
+        laid, counts = self._pad_rows(
+            [it for it in plain_items if it is not None], char_w, with_counts=True
         )
-        result, ip, ic = [], 0, 0
+        owner = []
+        for ri, n in enumerate(counts):
+            owner.extend([ri] * n)
+        result, ic, k, emitted = [], 0, 0, -1
+
+        def catch_up(upto):
+            """Emit the rows that consume no items (the page-break blanks)."""
+            for j in range(emitted + 1, upto):
+                if counts[j] == 0:
+                    result.append(laid[j])
+
         for it in plain_items:
             if it is None:
                 if ic < len(out_rows):
                     result.append(out_rows[ic])
                     ic += 1
-            else:
-                if ip < len(laid):
-                    result.append(laid[ip])
-                ip += 1
+                continue
+            ri = owner[k] if k < len(owner) else None
+            k += 1
+            if ri is None or ri == emitted:
+                continue
+            catch_up(ri)
+            result.append(laid[ri])
+            emitted = ri
+        catch_up(len(laid))
         return result
 
-    def _pad_rows(self, items: list, char_w: float = None) -> list:
+    def _pad_rows(self, items: list, char_w: float = None, with_counts=False):
         """Lay out the NON-caption rows: lines sharing a ``top`` go on one text
         line at a column derived from their x0. Page number is the primary key;
         sorting by ``top`` alone moves a page-two continuation above page-one
         material."""
         if not items:
-            return []
+            return ([], []) if with_counts else []
         items = sorted(items, key=lambda r: (r[0], r[1], r[2]))
         # The glyph advance is MEASURED from the document, not assumed. The
         # caption is set in a proportional face, and a fixed 6.2pt estimate ran
@@ -809,6 +834,9 @@ class BaseAlaskaExtractor(BaseExtractor):
         if not char_w:
             char_w = getattr(self, "_caption_char_w", None) or 6.2
         rows, segs, cur_page, cur_top = [], [], None, None
+        # How many input items each emitted row consumed, so the caller can
+        # re-thread rows around the caption block without assuming 1:1.
+        counts: list = []
 
         def emit(parts):
             line = ""
@@ -830,14 +858,17 @@ class BaseAlaskaExtractor(BaseExtractor):
                 or segs[-1][1] == self.HEADMATTER_DIVIDER
             ):
                 rows.append(emit(segs))
+                counts.append(len(segs))
                 segs = []
                 if page_changed:
                     rows.append("")
+                    counts.append(0)
             segs.append((x0, text))
             cur_page, cur_top = page, top
         if segs:
             rows.append(emit(segs))
-        return rows
+            counts.append(len(segs))
+        return (rows, counts) if with_counts else rows
 
 
 def _is_caps_name(name: str) -> bool:

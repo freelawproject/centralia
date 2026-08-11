@@ -49,7 +49,13 @@ class GeorgiaSupreme(StateSupreme):
                 and abs(rule.get("x1", 0) - 486.0) <= 1
             ):
                 return rule["top"]
-        return None
+        # THE COURT HAS A SECOND TEMPLATE. That one is the reporter's indented
+        # column; a disciplinary opinion is set to the FULL measure and rules
+        # its notes from x=72 to x=540. in_the_matter_of_darryl_j._ferguson
+        # repeats that 468pt rule on 16 pages, and returning None here — rather
+        # than declining — put every other path out of reach as well, so all 16
+        # of its notes came out as body prose.
+        return super().find_footnote_separator(page)
 
     def detect_footnote_label(self, line):
         label = super().detect_footnote_label(line)
@@ -66,9 +72,20 @@ class GeorgiaSupreme(StateSupreme):
         )
         if not chars or following is None:
             return None
-        # A Georgia label is genuinely superscripted (8.5pt before 10pt note
-        # prose). A body line beginning with a year can otherwise look "small"
-        # if one later glyph on that line has an anomalous larger bbox.
+        # A BODY-SIZE LABEL THE ZONE HAS ALREADY PROVED IS NOT UP FOR REVIEW.
+        # ``_admit_flush_labels`` admits one only on the sequence bookkeeping —
+        # the writing calls that mark, it is the number the zone owes next, and
+        # no raised label claims it — which is evidence this size test cannot
+        # see and must not overrule. snow_v._state superscripts note 1 (8.5pt
+        # before 10pt prose) and sets notes 2 through 7 flush at 10pt, each
+        # opening its own page's zone; all six were admitted upstream, vetoed
+        # here, and fused into note 1 as 718 words under a single label.
+        admitted = getattr(self, "_flush_labels_admitted", None) or {}
+        if id(line) in admitted:
+            return label
+        # Otherwise a Georgia label is genuinely superscripted (8.5pt before
+        # 10pt note prose). A body line beginning with a year can otherwise look
+        # "small" if one later glyph on that line has an anomalous larger bbox.
         if chars[0].get("size", 0) > following.get("size", 0) - 1:
             return None
         return label

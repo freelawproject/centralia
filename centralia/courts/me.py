@@ -150,7 +150,14 @@ class MaineSupreme(AbbrevTitleSupreme):
             ]
             if below and min(below) < body:
                 return r["top"]
-        return None
+        # DECLINE, DON'T DENY. The test above wants footnote-size type within
+        # 30pt below the rule, which a zone opening with the unlabelled tail of
+        # a note carried from the previous page cannot show — tabarek_t.h.
+        # _aldarraji page 4 runs seven lines of note 1's continuation at body
+        # size before note 2 begins. Returning None put the shared chain out of
+        # reach, and that page cost TWO notes: 2 was never built, and 1 was
+        # truncated, its continuation delivered as body prose.
+        return super().find_footnote_separator(page)
 
     def _is_mark_line(self, line) -> bool:
         """A line that is nothing but a small footnote label — an in-body
