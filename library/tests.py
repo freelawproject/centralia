@@ -62,5 +62,35 @@ class DocumentQualityTests(SimpleTestCase):
         self.assertEqual(_document_quality(layout)[0], "layout")
         self.assertEqual(_document_quality(error)[0], "error")
 
+    def test_warnings_split_into_named_buckets(self):
+        """One 'warning' colour covered 708 documents and four unrelated
+        problems. Each names itself now, most-actionable first, and the
+        diagnosis still carries every warning verbatim."""
+        fn = _doc(warnings=["footnote referenced but never built: 1, 2"])
+        img = _doc(warnings=["1 of 1 embedded image(s) were not placed in any section"])
+        misfiled = _doc(warnings=["body may be misfiled as headmatter: 4 pages"])
+        other = _doc(warnings=["something else entirely"])
+        self.assertEqual(_document_quality(fn)[0], "footnotes")
+        self.assertEqual(_document_quality(img)[0], "images")
+        self.assertEqual(_document_quality(misfiled)[0], "misfiled")
+        self.assertEqual(_document_quality(other)[0], "warning")
+        # A footnote fault plus an unplaced image is a footnote job, and the
+        # hover text keeps both.
+        both = _doc(warnings=[
+            "1 of 3 embedded image(s) were not placed in any section",
+            "footnote text left in the body: 1 (p7)",
+        ])
+        bucket, detail = _document_quality(both)
+        self.assertEqual(bucket, "footnotes")
+        self.assertIn("embedded image", detail)
+        self.assertIn("footnote text left in the body", detail)
+
+    def test_certificate_note_is_not_a_warning_bucket(self):
+        """The certificate warning records an intentional parser choice."""
+        cert = _doc(warnings=[
+            "body not parsed for doc_type=certificate-of-judgment"
+        ])
+        self.assertEqual(_document_quality(cert)[0], "clean")
+
     def test_clean_extraction(self):
         self.assertEqual(_document_quality(_doc()), ("clean", "clean extraction"))

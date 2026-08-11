@@ -93,6 +93,8 @@ class Command(BaseCommand):
         parser.add_argument("courts", nargs="*", help="court ids (default: all)")
         parser.add_argument("--no-audit", action="store_true",
                             help="skip coverage computation")
+        parser.add_argument("--no-manifest", action="store_true",
+                            help="skip rewriting output/manifest.js")
         parser.add_argument("--pdf", metavar="STEM",
                             help="refresh only this document (PDF stem) "
                                  "instead of the whole court")
@@ -225,3 +227,11 @@ class Command(BaseCommand):
                 executor.shutdown()
         self.stdout.write(self.style.SUCCESS(
             f"ingested {n_docs} documents across {len(courts)} courts"))
+        # The viewer's health chips come from output/manifest.js, not from the
+        # DB directly, so an ingest that skips this leaves the homepage
+        # describing the PREVIOUS extraction. (manifest.js is also rebuilt on
+        # read when it is older than the DB — this keeps the file fresh for
+        # anyone reading it without going through Django.)
+        if not opts["no_manifest"]:
+            from library.manifest import rebuild_manifest
+            self.stdout.write(f"manifest: {rebuild_manifest()} documents")

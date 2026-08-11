@@ -12,6 +12,7 @@ from django.contrib import admin
 from django.urls import include, path, re_path
 from django.views.static import serve
 
+from library.manifest import rebuild_manifest_if_stale
 from library.views import captions, review_marks, viewer
 
 _OUTPUT = str(settings.BASE_DIR / "output")
@@ -24,7 +25,13 @@ def _serve_nocache(request, path, document_root=None):
     Both are rewritten whenever a court is re-ingested or a review mark moves,
     but ``django.views.static.serve`` sends only Last-Modified — so the browser
     reuses its copy and the sidebar keeps showing stale document counts through
-    a normal reload, which reads as 'the new PDFs never arrived'."""
+    a normal reload, which reads as 'the new PDFs never arrived'.
+
+    manifest.js is also rebuilt here when the DB has been written since the file
+    was, so the health chips are right however the data changed — no write path
+    has to remember to refresh them."""
+    if path == "manifest.js":
+        rebuild_manifest_if_stale()
     response = serve(request, path, document_root=document_root)
     response["Cache-Control"] = "no-store, must-revalidate"
     return response

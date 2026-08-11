@@ -3,6 +3,7 @@ import json
 import re
 import subprocess
 import sys
+import time
 from collections import Counter
 
 from django.conf import settings
@@ -22,104 +23,15 @@ from django.views.decorators.csrf import csrf_exempt
 from centralia.registry import EXTRACTORS
 from centralia.render.html import _inline_to_html
 from .families import family_of, similar_courts
+# The manifest builder is shared with the ingest command — every path that
+# changes the DB must rewrite output/manifest.js, or the homepage's health
+# chips describe an extraction that no longer exists. Re-exported under the
+# old private names so views and library/tests.py keep their call sites.
+from .manifest import document_quality as _document_quality
+from .manifest import rebuild_manifest as _rebuild_manifest
 from .models import Block, Court, Document, Footnote, Opinion
 
 _OUTPUT_DIR = settings.BASE_DIR / "output"
-
-
-_NON_OPINION_TYPES = {"certificate-of-judgment", "filing", "notice", "order"}
-
-
-def _document_quality(d):
-    """Return the viewer color bucket and its plain-language diagnosis.
-
-    Keep mutually useful failures separate here: a raster scan is not a parser
-    bug, an unreadable font map is not a scan, and an intentionally
-    non-opinion document is not a missing opinion.  The first matching bucket
-    is the document's most actionable diagnosis; the hover text supplies the
-    detail.
-    """
-    warnings = [str(w) for w in (d.warnings or [])]
-    warning_text = " ".join(warnings)
-    warning_lower = warning_text.lower()
-    has_opinions = d.opinions.exists()
-
-    if d.doc_type == "error":
-        return "error", "extractor crashed" + (f": {warnings[0]}" if warnings else "")
-
-    if (
-        "unreadable text layer" in warning_lower
-        or "unmapped (cid:n)" in warning_lower
-        or "cid glyph" in warning_lower
-    ):
-        return "text-layer", "unreadable PDF text layer (missing character map)"
-
-    if (
-        "non-born-digital" in warning_lower
-        or "scanned image-only" in warning_lower
-        or "needs ocr" in warning_lower
-    ):
-        return "scan", "scanned PDF; OCR/extraction work required"
-
-    if d.residual and any(
-        not isinstance(r, dict) or r.get("kind") != "furniture"
-        for r in d.residual
-    ):
-        return "unplaced", "authored content remains unplaced"
-
-    if not has_opinions and (d.suspect or d.doc_type == "opinion"):
-        detail = "no opinion body parsed"
-        if d.suspect:
-            detail += "; multi-page content landed in headmatter"
-        return "missing-opinion", detail
-
-    if d.doc_type == "unknown":
-        return "unclassified", "born-digital document type is still unknown"
-
-    if not has_opinions:
-        if d.doc_type in _NON_OPINION_TYPES:
-            return "non-opinion", f"{d.doc_type}; no judicial opinion expected"
-        return "missing-opinion", "no opinion body parsed"
-
-    layout_reasons = []
-    if d.coverage and d.coverage < 100:
-        layout_reasons.append(f"source coverage {d.coverage:g}%")
-    if not d.layout_ok:
-        layout_reasons.append("layout does not match the expected court format")
-    if layout_reasons:
-        return "layout", "; ".join(layout_reasons)
-
-    # The certificate warning records an intentional parser choice, not a
-    # failure. Any other warning gets its own review color.
-    actionable_warnings = [
-        w for w in warnings
-        if not w.startswith("body not parsed for doc_type=certificate-of-judgment")
-    ]
-    if actionable_warnings:
-        return "warning", "; ".join(actionable_warnings)
-
-    return "clean", "clean extraction"
-
-
-def _rebuild_manifest():
-    """Rewrite output/manifest.js from the DB, including review-facing health.
-
-    ``q`` names a specific extraction outcome so the static viewer can give
-    scans, text-layer failures, parser failures, and intentional non-opinions
-    visibly different treatments.
-    """
-    man = {
-        c.court_id: [
-            {"n": d.stem, "href": f"{c.court_id}/{d.stem}.html",
-             "s": d.suspect, "q": diagnosis[0], "qd": diagnosis[1]}
-            for d in c.documents.all().order_by("stem")
-            for diagnosis in [_document_quality(d)]
-        ]
-        for c in Court.objects.all().order_by("court_id")
-    }
-    (_OUTPUT_DIR / "manifest.js").write_text(
-        "const MANIFEST=" + json.dumps(man) + ";\n"
-    )
 
 
 @csrf_exempt
@@ -174,16 +86,35 @@ def reprocess(request, court_id):
     summary = (proc.stdout or "").strip().splitlines()
     summary = summary[-1] if summary else ""
     # Re-ingest + refresh the manifest so the DB-backed views and sidebar match.
-    try:
-        if stem:
-            call_command("ingest", court_id, "--no-audit", pdf=stem)
-        else:
-            call_command("ingest", court_id, "--no-audit")
-        _rebuild_manifest()
-    except Exception as exc:  # html is already regenerated; report the rest
+    #
+    # RETRY ON THE WRITE LOCK. SQLite allows one writer, and a re-run started
+    # from the viewer can lose the lock to another ingest — then this reported
+    # ok:true with a 'warn', the manifest was never rebuilt, and the button
+    # answered '✓ re-ran' over an unchanged chip. Silent degradation reads as
+    # "the re-run did nothing"; a few seconds of backoff clears a lock that is
+    # only ever held for one document, and a lock that outlasts the backoff is
+    # reported as a FAILURE so the UI says so.
+    last = None
+    for attempt in range(5):
+        try:
+            if stem:
+                call_command("ingest", court_id, "--no-audit", pdf=stem)
+            else:
+                call_command("ingest", court_id, "--no-audit")
+            _rebuild_manifest()
+            last = None
+            break
+        except Exception as exc:  # noqa: BLE001
+            last = exc
+            if "locked" in str(exc).lower() and attempt < 4:
+                time.sleep(1.5 * (attempt + 1))
+                continue
+            break
+    if last is not None:
         return JsonResponse(
-            {"ok": True, "court": court_id, "summary": summary, "pdf": stem,
-             "warn": f"ingest/manifest: {exc}"}
+            {"ok": False, "court": court_id, "summary": summary, "pdf": stem,
+             "error": f"HTML regenerated, but the database was not updated: {last}"},
+            status=503,
         )
     return JsonResponse(
         {"ok": True, "court": court_id, "summary": summary, "pdf": stem}
