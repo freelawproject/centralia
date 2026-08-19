@@ -269,9 +269,27 @@ register(CourtProfile(
 register(CourtProfile(
     "la", "Supreme Court of Louisiana",
     # 'WEIMER, Chief Justice*' on the opinion; 'GUIDRY, J.' on separates.
+    #
+    # THE ABBREVIATED TITLES BELONG IN `titles` HERE. This is a `prose`
+    # grammar, which reads `titles`; `abbrev_titles` is the `abbrev` style's
+    # list and was never consulted, so every Chief Justice byline failed to
+    # parse and Louisiana's separate writings were never split out. Measured
+    # on `in_re_judge_john_c._reeves_seventh_judicial_district_court`, whose
+    # dissent opens 'WEIMER, C.J., concurring in part and dissenting in
+    # part.' on page 9 and was swallowed by the majority.
+    #
+    # `allow_titlecase_name` because the court signs both ways — 'GUIDRY, J.'
+    # and 'Guidry, J.' — and only the caps form parsed.
+    #
+    # The vote lines the Clerk prints on the news-release sheet ('McCallum,
+    # J., dissents.') are deliberately NOT byline-shaped to this grammar:
+    # they are the bench, not a writing, and la.py reads them as `panel`.
     byline=BylineGrammar(style="prose",
                          titles=("Chief Justice", "Justice",
-                                 "Justice ad hoc", "J."))))
+                                 "Justice ad hoc", "Justice Pro Tempore",
+                                 "Justice pro tempore",
+                                 "C.J.", "C. J.", "J."),
+                         allow_titlecase_name=True)))
 register(CourtProfile("lactapp", "Louisiana Court of Appeal",
                       byline=_JUDGE_PROSE))
 # mass: profile lives in `courts/mass.py` beside its reader.
