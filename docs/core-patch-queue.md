@@ -518,3 +518,95 @@ run behind it, unlike item 19 whose radius was already measured at 4 files.
   false positive) and the va + conn + dc `tests/criteria_manifest.py` entries.
 - Item 19 is STAGED and anchor-verified at
   `scratchpad/apply_item19.py` (`--check` to re-verify, no args to apply).
+
+## 21. `_abbrev` finds the abbreviated title INSIDE the given name — `resolve/bylines.py`
+
+From the wis port, 2026-08-20. Verified in isolation. **The cleanest patch in
+this queue — one line, and it changes a writing's TYPE, not just its label.**
+
+`bylines.py:667` is `end = text.find(ab) + len(ab)`, searching from index 0.
+On `JILL J. KAROFSKY, J., concurring.` the first `J.` is the one inside
+*JILL J.*, so `end=7`, the tail becomes `KAROFSKY, J., concurring.`, and the
+kind clause is never reached: the printed byline truncates to **`JILL J.`**
+and the CONCURRENCE types as a **majority**. Hits `state_v._jobert_l._molde`
+and its duplicate.
+
+`after` is always a suffix of `text` at that point, so:
+
+    -            end = text.find(ab) + len(ab)
+    +            # THE TITLE IS FOUND AFTER THE NAME, not from the head of the
+    +            # row. A given name may itself end in an initial ('JILL J.
+    +            # KAROFSKY, J., concurring.' — wis), and searching from index 0
+    +            # found the 'J.' inside the NAME.
+    +            end = (len(text) - len(after)) + len(ab)
+
+Checked: the wis case goes `end 7 -> 20` (tail `', concurring.'`), while
+`HAGEDORN, J. …`, `JILL J. KAROFSKY, C.J. …`, `JANET C. PROTASIEWICZ, J. …`
+and `REBECCA GRASSL BRADLEY, J., delivered …` all keep an identical offset.
+Any court whose justices carry a middle initial before the title is exposed,
+so this is worth a guard run even though the change is tiny.
+
+## 22. A masthead below the first text row is planted in the writing as a figure — `pipeline.py`
+
+From the wis port. Affects **49 of 49** wis records.
+
+`pipeline.py:384` requires `_im.top <= _first_text` for a masthead. wis prints
+its public-domain cite (`2025 WI 23`, top 105.2) ABOVE the letterhead, so both
+the masthead (top 129) and the seal (top 170) fall below the first text row.
+The seal then passes `_is_figure` (74x72, top>8%, bottom<92%) and is planted
+inside the first writing as `<img alt="figure">`, while the masthead fails it
+(h=34 < 40) and is dropped as `graphic 364x34pt`.
+
+                _is_masthead = (pm.number == 1
+                                and (_im.top <= _first_text
+    +                                or _im.bottom <= pm.height * 0.35)
+                                and _w <= pm.width * 0.55
+
+wis's seal bottom is 242 of 792 = 0.306. This widens a corpus-wide test —
+full `guard` run before blessing.
+
+## 23. A two-row running head loses its second row — `resolve/furniture.py`
+
+From the wis port. **12 of 49** wis records.
+
+wis heads every continuation page with the case short name over the WRITING's
+name (`Opinion of the Court`, `Order of the Court`, `JUSTICE ZIEGLER,
+dissenting`), both at body size 12.0. `_band_keys`
+(`furniture.py:168-170`) admits a per-writing head only through the
+sub-body-size exemption, and on a record with several writings that head
+repeats on fewer than 40% of pages — so it is not furniture and welds onto
+the page's first paragraph (`…to receive these filings.` / `Order of the
+Court pursuant to WIS. STAT. § 801.50(4m)…`). The 37 records that work are
+the ones whose lead writing covers >=40% of the sheet.
+
+Proposed rule, same place: a top-band key sharing a baseline with a key
+already proven furniture, on 2+ pages, is the other row of the same head.
+Changes furniture for every court — wants its own corpus run. Note this is
+the same FAMILY as item 20 (folio bands) but a different mechanism.
+
+## 24. `publication_status` read off a body citation — `pipeline.py`
+
+From the wis port. 2 of 49 wis records, confirmed pre-existing (identical
+with the reader popped).
+
+`pipeline.py:725` guards with `_STATUS_CITES_ANOTHER`, which fails to match
+`unpublished, unauthored summary affirmance of the court of appeals, state`
+(`state_v._kordell_l._grady` para 1) and `unpublished slip op. (wis. ct. app.
+may 14, 2024) (per curiam) (reversing the`
+(`wisconsin_department_of_corrections…`). Both records come back
+`unpublished` when they are published slips. The pipeline's own comment
+already anticipates this family ("wis cites an 'unpublished order at 5-10'");
+the guard needs the court-abbreviation form (`ct. app.`) and the
+reporter-less `slip op.` as additional cues.
+
+## wis sentinels to pin (one per band composition, all reading correctly)
+
+    wis/josh_kaul_v._wisconsin_state_legislature          5 fences, REVIEW origin on two rows, 2-row announcement
+    wis/office_of_lawyer_regulation_v._bryant_h._klos     4 fences, matter title over caption, no announcement
+    wis/elizabeth_bothfeld_v._wisconsin_elections_commission  3 fences, intervening party group, recital left to the order
+    wis/scot_van_oudenhoven_v._wisconsin_department_of_justice 4 fences, origin, no announcement
+    wis/state_v._andreas_w._rauch_sharak                  APPEAL origin, route + court below in one statement
+    wis/state_v._michael_joseph_gasper                    10-row announcement, en-dash docket, Reserve J.
+
+`wis/planned_parenthood_of_wisconsin_v._joel_urmanski` is already pinned and
+passes (its page 5 is a genuine image-only page — the 1 `scanned` status).
