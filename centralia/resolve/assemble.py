@@ -1770,24 +1770,40 @@ def assemble(model, geom: DocGeometry | None, segments_by_page: dict,
     # lines) at an opinion's end is the signature, not body prose.
     for op in result.opinions:
         cut = None
-        for i in range(len(op.blocks) - 1, max(len(op.blocks) - 6, -1), -1):
+
+        def _is_sig(b):
+            t = (getattr(b, "text", "") or "")
+            t = t.replace("<strong>", "").replace("</strong>", "")
+            return "/s/" in t[:20] or t.lower().startswith("/s ")
+
+        # A COURT THAT SIGNS EN BANC SIGNS ONCE PER JUSTICE. Scanning back
+        # from the end and stopping at the first '/s/' takes only the LAST
+        # signer: haw sets five conformed names at x0=324 on a 468pt
+        # measure, and 34 of its 51 signature lines were left in the body
+        # reading as dangling prose while only the closing name kept the
+        # page's right position. The block is the whole contiguous RUN.
+        # The window is 12, not 5, because the run itself can be that long.
+        for i in range(len(op.blocks) - 1, max(len(op.blocks) - 13, -1), -1):
             b = op.blocks[i]
             text = getattr(b, "text", "") or ""
             plain = text.replace("<strong>", "").replace("</strong>", "")
             if "/s/" in plain[:20] or plain.lower().startswith("/s "):
                 cut = i
+                while cut > 0 and _is_sig(op.blocks[cut - 1]):
+                    cut -= 1
+                i = cut
                 # A 'DATED this …' line directly above belongs to it — and
                 # so does the attestation that OPENS the signature block
                 # ('BY THE COURT:' — del closes nearly every order that
                 # way; 'FOR THE COURT:'). Left in the body it reads as a
                 # dangling last paragraph of the opinion.
-                if i > 0:
-                    above = (getattr(op.blocks[i - 1], "text", "") or "")
+                if cut > 0:
+                    above = (getattr(op.blocks[cut - 1], "text", "") or "")
                     _ab = " ".join(above.split()).upper().rstrip(":")
                     if len(above) < 120 and (
                             _ab.startswith("DATED")
                             or _ab in ("BY THE COURT", "FOR THE COURT")):
-                        cut = i - 1
+                        cut = cut - 1
                 break
         if cut is not None:
             tail = op.blocks[cut:]
