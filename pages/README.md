@@ -45,8 +45,29 @@ python3 -c "import json;d=json.load(open('output/notes/court_status.json'));prin
   call sites in `pipeline.py` (masthead crops :1495, figures :1526, signature
   graphics :1587) are already inside `try/except`, so they skip silently —
   output is text-only. Seals and signature images do not appear.
-- **URL fetch usually fails.** A static page can only `fetch()` a PDF if that
-  server sends `Access-Control-Allow-Origin`. Court sites don't. Upload works.
+- **URL fetch fails, and Python cannot route around it.** A static page can
+  only `fetch()` a PDF if that server sends `Access-Control-Allow-Origin`.
+  Measured: `storage.courtlistener.com`, `govinfo.gov`, and `ca1.uscourts.gov`
+  all serve the PDF to `curl` and none sends the header.
+
+  Doing it from Python does not help — verified in Chrome:
+
+  | path | cross-origin |
+  |---|---|
+  | `pyodide.http.pyfetch` | `AbortError: Failed to fetch` |
+  | `urllib.request.urlopen` | `RuntimeError: TLS not supported in this environment` |
+  | `requests.get` | `ConnectionError: Failed to fetch` |
+  | `requests` + `pyodide_http.patch_all()` | `NetworkError` on XHR `send` |
+  | **same-origin** `requests.get` | **works** |
+
+  Pyodide has no network of its own: `pyfetch` wraps JS `fetch`, `pyodide-http`
+  wraps `XMLHttpRequest` (both CORS-checked), and `requests`/`urllib` want raw
+  sockets that WASM does not have. CORS is enforced below Python, by design.
+
+  So: upload, or ship the PDF same-origin (anything in `samples/` is fetchable),
+  or put a proxy in front that adds the header — a Cloudflare Worker with a
+  domain allowlist, or a CORS policy on the `storage.courtlistener.com` bucket
+  itself, which would fix this for every browser-side tool at once.
 - **Pyodide runs on the main thread.** A 283-page opinion takes ~27s and the
   tab is frozen for the duration. Moving `run()` into a Web Worker is the fix
   if this becomes annoying.

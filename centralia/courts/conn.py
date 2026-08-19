@@ -38,6 +38,27 @@ argued/released line, the 'Procedural History' heading and the footnotes.
 That one measurement is the whole parser, and it is why nothing here is keyed
 to a page number or a row index.
 
+WHAT FOLLOWS THE PRECIS IS STILL THE BLOCK. Between the syllabus and the
+writing the Reporter prints a 'Procedural History' heading, one paragraph of
+history closing on the court's disposition, and then the appearances:
+
+    Procedural History
+        Action challenging, inter alia, the defendant's determination that
+        certain revisions to the town charter … from which the plaintiff
+        appealed to this court. Reversed; further proceedings.
+        John B. Kennelly, for the appellant (plaintiff).
+        Jesse A. Langer, with whom, on the brief, were Rich-
+    ard D. Carella and Brian C. Hoeing, for the appellee (defendant).
+    Opinion
+
+All of it is headmatter, and left unclaimed it was not merely untagged — core
+made the caption, the precis, the history and the appearances into a writing
+of their own, an `order` of 69 blocks standing ahead of the real majority.
+The history and the appearances are prose on the SAME indent, so what tells
+them apart is that the history is ONE paragraph: paragraph openings are
+counted, and the first is the history while every one after it is an
+appearance. The court's closing disposition sentence is not relied on.
+
 THE CLAIM MUST BE CONTIGUOUS, and that is why the syllabus IS claimed here.
 Connecticut prints no byline above its précis, so core opens a writing on the
 CAPTION ROW itself — measured on `amadasun_v._armstrong_town_clerk_of_south_
@@ -90,10 +111,14 @@ _ARGUED_RELEASED = re.compile(
     r"^(?:Argued|Submitted)\s+(.+?)[—–-]\s*officially released\s+(.+)$", re.I)
 _RELEASED_ONLY = re.compile(r"^officially released\s+(.+)$", re.I)
 _PIVOT = re.compile(r"\sv\.\s", re.I)
-# 'Procedural History' heads the court's own text and closes the block.
-_HISTORY_HEAD = re.compile(r"^(?:Procedural History|Opinion)$", re.I)
+# 'Procedural History' heads the band beneath it and belongs to that band.
+_HISTORY_HEAD = re.compile(r"^Procedural History$", re.I)
+# 'Opinion' is the paper naming ITSELF, and it is where the writing begins.
+_OPINION_HEAD = re.compile(r"^Opinion$", re.I)
 # The bound volume's page number, standing alone above the block.
 _FOLIO = re.compile(r"^\d{1,4}$")
+# A paragraph OPENS a step in from the Reporter's rail: 184.0 against 174.0.
+_INDENT_MIN = 6.0
 
 
 def _norm(text: str) -> str:
@@ -158,8 +183,10 @@ def read_headmatter_conn(model, geom, **_):
         return NOTHING
 
     caption: list[str] = []
+    history: list[str] = []
+    paras = 0
     stopped = False
-    band = "caption"        # caption | syllabus
+    band = "caption"        # caption | syllabus | history | counsel
     pages = [pm for pm in model.pages[caption_pm.number - 1:_MAX_PAGES]]
     for pi, pm in enumerate(pages):
         rows = _rows(pm, finder)
@@ -172,11 +199,38 @@ def read_headmatter_conn(model, geom, **_):
             first = group[0]
             if _FOLIO.match(text):
                 continue
-            if _HISTORY_HEAD.match(text):
-                # THE PAPER BEGINS. The 11pt prose below this heading is the
-                # court's own.
+            if _OPINION_HEAD.match(text):
+                # THE PAPER NAMES ITSELF. Everything below is the writing.
+                ctx.emit(group, "title")
                 stopped = True
                 break
+            if _HISTORY_HEAD.match(text):
+                # A HEADING THAT NAMES A BAND belongs to that band, so this
+                # is read as `lower-court` and not as `title`.
+                band = "history"
+                paras = 0
+                ctx.emit(group, "lower-court")
+                continue
+            if band in ("history", "counsel"):
+                # BOTH BANDS ARE PROSE ON THE SAME INDENT, and what separates
+                # them is that the history is ONE paragraph. Measured on
+                # `amadasun_v._armstrong…` and `state_v._bard`: every
+                # paragraph here opens at 184.0 and runs over at 174.0, the
+                # first is the procedural history (closing on the court's
+                # disposition — 'Reversed; further proceedings.', 'Affirmed.')
+                # and every paragraph after it is one appearance. Counting
+                # paragraph OPENINGS is what tells them apart; the closing
+                # sentence's wording is not relied on.
+                if first.x0 >= body_x0 + _INDENT_MIN:
+                    paras += 1
+                if paras >= 2:
+                    band = "counsel"
+                if band == "counsel":
+                    ctx.emit(group, "counsel", centre=False)
+                else:
+                    history.append(text)
+                    ctx.emit(group, "lower-court", centre=False)
+                continue
             both = _ARGUED_RELEASED.match(text) or _RELEASED_ONLY.match(text)
             if both:
                 g = both.groups()
@@ -221,6 +275,8 @@ def read_headmatter_conn(model, geom, **_):
     if caption:
         ctx.crit.setdefault("case_name", " ".join(caption))
         ctx.crit.setdefault("parties", caption[:4])
+    if history:
+        ctx.crit.setdefault("history", " ".join(history)[:2000])
     return ctx.result()
 
 

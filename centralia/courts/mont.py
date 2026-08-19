@@ -92,6 +92,23 @@ _BYLINE = re.compile(
     r"^(?:Chief )?Justice\s+.+\s+delivered the (?:Opinion|Order)"
     r"|^PER CURIAM|^JUSTICE\s+[A-Z]", re.I)
 _PARA = re.compile(r"^¶\s*\d+")
+# THE BLOCK CLOSES ON DATES, not on counsel. Below the last appearance the
+# court flushes right the two dates that bracket the appeal and then leaves
+# the clerk a line to sign:
+#     Submitted on Briefs: November 17, 2025      (x0 324.0)
+#     Decided:  March 31, 2026                    (x0 381.8)
+#     Filed:                                      (x0  72.0, no value)
+#     __________________________________________  (x0 180.0)
+# Measured on all_families_v._state. Read as counsel — which is the band they
+# sit in — they graded the record down for a split label, and the two dates
+# the paper states were nowhere in its criteria.
+_DATE_LABEL = re.compile(
+    r"^(Submitted on Briefs|Submitted|Argued|Reargued|Decided|Filed|Dated"
+    r"|Heard|Ordered)\s*:\s*(.*)$", re.I)
+_DATE_CRIT = {"decided": "decision_date", "submitted": "submitted",
+              "submitted on briefs": "submitted", "argued": "argued",
+              "reargued": "argued", "heard": "argued"}
+_TYPED_RULE = re.compile(r"^_{6,}$")
 
 
 def _norm(text: str) -> str:
@@ -151,6 +168,19 @@ def read_headmatter_mont(model, geom, **_):
             ctx.emit(pieces, "docket")
             continue
         # ---- the ladders --------------------------------------------------
+        # The closing dates and the clerk's signature line are read BEFORE
+        # the counsel band, which would otherwise claim them.
+        dated = _DATE_LABEL.match(text)
+        if dated:
+            key = _DATE_CRIT.get(dated.group(1).strip().lower())
+            value = _norm(dated.group(2))
+            if key and value:
+                ctx.crit.setdefault(key, value)
+            ctx.emit(pieces, "date", centre=False)
+            continue
+        if _TYPED_RULE.match(text):
+            ctx.rule(first.page, tuple(p.id for p in pieces), typed=True)
+            continue
         if _APPEAL_FROM.match(text):
             band = "appeal"
             below.append(text)
@@ -244,6 +274,11 @@ class _Ctx:
             x0=first.x0, size=first.size or 0.0,
             bold=all(bool(p.all_bold) for p in parts), role=role))
         self.consumed.update(p.id for p in parts)
+
+    def rule(self, page: int, ids: tuple = (), typed: bool = False) -> None:
+        self.items.append(m.Rule(prov=m.Prov(page, ids), typed=typed,
+                                 span="center" if typed else "full"))
+        self.consumed.update(ids)
 
     def drop(self, group: list, kind: str) -> None:
         parts = sorted(group, key=lambda l: l.x0)
