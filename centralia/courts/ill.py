@@ -534,7 +534,14 @@ def _read_cover(ctx: _Ctx, page1, fence, parser):
     if not tail:
         return NOTHING
 
-    ctx.emit(head[0], "docket")             # the public-domain citation
+    # THE PUBLIC-DOMAIN CITATION IS NOT A DOCKET. '2025 IL 130862' is the
+    # court's own cite for the opinion; the docket is the '(Docket No.
+    # 130862, 130863 cons.)' row further down, which `_read_case` reads.
+    # Both were tagged `docket`, so the cover printed two of them and the
+    # cite never reached `Criteria.citation` — the field model.py:239 was
+    # added for exactly this row.
+    ctx.emit(head[0], "citation")
+    ctx.crit["citation"] = _norm(head[0].text)
     for row in head[1:]:
         ctx.emit(row, "court")
     ctx.crit["court"] = _norm(" ".join(r.text for r in head[1:]))

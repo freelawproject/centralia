@@ -363,3 +363,41 @@ same-edge runs in a 10-court sample, all real prose (counsel wraps, caption
 wraps, footnote runs). Double-leading fails as a discriminator (nd's own
 rosters are 1.00x the body lead). Courts whose roster rows carry a name AND a
 role exceed the cap and must handle it in their own file — routed to moctapp.
+
+## 18. A letter-spaced 'Chief Judge' concurrence is swallowed by the majority — `resolve/bylines.py` or `resolve/assemble.py`
+
+Found 2026-08-20 by guard, NOT by eye: `arizctapp/cervantes_v._state` was
+pinned `['majority','concurrence','dissent']` on 08-19 and now returns
+`['majority','dissent']`. This is a REGRESSION against a pin that recorded
+the correct reading, so something between 08-19 and 08-20 caused it.
+
+The paper prints three bylines, all letter-spaced:
+
+    T H U M M A, Judge:                          <- majority, parsed
+    H O W E, Chief Judge, specially concurring:  <- LOST
+    J A C O B S, Judge, dissenting:              <- dissent, parsed
+
+No text is lost — the BOUNDARY is. op0 (the majority) now contains
+`H O W E`, `specially concurring`, `My concurrence` and `translated to
+English`, i.e. Howe's whole writing is appended to Thumma's.
+
+Letter-spacing is NOT the cause: `J A C O B S, Judge, dissenting:` parses
+from the same font treatment. `arizctapp.py:185-186` already lists
+`titles=("Judge","Presiding Judge","Chief Judge","Vice Chief Judge")`, so
+the title is not the cause either. What distinguishes Howe's row is the kind
+clause **'specially concurring'** and the two-word title in combination.
+Prime suspects, all landed after the pin: b114ccf 'signature blocks are not
+writings', 28c2f7d 'Signature block takes the whole /s/ run', c96b0d7
+'Conformed signature runs unweld' — a byline mis-read as a signature would
+be dropped as an opener and its prose welded to the preceding writing,
+which is exactly the observed shape.
+
+**The pin is deliberately left FAILING** as a standing alarm; do not
+re-bless `arizctapp/cervantes_v._state` until the concurrence returns.
+arizctapp is for the same reason NOT marked complete.
+
+Related but separate, and already verified benign: ariz's 6 pins and 4 more
+arizctapp pins failed only on `opN_blocks` roughly halving (129->67,
+281->149, 220->109, 169->93, 136->87, 89->50, 71->45). ops/hm/criteria/
+attorneys/summary/syllabus/residual/status all held, so that is paragraph
+re-uniting (representation-only) and those 12 pins were re-signed on 08-20.
