@@ -5234,6 +5234,182 @@
   "summary": 0,
   "syllabus": 3
  },
+ "connappct/crossen_v._diehl_1": {
+  "attorneys": 0,
+  "criteria": [],
+  "hm": 0,
+  "hm_roles": {},
+  "lead_bylined": false,
+  "op_blocks": [
+   4
+  ],
+  "ops": [
+   "concurring-in-part-and-dissenting-in-part"
+  ],
+  "residual": 0,
+  "status": "valid",
+  "summary": 0,
+  "syllabus": 0
+ },
+ "connappct/freitag_v._commissioner_of_correction": {
+  "attorneys": 0,
+  "criteria": [
+   "decision_date",
+   "docket_number",
+   "judges",
+   "parties",
+   "submitted"
+  ],
+  "hm": 31,
+  "hm_roles": {
+   "caption": 2,
+   "counsel": 8,
+   "date": 1,
+   "docket": 1,
+   "lower-court": 7,
+   "panel": 1,
+   "syllabus": 11
+  },
+  "lead_bylined": true,
+  "op_blocks": [
+   21
+  ],
+  "ops": [
+   "per-curiam"
+  ],
+  "residual": 0,
+  "status": "valid",
+  "summary": 0,
+  "syllabus": 0
+ },
+ "connappct/in_re_analise_m._1": {
+  "attorneys": 0,
+  "criteria": [
+   "decision_date",
+   "docket_number",
+   "judges",
+   "parties",
+   "submitted"
+  ],
+  "hm": 42,
+  "hm_roles": {
+   "caption": 1,
+   "counsel": 5,
+   "date": 1,
+   "docket": 1,
+   "lower-court": 12,
+   "panel": 1,
+   "syllabus": 20,
+   "title": 1
+  },
+  "lead_bylined": true,
+  "op_blocks": [
+   22
+  ],
+  "ops": [
+   "per-curiam"
+  ],
+  "residual": 0,
+  "status": "valid",
+  "summary": 0,
+  "syllabus": 0
+ },
+ "connappct/majkut_v._majkut": {
+  "attorneys": 0,
+  "criteria": [
+   "decision_date",
+   "docket_number",
+   "judges",
+   "parties",
+   "submitted"
+  ],
+  "hm": 63,
+  "hm_roles": {
+   "caption": 1,
+   "counsel": 6,
+   "date": 1,
+   "docket": 2,
+   "lower-court": 10,
+   "panel": 1,
+   "syllabus": 41,
+   "title": 1
+  },
+  "lead_bylined": true,
+  "op_blocks": [
+   44
+  ],
+  "ops": [
+   "majority"
+  ],
+  "residual": 0,
+  "status": "valid",
+  "summary": 0,
+  "syllabus": 0
+ },
+ "connappct/n._g._v._d._s.": {
+  "attorneys": 0,
+  "criteria": [
+   "decision_date",
+   "docket_number",
+   "judges",
+   "parties",
+   "submitted"
+  ],
+  "hm": 38,
+  "hm_roles": {
+   "caption": 1,
+   "counsel": 1,
+   "date": 1,
+   "docket": 1,
+   "lower-court": 7,
+   "panel": 1,
+   "syllabus": 25,
+   "title": 1
+  },
+  "lead_bylined": true,
+  "op_blocks": [
+   34
+  ],
+  "ops": [
+   "majority"
+  ],
+  "residual": 0,
+  "status": "valid",
+  "summary": 0,
+  "syllabus": 0
+ },
+ "connappct/state_v._bey": {
+  "attorneys": 0,
+  "criteria": [
+   "decision_date",
+   "docket_number",
+   "judges",
+   "parties",
+   "submitted"
+  ],
+  "hm": 51,
+  "hm_roles": {
+   "caption": 1,
+   "counsel": 5,
+   "date": 1,
+   "docket": 1,
+   "lower-court": 7,
+   "panel": 1,
+   "syllabus": 34,
+   "title": 1
+  },
+  "lead_bylined": true,
+  "op_blocks": [
+   33
+  ],
+  "ops": [
+   "majority"
+  ],
+  "residual": 0,
+  "status": "valid",
+  "summary": 0,
+  "syllabus": 0
+ },
  "del/acw_corporation_v._maxwell": {
   "attorneys": 0,
   "criteria": [

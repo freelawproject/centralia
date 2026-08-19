@@ -999,3 +999,51 @@ Verify with a clean checkout, not by eye:
 
     T=$(mktemp -d); git archive HEAD | tar -x -C "$T"
     (cd "$T" && .venv/bin/python -c "import centralia.courts as C; print(len(C.PROFILES))")
+
+## 41. `criteria.attorneys` is UNREACHABLE for a reader that keeps counsel in the headmatter — `pipeline.py:1862-1870`
+
+From the connappct port, 2026-08-20. **Verified against an already-shipped
+court: conn populates `criteria.attorneys` on 0 of 8 sampled records, and 0 of
+its 50 renders carry the `attorneys` chip.** This patch fixes conn for free.
+
+The stated invariant is "counsel printed inside the headmatter STAYS there,
+its text copied into `criteria.attorneys`". The copy has only two sources:
+`_counsel_texts` (blocks core MOVED) and `doc.attorneys` (the separate section
+a `counsel_after_writings` court builds). **A reader that obeys the invariant
+hits neither** — so the appearances are read perfectly, render in place, and
+are stated nowhere machine-readable. `harness/quality.py`'s `no_atty`
+consequently fires on 8 of 44 connappct records and on ALL 50 conn records.
+
+Insert after line 1870:
+
+    if doc.criteria.attorneys is None:
+        # A COURT THAT READS ITS OWN BLOCK KEEPS COUNSEL IN IT. Neither
+        # source above can see those appearances: `_counsel_texts` holds
+        # blocks core MOVED and `doc.attorneys` is the separate section a
+        # `counsel_after_writings` court builds. So a reader obeying the
+        # invariant gets its first half and never its second.
+        from .audit import strip_tags as _stc, unescape_xml as _uxc
+        _hm_counsel = [_uxc(_stc(getattr(it, "text", "") or ""))
+                       for it in doc.headmatter
+                       if getattr(it, "role", None) == "counsel"]
+        if _hm_counsel:
+            doc.criteria.attorneys = " ".join(
+                t for t in _hm_counsel if t.strip())[:2000]
+
+connappct closed it inside its own court file (mean 0.602/B -> 0.057/A) with
+the rows still rendering in place, so the court is not waiting on this — but
+conn and every future reader that keeps counsel in the block are.
+
+Blast radius: only courts whose reader emits `role="counsel"` rows and set no
+attorneys section. It ADDS a criteria key, which is exactly the shape of diff
+several pins record, so it needs a guard run.
+
+Relates to item 30 (`criteria.attorneys` cannot see a `CaptionBlock`) — same
+field, different reason it comes back empty. Both should land together.
+
+## Item 20 does NOT manifest in connappct — recorded so nobody re-derives it
+
+Item 20 is Connecticut's **Law Journal** folio at 150.5/792 = 0.1900252.
+connappct's corpus contains NO Journal extract, so no connappct record leaks a
+bare numeral and `folio-leak` is absent from all 44. The defect stays latent
+for its extract branch.
