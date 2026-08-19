@@ -209,14 +209,18 @@ _REPRINT_PAGES = 3
 _PROSE_WIDTH = 0.74
 _PARA_INDENT = 108.0
 _INDENT_TOL = 4.0
-# THE BODY RAIL, measured: every byline in the corpus stands at 71.8-72.2 and
-# no cover row does.
-_RAIL = 72.0
-_RAIL_TOL = 6.0
-# HOW MANY ROWS A COVER MAY HOLD. Measured: 6 on most reprints and 7 where
-# the origin wraps (vinton_harbor page 23). Three rows of headroom, and a run
-# that outgrows it is not a cover.
-_MAX_COVER_ROWS = 10
+# THE REPRINT'S OWN AXIS. The cover is centred, but not always on the page's
+# axis: page 15 of state_of_louisiana_v._john_noehl_and_analise_noehl is
+# imposed 18pt to the right, so its whole cover sits on 324.0. The masthead
+# row therefore SETS the axis for its own page (a 24pt sanity bound keeps a
+# left-flush occurrence of the words from passing), and every later row is
+# measured against that axis, not against the sheet's centre.
+_REPRINT_AXIS_TOL = 24.0
+# HOW MANY ROWS A COVER MAY HOLD: whatever the LEAD cover holds, since a
+# reprint is the same cover — 6 rows on most records, 15 on
+# edward_f._breaux_jr. and 18 on gary_crockett, whose consolidated captions
+# run to a dozen party rows. Three rows of headroom for the origin's wrap.
+_COVER_ROW_HEADROOM = 3
 
 
 def _norm(text: str) -> str:
@@ -511,9 +515,16 @@ def _read_reprints(ctx, model, cover, banner, finder) -> None:
     if not banner:
         return
     parser = BylineParser(get_profile("la").byline)
+    # A REPRINT IS THE LEAD COVER AGAIN, so the lead cover's own size is the
+    # bound on it — read off what the lead walk just claimed rather than
+    # fixed, because a consolidated caption runs to a dozen party rows.
+    lead = sum(1 for it in ctx.items
+               if getattr(it, "prov", None) and it.prov.page == cover.number)
+    cap = lead + _COVER_ROW_HEADROOM
     page_no = cover.number + 1
     while page_no <= len(model.pages):
-        block = _reprint_block(model, page_no, banner, finder, parser)
+        block = _reprint_block(model, page_no, banner, finder, parser,
+                               cap)
         if not block:
             page_no += 1
             continue
@@ -522,7 +533,7 @@ def _read_reprints(ctx, model, cover, banner, finder) -> None:
         page_no = max(l.page for l in block) + 1
 
 
-def _reprint_block(model, page_no, banner, finder, parser) -> list:
+def _reprint_block(model, page_no, banner, finder, parser, cap) -> list:
     """The reprinted cover that OPENS on ``page_no``, or [].
 
     GEOMETRY IDENTIFIES IT, not wording: the page's first content row is
@@ -544,8 +555,8 @@ def _reprint_block(model, page_no, banner, finder, parser) -> list:
     if not rows:
         return []
     head = sorted(rows[0], key=lambda l: l.x0)
-    mid = (head[0].x0 + max(l.x1 for l in head)) / 2
-    if abs(mid - pm.width / 2) > _AXIS_TOL:
+    axis = (head[0].x0 + max(l.x1 for l in head)) / 2
+    if abs(axis - pm.width / 2) > _REPRINT_AXIS_TOL:
         return []
     if _norm(" ".join(l.plain for l in head)).upper() != banner:
         return []
@@ -557,24 +568,25 @@ def _reprint_block(model, page_no, banner, finder, parser) -> list:
             text = _norm(" ".join(l.plain for l in pieces))
             x1 = max(l.x1 for l in pieces)
             width = (x1 - pieces[0].x0) / pm.width
-            centred = abs((pieces[0].x0 + x1) / 2 - pm.width / 2) <= _AXIS_TOL
-            # THE RAIL CLOSES THE COVER, and the AXIS says which rail row is
-            # the byline: every cover row is centred, and a byline is set
-            # from the rail to wherever its words end (mid-point 163-289
-            # against the 306 axis on vinton_harbor's four reprints). The
-            # origin row starts at 74.9 on page 19 of that record — inside
-            # the rail's tolerance — and it is the axis, not the rail alone,
-            # that keeps it in the cover where it belongs.
-            if pieces[0].x0 <= _RAIL + _RAIL_TOL and not centred:
+            # A COVER ROW IS CENTRED ON THE COVER'S OWN AXIS; the byline is
+            # not — it runs from the rail to wherever its words end
+            # (mid-point 163-289 against a 306 axis on vinton_harbor's four
+            # reprints, 175.4 where the court indents it to 108.0 on
+            # state_of_louisiana_v._leonidas_lowry page 7). So an off-axis
+            # row either CLOSES the run, if it is byline-shaped, or ABORTS
+            # it. Nothing else may stand between a cover and its byline.
+            if abs((pieces[0].x0 + x1) / 2 - axis) > _AXIS_TOL:
                 if _is_byline(text, parser):
                     return block      # the writing starts HERE, not above
                 return []
+            # …and a JUSTIFIED prose row is centred by accident, so the run
+            # also aborts on full measure opening lower-case.
             if width >= _PROSE_WIDTH \
                     and (abs(pieces[0].x0 - _PARA_INDENT) <= _INDENT_TOL
                          or text[:1].islower()):
                 return []             # prose: NOT this shape, claim nothing
             block.extend(pieces)
-            if len({l.top for l in block}) > _MAX_COVER_ROWS:
+            if len({l.top for l in block}) > cap:
                 return []             # too long to be a cover
     return []
 

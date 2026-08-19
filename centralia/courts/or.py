@@ -192,12 +192,12 @@ _SAME_ROW_SPLIT = 20.0
 _MASTHEAD_1 = re.compile(r"^IN THE SUPREME COURT OF THE$", re.I)
 _MASTHEAD_2 = re.compile(r"^STATE OF OREGON$", re.I)
 
-# The page head's two content pieces. 'No. 54' is the advance sheet's serial
-# number for this opinion, not a docket; the date is the filing date.
+# The page head's two content pieces are the FILING DATE and the advance
+# sheet's own serial for this opinion ('No. 54' — not a docket, and there is
+# no criteria field for it). Only the date is read; both are dropped.
 _HEAD_DATE = re.compile(
     r"^(January|February|March|April|May|June|July|August|September"
     r"|October|November|December)\s+\d{1,2},\s+\d{4}$")
-_HEAD_SERIAL = re.compile(r"^No\.\s*\d{1,4}$")
 _FOLIO = re.compile(r"^\d{1,4}$|^\d\s\d{2}$")   # '1 52' — a broken folio
 
 # The running heads, which are the only place the advance sheet prints
@@ -357,7 +357,7 @@ def read_headmatter_or(model, geom, **_):
             if cite:
                 ctx.crit.setdefault("citation", _norm(cite.group(1)))
             elif (pm.number > 1 and abs(line.x1 - right) <= 4.0
-                    and not _FOLIO.match(head)):
+                  and not _FOLIO.match(head)):
                 ctx.crit.setdefault("short_case_name", head)
 
     caption_rows: list[str] = []     # the printed caption, verbatim
