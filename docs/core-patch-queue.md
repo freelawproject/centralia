@@ -182,6 +182,43 @@ measurements, so it wants its own pass.
 
 ## 15. A separate writing's REPRINTED COVER lands in the writing before it
 
+**RE-SCOPED 2026-08-19 — this is NOT core's, and mich is now fixed in its own
+court file.** The item's premise was that "a headmatter reader may not reach
+into an assembled writing". That premise is wrong: a reader's `consumed` set
+is subtracted from the segment stream at `pipeline.py:474-484`, *before*
+assembly, so a court file can claim a reprinted cover today and those rows
+never enter a writing at all. No `cover.reprint` decision point is needed.
+
+Done for mich in `courts/mich.py` (`_reprint_block` / `_drop_reprints`,
+called from `_read_slip` once the lead walk closes on its byline). The
+candidate is identified by GEOMETRY alone — the page's first content row is
+centred within 12pt AND matches the row this document's own lead cover
+printed as the court naming itself, so there is no wording list — and the run
+ends at the next byline, the same landmark that ends the lead walk. Recorded
+as `Dropped(kind="superfluous")`, which core still mines for criteria. A run
+that reaches 14 pages without meeting a byline is not this shape and nothing
+is claimed.
+
+Measured over all 50 mich records: **52 reprinted covers on 30 records, all
+52 closing on a byline, and not one containing a full-measure lower-case row**
+— no prose is ever inside one. `pinebrook_warren_llc_v._city_of_warren_1`
+went from 359 writing blocks to 228 (131 caption blocks lifted out of the
+majority); 63 pages dropped; writing counts unchanged on all 50 records.
+
+**scotus / nj / wash can be fixed the same way, in their court files.** What
+IS genuinely blocked in core is a different seam: `_syl_drop`
+(`syllabus.trim`) is consulted only at `pipeline.py:923`, nested inside
+`if seg.page in _syl_pages or id(seg) in _syl_pull:` (line 922), and `_msegs`
+holds only `assembled.headmatter_segments` (line 723).
+
+Still open here: pin a guard sentinel for the reprinted-cover format —
+`cli.py guard --add mich/pinebrook_warren_llc_v._city_of_warren_1`. mich's
+only sentinel today (`darnell_hairston_v._josh_lku`) has no reprint, so the
+format is unguarded.
+
+### The original report
+
+
 **The user's call, 2026-08-19:** "when a new opinion starts [it] has the big
 old case caption — that should be, if it's the same, not repeated, or placed
 in the end of the previous opinion." I.e. a caption identical to the

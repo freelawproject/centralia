@@ -1,0 +1,293 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>centralia — try it in your browser</title>
+<link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 16 16'%3E%3Ctext y='13' font-size='14'%3E%E2%9A%96%3C/text%3E%3C/svg%3E">
+<style>
+  :root {
+    --ink:#1a1a1a; --mut:#6b6b6b; --line:#dcdcdc; --bg:#fff; --panel:#f7f7f8;
+    --accent:#6b4b9a; --ok:#2e7d32; --warn:#b26a00; --bad:#b23b3b;
+    --mono: ui-monospace, SFMono-Regular, Menlo, monospace;
+  }
+  @media (prefers-color-scheme: dark) {
+    :root { --ink:#e8e8e8; --mut:#9a9a9a; --line:#3a3a3a; --bg:#161617; --panel:#1e1e20;
+            --accent:#b39ddb; --ok:#81c784; --warn:#e0a34a; --bad:#e57373; }
+  }
+  * { box-sizing:border-box }
+  body { margin:0; font:15px/1.5 system-ui,-apple-system,sans-serif;
+         color:var(--ink); background:var(--bg); }
+  header { padding:18px 22px 14px; border-bottom:1px solid var(--line) }
+  h1 { margin:0 0 3px; font-size:19px; letter-spacing:-.01em }
+  h1 small { font-weight:400; color:var(--mut); font-size:13px; letter-spacing:0 }
+  .sub { color:var(--mut); font-size:13px }
+  main { padding:18px 22px; max-width:1100px }
+  .row { display:flex; gap:14px; flex-wrap:wrap; align-items:flex-end; margin-bottom:14px }
+  label { display:block; font-size:12px; text-transform:uppercase; letter-spacing:.06em;
+          color:var(--mut); margin-bottom:5px }
+  select, input[type=url] { font:inherit; padding:7px 9px; border:1px solid var(--line);
+          border-radius:6px; background:var(--bg); color:var(--ink); min-width:230px }
+  button { font:inherit; padding:7px 13px; border:1px solid var(--line); border-radius:6px;
+           background:var(--panel); color:var(--ink); cursor:pointer }
+  button:hover:not(:disabled) { border-color:var(--accent) }
+  button:disabled { opacity:.45; cursor:default }
+  button.primary { background:var(--accent); color:#fff; border-color:var(--accent) }
+  #drop { border:2px dashed var(--line); border-radius:10px; padding:26px; text-align:center;
+          color:var(--mut); background:var(--panel); cursor:pointer }
+  #drop.over { border-color:var(--accent); color:var(--ink) }
+  #log { font:12px/1.6 var(--mono); background:var(--panel); border:1px solid var(--line);
+         border-radius:8px; padding:10px 12px; max-height:190px; overflow:auto;
+         white-space:pre-wrap; margin:14px 0 }
+  #log .e { color:var(--bad) } #log .g { color:var(--ok) } #log .w { color:var(--warn) }
+  #log .d { color:var(--mut) }
+  .chips { display:flex; gap:7px; flex-wrap:wrap; margin:12px 0; align-items:center }
+  .chip { font:12px var(--mono); padding:3px 8px; border-radius:99px;
+          border:1px solid var(--line); background:var(--panel) }
+  .chip.ok { color:var(--ok); border-color:var(--ok) }
+  .chip.review { color:var(--warn); border-color:var(--warn) }
+  .chip.failed { color:var(--bad); border-color:var(--bad) }
+  iframe { width:100%; height:72vh; border:1px solid var(--line); border-radius:8px;
+           background:#fff; margin-top:4px }
+  .note { font-size:12.5px; color:var(--mut); margin:6px 0 0 }
+  .hide { display:none }
+  code { font:12.5px var(--mono); background:var(--panel); padding:1px 4px; border-radius:3px }
+</style>
+</head>
+<body>
+<header>
+  <h1>centralia <small>v2 · court PDF → structured opinion, running in your browser</small></h1>
+  <div class="sub">The extractor itself, compiled to nothing — this is the real
+    <code>centralia</code> wheel running on Pyodide (CPython in WebAssembly).
+    Your PDF never leaves the page.</div>
+</header>
+
+<main>
+  <div id="log" aria-live="polite"></div>
+
+  <div class="row">
+    <div>
+      <label for="court">Court reader</label>
+      <select id="court" disabled><option>loading…</option></select>
+    </div>
+    <div id="samplewrap">
+      <label>Sample opinions</label>
+      <button class="sample" data-court="scotus"
+              data-pdf="samples/scotus--grayson_v_united_states.pdf" disabled>scotus (1pp)</button>
+      <button class="sample" data-court="ca1"
+              data-pdf="samples/ca1--united_states_v_fulcar.pdf" disabled>ca1 (1pp)</button>
+    </div>
+  </div>
+
+  <div id="drop">
+    <strong>Drop a court PDF here</strong> — or click to pick one
+    <input type="file" id="file" accept="application/pdf" class="hide">
+  </div>
+
+  <div class="row" style="margin-top:14px">
+    <div style="flex:1">
+      <label for="url">…or fetch a PDF by URL</label>
+      <input type="url" id="url" style="width:100%"
+             placeholder="https://… (only works if that server sends CORS headers — most court sites do not)">
+    </div>
+    <button id="fetchbtn" disabled>Fetch</button>
+  </div>
+
+  <div id="result" class="hide">
+    <div class="chips" id="chips"></div>
+    <div class="row" style="margin-bottom:6px">
+      <button id="download">Download HTML</button>
+      <button id="newtab">Open in new tab</button>
+    </div>
+    <iframe id="out" title="rendered opinion" sandbox=""></iframe>
+  </div>
+</main>
+
+<script>
+// From file:// the inline module script DOES run and Pyodide DOES boot (the CDN
+// import is https). What fails is fetching our own local files — Chrome blocks
+// same-origin fetch() at a file:// origin — so wheels/manifest.json, the wheel,
+// courts.json and the samples never load. Say that before the user waits 6s for
+// a confusing failure.
+if (location.protocol === "file:") {
+  document.addEventListener("DOMContentLoaded", () => {
+    document.getElementById("log").innerHTML =
+      '<span class="e">Opened from file:// — the wheel cannot load here.</span>\n' +
+      '<span class="d">Pyodide itself will boot (it comes from the CDN over https), but\n' +
+      'fetching our own local files is blocked at a file:// origin, so\n' +
+      'wheels/manifest.json and the centralia wheel never arrive. Serve the dir:</span>\n\n' +
+      '    <strong>cd pages &amp;&amp; python3 -m http.server 8765</strong>\n' +
+      '    <strong>open http://127.0.0.1:8765</strong>\n\n' +
+      '<span class="d">On GitHub Pages this is a non-issue — already served over https.</span>\n\n';
+  });
+}
+</script>
+<script type="module">
+const PYODIDE = "https://cdn.jsdelivr.net/pyodide/v314.0.5/full/";
+const logEl = document.getElementById("log");
+const $ = id => document.getElementById(id);
+
+function log(msg, cls = "") {
+  const t = performance.now() / 1000;
+  logEl.insertAdjacentHTML("beforeend",
+    `<span class="d">[${t.toFixed(1).padStart(5)}s]</span> <span class="${cls}">${msg}</span>\n`);
+  logEl.scrollTop = logEl.scrollHeight;
+}
+
+let py = null, lastHtml = "", lastName = "opinion";
+
+async function boot() {
+  log("booting pyodide…");
+  const { loadPyodide } = await import(PYODIDE + "pyodide.mjs");
+  py = await loadPyodide({ indexURL: PYODIDE });
+  log(`python ${py.version} up`, "g");
+
+  await py.loadPackage("micropip");
+  // pdfplumber declares pypdfium2, a compiled wheel absent from pyodide. It is
+  // only needed by .to_image(); centralia already guards those calls, so we skip
+  // the dep and hand-install the rest. Cost: no seal/signature raster crops.
+  log("installing pdfplumber + pdfminer.six…");
+  await py.runPythonAsync(`
+import micropip
+await micropip.install("pdfplumber", deps=False)
+await micropip.install(["pdfminer.six", "Pillow", "charset-normalizer", "cryptography"])
+`);
+  log("pdf stack installed", "g");
+
+  const { wheel } = await (await fetch("wheels/manifest.json")).json();
+  const wheelUrl = new URL("wheels/" + wheel, location.href).href;
+  log(`installing ${wheel}…`);
+  await py.runPythonAsync(
+    `import micropip\nawait micropip.install(${JSON.stringify(wheelUrl)})`);
+  log("centralia installed", "g");
+
+  const status = await (await fetch("courts.json")).json().catch(() => ({}));
+  const courts = JSON.parse(await py.runPythonAsync(`
+import json
+from centralia.courts import PROFILES
+json.dumps(sorted(([cid, p.court_label or cid] for cid, p in PROFILES.items())))
+`));
+  fillCourts(courts, status);
+  log(`ready — ${courts.length} court readers registered`, "g");
+  document.querySelectorAll("button, select").forEach(b => b.disabled = false);
+}
+
+function fillCourts(courts, status) {
+  const sel = $("court");
+  sel.innerHTML = "";
+  const groups = { complete: "Complete", started: "In progress", "": "Wired (unreviewed)" };
+  for (const [key, label] of Object.entries(groups)) {
+    const rows = courts.filter(([id]) => (status[id] || "") === key);
+    if (!rows.length) continue;
+    const g = document.createElement("optgroup");
+    g.label = `${label} — ${rows.length}`;
+    for (const [id, lbl] of rows) {
+      const o = document.createElement("option");
+      o.value = id;
+      o.textContent = `${id} — ${lbl}`;
+      g.appendChild(o);
+    }
+    sel.appendChild(g);
+  }
+  sel.value = "scotus";
+}
+
+async function run(bytes, court, name) {
+  if (!py) { log("still booting — hold on", "w"); return; }
+  $("result").classList.add("hide");
+  log(`extracting ${name} as ${court} (${(bytes.length / 1024).toFixed(0)}K)…`);
+  const safe = "/" + (name.replace(/[^A-Za-z0-9._-]/g, "_") || "in.pdf");
+  py.FS.writeFile(safe, bytes);
+  const t = performance.now();
+  let r;
+  try {
+    r = JSON.parse(await py.runPythonAsync(`
+import json
+from centralia.pipeline import extract
+from centralia.render.html import render_html
+res = extract(${JSON.stringify(safe)}, court_id=${JSON.stringify(court)})
+d = res.document
+html = render_html(d)
+json.dumps({"status": res.status, "html": html, "pages": d.meta.n_pages,
+            "doc_type": d.meta.doc_type, "label": d.meta.court_label,
+            "opinions": len(d.opinions), "headmatter": len(d.headmatter),
+            "warnings": list(d.warnings)})
+`));
+  } catch (e) {
+    log("extraction failed:", "e");
+    log(String(e.message || e).split("\n").slice(-14).join("\n"), "e");
+    return;
+  }
+  const ms = Math.round(performance.now() - t);
+  log(`${r.status} — ${r.pages}pp, ${r.opinions} writing(s), ${ms}ms`,
+      r.status === "valid" ? "g" : "w");
+  for (const w of r.warnings) log("warning: " + w, "w");
+
+  lastHtml = r.html; lastName = name.replace(/\.pdf$/i, "") + ".html";
+  $("chips").innerHTML =
+    [`<span class="chip ${r.status === "valid" ? "ok" : r.status}">${r.status}</span>`,
+     `<span class="chip">${r.label || court}</span>`,
+     `<span class="chip">${r.doc_type}</span>`,
+     `<span class="chip">${r.pages}pp</span>`,
+     `<span class="chip">${r.opinions} writing${r.opinions === 1 ? "" : "s"}</span>`,
+     `<span class="chip">${r.headmatter} headmatter blocks</span>`,
+     `<span class="chip">${ms}ms</span>`,
+     ...r.warnings.map(w => `<span class="chip review">⚠ ${w}</span>`)].join("");
+  $("out").srcdoc = r.html;
+  $("result").classList.remove("hide");
+}
+
+// --- inputs ----------------------------------------------------------------
+const drop = $("drop"), fileIn = $("file");
+drop.onclick = () => fileIn.click();
+drop.ondragover = e => { e.preventDefault(); drop.classList.add("over"); };
+drop.ondragleave = () => drop.classList.remove("over");
+drop.ondrop = async e => {
+  e.preventDefault(); drop.classList.remove("over");
+  const f = e.dataTransfer.files[0];
+  if (f) run(new Uint8Array(await f.arrayBuffer()), $("court").value, f.name);
+};
+fileIn.onchange = async () => {
+  const f = fileIn.files[0];
+  if (f) run(new Uint8Array(await f.arrayBuffer()), $("court").value, f.name);
+};
+
+for (const b of document.querySelectorAll(".sample")) {
+  b.onclick = async () => {
+    const r = await fetch(b.dataset.pdf);
+    $("court").value = b.dataset.court;
+    run(new Uint8Array(await r.arrayBuffer()), b.dataset.court,
+        b.dataset.pdf.split("/").pop());
+  };
+}
+
+$("fetchbtn").onclick = async () => {
+  const u = $("url").value.trim();
+  if (!u) return;
+  log(`fetching ${u} …`);
+  try {
+    const r = await fetch(u);
+    if (!r.ok) throw new Error(`HTTP ${r.status}`);
+    const buf = new Uint8Array(await r.arrayBuffer());
+    run(buf, $("court").value, u.split("/").pop() || "fetched.pdf");
+  } catch (e) {
+    log(`fetch blocked: ${e.message}`, "e");
+    log("this is almost always CORS — the court's server has to opt in with " +
+        "Access-Control-Allow-Origin, and they don't. Download the PDF and drop it above.", "d");
+  }
+};
+
+$("download").onclick = () => {
+  const a = document.createElement("a");
+  a.href = URL.createObjectURL(new Blob([lastHtml], { type: "text/html" }));
+  a.download = lastName; a.click();
+};
+$("newtab").onclick = () => {
+  const w = window.open();
+  w.document.write(lastHtml); w.document.close();
+};
+
+boot().catch(e => { log("boot failed: " + (e.message || e), "e"); });
+</script>
+</body>
+</html>
