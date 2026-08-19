@@ -1,0 +1,8035 @@
+{
+ "ala/1_oak_grand_llc_v._richard_l._crawford_iii_lana_d._crawford_miltmore": {
+  "attorneys": 0,
+  "criteria": [
+   "decision_date",
+   "disposition",
+   "docket_number",
+   "lower_court",
+   "parties"
+  ],
+  "hm": 7,
+  "lead_bylined": true,
+  "op_blocks": [
+   1
+  ],
+  "ops": [
+   "majority"
+  ],
+  "residual": 0,
+  "status": "valid",
+  "summary": 0,
+  "syllabus": 0
+ },
+ "ala/790_montclair_llc_v._the_station_at_crestline_heights_llc_valley": {
+  "attorneys": 0,
+  "criteria": [
+   "decision_date",
+   "docket_number",
+   "lower_court",
+   "parties"
+  ],
+  "hm": 13,
+  "lead_bylined": true,
+  "op_blocks": [
+   28
+  ],
+  "ops": [
+   "majority"
+  ],
+  "residual": 0,
+  "status": "valid",
+  "summary": 0,
+  "syllabus": 0
+ },
+ "ala/ex_parte_akamai_technologies_inc._petition_for_writ_of_mandamus_in_re": {
+  "attorneys": 0,
+  "criteria": [
+   "decision_date",
+   "docket_number",
+   "lower_court",
+   "parties"
+  ],
+  "hm": 7,
+  "lead_bylined": false,
+  "op_blocks": [
+   5
+  ],
+  "ops": [
+   "order"
+  ],
+  "residual": 0,
+  "status": "valid",
+  "summary": 0,
+  "syllabus": 0
+ },
+ "ala/ex_parte_donald_vester_robbins_jr._petition_for_writ_of_certiorari_to_the": {
+  "attorneys": 0,
+  "criteria": [
+   "decision_date",
+   "docket_number",
+   "lower_court",
+   "parties"
+  ],
+  "hm": 7,
+  "lead_bylined": false,
+  "op_blocks": [
+   6
+  ],
+  "ops": [
+   "majority"
+  ],
+  "residual": 0,
+  "status": "valid",
+  "summary": 0,
+  "syllabus": 0
+ },
+ "ala/in_re_armstrong_methodist_church_v._alabama-west_florida_conference_of_the": {
+  "attorneys": 0,
+  "criteria": [
+   "decision_date",
+   "docket_number",
+   "lower_court",
+   "parties"
+  ],
+  "hm": 212,
+  "lead_bylined": true,
+  "op_blocks": [
+   58,
+   59
+  ],
+  "ops": [
+   "majority",
+   "dissent"
+  ],
+  "residual": 0,
+  "status": "valid",
+  "summary": 0,
+  "syllabus": 0
+ },
+ "ala/olaf_lieb_tina_lieb_jennifer_m._holton_36081_rentals_llc_and_eeztec": {
+  "attorneys": 0,
+  "criteria": [
+   "decision_date",
+   "docket_number",
+   "lower_court",
+   "parties"
+  ],
+  "hm": 10,
+  "lead_bylined": true,
+  "op_blocks": [
+   4
+  ],
+  "ops": [
+   "majority"
+  ],
+  "residual": 0,
+  "status": "valid",
+  "summary": 0,
+  "syllabus": 0
+ },
+ "ala/safeway_insurance_company_of_alabama_inc._v._tara_abner_as_personal": {
+  "attorneys": 0,
+  "criteria": [
+   "decision_date",
+   "docket_number",
+   "lower_court",
+   "parties"
+  ],
+  "hm": 6,
+  "lead_bylined": false,
+  "op_blocks": [
+   8
+  ],
+  "ops": [
+   "majority"
+  ],
+  "residual": 0,
+  "status": "valid",
+  "summary": 0,
+  "syllabus": 0
+ },
+ "ala/tara_grall_v._william_grall_and_g-team_p.c.": {
+  "attorneys": 0,
+  "criteria": [
+   "decision_date",
+   "docket_number",
+   "lower_court",
+   "parties"
+  ],
+  "hm": 10,
+  "lead_bylined": true,
+  "op_blocks": [
+   16
+  ],
+  "ops": [
+   "majority"
+  ],
+  "residual": 0,
+  "status": "valid",
+  "summary": 0,
+  "syllabus": 0
+ },
+ "ala/teresa_williams_and_barneys_childcare_and_learning_center_inc._dba": {
+  "attorneys": 0,
+  "criteria": [
+   "decision_date",
+   "docket_number",
+   "lower_court",
+   "parties"
+  ],
+  "hm": 12,
+  "lead_bylined": true,
+  "op_blocks": [
+   80
+  ],
+  "ops": [
+   "majority"
+  ],
+  "residual": 0,
+  "status": "valid",
+  "summary": 0,
+  "syllabus": 0
+ },
+ "ala/the_new_york_times_company_v._kai_spears_certified_question_from_the_u.s.": {
+  "attorneys": 0,
+  "criteria": [
+   "decision_date",
+   "docket_number",
+   "lower_court",
+   "parties"
+  ],
+  "hm": 11,
+  "lead_bylined": true,
+  "op_blocks": [
+   59,
+   3,
+   14
+  ],
+  "ops": [
+   "majority",
+   "concurrence-in-result",
+   "dissent"
+  ],
+  "residual": 0,
+  "status": "valid",
+  "summary": 0,
+  "syllabus": 0
+ },
+ "alacivapp/b.f._v._c.d._and_a.d.": {
+  "attorneys": 0,
+  "criteria": [
+   "decision_date",
+   "docket_number",
+   "lower_court",
+   "parties"
+  ],
+  "hm": 11,
+  "lead_bylined": true,
+  "op_blocks": [
+   32
+  ],
+  "ops": [
+   "per-curiam"
+  ],
+  "residual": 0,
+  "status": "valid",
+  "summary": 0,
+  "syllabus": 0
+ },
+ "alacivapp/in_re_alavest_llc_v._decharla_d._blackburn": {
+  "attorneys": 0,
+  "criteria": [
+   "decision_date",
+   "docket_number",
+   "lower_court",
+   "parties"
+  ],
+  "hm": 11,
+  "lead_bylined": true,
+  "op_blocks": [
+   88
+  ],
+  "ops": [
+   "majority"
+  ],
+  "residual": 0,
+  "status": "valid",
+  "summary": 0,
+  "syllabus": 0
+ },
+ "alacivapp/k.w._v._b.p._t.s.p._and_b.m.p.": {
+  "attorneys": 0,
+  "criteria": [
+   "decision_date",
+   "docket_number",
+   "lower_court",
+   "parties"
+  ],
+  "hm": 19,
+  "lead_bylined": true,
+  "op_blocks": [
+   28
+  ],
+  "ops": [
+   "majority"
+  ],
+  "residual": 0,
+  "status": "valid",
+  "summary": 0,
+  "syllabus": 0
+ },
+ "alacivapp/kayla_dykes_v._joshua_dykes": {
+  "attorneys": 0,
+  "criteria": [
+   "decision_date",
+   "docket_number",
+   "lower_court",
+   "parties"
+  ],
+  "hm": 10,
+  "lead_bylined": true,
+  "op_blocks": [
+   36
+  ],
+  "ops": [
+   "majority"
+  ],
+  "residual": 0,
+  "status": "valid",
+  "summary": 0,
+  "syllabus": 0
+ },
+ "alacivapp/mary_ellen_williams_v._thomas_m._williams_jr.": {
+  "attorneys": 0,
+  "criteria": [
+   "decision_date",
+   "disposition",
+   "docket_number",
+   "lower_court",
+   "parties"
+  ],
+  "hm": 10,
+  "lead_bylined": true,
+  "op_blocks": [
+   65
+  ],
+  "ops": [
+   "majority"
+  ],
+  "residual": 0,
+  "status": "valid",
+  "summary": 0,
+  "syllabus": 0
+ },
+ "alacivapp/war_paint_movie_llc_v._alabama_film_office_a_division_of_the_alabama": {
+  "attorneys": 0,
+  "criteria": [
+   "decision_date",
+   "disposition",
+   "docket_number",
+   "lower_court",
+   "parties"
+  ],
+  "hm": 13,
+  "lead_bylined": true,
+  "op_blocks": [
+   58
+  ],
+  "ops": [
+   "majority"
+  ],
+  "residual": 0,
+  "status": "valid",
+  "summary": 0,
+  "syllabus": 0
+ },
+ "alacrimapp/antonio_deandre_hawkins_v._state_of_alabama": {
+  "attorneys": 0,
+  "criteria": [
+   "decision_date",
+   "disposition",
+   "docket_number",
+   "lower_court",
+   "parties"
+  ],
+  "hm": 10,
+  "lead_bylined": true,
+  "op_blocks": [
+   67
+  ],
+  "ops": [
+   "per-curiam"
+  ],
+  "residual": 0,
+  "status": "valid",
+  "summary": 0,
+  "syllabus": 0
+ },
+ "alacrimapp/dolphus_atchison_v._state_of_alabama": {
+  "attorneys": 0,
+  "criteria": [
+   "decision_date",
+   "docket_number",
+   "lower_court",
+   "parties"
+  ],
+  "hm": 5,
+  "lead_bylined": false,
+  "op_blocks": [
+   6
+  ],
+  "ops": [
+   "majority"
+  ],
+  "residual": 0,
+  "status": "valid",
+  "summary": 0,
+  "syllabus": 0
+ },
+ "alacrimapp/jeremy_t._williams_v._state_of_alabama": {
+  "attorneys": 0,
+  "criteria": [
+   "decision_date",
+   "docket_number",
+   "lower_court",
+   "parties"
+  ],
+  "hm": 10,
+  "lead_bylined": true,
+  "op_blocks": [
+   69
+  ],
+  "ops": [
+   "majority"
+  ],
+  "residual": 0,
+  "status": "valid",
+  "summary": 0,
+  "syllabus": 0
+ },
+ "alacrimapp/william_chad_randolph_v._state_of_alabama": {
+  "attorneys": 0,
+  "criteria": [
+   "decision_date",
+   "docket_number",
+   "lower_court",
+   "parties"
+  ],
+  "hm": 11,
+  "lead_bylined": true,
+  "op_blocks": [
+   3
+  ],
+  "ops": [
+   "majority"
+  ],
+  "residual": 0,
+  "status": "valid",
+  "summary": 0,
+  "syllabus": 0
+ },
+ "alaska/alaska_democratic_party_and_anita_thorne_v._director_carol_beecher_in_her": {
+  "attorneys": 0,
+  "criteria": [
+   "decision_date",
+   "docket_number",
+   "judges",
+   "lower_court",
+   "parties"
+  ],
+  "hm": 16,
+  "lead_bylined": true,
+  "op_blocks": [
+   0,
+   64,
+   12
+  ],
+  "ops": [
+   "majority",
+   "dissent",
+   "dissent"
+  ],
+  "residual": 0,
+  "status": "valid",
+  "summary": 0,
+  "syllabus": 0
+ },
+ "alaska/in_the_disciplinary_matter_involving_joshua_m._kindred": {
+  "attorneys": 0,
+  "criteria": [
+   "decision_date",
+   "docket_number",
+   "judges",
+   "parties"
+  ],
+  "hm": 8,
+  "lead_bylined": false,
+  "op_blocks": [
+   11
+  ],
+  "ops": [
+   "order"
+  ],
+  "residual": 0,
+  "status": "scanned",
+  "summary": 0,
+  "syllabus": 0
+ },
+ "alaska/kade_michael_woodell_v._alaska_regional_hospital": {
+  "attorneys": 0,
+  "criteria": [
+   "decision_date",
+   "docket_number",
+   "judges",
+   "lower_court",
+   "parties"
+  ],
+  "hm": 10,
+  "lead_bylined": true,
+  "op_blocks": [
+   121
+  ],
+  "ops": [
+   "majority"
+  ],
+  "residual": 0,
+  "status": "valid",
+  "summary": 0,
+  "syllabus": 0
+ },
+ "alaska/portfolio_recovery_associates_llc_v._jeannie_duvall_jeannie_duvall_v.": {
+  "attorneys": 0,
+  "criteria": [
+   "decision_date",
+   "disposition",
+   "docket_number",
+   "judges",
+   "lower_court",
+   "parties"
+  ],
+  "hm": 25,
+  "lead_bylined": true,
+  "op_blocks": [
+   274
+  ],
+  "ops": [
+   "majority"
+  ],
+  "residual": 0,
+  "status": "valid",
+  "summary": 0,
+  "syllabus": 0
+ },
+ "alaska/steve_pete_v._state_of_alaska": {
+  "attorneys": 0,
+  "criteria": [
+   "decision_date",
+   "docket_number",
+   "judges",
+   "parties",
+   "publication_status"
+  ],
+  "hm": 6,
+  "lead_bylined": false,
+  "op_blocks": [
+   8
+  ],
+  "ops": [
+   "order"
+  ],
+  "residual": 0,
+  "status": "valid",
+  "summary": 0,
+  "syllabus": 0
+ },
+ "alaskactapp/brett_talmadge_v._state_of_alaska": {
+  "attorneys": 0,
+  "criteria": [
+   "decision_date",
+   "docket_number",
+   "judges",
+   "lower_court",
+   "parties",
+   "publication_status"
+  ],
+  "hm": 11,
+  "lead_bylined": false,
+  "op_blocks": [
+   1,
+   74,
+   53
+  ],
+  "ops": [
+   "order",
+   "concurrence",
+   "concurrence"
+  ],
+  "residual": 0,
+  "status": "valid",
+  "summary": 0,
+  "syllabus": 0
+ },
+ "alaskactapp/james_clarke_v._state_of_alaska": {
+  "attorneys": 0,
+  "criteria": [
+   "decision_date",
+   "docket_number",
+   "judges",
+   "lower_court",
+   "parties",
+   "publication_status"
+  ],
+  "hm": 12,
+  "lead_bylined": true,
+  "op_blocks": [
+   36
+  ],
+  "ops": [
+   "majority"
+  ],
+  "residual": 0,
+  "status": "valid",
+  "summary": 0,
+  "syllabus": 0
+ },
+ "alaskactapp/kail_jay_vanderpool_v._state_of_alaska": {
+  "attorneys": 0,
+  "criteria": [
+   "decision_date",
+   "docket_number",
+   "judges",
+   "lower_court",
+   "parties",
+   "publication_status"
+  ],
+  "hm": 13,
+  "lead_bylined": true,
+  "op_blocks": [
+   49
+  ],
+  "ops": [
+   "majority"
+  ],
+  "residual": 0,
+  "status": "valid",
+  "summary": 0,
+  "syllabus": 0
+ },
+ "ariz/9w_halo_v._ador": {
+  "attorneys": 0,
+  "criteria": [
+   "decision_date",
+   "disposition",
+   "docket_number",
+   "lower_court",
+   "parties"
+  ],
+  "hm": 39,
+  "lead_bylined": true,
+  "op_blocks": [
+   129
+  ],
+  "ops": [
+   "majority"
+  ],
+  "residual": 0,
+  "status": "valid",
+  "summary": 0,
+  "syllabus": 0
+ },
+ "ariz/in_re_mh2023-004502": {
+  "attorneys": 0,
+  "criteria": [
+   "decision_date",
+   "disposition",
+   "docket_number",
+   "lower_court",
+   "parties"
+  ],
+  "hm": 38,
+  "lead_bylined": true,
+  "op_blocks": [
+   78
+  ],
+  "ops": [
+   "majority"
+  ],
+  "residual": 0,
+  "status": "valid",
+  "summary": 0,
+  "syllabus": 0
+ },
+ "ariz/in_the_matter_of_april_arlene_sponsel": {
+  "attorneys": 0,
+  "criteria": [
+   "decision_date",
+   "disposition",
+   "docket_number",
+   "lower_court",
+   "parties"
+  ],
+  "hm": 28,
+  "lead_bylined": true,
+  "op_blocks": [
+   281
+  ],
+  "ops": [
+   "majority"
+  ],
+  "residual": 0,
+  "status": "valid",
+  "summary": 0,
+  "syllabus": 0
+ },
+ "ariz/joel_carson_v._hon._gentrystate": {
+  "attorneys": 1,
+  "criteria": [
+   "disposition",
+   "parties"
+  ],
+  "hm": 12,
+  "lead_bylined": false,
+  "op_blocks": [
+   25,
+   220
+  ],
+  "ops": [
+   "order",
+   "majority"
+  ],
+  "residual": 0,
+  "status": "valid",
+  "summary": 0,
+  "syllabus": 0
+ },
+ "ariz/state_of_arizona_v._john_logan_brown": {
+  "attorneys": 0,
+  "criteria": [
+   "decision_date",
+   "disposition",
+   "docket_number",
+   "lower_court",
+   "parties"
+  ],
+  "hm": 35,
+  "lead_bylined": true,
+  "op_blocks": [
+   148,
+   30
+  ],
+  "ops": [
+   "majority",
+   "dissent"
+  ],
+  "residual": 0,
+  "status": "valid",
+  "summary": 0,
+  "syllabus": 0
+ },
+ "ariz/vande_krol_v._superstitionbenchmark": {
+  "attorneys": 0,
+  "criteria": [
+   "decision_date",
+   "disposition",
+   "docket_number",
+   "lower_court",
+   "parties"
+  ],
+  "hm": 40,
+  "lead_bylined": true,
+  "op_blocks": [
+   169,
+   9,
+   5,
+   8,
+   10,
+   6,
+   12,
+   8,
+   9,
+   9,
+   6
+  ],
+  "ops": [
+   "majority",
+   "dissent",
+   "dissent",
+   "dissent",
+   "dissent",
+   "dissent",
+   "dissent",
+   "dissent",
+   "dissent",
+   "dissent",
+   "dissent"
+  ],
+  "residual": 0,
+  "status": "valid",
+  "summary": 0,
+  "syllabus": 0
+ },
+ "arizctapp/berry_v._berry": {
+  "attorneys": 0,
+  "criteria": [
+   "decision_date",
+   "disposition",
+   "docket_number",
+   "lower_court",
+   "parties",
+   "publication_status"
+  ],
+  "hm": 25,
+  "lead_bylined": true,
+  "op_blocks": [
+   41
+  ],
+  "ops": [
+   "majority"
+  ],
+  "residual": 0,
+  "status": "valid",
+  "summary": 0,
+  "syllabus": 0
+ },
+ "arizctapp/cervantes_v._state": {
+  "attorneys": 0,
+  "criteria": [
+   "decision_date",
+   "disposition",
+   "docket_number",
+   "lower_court",
+   "parties",
+   "publication_status"
+  ],
+  "hm": 28,
+  "lead_bylined": true,
+  "op_blocks": [
+   91,
+   16,
+   205
+  ],
+  "ops": [
+   "majority",
+   "concurrence",
+   "dissent"
+  ],
+  "residual": 0,
+  "status": "valid",
+  "summary": 0,
+  "syllabus": 0
+ },
+ "arizctapp/david_stone_v._pima_county": {
+  "attorneys": 0,
+  "criteria": [
+   "decision_date",
+   "disposition",
+   "docket_number",
+   "lower_court",
+   "parties",
+   "publication_status"
+  ],
+  "hm": 30,
+  "lead_bylined": false,
+  "op_blocks": [
+   29
+  ],
+  "ops": [
+   "majority"
+  ],
+  "residual": 0,
+  "status": "valid",
+  "summary": 0,
+  "syllabus": 0
+ },
+ "arizctapp/dineen_shibata_v._kotchka": {
+  "attorneys": 0,
+  "criteria": [
+   "decision_date",
+   "disposition",
+   "docket_number",
+   "lower_court",
+   "parties",
+   "publication_status"
+  ],
+  "hm": 31,
+  "lead_bylined": true,
+  "op_blocks": [
+   89
+  ],
+  "ops": [
+   "majority"
+  ],
+  "residual": 0,
+  "status": "valid",
+  "summary": 0,
+  "syllabus": 0
+ },
+ "arizctapp/in_re_dependency_of_m.k.": {
+  "attorneys": 0,
+  "criteria": [
+   "decision_date",
+   "disposition",
+   "docket_number",
+   "lower_court",
+   "parties",
+   "publication_status"
+  ],
+  "hm": 47,
+  "lead_bylined": false,
+  "op_blocks": [
+   136
+  ],
+  "ops": [
+   "majority"
+  ],
+  "residual": 0,
+  "status": "valid",
+  "summary": 0,
+  "syllabus": 0
+ },
+ "arizctapp/state_v._aguirre": {
+  "attorneys": 0,
+  "criteria": [
+   "decision_date",
+   "disposition",
+   "docket_number",
+   "lower_court",
+   "parties",
+   "publication_status"
+  ],
+  "hm": 30,
+  "lead_bylined": true,
+  "op_blocks": [
+   71
+  ],
+  "ops": [
+   "majority"
+  ],
+  "residual": 0,
+  "status": "valid",
+  "summary": 0,
+  "syllabus": 0
+ },
+ "arizctapp/state_v._york": {
+  "attorneys": 0,
+  "criteria": [
+   "decision_date",
+   "disposition",
+   "docket_number",
+   "lower_court",
+   "parties",
+   "publication_status"
+  ],
+  "hm": 27,
+  "lead_bylined": true,
+  "op_blocks": [
+   25
+  ],
+  "ops": [
+   "majority"
+  ],
+  "residual": 0,
+  "status": "valid",
+  "summary": 0,
+  "syllabus": 0
+ },
+ "ark/bryan_norris_on_behalf_of_himself_and_all_similarly_situated_persons": {
+  "attorneys": 0,
+  "criteria": [
+   "decision_date",
+   "disposition",
+   "docket_number",
+   "lower_court",
+   "parties"
+  ],
+  "hm": 5,
+  "lead_bylined": true,
+  "op_blocks": [
+   80
+  ],
+  "ops": [
+   "majority"
+  ],
+  "residual": 0,
+  "status": "valid",
+  "summary": 0,
+  "syllabus": 0
+ },
+ "ark/christopher_coy_gamble_v._state_of_arkansas": {
+  "attorneys": 0,
+  "criteria": [
+   "decision_date",
+   "disposition",
+   "docket_number",
+   "lower_court",
+   "parties"
+  ],
+  "hm": 5,
+  "lead_bylined": true,
+  "op_blocks": [
+   58,
+   14
+  ],
+  "ops": [
+   "majority",
+   "dissent"
+  ],
+  "residual": 0,
+  "status": "valid",
+  "summary": 0,
+  "syllabus": 0
+ },
+ "ark/greg_hogue_v._state_of_arkansas": {
+  "attorneys": 0,
+  "criteria": [
+   "decision_date",
+   "disposition",
+   "docket_number",
+   "lower_court",
+   "parties"
+  ],
+  "hm": 5,
+  "lead_bylined": true,
+  "op_blocks": [
+   6,
+   3,
+   1
+  ],
+  "ops": [
+   "majority",
+   "concurrence",
+   "concurrence"
+  ],
+  "residual": 0,
+  "status": "valid",
+  "summary": 0,
+  "syllabus": 0
+ },
+ "ark/in_re_arkansas_supreme_court_committee_on_civil_practice_-_recommendations": {
+  "attorneys": 0,
+  "criteria": [
+   "decision_date",
+   "parties"
+  ],
+  "hm": 4,
+  "lead_bylined": true,
+  "op_blocks": [
+   26
+  ],
+  "ops": [
+   "per-curiam"
+  ],
+  "residual": 0,
+  "status": "valid",
+  "summary": 0,
+  "syllabus": 0
+ },
+ "ark/no_supreme_court_opinions_today": {
+  "attorneys": 0,
+  "criteria": [],
+  "hm": 0,
+  "lead_bylined": false,
+  "op_blocks": [
+   1
+  ],
+  "ops": [
+   "order"
+  ],
+  "residual": 0,
+  "status": "valid",
+  "summary": 0,
+  "syllabus": 0
+ },
+ "arkctapp/aaron_barr_v._state_of_arkansas": {
+  "attorneys": 0,
+  "criteria": [
+   "decision_date",
+   "disposition",
+   "docket_number",
+   "lower_court",
+   "parties"
+  ],
+  "hm": 6,
+  "lead_bylined": true,
+  "op_blocks": [
+   14
+  ],
+  "ops": [
+   "majority"
+  ],
+  "residual": 0,
+  "status": "valid",
+  "summary": 0,
+  "syllabus": 0
+ },
+ "arkctapp/alfredo_martinez_v._rliable_poultry_llc": {
+  "attorneys": 0,
+  "criteria": [
+   "decision_date",
+   "disposition",
+   "docket_number",
+   "lower_court",
+   "parties"
+  ],
+  "hm": 6,
+  "lead_bylined": true,
+  "op_blocks": [
+   50
+  ],
+  "ops": [
+   "majority"
+  ],
+  "residual": 0,
+  "status": "valid",
+  "summary": 0,
+  "syllabus": 0
+ },
+ "arkctapp/bank_ozk_v._robert_l._tanner_as_trustee_of_the_robert_l._tanner_revocable": {
+  "attorneys": 0,
+  "criteria": [
+   "decision_date",
+   "disposition",
+   "docket_number",
+   "lower_court",
+   "parties"
+  ],
+  "hm": 6,
+  "lead_bylined": true,
+  "op_blocks": [
+   14
+  ],
+  "ops": [
+   "majority"
+  ],
+  "residual": 0,
+  "status": "valid",
+  "summary": 0,
+  "syllabus": 0
+ },
+ "arkctapp/broderick_podolak_v._state_of_arkansas": {
+  "attorneys": 0,
+  "criteria": [
+   "decision_date",
+   "disposition",
+   "docket_number",
+   "lower_court",
+   "parties"
+  ],
+  "hm": 6,
+  "lead_bylined": true,
+  "op_blocks": [
+   18
+  ],
+  "ops": [
+   "majority"
+  ],
+  "residual": 0,
+  "status": "valid",
+  "summary": 0,
+  "syllabus": 0
+ },
+ "arkctapp/city_of_gurdon_arkansas_v._att_corp.": {
+  "attorneys": 0,
+  "criteria": [
+   "decision_date",
+   "disposition",
+   "docket_number",
+   "lower_court",
+   "parties"
+  ],
+  "hm": 6,
+  "lead_bylined": true,
+  "op_blocks": [
+   70,
+   3
+  ],
+  "ops": [
+   "majority",
+   "dissent"
+  ],
+  "residual": 0,
+  "status": "valid",
+  "summary": 0,
+  "syllabus": 0
+ },
+ "arkctapp/clinton_greenwood_v._kathryn_greenwood_1": {
+  "attorneys": 0,
+  "criteria": [
+   "decision_date",
+   "disposition",
+   "docket_number",
+   "lower_court",
+   "parties"
+  ],
+  "hm": 6,
+  "lead_bylined": true,
+  "op_blocks": [
+   54
+  ],
+  "ops": [
+   "majority"
+  ],
+  "residual": 0,
+  "status": "valid",
+  "summary": 0,
+  "syllabus": 0
+ },
+ "arkctapp/emily_grace_brinley_v._state_of_arkansas": {
+  "attorneys": 0,
+  "criteria": [
+   "decision_date",
+   "disposition",
+   "docket_number",
+   "lower_court",
+   "parties"
+  ],
+  "hm": 6,
+  "lead_bylined": true,
+  "op_blocks": [
+   41
+  ],
+  "ops": [
+   "majority"
+  ],
+  "residual": 0,
+  "status": "valid",
+  "summary": 0,
+  "syllabus": 0
+ },
+ "arkctapp/harding_logistics_inc._v._director": {
+  "attorneys": 0,
+  "criteria": [
+   "decision_date",
+   "disposition",
+   "docket_number",
+   "lower_court",
+   "parties"
+  ],
+  "hm": 6,
+  "lead_bylined": true,
+  "op_blocks": [
+   4
+  ],
+  "ops": [
+   "majority"
+  ],
+  "residual": 0,
+  "status": "valid",
+  "summary": 0,
+  "syllabus": 0
+ },
+ "bap8/anthony_lincoln_v._james_snyder": {
+  "attorneys": 0,
+  "criteria": [
+   "decision_date",
+   "docket_number",
+   "judges",
+   "lower_court",
+   "parties",
+   "submitted"
+  ],
+  "hm": 22,
+  "lead_bylined": true,
+  "op_blocks": [
+   17
+  ],
+  "ops": [
+   "majority"
+  ],
+  "residual": 0,
+  "status": "valid",
+  "summary": 0,
+  "syllabus": 0
+ },
+ "bap8/farm_credit_services_v._steven_l._swackhammer": {
+  "attorneys": 0,
+  "criteria": [
+   "decision_date",
+   "docket_number",
+   "judges",
+   "lower_court",
+   "parties",
+   "submitted"
+  ],
+  "hm": 26,
+  "lead_bylined": true,
+  "op_blocks": [
+   38
+  ],
+  "ops": [
+   "majority"
+  ],
+  "residual": 0,
+  "status": "valid",
+  "summary": 0,
+  "syllabus": 0
+ },
+ "bap8/hartford_accident_and_indemnity_company_v._capital_credit_union": {
+  "attorneys": 0,
+  "criteria": [
+   "decision_date",
+   "docket_number",
+   "judges",
+   "lower_court",
+   "parties",
+   "submitted"
+  ],
+  "hm": 22,
+  "lead_bylined": true,
+  "op_blocks": [
+   38
+  ],
+  "ops": [
+   "majority"
+  ],
+  "residual": 0,
+  "status": "valid",
+  "summary": 0,
+  "syllabus": 0
+ },
+ "bap8/machele_l._goetz_v._victor_f._weber": {
+  "attorneys": 0,
+  "criteria": [
+   "decision_date",
+   "docket_number",
+   "judges",
+   "lower_court",
+   "parties",
+   "submitted"
+  ],
+  "hm": 22,
+  "lead_bylined": true,
+  "op_blocks": [
+   40
+  ],
+  "ops": [
+   "majority"
+  ],
+  "residual": 0,
+  "status": "valid",
+  "summary": 0,
+  "syllabus": 0
+ },
+ "bap8/madison_resource_funding_corp._v._jerry_marsh": {
+  "attorneys": 0,
+  "criteria": [
+   "decision_date",
+   "docket_number",
+   "judges",
+   "lower_court",
+   "parties",
+   "submitted"
+  ],
+  "hm": 33,
+  "lead_bylined": true,
+  "op_blocks": [
+   33
+  ],
+  "ops": [
+   "majority"
+  ],
+  "residual": 0,
+  "status": "valid",
+  "summary": 0,
+  "syllabus": 0
+ },
+ "bap8/richard_berkshire_v._lauren_goodman": {
+  "attorneys": 0,
+  "criteria": [
+   "decision_date",
+   "docket_number",
+   "judges",
+   "lower_court",
+   "parties",
+   "publication_status",
+   "submitted"
+  ],
+  "hm": 25,
+  "lead_bylined": true,
+  "op_blocks": [
+   8
+  ],
+  "ops": [
+   "per-curiam"
+  ],
+  "residual": 0,
+  "status": "valid",
+  "summary": 0,
+  "syllabus": 0
+ },
+ "bap8/state_of_north_dakota_v._susan_bala": {
+  "attorneys": 0,
+  "criteria": [
+   "decision_date",
+   "docket_number",
+   "judges",
+   "lower_court",
+   "parties",
+   "submitted"
+  ],
+  "hm": 22,
+  "lead_bylined": true,
+  "op_blocks": [
+   48
+  ],
+  "ops": [
+   "majority"
+  ],
+  "residual": 0,
+  "status": "valid",
+  "summary": 0,
+  "syllabus": 0
+ },
+ "bap8/timothy_davies_v._diana_s._daugherty": {
+  "attorneys": 0,
+  "criteria": [
+   "decision_date",
+   "docket_number",
+   "judges",
+   "lower_court",
+   "parties",
+   "submitted"
+  ],
+  "hm": 22,
+  "lead_bylined": true,
+  "op_blocks": [
+   10
+  ],
+  "ops": [
+   "majority"
+  ],
+  "residual": 0,
+  "status": "valid",
+  "summary": 0,
+  "syllabus": 0
+ },
+ "ca1/adames-garcia_v._divris": {
+  "attorneys": 0,
+  "criteria": [
+   "decision_date",
+   "docket_number",
+   "judges",
+   "lower_court",
+   "parties"
+  ],
+  "hm": 20,
+  "lead_bylined": true,
+  "op_blocks": [
+   81,
+   91
+  ],
+  "ops": [
+   "majority",
+   "dissent"
+  ],
+  "residual": 0,
+  "status": "valid",
+  "summary": 0,
+  "syllabus": 0
+ },
+ "ca1/african_communities_together_v._mullin": {
+  "attorneys": 0,
+  "criteria": [
+   "decision_date",
+   "docket_number",
+   "judges",
+   "parties"
+  ],
+  "hm": 20,
+  "lead_bylined": false,
+  "op_blocks": [
+   4
+  ],
+  "ops": [
+   "order"
+  ],
+  "residual": 0,
+  "status": "valid",
+  "summary": 0,
+  "syllabus": 0
+ },
+ "ca1/arocho-rodriguez_v._roldan-concepcion": {
+  "attorneys": 0,
+  "criteria": [
+   "decision_date",
+   "docket_number",
+   "judges",
+   "lower_court",
+   "parties"
+  ],
+  "hm": 29,
+  "lead_bylined": true,
+  "op_blocks": [
+   37
+  ],
+  "ops": [
+   "per-curiam"
+  ],
+  "residual": 0,
+  "status": "valid",
+  "summary": 0,
+  "syllabus": 0
+ },
+ "ca1/beckwith_v._frey": {
+  "attorneys": 0,
+  "criteria": [
+   "decision_date",
+   "docket_number",
+   "judges",
+   "lower_court",
+   "parties"
+  ],
+  "hm": 84,
+  "lead_bylined": true,
+  "op_blocks": [
+   46
+  ],
+  "ops": [
+   "majority"
+  ],
+  "residual": 0,
+  "status": "valid",
+  "summary": 0,
+  "syllabus": 0
+ },
+ "ca1/buccieri_v._brewster_ambulance_service_inc.": {
+  "attorneys": 0,
+  "criteria": [
+   "decision_date",
+   "docket_number",
+   "judges",
+   "lower_court",
+   "parties"
+  ],
+  "hm": 17,
+  "lead_bylined": true,
+  "op_blocks": [
+   114
+  ],
+  "ops": [
+   "majority"
+  ],
+  "residual": 0,
+  "status": "valid",
+  "summary": 0,
+  "syllabus": 0
+ },
+ "ca1/buckley_v._blanche": {
+  "attorneys": 0,
+  "criteria": [
+   "decision_date",
+   "docket_number",
+   "judges",
+   "lower_court",
+   "parties"
+  ],
+  "hm": 21,
+  "lead_bylined": true,
+  "op_blocks": [
+   46
+  ],
+  "ops": [
+   "majority"
+  ],
+  "residual": 0,
+  "status": "valid",
+  "summary": 0,
+  "syllabus": 0
+ },
+ "ca1/czerno_v._general_electric_company": {
+  "attorneys": 0,
+  "criteria": [
+   "docket_number",
+   "parties"
+  ],
+  "hm": 16,
+  "lead_bylined": false,
+  "op_blocks": [
+   2
+  ],
+  "ops": [
+   "order"
+  ],
+  "residual": 0,
+  "status": "valid",
+  "summary": 0,
+  "syllabus": 0
+ },
+ "ca1/guzman_v._blanche": {
+  "attorneys": 0,
+  "criteria": [
+   "decision_date",
+   "docket_number",
+   "judges",
+   "lower_court",
+   "parties"
+  ],
+  "hm": 21,
+  "lead_bylined": true,
+  "op_blocks": [
+   34
+  ],
+  "ops": [
+   "majority"
+  ],
+  "residual": 0,
+  "status": "valid",
+  "summary": 0,
+  "syllabus": 0
+ },
+ "ca1/rana_v._blanche": {
+  "attorneys": 0,
+  "criteria": [
+   "docket_number",
+   "parties"
+  ],
+  "hm": 9,
+  "lead_bylined": false,
+  "op_blocks": [
+   2
+  ],
+  "ops": [
+   "order"
+  ],
+  "residual": 0,
+  "status": "valid",
+  "summary": 0,
+  "syllabus": 0
+ },
+ "ca1/state_of_california_v._mullin": {
+  "attorneys": 0,
+  "criteria": [
+   "decision_date",
+   "docket_number",
+   "judges",
+   "parties"
+  ],
+  "hm": 28,
+  "lead_bylined": false,
+  "op_blocks": [
+   29
+  ],
+  "ops": [
+   "order"
+  ],
+  "residual": 0,
+  "status": "valid",
+  "summary": 0,
+  "syllabus": 0
+ },
+ "ca1/united_states_v._andino-arroyo": {
+  "attorneys": 0,
+  "criteria": [
+   "decision_date",
+   "docket_number",
+   "judges",
+   "lower_court",
+   "parties"
+  ],
+  "hm": 21,
+  "lead_bylined": true,
+  "op_blocks": [
+   35
+  ],
+  "ops": [
+   "majority"
+  ],
+  "residual": 0,
+  "status": "valid",
+  "summary": 0,
+  "syllabus": 0
+ },
+ "ca1/united_states_v._ortiz-rodriguez": {
+  "attorneys": 0,
+  "criteria": [
+   "decision_date",
+   "docket_number",
+   "judges",
+   "lower_court",
+   "parties"
+  ],
+  "hm": 24,
+  "lead_bylined": true,
+  "op_blocks": [
+   75
+  ],
+  "ops": [
+   "majority"
+  ],
+  "residual": 0,
+  "status": "valid",
+  "summary": 0,
+  "syllabus": 0
+ },
+ "ca1/vernaliz_perez_v._fema": {
+  "attorneys": 0,
+  "criteria": [
+   "decision_date",
+   "docket_number",
+   "judges",
+   "lower_court",
+   "parties"
+  ],
+  "hm": 48,
+  "lead_bylined": true,
+  "op_blocks": [
+   19
+  ],
+  "ops": [
+   "majority"
+  ],
+  "residual": 0,
+  "status": "valid",
+  "summary": 0,
+  "syllabus": 0
+ },
+ "ca10/aaebo-akhan_v._connell": {
+  "attorneys": 0,
+  "criteria": [
+   "decision_date",
+   "docket_number",
+   "judges",
+   "lower_court",
+   "parties"
+  ],
+  "hm": 8,
+  "lead_bylined": true,
+  "op_blocks": [
+   15
+  ],
+  "ops": [
+   "order"
+  ],
+  "residual": 0,
+  "status": "valid",
+  "summary": 0,
+  "syllabus": 0
+ },
+ "ca10/belcher_v._quick": {
+  "attorneys": 0,
+  "criteria": [
+   "decision_date",
+   "docket_number",
+   "judges",
+   "lower_court",
+   "parties"
+  ],
+  "hm": 9,
+  "lead_bylined": true,
+  "op_blocks": [
+   39
+  ],
+  "ops": [
+   "order"
+  ],
+  "residual": 0,
+  "status": "valid",
+  "summary": 0,
+  "syllabus": 0
+ },
+ "ca10/church_of_jesus_christ_of_latter-day_saints_v._national_union_fire": {
+  "attorneys": 0,
+  "criteria": [
+   "decision_date",
+   "docket_number",
+   "judges",
+   "lower_court",
+   "parties",
+   "publication_status"
+  ],
+  "hm": 26,
+  "lead_bylined": true,
+  "op_blocks": [
+   69
+  ],
+  "ops": [
+   "majority"
+  ],
+  "residual": 0,
+  "status": "valid",
+  "summary": 0,
+  "syllabus": 0
+ },
+ "ca10/citizens_for_constitutional_integrity_v._united_states": {
+  "attorneys": 0,
+  "criteria": [
+   "decision_date",
+   "docket_number",
+   "judges",
+   "lower_court",
+   "parties",
+   "publication_status"
+  ],
+  "hm": 22,
+  "lead_bylined": true,
+  "op_blocks": [
+   129
+  ],
+  "ops": [
+   "majority"
+  ],
+  "residual": 0,
+  "status": "valid",
+  "summary": 0,
+  "syllabus": 0
+ },
+ "ca10/garrett_v._denver_c.a.r.e.s.": {
+  "attorneys": 0,
+  "criteria": [
+   "decision_date",
+   "docket_number",
+   "judges",
+   "lower_court",
+   "parties"
+  ],
+  "hm": 9,
+  "lead_bylined": true,
+  "op_blocks": [
+   27,
+   1
+  ],
+  "ops": [
+   "order",
+   "concurrence"
+  ],
+  "residual": 0,
+  "status": "valid",
+  "summary": 0,
+  "syllabus": 0
+ },
+ "ca10/new_mexico_cattle_growers_association_v._united_states_forest_service": {
+  "attorneys": 0,
+  "criteria": [
+   "decision_date",
+   "docket_number",
+   "judges",
+   "lower_court",
+   "parties"
+  ],
+  "hm": 10,
+  "lead_bylined": true,
+  "op_blocks": [
+   37
+  ],
+  "ops": [
+   "order"
+  ],
+  "residual": 0,
+  "status": "valid",
+  "summary": 0,
+  "syllabus": 0
+ },
+ "ca10/ol_private_counsel_v._olson": {
+  "attorneys": 0,
+  "criteria": [
+   "decision_date",
+   "docket_number",
+   "judges",
+   "lower_court",
+   "parties"
+  ],
+  "hm": 9,
+  "lead_bylined": true,
+  "op_blocks": [
+   46,
+   26
+  ],
+  "ops": [
+   "order",
+   "concurring-in-part-and-dissenting-in-part"
+  ],
+  "residual": 0,
+  "status": "valid",
+  "summary": 0,
+  "syllabus": 0
+ },
+ "ca10/united_states_v._doe": {
+  "attorneys": 0,
+  "criteria": [
+   "decision_date",
+   "docket_number",
+   "judges",
+   "parties",
+   "publication_status"
+  ],
+  "hm": 8,
+  "lead_bylined": true,
+  "op_blocks": [
+   30
+  ],
+  "ops": [
+   "majority"
+  ],
+  "residual": 0,
+  "status": "valid",
+  "summary": 0,
+  "syllabus": 0
+ },
+ "ca10/united_states_v._tew": {
+  "attorneys": 0,
+  "criteria": [
+   "decision_date",
+   "docket_number",
+   "judges",
+   "lower_court",
+   "parties",
+   "publication_status"
+  ],
+  "hm": 22,
+  "lead_bylined": true,
+  "op_blocks": [
+   170
+  ],
+  "ops": [
+   "majority"
+  ],
+  "residual": 0,
+  "status": "valid",
+  "summary": 0,
+  "syllabus": 0
+ },
+ "ca10/united_states_v._watkins": {
+  "attorneys": 0,
+  "criteria": [
+   "decision_date",
+   "docket_number",
+   "judges",
+   "lower_court",
+   "parties",
+   "publication_status"
+  ],
+  "hm": 11,
+  "lead_bylined": false,
+  "op_blocks": [
+   7,
+   5,
+   4
+  ],
+  "ops": [
+   "order",
+   "supporting-the-denial-of-rehearing-en-banc",
+   "dissent"
+  ],
+  "residual": 0,
+  "status": "valid",
+  "summary": 0,
+  "syllabus": 0
+ },
+ "ca10/wildcat_coal_v._pacific_minerals": {
+  "attorneys": 0,
+  "criteria": [
+   "decision_date",
+   "disposition",
+   "docket_number",
+   "judges",
+   "lower_court",
+   "parties",
+   "publication_status"
+  ],
+  "hm": 29,
+  "lead_bylined": false,
+  "op_blocks": [
+   3,
+   60
+  ],
+  "ops": [
+   "order",
+   "majority"
+  ],
+  "residual": 0,
+  "status": "valid",
+  "summary": 0,
+  "syllabus": 0
+ },
+ "ca11/abigail_marbut_v._matthew_phillips": {
+  "attorneys": 0,
+  "criteria": [
+   "docket_number",
+   "judges",
+   "lower_court",
+   "parties",
+   "publication_status"
+  ],
+  "hm": 29,
+  "lead_bylined": true,
+  "op_blocks": [
+   54
+  ],
+  "ops": [
+   "majority"
+  ],
+  "residual": 0,
+  "status": "valid",
+  "summary": 0,
+  "syllabus": 0
+ },
+ "ca11/alma_hernandez-rebollar_v._u.s._attorney_general": {
+  "attorneys": 0,
+  "criteria": [
+   "disposition",
+   "docket_number",
+   "judges",
+   "lower_court",
+   "parties",
+   "publication_status"
+  ],
+  "hm": 18,
+  "lead_bylined": true,
+  "op_blocks": [
+   23
+  ],
+  "ops": [
+   "per-curiam"
+  ],
+  "residual": 0,
+  "status": "valid",
+  "summary": 0,
+  "syllabus": 0
+ },
+ "ca11/clarissa_gilmore_v._georgia_department_of_corrections": {
+  "attorneys": 0,
+  "criteria": [
+   "disposition",
+   "docket_number",
+   "judges",
+   "lower_court",
+   "parties",
+   "publication_status"
+  ],
+  "hm": 31,
+  "lead_bylined": true,
+  "op_blocks": [
+   2
+  ],
+  "ops": [
+   "per-curiam"
+  ],
+  "residual": 0,
+  "status": "valid",
+  "summary": 0,
+  "syllabus": 0
+ },
+ "ca11/friends_of_the_everglades_inc._v._secretary_of_the_u.s._department_of": {
+  "attorneys": 0,
+  "criteria": [
+   "docket_number",
+   "judges",
+   "lower_court",
+   "parties",
+   "publication_status"
+  ],
+  "hm": 32,
+  "lead_bylined": true,
+  "op_blocks": [
+   55,
+   38
+  ],
+  "ops": [
+   "majority",
+   "dissent"
+  ],
+  "residual": 0,
+  "status": "valid",
+  "summary": 0,
+  "syllabus": 0
+ },
+ "ca11/great_bowery_inc._v._consequence_sound_llc": {
+  "attorneys": 0,
+  "criteria": [
+   "disposition",
+   "docket_number",
+   "judges",
+   "lower_court",
+   "parties",
+   "publication_status"
+  ],
+  "hm": 21,
+  "lead_bylined": true,
+  "op_blocks": [
+   79
+  ],
+  "ops": [
+   "majority"
+  ],
+  "residual": 0,
+  "status": "valid",
+  "summary": 0,
+  "syllabus": 0
+ },
+ "ca11/gregory_brian_myers_v._undine_c._george": {
+  "attorneys": 0,
+  "criteria": [
+   "docket_number",
+   "judges",
+   "lower_court",
+   "parties",
+   "publication_status"
+  ],
+  "hm": 22,
+  "lead_bylined": true,
+  "op_blocks": [
+   29
+  ],
+  "ops": [
+   "per-curiam"
+  ],
+  "residual": 0,
+  "status": "valid",
+  "summary": 0,
+  "syllabus": 0
+ },
+ "ca11/union_pacific_railroad_co._v._federal_railroad_administration": {
+  "attorneys": 0,
+  "criteria": [
+   "docket_number",
+   "judges",
+   "lower_court",
+   "parties",
+   "publication_status"
+  ],
+  "hm": 137,
+  "lead_bylined": true,
+  "op_blocks": [
+   198,
+   113
+  ],
+  "ops": [
+   "majority",
+   "dissent"
+  ],
+  "residual": 0,
+  "status": "valid",
+  "summary": 0,
+  "syllabus": 0
+ },
+ "ca11/united_states_v._angelo_martinez": {
+  "attorneys": 0,
+  "criteria": [
+   "disposition",
+   "docket_number",
+   "judges",
+   "lower_court",
+   "parties",
+   "publication_status"
+  ],
+  "hm": 44,
+  "lead_bylined": true,
+  "op_blocks": [
+   68
+  ],
+  "ops": [
+   "per-curiam"
+  ],
+  "residual": 0,
+  "status": "valid",
+  "summary": 0,
+  "syllabus": 0
+ },
+ "ca2/adidas_america_inc._v._thom_browne_inc.": {
+  "attorneys": 0,
+  "criteria": [
+   "decision_date",
+   "docket_number",
+   "judges",
+   "lower_court",
+   "parties",
+   "submitted"
+  ],
+  "hm": 40,
+  "lead_bylined": true,
+  "op_blocks": [
+   67
+  ],
+  "ops": [
+   "majority"
+  ],
+  "residual": 0,
+  "status": "valid",
+  "summary": 0,
+  "syllabus": 0
+ },
+ "ca2/alsonidar_v._mullin": {
+  "attorneys": 0,
+  "criteria": [
+   "decision_date",
+   "docket_number",
+   "judges",
+   "parties",
+   "publication_status"
+  ],
+  "hm": 46,
+  "lead_bylined": false,
+  "op_blocks": [
+   19
+  ],
+  "ops": [
+   "majority"
+  ],
+  "residual": 0,
+  "status": "valid",
+  "summary": 0,
+  "syllabus": 0
+ },
+ "ca2/alvarenga_vides_v._blanche": {
+  "attorneys": 0,
+  "criteria": [
+   "decision_date",
+   "docket_number",
+   "judges",
+   "lower_court",
+   "parties",
+   "publication_status"
+  ],
+  "hm": 35,
+  "lead_bylined": false,
+  "op_blocks": [
+   15
+  ],
+  "ops": [
+   "majority"
+  ],
+  "residual": 0,
+  "status": "valid",
+  "summary": 0,
+  "syllabus": 0
+ },
+ "ca2/brooks_v._bright_horizons": {
+  "attorneys": 0,
+  "criteria": [
+   "decision_date",
+   "disposition",
+   "docket_number",
+   "judges",
+   "parties",
+   "publication_status"
+  ],
+  "hm": 27,
+  "lead_bylined": false,
+  "op_blocks": [
+   32
+  ],
+  "ops": [
+   "majority"
+  ],
+  "residual": 0,
+  "status": "valid",
+  "summary": 0,
+  "syllabus": 0
+ },
+ "ca2/campbell_v._broome_county": {
+  "attorneys": 0,
+  "criteria": [
+   "decision_date",
+   "docket_number",
+   "judges",
+   "parties",
+   "submitted"
+  ],
+  "hm": 52,
+  "lead_bylined": true,
+  "op_blocks": [
+   39
+  ],
+  "ops": [
+   "majority"
+  ],
+  "residual": 0,
+  "status": "valid",
+  "summary": 0,
+  "syllabus": 0
+ },
+ "ca2/carroll_v._trump": {
+  "attorneys": 0,
+  "criteria": [
+   "decision_date",
+   "docket_number",
+   "judges",
+   "parties",
+   "publication_status"
+  ],
+  "hm": 35,
+  "lead_bylined": false,
+  "op_blocks": [
+   7,
+   2,
+   107,
+   202
+  ],
+  "ops": [
+   "majority",
+   "concurrence",
+   "dissent",
+   "in-support-of-the-denial-of-rehearing-en-banc"
+  ],
+  "residual": 0,
+  "status": "valid",
+  "summary": 0,
+  "syllabus": 0
+ },
+ "ca2/cicchiello_v._warden": {
+  "attorneys": 0,
+  "criteria": [
+   "decision_date",
+   "docket_number",
+   "judges",
+   "parties",
+   "publication_status"
+  ],
+  "hm": 44,
+  "lead_bylined": false,
+  "op_blocks": [
+   37
+  ],
+  "ops": [
+   "majority"
+  ],
+  "residual": 0,
+  "status": "valid",
+  "summary": 0,
+  "syllabus": 0
+ },
+ "ca2/cunha_v._freden": {
+  "attorneys": 0,
+  "criteria": [
+   "decision_date",
+   "docket_number",
+   "judges",
+   "lower_court",
+   "parties",
+   "submitted"
+  ],
+  "hm": 81,
+  "lead_bylined": true,
+  "op_blocks": [
+   156,
+   30
+  ],
+  "ops": [
+   "majority",
+   "concurrence"
+  ],
+  "residual": 0,
+  "status": "valid",
+  "summary": 0,
+  "syllabus": 0
+ },
+ "ca2/griffin_v._lamanna": {
+  "attorneys": 0,
+  "criteria": [
+   "decision_date",
+   "docket_number",
+   "judges",
+   "lower_court",
+   "parties",
+   "submitted"
+  ],
+  "hm": 36,
+  "lead_bylined": true,
+  "op_blocks": [
+   31
+  ],
+  "ops": [
+   "majority"
+  ],
+  "residual": 0,
+  "status": "valid",
+  "summary": 0,
+  "syllabus": 0
+ },
+ "ca2/havlish_v._taliban_aliganga_v._taliban": {
+  "attorneys": 0,
+  "criteria": [
+   "decision_date",
+   "docket_number",
+   "judges",
+   "parties",
+   "publication_status"
+  ],
+  "hm": 84,
+  "lead_bylined": false,
+  "op_blocks": [
+   7,
+   3,
+   79,
+   38
+  ],
+  "ops": [
+   "majority",
+   "concurrence",
+   "dissent",
+   "dissent"
+  ],
+  "residual": 0,
+  "status": "valid",
+  "summary": 0,
+  "syllabus": 0
+ },
+ "ca2/in_re_in_the_matter_of_the_complaint_of_verplanck_fire_district": {
+  "attorneys": 0,
+  "criteria": [
+   "decision_date",
+   "docket_number",
+   "judges",
+   "parties",
+   "submitted"
+  ],
+  "hm": 50,
+  "lead_bylined": true,
+  "op_blocks": [
+   130
+  ],
+  "ops": [
+   "majority"
+  ],
+  "residual": 0,
+  "status": "valid",
+  "summary": 0,
+  "syllabus": 0
+ },
+ "ca2/in_re_rosellini": {
+  "attorneys": 0,
+  "criteria": [
+   "decision_date",
+   "docket_number",
+   "judges",
+   "publication_status"
+  ],
+  "hm": 17,
+  "lead_bylined": false,
+  "op_blocks": [
+   7
+  ],
+  "ops": [
+   "majority"
+  ],
+  "residual": 0,
+  "status": "valid",
+  "summary": 0,
+  "syllabus": 0
+ },
+ "ca2/jin_v._city_of_new_york": {
+  "attorneys": 0,
+  "criteria": [
+   "decision_date",
+   "docket_number",
+   "judges",
+   "parties",
+   "submitted"
+  ],
+  "hm": 74,
+  "lead_bylined": true,
+  "op_blocks": [
+   60,
+   43
+  ],
+  "ops": [
+   "majority",
+   "dissent"
+  ],
+  "residual": 0,
+  "status": "valid",
+  "summary": 0,
+  "syllabus": 0
+ },
+ "ca2/menora_mivtachim_v._perion": {
+  "attorneys": 0,
+  "criteria": [
+   "decision_date",
+   "docket_number",
+   "judges",
+   "parties",
+   "publication_status"
+  ],
+  "hm": 34,
+  "lead_bylined": false,
+  "op_blocks": [
+   9
+  ],
+  "ops": [
+   "majority"
+  ],
+  "residual": 0,
+  "status": "valid",
+  "summary": 0,
+  "syllabus": 0
+ },
+ "ca2/ortega_v._blanche": {
+  "attorneys": 0,
+  "criteria": [
+   "decision_date",
+   "docket_number",
+   "judges",
+   "lower_court",
+   "parties",
+   "publication_status"
+  ],
+  "hm": 30,
+  "lead_bylined": false,
+  "op_blocks": [
+   16
+  ],
+  "ops": [
+   "majority"
+  ],
+  "residual": 0,
+  "status": "valid",
+  "summary": 0,
+  "syllabus": 0
+ },
+ "ca2/perez_v._porter": {
+  "attorneys": 0,
+  "criteria": [
+   "decision_date",
+   "docket_number",
+   "judges",
+   "parties",
+   "publication_status"
+  ],
+  "hm": 33,
+  "lead_bylined": false,
+  "op_blocks": [
+   15
+  ],
+  "ops": [
+   "majority"
+  ],
+  "residual": 0,
+  "status": "valid",
+  "summary": 0,
+  "syllabus": 0
+ },
+ "ca2/powell_v._ocwen_fin._corp.": {
+  "attorneys": 0,
+  "criteria": [
+   "decision_date",
+   "docket_number",
+   "judges",
+   "lower_court",
+   "parties",
+   "submitted"
+  ],
+  "hm": 71,
+  "lead_bylined": true,
+  "op_blocks": [
+   75
+  ],
+  "ops": [
+   "majority"
+  ],
+  "residual": 0,
+  "status": "valid",
+  "summary": 0,
+  "syllabus": 0
+ },
+ "ca2/provencher_v._bimbo_foods_bakeries_distribution_llc": {
+  "attorneys": 0,
+  "criteria": [
+   "decision_date",
+   "docket_number",
+   "judges",
+   "parties",
+   "submitted"
+  ],
+  "hm": 36,
+  "lead_bylined": true,
+  "op_blocks": [
+   41
+  ],
+  "ops": [
+   "majority"
+  ],
+  "residual": 0,
+  "status": "valid",
+  "summary": 0,
+  "syllabus": 0
+ },
+ "ca2/suhel_ahmed_v._blanche": {
+  "attorneys": 0,
+  "criteria": [
+   "decision_date",
+   "docket_number",
+   "judges",
+   "lower_court",
+   "parties",
+   "publication_status"
+  ],
+  "hm": 33,
+  "lead_bylined": false,
+  "op_blocks": [
+   14
+  ],
+  "ops": [
+   "majority"
+  ],
+  "residual": 0,
+  "status": "valid",
+  "summary": 0,
+  "syllabus": 0
+ },
+ "ca2/united_states_v._beardsley": {
+  "attorneys": 0,
+  "criteria": [
+   "decision_date",
+   "docket_number",
+   "judges",
+   "parties",
+   "publication_status"
+  ],
+  "hm": 33,
+  "lead_bylined": false,
+  "op_blocks": [
+   19
+  ],
+  "ops": [
+   "majority"
+  ],
+  "residual": 0,
+  "status": "valid",
+  "summary": 0,
+  "syllabus": 0
+ },
+ "ca2/united_states_v._hampton": {
+  "attorneys": 0,
+  "criteria": [
+   "decision_date",
+   "docket_number",
+   "judges",
+   "parties",
+   "publication_status"
+  ],
+  "hm": 22,
+  "lead_bylined": false,
+  "op_blocks": [
+   38
+  ],
+  "ops": [
+   "majority"
+  ],
+  "residual": 0,
+  "status": "valid",
+  "summary": 0,
+  "syllabus": 0
+ },
+ "ca2/united_states_v._manuel_zumba_mejia": {
+  "attorneys": 0,
+  "criteria": [
+   "decision_date",
+   "docket_number",
+   "judges",
+   "lower_court",
+   "parties",
+   "submitted"
+  ],
+  "hm": 69,
+  "lead_bylined": true,
+  "op_blocks": [
+   29
+  ],
+  "ops": [
+   "majority"
+  ],
+  "residual": 0,
+  "status": "valid",
+  "summary": 0,
+  "syllabus": 0
+ },
+ "ca2/vidal_v._venettozzi": {
+  "attorneys": 0,
+  "criteria": [
+   "decision_date",
+   "docket_number",
+   "judges",
+   "parties",
+   "submitted"
+  ],
+  "hm": 53,
+  "lead_bylined": true,
+  "op_blocks": [
+   63
+  ],
+  "ops": [
+   "majority"
+  ],
+  "residual": 0,
+  "status": "valid",
+  "summary": 0,
+  "syllabus": 0
+ },
+ "ca3/adolph_michelin_v._warden_moshannon_valley_correctional_center": {
+  "attorneys": 0,
+  "criteria": [
+   "docket_number",
+   "judges",
+   "parties"
+  ],
+  "hm": 31,
+  "lead_bylined": true,
+  "op_blocks": [
+   4,
+   143,
+   4
+  ],
+  "ops": [
+   "order",
+   "dissent",
+   "dissent"
+  ],
+  "residual": 0,
+  "status": "valid",
+  "summary": 0,
+  "syllabus": 0
+ },
+ "ca3/arefin_chowdhury_v._attorney_general_united_states_of_america": {
+  "attorneys": 0,
+  "criteria": [
+   "decision_date",
+   "docket_number",
+   "judges",
+   "lower_court",
+   "parties",
+   "publication_status",
+   "submitted"
+  ],
+  "hm": 23,
+  "lead_bylined": true,
+  "op_blocks": [
+   13
+  ],
+  "ops": [
+   "per-curiam"
+  ],
+  "residual": 0,
+  "status": "valid",
+  "summary": 0,
+  "syllabus": 0
+ },
+ "ca3/christopher_mbewe_v._superintendent_mahanoy_sci": {
+  "attorneys": 0,
+  "criteria": [
+   "decision_date",
+   "docket_number",
+   "judges",
+   "lower_court",
+   "parties",
+   "publication_status",
+   "submitted"
+  ],
+  "hm": 29,
+  "lead_bylined": true,
+  "op_blocks": [
+   10
+  ],
+  "ops": [
+   "per-curiam"
+  ],
+  "residual": 0,
+  "status": "valid",
+  "summary": 0,
+  "syllabus": 0
+ },
+ "ca3/corey_kendig_v._nicholas_stolar": {
+  "attorneys": 0,
+  "criteria": [
+   "decision_date",
+   "docket_number",
+   "judges",
+   "lower_court",
+   "parties",
+   "publication_status",
+   "submitted"
+  ],
+  "hm": 36,
+  "lead_bylined": true,
+  "op_blocks": [
+   41
+  ],
+  "ops": [
+   "majority"
+  ],
+  "residual": 0,
+  "status": "valid",
+  "summary": 0,
+  "syllabus": 0
+ },
+ "ca3/international_brotherhood_of_electrical_workers_lo_v._energy_harbor_nuclear": {
+  "attorneys": 8,
+  "criteria": [
+   "decision_date",
+   "docket_number",
+   "judges",
+   "lower_court",
+   "parties",
+   "submitted"
+  ],
+  "hm": 13,
+  "lead_bylined": true,
+  "op_blocks": [
+   29,
+   29
+  ],
+  "ops": [
+   "majority",
+   "dissent"
+  ],
+  "residual": 0,
+  "status": "valid",
+  "summary": 0,
+  "syllabus": 0
+ },
+ "ca3/josue_sanchez_v._attorney_general_united_states_of_america": {
+  "attorneys": 0,
+  "criteria": [
+   "docket_number",
+   "lower_court",
+   "parties"
+  ],
+  "hm": 14,
+  "lead_bylined": false,
+  "op_blocks": [
+   5
+  ],
+  "ops": [
+   "majority"
+  ],
+  "residual": 0,
+  "status": "valid",
+  "summary": 0,
+  "syllabus": 0
+ },
+ "ca3/kalshiex_llc_v._mary_jo_flaherty": {
+  "attorneys": 27,
+  "criteria": [
+   "decision_date",
+   "docket_number",
+   "judges",
+   "lower_court",
+   "parties",
+   "submitted"
+  ],
+  "hm": 17,
+  "lead_bylined": true,
+  "op_blocks": [
+   66,
+   50
+  ],
+  "ops": [
+   "majority",
+   "dissent"
+  ],
+  "residual": 0,
+  "status": "valid",
+  "summary": 0,
+  "syllabus": 0
+ },
+ "ca3/mahmoud_khalil_v._president_united_states_of_america": {
+  "attorneys": 0,
+  "criteria": [
+   "docket_number",
+   "judges",
+   "parties"
+  ],
+  "hm": 12,
+  "lead_bylined": true,
+  "op_blocks": [
+   3,
+   41
+  ],
+  "ops": [
+   "order",
+   "dissent"
+  ],
+  "residual": 0,
+  "status": "valid",
+  "summary": 0,
+  "syllabus": 0
+ },
+ "ca3/united_states_v._nicole_schuster": {
+  "attorneys": 0,
+  "criteria": [
+   "decision_date",
+   "docket_number",
+   "judges",
+   "lower_court",
+   "parties",
+   "publication_status",
+   "submitted"
+  ],
+  "hm": 38,
+  "lead_bylined": true,
+  "op_blocks": [
+   65,
+   4
+  ],
+  "ops": [
+   "majority",
+   "dissent"
+  ],
+  "residual": 0,
+  "status": "valid",
+  "summary": 0,
+  "syllabus": 0
+ },
+ "ca3/whittaker_clark__daniels_v.": {
+  "attorneys": 0,
+  "criteria": [
+   "decision_date",
+   "docket_number",
+   "judges",
+   "lower_court",
+   "parties",
+   "publication_status",
+   "submitted"
+  ],
+  "hm": 154,
+  "lead_bylined": true,
+  "op_blocks": [
+   119,
+   54,
+   84
+  ],
+  "ops": [
+   "majority",
+   "concurrence",
+   "concurrence"
+  ],
+  "residual": 0,
+  "status": "valid",
+  "summary": 0,
+  "syllabus": 0
+ },
+ "ca4/amer_rizvi_v._loudoun_county_school_board": {
+  "attorneys": 0,
+  "criteria": [
+   "decision_date",
+   "disposition",
+   "docket_number",
+   "judges",
+   "lower_court",
+   "parties",
+   "publication_status",
+   "submitted"
+  ],
+  "hm": 25,
+  "lead_bylined": true,
+  "op_blocks": [
+   2
+  ],
+  "ops": [
+   "per-curiam"
+  ],
+  "residual": 0,
+  "status": "valid",
+  "summary": 0,
+  "syllabus": 0
+ },
+ "ca4/american_acceptance_corporation_of_sc_v._john_gietz": {
+  "attorneys": 0,
+  "criteria": [
+   "decision_date",
+   "disposition",
+   "docket_number",
+   "judges",
+   "lower_court",
+   "parties",
+   "publication_status"
+  ],
+  "hm": 34,
+  "lead_bylined": true,
+  "op_blocks": [
+   45
+  ],
+  "ops": [
+   "majority"
+  ],
+  "residual": 0,
+  "status": "valid",
+  "summary": 0,
+  "syllabus": 0
+ },
+ "ca4/elshan_bayramov_v._american_credit_acceptance": {
+  "attorneys": 0,
+  "criteria": [
+   "decision_date",
+   "disposition",
+   "docket_number",
+   "judges",
+   "lower_court",
+   "parties",
+   "publication_status"
+  ],
+  "hm": 47,
+  "lead_bylined": true,
+  "op_blocks": [
+   67
+  ],
+  "ops": [
+   "majority"
+  ],
+  "residual": 0,
+  "status": "valid",
+  "summary": 0,
+  "syllabus": 0
+ },
+ "ca4/in_re_express_scripts_inc.": {
+  "attorneys": 0,
+  "criteria": [
+   "decision_date",
+   "disposition",
+   "docket_number",
+   "judges",
+   "lower_court",
+   "parties",
+   "publication_status"
+  ],
+  "hm": 32,
+  "lead_bylined": true,
+  "op_blocks": [
+   58
+  ],
+  "ops": [
+   "majority"
+  ],
+  "residual": 0,
+  "status": "valid",
+  "summary": 0,
+  "syllabus": 0
+ },
+ "ca4/jonathan_r._v._patrick_morrisey": {
+  "attorneys": 0,
+  "criteria": [
+   "decision_date",
+   "disposition",
+   "docket_number",
+   "judges",
+   "lower_court",
+   "parties",
+   "publication_status"
+  ],
+  "hm": 132,
+  "lead_bylined": true,
+  "op_blocks": [
+   122,
+   42
+  ],
+  "ops": [
+   "majority",
+   "concurring-in-part-and-dissenting-in-part"
+  ],
+  "residual": 0,
+  "status": "valid",
+  "summary": 0,
+  "syllabus": 0
+ },
+ "ca4/kenneth_mcpherson_v._robert_patton": {
+  "attorneys": 0,
+  "criteria": [
+   "disposition",
+   "docket_number",
+   "judges",
+   "lower_court",
+   "parties",
+   "publication_status"
+  ],
+  "hm": 33,
+  "lead_bylined": true,
+  "op_blocks": [
+   137
+  ],
+  "ops": [
+   "majority"
+  ],
+  "residual": 0,
+  "status": "valid",
+  "summary": 0,
+  "syllabus": 0
+ },
+ "ca4/richard_kelly_v._altria_client_services_llc": {
+  "attorneys": 0,
+  "criteria": [
+   "decision_date",
+   "disposition",
+   "docket_number",
+   "judges",
+   "lower_court",
+   "parties",
+   "publication_status"
+  ],
+  "hm": 41,
+  "lead_bylined": true,
+  "op_blocks": [
+   59
+  ],
+  "ops": [
+   "majority"
+  ],
+  "residual": 0,
+  "status": "valid",
+  "summary": 0,
+  "syllabus": 0
+ },
+ "ca4/tho_huynh_v._todd_blanche": {
+  "attorneys": 0,
+  "criteria": [
+   "decision_date",
+   "disposition",
+   "docket_number",
+   "judges",
+   "lower_court",
+   "parties",
+   "publication_status"
+  ],
+  "hm": 31,
+  "lead_bylined": true,
+  "op_blocks": [
+   29
+  ],
+  "ops": [
+   "majority"
+  ],
+  "residual": 0,
+  "status": "valid",
+  "summary": 0,
+  "syllabus": 0
+ },
+ "ca4/winnebago_tribe_of_nebraska_v._united_states_department_of_the_army": {
+  "attorneys": 0,
+  "criteria": [
+   "decision_date",
+   "disposition",
+   "docket_number",
+   "judges",
+   "lower_court",
+   "parties",
+   "publication_status"
+  ],
+  "hm": 60,
+  "lead_bylined": true,
+  "op_blocks": [
+   54,
+   47
+  ],
+  "ops": [
+   "majority",
+   "dissent"
+  ],
+  "residual": 0,
+  "status": "valid",
+  "summary": 0,
+  "syllabus": 0
+ },
+ "ca5/alexander_v._arceneaux": {
+  "attorneys": 0,
+  "criteria": [
+   "decision_date",
+   "docket_number",
+   "judges",
+   "lower_court",
+   "parties"
+  ],
+  "hm": 18,
+  "lead_bylined": true,
+  "op_blocks": [
+   35
+  ],
+  "ops": [
+   "majority"
+  ],
+  "residual": 0,
+  "status": "valid",
+  "summary": 0,
+  "syllabus": 0
+ },
+ "ca5/battieste_v._united_states": {
+  "attorneys": 0,
+  "criteria": [
+   "decision_date",
+   "docket_number",
+   "judges",
+   "lower_court",
+   "parties"
+  ],
+  "hm": 18,
+  "lead_bylined": true,
+  "op_blocks": [
+   35
+  ],
+  "ops": [
+   "majority"
+  ],
+  "residual": 0,
+  "status": "valid",
+  "summary": 0,
+  "syllabus": 0
+ },
+ "ca5/busby_v._guerrero": {
+  "attorneys": 0,
+  "criteria": [
+   "decision_date",
+   "docket_number",
+   "judges",
+   "lower_court",
+   "parties"
+  ],
+  "hm": 23,
+  "lead_bylined": true,
+  "op_blocks": [
+   2,
+   3,
+   51,
+   23
+  ],
+  "ops": [
+   "per-curiam",
+   "majority",
+   "concurring-in-part-and-dissenting-in-part",
+   "concurring-in-part-and-dissenting-in-part"
+  ],
+  "residual": 0,
+  "status": "valid",
+  "summary": 0,
+  "syllabus": 0
+ },
+ "ca5/cortez_v._rubio": {
+  "attorneys": 0,
+  "criteria": [
+   "decision_date",
+   "disposition",
+   "docket_number",
+   "judges",
+   "lower_court",
+   "parties"
+  ],
+  "hm": 16,
+  "lead_bylined": true,
+  "op_blocks": [
+   58
+  ],
+  "ops": [
+   "majority"
+  ],
+  "residual": 0,
+  "status": "valid",
+  "summary": 0,
+  "syllabus": 0
+ },
+ "ca5/in_re_google": {
+  "attorneys": 0,
+  "criteria": [
+   "decision_date",
+   "docket_number",
+   "judges",
+   "lower_court",
+   "parties"
+  ],
+  "hm": 13,
+  "lead_bylined": true,
+  "op_blocks": [
+   25,
+   4
+  ],
+  "ops": [
+   "majority",
+   "dissent"
+  ],
+  "residual": 0,
+  "status": "valid",
+  "summary": 0,
+  "syllabus": 0
+ },
+ "ca5/john_gannon_v._texas_dept_of_trans": {
+  "attorneys": 0,
+  "criteria": [
+   "decision_date",
+   "docket_number",
+   "judges",
+   "lower_court",
+   "parties"
+  ],
+  "hm": 17,
+  "lead_bylined": true,
+  "op_blocks": [
+   31
+  ],
+  "ops": [
+   "majority"
+  ],
+  "residual": 0,
+  "status": "valid",
+  "summary": 0,
+  "syllabus": 0
+ },
+ "ca5/mcnutt_v._us_dept_of_justice": {
+  "attorneys": 0,
+  "criteria": [
+   "decision_date",
+   "docket_number",
+   "judges",
+   "lower_court",
+   "parties"
+  ],
+  "hm": 21,
+  "lead_bylined": true,
+  "op_blocks": [
+   66
+  ],
+  "ops": [
+   "majority"
+  ],
+  "residual": 0,
+  "status": "valid",
+  "summary": 0,
+  "syllabus": 0
+ },
+ "ca5/moreau_v._white": {
+  "attorneys": 0,
+  "criteria": [
+   "decision_date",
+   "docket_number",
+   "judges",
+   "lower_court",
+   "parties"
+  ],
+  "hm": 19,
+  "lead_bylined": true,
+  "op_blocks": [
+   66,
+   21
+  ],
+  "ops": [
+   "majority",
+   "dissent"
+  ],
+  "residual": 0,
+  "status": "valid",
+  "summary": 0,
+  "syllabus": 0
+ },
+ "ca5/naoise_ryan_v._united_states": {
+  "attorneys": 0,
+  "criteria": [
+   "decision_date",
+   "docket_number",
+   "judges",
+   "lower_court",
+   "parties"
+  ],
+  "hm": 19,
+  "lead_bylined": true,
+  "op_blocks": [
+   42
+  ],
+  "ops": [
+   "per-curiam"
+  ],
+  "residual": 0,
+  "status": "valid",
+  "summary": 0,
+  "syllabus": 0
+ },
+ "ca5/nathan_v._alamo_heights_isd": {
+  "attorneys": 0,
+  "criteria": [
+   "decision_date",
+   "docket_number",
+   "judges",
+   "lower_court",
+   "parties"
+  ],
+  "hm": 50,
+  "lead_bylined": true,
+  "op_blocks": [
+   195,
+   6,
+   21,
+   89,
+   41,
+   1,
+   25
+  ],
+  "ops": [
+   "majority",
+   "concurrence",
+   "concurrence",
+   "dissent",
+   "dissent",
+   "dissent",
+   "dissent"
+  ],
+  "residual": 0,
+  "status": "valid",
+  "summary": 0,
+  "syllabus": 0
+ },
+ "ca5/olivier_v._city_of_brandon_ms": {
+  "attorneys": 0,
+  "criteria": [
+   "decision_date",
+   "docket_number",
+   "judges",
+   "lower_court",
+   "parties"
+  ],
+  "hm": 20,
+  "lead_bylined": true,
+  "op_blocks": [
+   2
+  ],
+  "ops": [
+   "per-curiam"
+  ],
+  "residual": 0,
+  "status": "valid",
+  "summary": 0,
+  "syllabus": 0
+ },
+ "ca5/plaquemines_parish_v._bp_america_prod": {
+  "attorneys": 0,
+  "criteria": [
+   "decision_date",
+   "docket_number",
+   "judges",
+   "lower_court",
+   "parties"
+  ],
+  "hm": 46,
+  "lead_bylined": true,
+  "op_blocks": [
+   3
+  ],
+  "ops": [
+   "per-curiam"
+  ],
+  "residual": 0,
+  "status": "valid",
+  "summary": 0,
+  "syllabus": 0
+ },
+ "ca5/state_of_louisiana_v._fda": {
+  "attorneys": 0,
+  "criteria": [
+   "docket_number",
+   "judges",
+   "lower_court",
+   "parties"
+  ],
+  "hm": 25,
+  "lead_bylined": true,
+  "op_blocks": [
+   85
+  ],
+  "ops": [
+   "majority"
+  ],
+  "residual": 0,
+  "status": "valid",
+  "summary": 0,
+  "syllabus": 0
+ },
+ "ca5/texas_medical_association_v._hhs": {
+  "attorneys": 0,
+  "criteria": [
+   "decision_date",
+   "docket_number",
+   "judges",
+   "lower_court",
+   "parties"
+  ],
+  "hm": 44,
+  "lead_bylined": true,
+  "op_blocks": [
+   60,
+   15,
+   66,
+   13
+  ],
+  "ops": [
+   "per-curiam",
+   "concurrence",
+   "concurrence",
+   "concurring-in-part-and-dissenting-in-part"
+  ],
+  "residual": 0,
+  "status": "valid",
+  "summary": 0,
+  "syllabus": 0
+ },
+ "ca5/united_states_v._abron": {
+  "attorneys": 0,
+  "criteria": [
+   "decision_date",
+   "docket_number",
+   "judges",
+   "lower_court",
+   "parties",
+   "publication_status"
+  ],
+  "hm": 17,
+  "lead_bylined": true,
+  "op_blocks": [
+   2
+  ],
+  "ops": [
+   "per-curiam"
+  ],
+  "residual": 0,
+  "status": "valid",
+  "summary": 0,
+  "syllabus": 0
+ },
+ "ca5/united_states_v._state_of_texas": {
+  "attorneys": 0,
+  "criteria": [
+   "decision_date",
+   "docket_number",
+   "judges",
+   "lower_court",
+   "parties"
+  ],
+  "hm": 31,
+  "lead_bylined": true,
+  "op_blocks": [
+   44,
+   44,
+   29,
+   250,
+   29,
+   39
+  ],
+  "ops": [
+   "majority",
+   "concurrence",
+   "concurrence",
+   "dissent",
+   "dissent",
+   "dissent"
+  ],
+  "residual": 0,
+  "status": "valid",
+  "summary": 0,
+  "syllabus": 0
+ },
+ "ca6/alexandre_ansari_v._moises_jimenez": {
+  "attorneys": 0,
+  "criteria": [
+   "decision_date",
+   "docket_number",
+   "judges",
+   "lower_court",
+   "parties",
+   "publication_status"
+  ],
+  "hm": 22,
+  "lead_bylined": true,
+  "op_blocks": [
+   70
+  ],
+  "ops": [
+   "majority"
+  ],
+  "residual": 0,
+  "status": "valid",
+  "summary": 0,
+  "syllabus": 0
+ },
+ "ca6/charles_klein_jr._v._usps": {
+  "attorneys": 0,
+  "criteria": [
+   "decision_date",
+   "docket_number",
+   "judges",
+   "lower_court",
+   "parties",
+   "publication_status"
+  ],
+  "hm": 21,
+  "lead_bylined": true,
+  "op_blocks": [
+   38
+  ],
+  "ops": [
+   "majority"
+  ],
+  "residual": 0,
+  "status": "valid",
+  "summary": 0,
+  "syllabus": 0
+ },
+ "ca6/darin_newson_v._nyx_llc": {
+  "attorneys": 0,
+  "criteria": [
+   "docket_number",
+   "judges",
+   "lower_court",
+   "parties",
+   "publication_status"
+  ],
+  "hm": 7,
+  "lead_bylined": true,
+  "op_blocks": [
+   44
+  ],
+  "ops": [
+   "majority"
+  ],
+  "residual": 0,
+  "status": "valid",
+  "summary": 0,
+  "syllabus": 0
+ },
+ "ca6/david_smith_v._cynthia_davis": {
+  "attorneys": 0,
+  "criteria": [
+   "disposition",
+   "docket_number",
+   "judges",
+   "lower_court",
+   "parties",
+   "publication_status"
+  ],
+  "hm": 9,
+  "lead_bylined": true,
+  "op_blocks": [
+   55,
+   2
+  ],
+  "ops": [
+   "majority",
+   "dissent"
+  ],
+  "residual": 0,
+  "status": "valid",
+  "summary": 0,
+  "syllabus": 0
+ },
+ "ca6/demond_liles_v._v._michael_fisher": {
+  "attorneys": 0,
+  "criteria": [
+   "docket_number",
+   "judges",
+   "lower_court",
+   "parties",
+   "publication_status"
+  ],
+  "hm": 23,
+  "lead_bylined": true,
+  "op_blocks": [
+   47
+  ],
+  "ops": [
+   "majority"
+  ],
+  "residual": 0,
+  "status": "valid",
+  "summary": 0,
+  "syllabus": 0
+ },
+ "ca6/derek_block_v._james_canepa": {
+  "attorneys": 0,
+  "criteria": [
+   "decision_date",
+   "docket_number",
+   "judges",
+   "lower_court",
+   "parties",
+   "publication_status"
+  ],
+  "hm": 28,
+  "lead_bylined": true,
+  "op_blocks": [
+   89
+  ],
+  "ops": [
+   "majority"
+  ],
+  "residual": 0,
+  "status": "valid",
+  "summary": 0,
+  "syllabus": 0
+ },
+ "ca6/isidro_ramos-ramos_v._todd_blanche": {
+  "attorneys": 0,
+  "criteria": [
+   "docket_number",
+   "judges",
+   "lower_court",
+   "parties",
+   "publication_status"
+  ],
+  "hm": 7,
+  "lead_bylined": true,
+  "op_blocks": [
+   13
+  ],
+  "ops": [
+   "majority"
+  ],
+  "residual": 0,
+  "status": "valid",
+  "summary": 0,
+  "syllabus": 0
+ },
+ "ca6/jessica_clippinger_v._state_farm_auto._ins._co.": {
+  "attorneys": 0,
+  "criteria": [
+   "decision_date",
+   "disposition",
+   "docket_number",
+   "judges",
+   "lower_court",
+   "parties",
+   "publication_status"
+  ],
+  "hm": 36,
+  "lead_bylined": true,
+  "op_blocks": [
+   54,
+   43,
+   46
+  ],
+  "ops": [
+   "majority",
+   "concurrence",
+   "dissent"
+  ],
+  "residual": 0,
+  "status": "valid",
+  "summary": 0,
+  "syllabus": 0
+ },
+ "ca6/joseph_fischer_v._karen_thomas": {
+  "attorneys": 0,
+  "criteria": [
+   "decision_date",
+   "disposition",
+   "docket_number",
+   "judges",
+   "lower_court",
+   "parties",
+   "publication_status"
+  ],
+  "hm": 28,
+  "lead_bylined": true,
+  "op_blocks": [
+   59,
+   18
+  ],
+  "ops": [
+   "majority",
+   "concurring-in-part-and-dissenting-in-part"
+  ],
+  "residual": 0,
+  "status": "valid",
+  "summary": 0,
+  "syllabus": 0
+ },
+ "ca6/juan_sanchez_alvarez_v._markwayne_mullin": {
+  "attorneys": 0,
+  "criteria": [
+   "decision_date",
+   "disposition",
+   "docket_number",
+   "judges",
+   "lower_court",
+   "parties",
+   "publication_status"
+  ],
+  "hm": 40,
+  "lead_bylined": true,
+  "op_blocks": [
+   94,
+   128
+  ],
+  "ops": [
+   "majority",
+   "dissent"
+  ],
+  "residual": 0,
+  "status": "valid",
+  "summary": 0,
+  "syllabus": 0
+ },
+ "ca6/nathan_roberts_v._progressive_preferred_ins._co.": {
+  "attorneys": 0,
+  "criteria": [
+   "decision_date",
+   "disposition",
+   "docket_number",
+   "judges",
+   "lower_court",
+   "parties",
+   "publication_status"
+  ],
+  "hm": 26,
+  "lead_bylined": false,
+  "op_blocks": [
+   5,
+   40,
+   9
+  ],
+  "ops": [
+   "order",
+   "dissent",
+   "dissent"
+  ],
+  "residual": 0,
+  "status": "valid",
+  "summary": 0,
+  "syllabus": 0
+ },
+ "ca6/texas_assn_of_bus._v._fcc": {
+  "attorneys": 0,
+  "criteria": [
+   "decision_date",
+   "docket_number",
+   "judges",
+   "lower_court",
+   "parties",
+   "publication_status"
+  ],
+  "hm": 27,
+  "lead_bylined": false,
+  "op_blocks": [
+   6
+  ],
+  "ops": [
+   "order"
+  ],
+  "residual": 0,
+  "status": "valid",
+  "summary": 0,
+  "syllabus": 0
+ },
+ "ca6/united_states_v._jerry_baker": {
+  "attorneys": 0,
+  "criteria": [
+   "docket_number",
+   "judges",
+   "lower_court",
+   "parties",
+   "publication_status"
+  ],
+  "hm": 7,
+  "lead_bylined": true,
+  "op_blocks": [
+   34
+  ],
+  "ops": [
+   "majority"
+  ],
+  "residual": 0,
+  "status": "valid",
+  "summary": 0,
+  "syllabus": 0
+ },
+ "ca8/abigail_farella_v._district_judge_a.j._anglin": {
+  "attorneys": 0,
+  "criteria": [
+   "decision_date",
+   "docket_number",
+   "judges",
+   "lower_court",
+   "parties",
+   "submitted"
+  ],
+  "hm": 33,
+  "lead_bylined": true,
+  "op_blocks": [
+   21
+  ],
+  "ops": [
+   "majority"
+  ],
+  "residual": 0,
+  "status": "valid",
+  "summary": 0,
+  "syllabus": 0
+ },
+ "ca8/ana_ponce-lopez_v._todd_blanche": {
+  "attorneys": 0,
+  "criteria": [
+   "decision_date",
+   "docket_number",
+   "judges",
+   "lower_court",
+   "parties",
+   "publication_status",
+   "submitted"
+  ],
+  "hm": 20,
+  "lead_bylined": true,
+  "op_blocks": [
+   3
+  ],
+  "ops": [
+   "per-curiam"
+  ],
+  "residual": 0,
+  "status": "valid",
+  "summary": 0,
+  "syllabus": 0
+ },
+ "ca8/angela_kendall_v._zoltek_corporation": {
+  "attorneys": 0,
+  "criteria": [
+   "decision_date",
+   "docket_number",
+   "judges",
+   "lower_court",
+   "parties",
+   "submitted"
+  ],
+  "hm": 19,
+  "lead_bylined": true,
+  "op_blocks": [
+   42
+  ],
+  "ops": [
+   "majority"
+  ],
+  "residual": 0,
+  "status": "valid",
+  "summary": 0,
+  "syllabus": 0
+ },
+ "ca8/boechler_p.c._v._cir": {
+  "attorneys": 0,
+  "criteria": [
+   "decision_date",
+   "docket_number",
+   "judges",
+   "lower_court",
+   "parties",
+   "publication_status",
+   "submitted"
+  ],
+  "hm": 19,
+  "lead_bylined": true,
+  "op_blocks": [
+   14
+  ],
+  "ops": [
+   "per-curiam"
+  ],
+  "residual": 0,
+  "status": "valid",
+  "summary": 0,
+  "syllabus": 0
+ },
+ "ca8/kyle_hane_v._city_of_cedar_rapids": {
+  "attorneys": 0,
+  "criteria": [
+   "decision_date",
+   "docket_number",
+   "judges",
+   "lower_court",
+   "parties",
+   "publication_status",
+   "submitted"
+  ],
+  "hm": 31,
+  "lead_bylined": true,
+  "op_blocks": [
+   1
+  ],
+  "ops": [
+   "per-curiam"
+  ],
+  "residual": 0,
+  "status": "valid",
+  "summary": 0,
+  "syllabus": 0
+ },
+ "ca8/leticia_roberts_v._tony_thompson": {
+  "attorneys": 0,
+  "criteria": [
+   "decision_date",
+   "docket_number",
+   "judges",
+   "lower_court",
+   "parties",
+   "submitted"
+  ],
+  "hm": 24,
+  "lead_bylined": true,
+  "op_blocks": [
+   26
+  ],
+  "ops": [
+   "majority"
+  ],
+  "residual": 0,
+  "status": "valid",
+  "summary": 0,
+  "syllabus": 0
+ },
+ "ca8/minnesota_telecom_alliance_v._fcc": {
+  "attorneys": 0,
+  "criteria": [
+   "decision_date",
+   "docket_number",
+   "judges",
+   "lower_court",
+   "parties",
+   "submitted"
+  ],
+  "hm": 421,
+  "lead_bylined": true,
+  "op_blocks": [
+   89
+  ],
+  "ops": [
+   "majority"
+  ],
+  "residual": 0,
+  "status": "valid",
+  "summary": 0,
+  "syllabus": 0
+ },
+ "ca8/rustico_lacsina_v._todd_blanche": {
+  "attorneys": 0,
+  "criteria": [
+   "decision_date",
+   "docket_number",
+   "judges",
+   "lower_court",
+   "parties",
+   "submitted"
+  ],
+  "hm": 27,
+  "lead_bylined": true,
+  "op_blocks": [
+   26
+  ],
+  "ops": [
+   "majority"
+  ],
+  "residual": 0,
+  "status": "valid",
+  "summary": 0,
+  "syllabus": 0
+ },
+ "ca8/united_states_v._bailey_belt": {
+  "attorneys": 0,
+  "criteria": [
+   "decision_date",
+   "docket_number",
+   "judges",
+   "lower_court",
+   "parties",
+   "submitted"
+  ],
+  "hm": 27,
+  "lead_bylined": true,
+  "op_blocks": [
+   23,
+   12
+  ],
+  "ops": [
+   "majority",
+   "dissent"
+  ],
+  "residual": 0,
+  "status": "valid",
+  "summary": 0,
+  "syllabus": 0
+ },
+ "ca9/3pak_llc_v._city_of_seattle": {
+  "attorneys": 0,
+  "criteria": [
+   "decision_date",
+   "disposition",
+   "docket_number",
+   "judges",
+   "lower_court",
+   "parties",
+   "publication_status",
+   "submitted"
+  ],
+  "hm": 25,
+  "lead_bylined": true,
+  "op_blocks": [
+   66
+  ],
+  "ops": [
+   "majority"
+  ],
+  "residual": 0,
+  "status": "valid",
+  "summary": 8,
+  "syllabus": 0
+ },
+ "ca9/alfredo_silva-palomares_v._todd_blanche": {
+  "attorneys": 0,
+  "criteria": [
+   "disposition",
+   "docket_number",
+   "judges",
+   "lower_court",
+   "parties",
+   "publication_status",
+   "submitted"
+  ],
+  "hm": 12,
+  "lead_bylined": false,
+  "op_blocks": [
+   9
+  ],
+  "ops": [
+   "majority"
+  ],
+  "residual": 0,
+  "status": "valid",
+  "summary": 0,
+  "syllabus": 0
+ },
+ "ca9/arellano_martinez_v._blanche": {
+  "attorneys": 0,
+  "criteria": [
+   "disposition",
+   "docket_number",
+   "judges",
+   "parties",
+   "publication_status"
+  ],
+  "hm": 11,
+  "lead_bylined": false,
+  "op_blocks": [
+   1,
+   18
+  ],
+  "ops": [
+   "order",
+   "order"
+  ],
+  "residual": 0,
+  "status": "valid",
+  "summary": 0,
+  "syllabus": 0
+ },
+ "ca9/christopher_calise_v._meta_platforms_inc.": {
+  "attorneys": 0,
+  "criteria": [
+   "decision_date",
+   "disposition",
+   "docket_number",
+   "judges",
+   "lower_court",
+   "parties",
+   "publication_status",
+   "submitted"
+  ],
+  "hm": 24,
+  "lead_bylined": true,
+  "op_blocks": [
+   77,
+   7
+  ],
+  "ops": [
+   "majority",
+   "concurrence"
+  ],
+  "residual": 0,
+  "status": "valid",
+  "summary": 9,
+  "syllabus": 0
+ },
+ "ca9/devas_multimedia_private_ltd._v._antrix_corp._ltd._1": {
+  "attorneys": 0,
+  "criteria": [
+   "disposition",
+   "docket_number",
+   "judges",
+   "lower_court",
+   "parties",
+   "publication_status",
+   "submitted"
+  ],
+  "hm": 21,
+  "lead_bylined": false,
+  "op_blocks": [
+   21
+  ],
+  "ops": [
+   "majority"
+  ],
+  "residual": 0,
+  "status": "valid",
+  "summary": 0,
+  "syllabus": 0
+ },
+ "ca9/dickinson_v._trump": {
+  "attorneys": 0,
+  "criteria": [
+   "docket_number",
+   "judges",
+   "parties",
+   "publication_status"
+  ],
+  "hm": 7,
+  "lead_bylined": true,
+  "op_blocks": [
+   160
+  ],
+  "ops": [
+   "majority"
+  ],
+  "residual": 0,
+  "status": "valid",
+  "summary": 0,
+  "syllabus": 0
+ },
+ "ca9/hanan_v._united_states_citizenship_and_immigration_services": {
+  "attorneys": 0,
+  "criteria": [
+   "decision_date",
+   "disposition",
+   "docket_number",
+   "judges",
+   "lower_court",
+   "parties",
+   "publication_status",
+   "submitted"
+  ],
+  "hm": 25,
+  "lead_bylined": true,
+  "op_blocks": [
+   90
+  ],
+  "ops": [
+   "majority"
+  ],
+  "residual": 0,
+  "status": "valid",
+  "summary": 9,
+  "syllabus": 0
+ },
+ "ca9/mercer_global_advisors_inc._v._hewitt": {
+  "attorneys": 0,
+  "criteria": [
+   "disposition",
+   "docket_number",
+   "judges",
+   "lower_court",
+   "parties",
+   "publication_status",
+   "submitted"
+  ],
+  "hm": 13,
+  "lead_bylined": false,
+  "op_blocks": [
+   8
+  ],
+  "ops": [
+   "majority"
+  ],
+  "residual": 0,
+  "status": "valid",
+  "summary": 0,
+  "syllabus": 0
+ },
+ "ca9/michael_ray_hogan_v._jeremy_bean": {
+  "attorneys": 0,
+  "criteria": [
+   "docket_number",
+   "judges",
+   "parties",
+   "publication_status"
+  ],
+  "hm": 7,
+  "lead_bylined": false,
+  "op_blocks": [
+   1
+  ],
+  "ops": [
+   "order"
+  ],
+  "residual": 0,
+  "status": "valid",
+  "summary": 0,
+  "syllabus": 0
+ },
+ "ca9/reges_v._cauce": {
+  "attorneys": 0,
+  "criteria": [
+   "decision_date",
+   "disposition",
+   "docket_number",
+   "judges",
+   "lower_court",
+   "parties",
+   "publication_status",
+   "submitted"
+  ],
+  "hm": 63,
+  "lead_bylined": true,
+  "op_blocks": [
+   182,
+   34
+  ],
+  "ops": [
+   "majority",
+   "concurring-in-part-and-dissenting-in-part"
+  ],
+  "residual": 0,
+  "status": "valid",
+  "summary": 10,
+  "syllabus": 0
+ },
+ "ca9/state_of_colorado_v._meta_platforms_inc.": {
+  "attorneys": 0,
+  "criteria": [
+   "disposition",
+   "docket_number",
+   "judges",
+   "lower_court",
+   "parties",
+   "publication_status",
+   "submitted"
+  ],
+  "hm": 47,
+  "lead_bylined": true,
+  "op_blocks": [
+   50
+  ],
+  "ops": [
+   "majority"
+  ],
+  "residual": 0,
+  "status": "valid",
+  "summary": 0,
+  "syllabus": 0
+ },
+ "ca9/united_states_v._tekola": {
+  "attorneys": 0,
+  "criteria": [
+   "decision_date",
+   "docket_number",
+   "judges",
+   "lower_court",
+   "parties",
+   "publication_status",
+   "submitted"
+  ],
+  "hm": 17,
+  "lead_bylined": false,
+  "op_blocks": [
+   23,
+   30
+  ],
+  "ops": [
+   "majority",
+   "majority"
+  ],
+  "residual": 0,
+  "status": "valid",
+  "summary": 2,
+  "syllabus": 0
+ },
+ "ca9/vericool_world_llc_v._igloo_products_corp.": {
+  "attorneys": 0,
+  "criteria": [
+   "decision_date",
+   "disposition",
+   "docket_number",
+   "judges",
+   "lower_court",
+   "parties",
+   "publication_status",
+   "submitted"
+  ],
+  "hm": 27,
+  "lead_bylined": true,
+  "op_blocks": [
+   78,
+   54
+  ],
+  "ops": [
+   "majority",
+   "dissent"
+  ],
+  "residual": 0,
+  "status": "valid",
+  "summary": 8,
+  "syllabus": 0
+ },
+ "ca9/williams_v._legacy_health": {
+  "attorneys": 0,
+  "criteria": [
+   "decision_date",
+   "disposition",
+   "docket_number",
+   "judges",
+   "lower_court",
+   "parties",
+   "publication_status",
+   "submitted"
+  ],
+  "hm": 24,
+  "lead_bylined": true,
+  "op_blocks": [
+   30
+  ],
+  "ops": [
+   "majority"
+  ],
+  "residual": 0,
+  "status": "valid",
+  "summary": 5,
+  "syllabus": 0
+ },
+ "ca9/yurok_tribe_v._usepa": {
+  "attorneys": 0,
+  "criteria": [
+   "decision_date",
+   "docket_number",
+   "judges",
+   "lower_court",
+   "parties",
+   "publication_status",
+   "submitted"
+  ],
+  "hm": 40,
+  "lead_bylined": true,
+  "op_blocks": [
+   70
+  ],
+  "ops": [
+   "majority"
+  ],
+  "residual": 0,
+  "status": "valid",
+  "summary": 8,
+  "syllabus": 0
+ },
+ "cadc/accuracy_in_media_v._dod": {
+  "attorneys": 0,
+  "criteria": [
+   "decision_date",
+   "docket_number",
+   "judges",
+   "lower_court",
+   "parties"
+  ],
+  "hm": 22,
+  "lead_bylined": true,
+  "op_blocks": [
+   42
+  ],
+  "ops": [
+   "per-curiam"
+  ],
+  "residual": 0,
+  "status": "valid",
+  "summary": 0,
+  "syllabus": 0
+ },
+ "cadc/adele_ruppe_v._marco_rubio": {
+  "attorneys": 0,
+  "criteria": [
+   "decision_date",
+   "disposition",
+   "docket_number",
+   "judges",
+   "lower_court",
+   "parties"
+  ],
+  "hm": 25,
+  "lead_bylined": true,
+  "op_blocks": [
+   41
+  ],
+  "ops": [
+   "majority"
+  ],
+  "residual": 0,
+  "status": "valid",
+  "summary": 0,
+  "syllabus": 0
+ },
+ "cadc/advanced_energy_united_v._ferc": {
+  "attorneys": 0,
+  "criteria": [
+   "decision_date",
+   "disposition",
+   "docket_number",
+   "judges",
+   "lower_court",
+   "parties"
+  ],
+  "hm": 49,
+  "lead_bylined": true,
+  "op_blocks": [
+   301
+  ],
+  "ops": [
+   "per-curiam"
+  ],
+  "residual": 0,
+  "status": "valid",
+  "summary": 0,
+  "syllabus": 0
+ },
+ "cadc/anthropic_pbc_v._united_states_department_of_war": {
+  "attorneys": 0,
+  "criteria": [
+   "decision_date",
+   "docket_number",
+   "judges",
+   "parties"
+  ],
+  "hm": 14,
+  "lead_bylined": false,
+  "op_blocks": [
+   24,
+   27
+  ],
+  "ops": [
+   "order",
+   "per-curiam"
+  ],
+  "residual": 0,
+  "status": "valid",
+  "summary": 0,
+  "syllabus": 0
+ },
+ "cadc/city_utilities_of_springfield_missouri_v._ferc": {
+  "attorneys": 0,
+  "criteria": [
+   "decision_date",
+   "disposition",
+   "docket_number",
+   "judges",
+   "lower_court",
+   "parties"
+  ],
+  "hm": 36,
+  "lead_bylined": true,
+  "op_blocks": [
+   64
+  ],
+  "ops": [
+   "majority"
+  ],
+  "residual": 0,
+  "status": "valid",
+  "summary": 0,
+  "syllabus": 0
+ },
+ "cadc/in_re_donald_trump": {
+  "attorneys": 0,
+  "criteria": [
+   "decision_date",
+   "disposition",
+   "docket_number",
+   "judges",
+   "lower_court",
+   "parties"
+  ],
+  "hm": 27,
+  "lead_bylined": true,
+  "op_blocks": [
+   88,
+   37,
+   241
+  ],
+  "ops": [
+   "majority",
+   "concurrence",
+   "dissent"
+  ],
+  "residual": 0,
+  "status": "valid",
+  "summary": 0,
+  "syllabus": 0
+ },
+ "cadc/np_red_rock_llc_v._nlrb": {
+  "attorneys": 0,
+  "criteria": [
+   "decision_date",
+   "docket_number",
+   "judges",
+   "lower_court",
+   "parties"
+  ],
+  "hm": 19,
+  "lead_bylined": true,
+  "op_blocks": [
+   44
+  ],
+  "ops": [
+   "per-curiam"
+  ],
+  "residual": 0,
+  "status": "valid",
+  "summary": 0,
+  "syllabus": 0
+ },
+ "cadc/patsy_widakuswara_v._kari_lake": {
+  "attorneys": 0,
+  "criteria": [
+   "decision_date",
+   "docket_number",
+   "judges",
+   "parties"
+  ],
+  "hm": 40,
+  "lead_bylined": true,
+  "op_blocks": [
+   11
+  ],
+  "ops": [
+   "per-curiam"
+  ],
+  "residual": 0,
+  "status": "valid",
+  "summary": 0,
+  "syllabus": 0
+ },
+ "cadc/timothy_petrozzi_v._muriel_bowser": {
+  "attorneys": 0,
+  "criteria": [
+   "decision_date",
+   "docket_number",
+   "judges",
+   "lower_court",
+   "parties"
+  ],
+  "hm": 14,
+  "lead_bylined": true,
+  "op_blocks": [
+   10
+  ],
+  "ops": [
+   "per-curiam"
+  ],
+  "residual": 0,
+  "status": "valid",
+  "summary": 0,
+  "syllabus": 0
+ },
+ "cadc/vermont_information_processing_inc._v._nlrb_adopted_proposed_judgment": {
+  "attorneys": 0,
+  "criteria": [
+   "docket_number",
+   "judges",
+   "parties"
+  ],
+  "hm": 8,
+  "lead_bylined": true,
+  "op_blocks": [
+   63
+  ],
+  "ops": [
+   "order"
+  ],
+  "residual": 0,
+  "status": "scanned",
+  "summary": 0,
+  "syllabus": 0
+ },
+ "cafc/a.l.m._holding_company_v._zydex_industries_private_ltd.": {
+  "attorneys": 0,
+  "criteria": [
+   "decision_date",
+   "disposition",
+   "docket_number",
+   "judges",
+   "lower_court",
+   "parties"
+  ],
+  "hm": 27,
+  "lead_bylined": true,
+  "op_blocks": [
+   49
+  ],
+  "ops": [
+   "majority"
+  ],
+  "residual": 0,
+  "status": "valid",
+  "summary": 0,
+  "syllabus": 0
+ },
+ "cafc/apple_inc._v._itc": {
+  "attorneys": 0,
+  "criteria": [
+   "decision_date",
+   "disposition",
+   "docket_number",
+   "judges",
+   "lower_court",
+   "parties"
+  ],
+  "hm": 35,
+  "lead_bylined": true,
+  "op_blocks": [
+   132
+  ],
+  "ops": [
+   "majority"
+  ],
+  "residual": 0,
+  "status": "valid",
+  "summary": 0,
+  "syllabus": 0
+ },
+ "cafc/bissell_inc._v._itc": {
+  "attorneys": 0,
+  "criteria": [
+   "decision_date",
+   "disposition",
+   "docket_number",
+   "judges",
+   "lower_court",
+   "parties"
+  ],
+  "hm": 49,
+  "lead_bylined": true,
+  "op_blocks": [
+   52
+  ],
+  "ops": [
+   "majority"
+  ],
+  "residual": 0,
+  "status": "scanned",
+  "summary": 0,
+  "syllabus": 0
+ },
+ "cafc/bradley_v._united_states": {
+  "attorneys": 0,
+  "criteria": [
+   "docket_number",
+   "judges",
+   "lower_court",
+   "parties",
+   "publication_status"
+  ],
+  "hm": 26,
+  "lead_bylined": false,
+  "op_blocks": [
+   8
+  ],
+  "ops": [
+   "order"
+  ],
+  "residual": 0,
+  "status": "valid",
+  "summary": 0,
+  "syllabus": 0
+ },
+ "cafc/burns_v._dhs": {
+  "attorneys": 0,
+  "criteria": [
+   "docket_number",
+   "lower_court",
+   "parties",
+   "publication_status"
+  ],
+  "hm": 26,
+  "lead_bylined": true,
+  "op_blocks": [
+   8
+  ],
+  "ops": [
+   "per-curiam"
+  ],
+  "residual": 0,
+  "status": "valid",
+  "summary": 0,
+  "syllabus": 0
+ },
+ "cafc/cantu_v._collins": {
+  "attorneys": 0,
+  "criteria": [
+   "decision_date",
+   "disposition",
+   "docket_number",
+   "judges",
+   "lower_court",
+   "parties",
+   "publication_status"
+  ],
+  "hm": 25,
+  "lead_bylined": true,
+  "op_blocks": [
+   14
+  ],
+  "ops": [
+   "per-curiam"
+  ],
+  "residual": 0,
+  "status": "valid",
+  "summary": 0,
+  "syllabus": 0
+ },
+ "cafc/davis_v._collins": {
+  "attorneys": 0,
+  "criteria": [
+   "decision_date",
+   "docket_number",
+   "judges",
+   "lower_court",
+   "parties"
+  ],
+  "hm": 30,
+  "lead_bylined": true,
+  "op_blocks": [
+   39
+  ],
+  "ops": [
+   "majority"
+  ],
+  "residual": 0,
+  "status": "valid",
+  "summary": 0,
+  "syllabus": 0
+ },
+ "cafc/guttenberg_v._dhs": {
+  "attorneys": 0,
+  "criteria": [
+   "decision_date",
+   "docket_number",
+   "parties",
+   "publication_status"
+  ],
+  "hm": 16,
+  "lead_bylined": false,
+  "op_blocks": [
+   2
+  ],
+  "ops": [
+   "order"
+  ],
+  "residual": 0,
+  "status": "valid",
+  "summary": 0,
+  "syllabus": 0
+ },
+ "cafc/hepler_v._collins": {
+  "attorneys": 0,
+  "criteria": [
+   "disposition",
+   "judges",
+   "parties"
+  ],
+  "hm": 2,
+  "lead_bylined": true,
+  "op_blocks": [
+   32
+  ],
+  "ops": [
+   "majority"
+  ],
+  "residual": 0,
+  "status": "scanned",
+  "summary": 0,
+  "syllabus": 0
+ },
+ "cafc/in_re_byrd": {
+  "attorneys": 0,
+  "criteria": [
+   "docket_number",
+   "judges",
+   "lower_court",
+   "parties",
+   "publication_status"
+  ],
+  "hm": 27,
+  "lead_bylined": true,
+  "op_blocks": [
+   10
+  ],
+  "ops": [
+   "per-curiam"
+  ],
+  "residual": 0,
+  "status": "valid",
+  "summary": 0,
+  "syllabus": 0
+ },
+ "cafc/in_re_us": {
+  "attorneys": 0,
+  "criteria": [
+   "docket_number",
+   "lower_court",
+   "parties",
+   "publication_status"
+  ],
+  "hm": 12,
+  "lead_bylined": false,
+  "op_blocks": [
+   7
+  ],
+  "ops": [
+   "order"
+  ],
+  "residual": 0,
+  "status": "valid",
+  "summary": 0,
+  "syllabus": 0
+ },
+ "cafc/range_of_motion_products_llc_v._armaid_company_inc.": {
+  "attorneys": 0,
+  "criteria": [
+   "docket_number",
+   "judges",
+   "lower_court",
+   "parties"
+  ],
+  "hm": 32,
+  "lead_bylined": true,
+  "op_blocks": [
+   17,
+   31,
+   53
+  ],
+  "ops": [
+   "per-curiam",
+   "concurrence",
+   "dissent"
+  ],
+  "residual": 0,
+  "status": "valid",
+  "summary": 0,
+  "syllabus": 0
+ },
+ "cal/in_re_kowalczyk": {
+  "attorneys": 0,
+  "criteria": [
+   "decision_date",
+   "docket_number",
+   "judges",
+   "lower_court",
+   "parties"
+  ],
+  "hm": 16,
+  "lead_bylined": true,
+  "op_blocks": [
+   110,
+   30,
+   38
+  ],
+  "ops": [
+   "majority",
+   "concurrence",
+   "concurrence"
+  ],
+  "residual": 0,
+  "status": "valid",
+  "summary": 0,
+  "syllabus": 0
+ },
+ "cal/in_re_spielbauer": {
+  "attorneys": 0,
+  "criteria": [
+   "decision_date",
+   "docket_number",
+   "judges",
+   "lower_court",
+   "parties"
+  ],
+  "hm": 10,
+  "lead_bylined": true,
+  "op_blocks": [
+   154
+  ],
+  "ops": [
+   "majority"
+  ],
+  "residual": 0,
+  "status": "valid",
+  "summary": 0,
+  "syllabus": 0
+ },
+ "cal/in_re_z.g.": {
+  "attorneys": 16,
+  "criteria": [
+   "decision_date",
+   "docket_number",
+   "judges",
+   "lower_court",
+   "parties"
+  ],
+  "hm": 21,
+  "lead_bylined": true,
+  "op_blocks": [
+   95
+  ],
+  "ops": [
+   "majority"
+  ],
+  "residual": 0,
+  "status": "valid",
+  "summary": 0,
+  "syllabus": 0
+ },
+ "cal/people_v._deen": {
+  "attorneys": 21,
+  "criteria": [
+   "decision_date",
+   "docket_number",
+   "judges",
+   "lower_court",
+   "parties"
+  ],
+  "hm": 16,
+  "lead_bylined": true,
+  "op_blocks": [
+   97,
+   17
+  ],
+  "ops": [
+   "majority",
+   "concurrence"
+  ],
+  "residual": 0,
+  "status": "valid",
+  "summary": 0,
+  "syllabus": 0
+ },
+ "cal/people_v._sanmiguel": {
+  "attorneys": 25,
+  "criteria": [
+   "decision_date",
+   "docket_number",
+   "judges",
+   "lower_court",
+   "parties"
+  ],
+  "hm": 16,
+  "lead_bylined": true,
+  "op_blocks": [
+   128
+  ],
+  "ops": [
+   "majority"
+  ],
+  "residual": 0,
+  "status": "valid",
+  "summary": 0,
+  "syllabus": 0
+ },
+ "cal/shear_development_co._llc_v._cal._coastal_com.": {
+  "attorneys": 30,
+  "criteria": [
+   "docket_number",
+   "lower_court",
+   "parties"
+  ],
+  "hm": 13,
+  "lead_bylined": true,
+  "op_blocks": [
+   14,
+   165
+  ],
+  "ops": [
+   "majority",
+   "majority"
+  ],
+  "residual": 0,
+  "status": "valid",
+  "summary": 0,
+  "syllabus": 0
+ },
+ "calctapp/aqualliance_v._vina_groundwater_sustainability_agency": {
+  "attorneys": 0,
+  "criteria": [
+   "disposition",
+   "docket_number",
+   "lower_court",
+   "parties",
+   "publication_status"
+  ],
+  "hm": 15,
+  "lead_bylined": true,
+  "op_blocks": [
+   109
+  ],
+  "ops": [
+   "majority"
+  ],
+  "residual": 0,
+  "status": "valid",
+  "summary": 0,
+  "syllabus": 0
+ },
+ "calctapp/citizens_against_marketplace_etc._v._city_of_san_ramon": {
+  "attorneys": 0,
+  "criteria": [
+   "decision_date",
+   "disposition",
+   "docket_number",
+   "parties",
+   "publication_status"
+  ],
+  "hm": 513,
+  "lead_bylined": false,
+  "op_blocks": [
+   8,
+   8,
+   8
+  ],
+  "ops": [
+   "order",
+   "majority",
+   "majority"
+  ],
+  "residual": 0,
+  "status": "valid",
+  "summary": 0,
+  "syllabus": 0
+ },
+ "conn/amadasun_v._armstrong_town_clerk_of_south_windsor": {
+  "attorneys": 0,
+  "criteria": [
+   "decision_date",
+   "docket_number",
+   "submitted"
+  ],
+  "hm": 12,
+  "lead_bylined": true,
+  "op_blocks": [
+   24
+  ],
+  "ops": [
+   "majority"
+  ],
+  "residual": 0,
+  "status": "valid",
+  "summary": 0,
+  "syllabus": 8
+ },
+ "conn/state_v._anthony_v._1": {
+  "attorneys": 0,
+  "criteria": [
+   "docket_number",
+   "parties"
+  ],
+  "hm": 18,
+  "lead_bylined": true,
+  "op_blocks": [
+   43
+  ],
+  "ops": [
+   "majority"
+  ],
+  "residual": 0,
+  "status": "valid",
+  "summary": 0,
+  "syllabus": 3
+ },
+ "del/acw_corporation_v._maxwell": {
+  "attorneys": 0,
+  "criteria": [
+   "decision_date",
+   "docket_number",
+   "parties"
+  ],
+  "hm": 13,
+  "lead_bylined": true,
+  "op_blocks": [
+   35
+  ],
+  "ops": [
+   "majority"
+  ],
+  "residual": 0,
+  "status": "valid",
+  "summary": 0,
+  "syllabus": 0
+ },
+ "del/boulden_v._state": {
+  "attorneys": 0,
+  "criteria": [
+   "decision_date",
+   "docket_number",
+   "judges",
+   "parties"
+  ],
+  "hm": 6,
+  "lead_bylined": true,
+  "op_blocks": [
+   16
+  ],
+  "ops": [
+   "order"
+  ],
+  "residual": 0,
+  "status": "valid",
+  "summary": 0,
+  "syllabus": 0
+ },
+ "del/peoples_tristan_v._lauren_wallace": {
+  "attorneys": 0,
+  "criteria": [],
+  "hm": 1,
+  "lead_bylined": true,
+  "op_blocks": [
+   25
+  ],
+  "ops": [
+   "order"
+  ],
+  "residual": 0,
+  "status": "valid",
+  "summary": 0,
+  "syllabus": 0
+ },
+ "fla/andrew_richard_lukehart_v._state_of_florida": {
+  "attorneys": 9,
+  "criteria": [
+   "decision_date",
+   "docket_number",
+   "parties"
+  ],
+  "hm": 10,
+  "lead_bylined": true,
+  "op_blocks": [
+   49
+  ],
+  "ops": [
+   "per-curiam"
+  ],
+  "residual": 0,
+  "status": "valid",
+  "summary": 0,
+  "syllabus": 0
+ },
+ "fla/in_re_amendments_to_rules_regulating_the_florida_bar_and_rules_of_the": {
+  "attorneys": 0,
+  "criteria": [
+   "decision_date",
+   "docket_number",
+   "parties"
+  ],
+  "hm": 8,
+  "lead_bylined": true,
+  "op_blocks": [
+   20,
+   102
+  ],
+  "ops": [
+   "per-curiam",
+   "dissent"
+  ],
+  "residual": 0,
+  "status": "valid",
+  "summary": 0,
+  "syllabus": 0
+ },
+ "fla/marcus_roland_maye_v._state_of_florida": {
+  "attorneys": 19,
+  "criteria": [
+   "decision_date",
+   "docket_number",
+   "parties"
+  ],
+  "hm": 11,
+  "lead_bylined": true,
+  "op_blocks": [
+   29,
+   19,
+   9,
+   72
+  ],
+  "ops": [
+   "majority",
+   "majority",
+   "concurrence",
+   "dissent"
+  ],
+  "residual": 0,
+  "status": "valid",
+  "summary": 0,
+  "syllabus": 0
+ },
+ "fla/state_attorneys_for_the_second_seventh_and_ninth_judicial_circuits_v.": {
+  "attorneys": 39,
+  "criteria": [
+   "decision_date",
+   "docket_number",
+   "parties"
+  ],
+  "hm": 35,
+  "lead_bylined": true,
+  "op_blocks": [
+   62,
+   3,
+   24
+  ],
+  "ops": [
+   "majority",
+   "dissent",
+   "dissent"
+  ],
+  "residual": 0,
+  "status": "valid",
+  "summary": 0,
+  "syllabus": 0
+ },
+ "fla/the_florida_bar_v._kenneth_chesebro": {
+  "attorneys": 0,
+  "criteria": [
+   "decision_date",
+   "docket_number",
+   "parties"
+  ],
+  "hm": 4,
+  "lead_bylined": false,
+  "op_blocks": [
+   10,
+   14
+  ],
+  "ops": [
+   "order",
+   "dissent"
+  ],
+  "residual": 0,
+  "status": "valid",
+  "summary": 0,
+  "syllabus": 0
+ },
+ "fla/walter_javier_arrazola_mendivil_v._the_florida_bar": {
+  "attorneys": 0,
+  "criteria": [
+   "decision_date",
+   "docket_number",
+   "parties"
+  ],
+  "hm": 4,
+  "lead_bylined": false,
+  "op_blocks": [
+   2,
+   8
+  ],
+  "ops": [
+   "order",
+   "concurrence"
+  ],
+  "residual": 0,
+  "status": "valid",
+  "summary": 0,
+  "syllabus": 0
+ },
+ "ga/abebe_v._state": {
+  "attorneys": 0,
+  "criteria": [
+   "decision_date",
+   "docket_number",
+   "lower_court",
+   "parties"
+  ],
+  "hm": 9,
+  "lead_bylined": true,
+  "op_blocks": [
+   20
+  ],
+  "ops": [
+   "majority"
+  ],
+  "residual": 0,
+  "status": "valid",
+  "summary": 0,
+  "syllabus": 0
+ },
+ "ga/bennett_v._the_state_two_cases": {
+  "attorneys": 0,
+  "criteria": [
+   "decision_date",
+   "docket_number",
+   "lower_court",
+   "parties"
+  ],
+  "hm": 14,
+  "lead_bylined": true,
+  "op_blocks": [
+   79
+  ],
+  "ops": [
+   "majority"
+  ],
+  "residual": 0,
+  "status": "valid",
+  "summary": 0,
+  "syllabus": 0
+ },
+ "ga/in_the_matter_of_charles_m._dalziel_jr": {
+  "attorneys": 0,
+  "criteria": [
+   "decision_date",
+   "docket_number",
+   "parties"
+  ],
+  "hm": 5,
+  "lead_bylined": true,
+  "op_blocks": [
+   18
+  ],
+  "ops": [
+   "per-curiam"
+  ],
+  "residual": 0,
+  "status": "valid",
+  "summary": 0,
+  "syllabus": 0
+ },
+ "ga/in_the_matter_of_darryl_j._ferguson": {
+  "attorneys": 0,
+  "criteria": [
+   "decision_date",
+   "docket_number",
+   "parties"
+  ],
+  "hm": 3,
+  "lead_bylined": true,
+  "op_blocks": [
+   60,
+   9
+  ],
+  "ops": [
+   "per-curiam",
+   "dissent"
+  ],
+  "residual": 0,
+  "status": "valid",
+  "summary": 0,
+  "syllabus": 0
+ },
+ "ga/jackson_v._stevenson": {
+  "attorneys": 0,
+  "criteria": [
+   "decision_date",
+   "docket_number",
+   "lower_court",
+   "parties",
+   "submitted"
+  ],
+  "hm": 9,
+  "lead_bylined": true,
+  "op_blocks": [
+   43
+  ],
+  "ops": [
+   "majority"
+  ],
+  "residual": 0,
+  "status": "valid",
+  "summary": 0,
+  "syllabus": 0
+ },
+ "ga/johnson_v._city_of_vidalia": {
+  "attorneys": 0,
+  "criteria": [
+   "decision_date",
+   "docket_number",
+   "parties"
+  ],
+  "hm": 4,
+  "lead_bylined": false,
+  "op_blocks": [
+   5,
+   8
+  ],
+  "ops": [
+   "order",
+   "concurrence"
+  ],
+  "residual": 0,
+  "status": "valid",
+  "summary": 0,
+  "syllabus": 0
+ },
+ "guam/franklin_j._gutierrez_individually_and_as_co-administrator_of_the_estates": {
+  "attorneys": 0,
+  "criteria": [
+   "judges",
+   "lower_court",
+   "parties"
+  ],
+  "hm": 28,
+  "lead_bylined": true,
+  "op_blocks": [
+   68
+  ],
+  "ops": [
+   "majority"
+  ],
+  "residual": 0,
+  "status": "valid",
+  "summary": 0,
+  "syllabus": 0
+ },
+ "haw/akau_v._villareal": {
+  "attorneys": 0,
+  "criteria": [
+   "docket_number",
+   "lower_court",
+   "parties"
+  ],
+  "hm": 16,
+  "lead_bylined": true,
+  "op_blocks": [
+   7
+  ],
+  "ops": [
+   "order"
+  ],
+  "residual": 0,
+  "status": "valid",
+  "summary": 0,
+  "syllabus": 0
+ },
+ "haw/lewis_v._department_of_hawaiian_homelands": {
+  "attorneys": 0,
+  "criteria": [
+   "docket_number",
+   "parties"
+  ],
+  "hm": 8,
+  "lead_bylined": true,
+  "op_blocks": [
+   5
+  ],
+  "ops": [
+   "order"
+  ],
+  "residual": 0,
+  "status": "valid",
+  "summary": 0,
+  "syllabus": 0
+ },
+ "idaho/baiz_v._magistrate_division": {
+  "attorneys": 0,
+  "criteria": [
+   "decision_date",
+   "disposition",
+   "docket_number",
+   "lower_court",
+   "parties"
+  ],
+  "hm": 8,
+  "lead_bylined": true,
+  "op_blocks": [
+   26
+  ],
+  "ops": [
+   "per-curiam"
+  ],
+  "residual": 0,
+  "status": "valid",
+  "summary": 0,
+  "syllabus": 0
+ },
+ "idaho/city_of_idaho_falls_v._idaho_department_of_water_resources": {
+  "attorneys": 0,
+  "criteria": [
+   "decision_date",
+   "disposition",
+   "docket_number",
+   "lower_court",
+   "parties"
+  ],
+  "hm": 18,
+  "lead_bylined": true,
+  "op_blocks": [
+   37
+  ],
+  "ops": [
+   "majority"
+  ],
+  "residual": 0,
+  "status": "valid",
+  "summary": 0,
+  "syllabus": 0
+ },
+ "idaho/estate_of_kalinski_v._murphy_law_office_pllc": {
+  "attorneys": 0,
+  "criteria": [
+   "decision_date",
+   "disposition",
+   "docket_number",
+   "lower_court",
+   "parties"
+  ],
+  "hm": 10,
+  "lead_bylined": true,
+  "op_blocks": [
+   107
+  ],
+  "ops": [
+   "majority"
+  ],
+  "residual": 0,
+  "status": "valid",
+  "summary": 0,
+  "syllabus": 0
+ },
+ "idaho/jane_doe_v._john_doe_2025-33": {
+  "attorneys": 0,
+  "criteria": [
+   "decision_date",
+   "docket_number",
+   "parties"
+  ],
+  "hm": 11,
+  "lead_bylined": true,
+  "op_blocks": [
+   124
+  ],
+  "ops": [
+   "majority"
+  ],
+  "residual": 0,
+  "status": "valid",
+  "summary": 0,
+  "syllabus": 0
+ },
+ "idaho/medical_recovery_services_llc_v._wood": {
+  "attorneys": 0,
+  "criteria": [
+   "decision_date",
+   "disposition",
+   "docket_number",
+   "lower_court",
+   "parties"
+  ],
+  "hm": 11,
+  "lead_bylined": true,
+  "op_blocks": [
+   38
+  ],
+  "ops": [
+   "majority"
+  ],
+  "residual": 0,
+  "status": "valid",
+  "summary": 0,
+  "syllabus": 0
+ },
+ "idaho/miller_v._miller": {
+  "attorneys": 0,
+  "criteria": [
+   "decision_date",
+   "disposition",
+   "docket_number",
+   "lower_court",
+   "parties"
+  ],
+  "hm": 13,
+  "lead_bylined": true,
+  "op_blocks": [
+   108
+  ],
+  "ops": [
+   "majority"
+  ],
+  "residual": 0,
+  "status": "valid",
+  "summary": 0,
+  "syllabus": 0
+ },
+ "idaho/state_of_idaho_v._michael_james_hinkel": {
+  "attorneys": 0,
+  "criteria": [
+   "decision_date",
+   "disposition",
+   "docket_number",
+   "lower_court",
+   "parties"
+  ],
+  "hm": 12,
+  "lead_bylined": true,
+  "op_blocks": [
+   120
+  ],
+  "ops": [
+   "majority"
+  ],
+  "residual": 0,
+  "status": "valid",
+  "summary": 0,
+  "syllabus": 0
+ },
+ "idaho/state_v._barritt": {
+  "attorneys": 0,
+  "criteria": [
+   "decision_date",
+   "disposition",
+   "docket_number",
+   "lower_court",
+   "parties"
+  ],
+  "hm": 11,
+  "lead_bylined": true,
+  "op_blocks": [
+   41
+  ],
+  "ops": [
+   "majority"
+  ],
+  "residual": 0,
+  "status": "valid",
+  "summary": 0,
+  "syllabus": 0
+ },
+ "idaho/state_v._borek": {
+  "attorneys": 0,
+  "criteria": [
+   "decision_date",
+   "disposition",
+   "docket_number",
+   "lower_court",
+   "parties"
+  ],
+  "hm": 11,
+  "lead_bylined": true,
+  "op_blocks": [
+   75
+  ],
+  "ops": [
+   "majority"
+  ],
+  "residual": 0,
+  "status": "valid",
+  "summary": 0,
+  "syllabus": 0
+ },
+ "idaho/state_v._frandsen": {
+  "attorneys": 0,
+  "criteria": [
+   "decision_date",
+   "disposition",
+   "docket_number",
+   "lower_court",
+   "parties"
+  ],
+  "hm": 11,
+  "lead_bylined": true,
+  "op_blocks": [
+   155
+  ],
+  "ops": [
+   "majority"
+  ],
+  "residual": 0,
+  "status": "valid",
+  "summary": 0,
+  "syllabus": 0
+ },
+ "kyed/gov.uscourts.kyed.109303.37.0": {
+  "attorneys": 0,
+  "criteria": [
+   "disposition",
+   "docket_number",
+   "parties"
+  ],
+  "hm": 6,
+  "hm_roles": {
+   "caption": 14,
+   "court": 4,
+   "docket": 1,
+   "title": 3
+  },
+  "lead_bylined": false,
+  "op_blocks": [
+   48
+  ],
+  "ops": [
+   "majority"
+  ],
+  "residual": 0,
+  "status": "valid",
+  "summary": 0,
+  "syllabus": 0
+ },
+ "kyed/gov.uscourts.kyed.109823.27.0": {
+  "attorneys": 0,
+  "criteria": [
+   "docket_number",
+   "parties"
+  ],
+  "hm": 5,
+  "hm_roles": {
+   "caption": 14,
+   "court": 3,
+   "docket": 1,
+   "title": 1
+  },
+  "lead_bylined": false,
+  "op_blocks": [
+   19
+  ],
+  "ops": [
+   "majority"
+  ],
+  "residual": 0,
+  "status": "valid",
+  "summary": 0,
+  "syllabus": 0
+ },
+ "kyed/gov.uscourts.kyed.110451.15.0": {
+  "attorneys": 0,
+  "criteria": [
+   "docket_number",
+   "parties"
+  ],
+  "hm": 6,
+  "hm_roles": {
+   "caption": 12,
+   "court": 3,
+   "docket": 1,
+   "title": 1
+  },
+  "lead_bylined": false,
+  "op_blocks": [
+   14
+  ],
+  "ops": [
+   "majority"
+  ],
+  "residual": 0,
+  "status": "valid",
+  "summary": 0,
+  "syllabus": 0
+ },
+ "kyed/gov.uscourts.kyed.110566.10.0": {
+  "attorneys": 0,
+  "criteria": [
+   "docket_number",
+   "parties"
+  ],
+  "hm": 6,
+  "hm_roles": {
+   "caption": 12,
+   "court": 3,
+   "docket": 1,
+   "title": 1
+  },
+  "lead_bylined": false,
+  "op_blocks": [
+   48
+  ],
+  "ops": [
+   "majority"
+  ],
+  "residual": 0,
+  "status": "valid",
+  "summary": 0,
+  "syllabus": 0
+ },
+ "kyed/gov.uscourts.kyed.113018.5.0": {
+  "attorneys": 0,
+  "criteria": [
+   "docket_number",
+   "parties"
+  ],
+  "hm": 6,
+  "hm_roles": {
+   "caption": 12,
+   "court": 3,
+   "docket": 1,
+   "title": 1
+  },
+  "lead_bylined": false,
+  "op_blocks": [
+   34
+  ],
+  "ops": [
+   "majority"
+  ],
+  "residual": 0,
+  "status": "valid",
+  "summary": 0,
+  "syllabus": 0
+ },
+ "mass/banevicius_v._barnstable": {
+  "attorneys": 0,
+  "criteria": [
+   "decision_date",
+   "docket_number",
+   "judges",
+   "parties",
+   "submitted"
+  ],
+  "hm": 23,
+  "lead_bylined": true,
+  "op_blocks": [
+   46
+  ],
+  "ops": [
+   "majority"
+  ],
+  "residual": 0,
+  "status": "valid",
+  "summary": 0,
+  "syllabus": 0
+ },
+ "mass/brown_v._mendes": {
+  "attorneys": 0,
+  "criteria": [
+   "decision_date",
+   "docket_number",
+   "parties"
+  ],
+  "hm": 4,
+  "lead_bylined": false,
+  "op_blocks": [
+   7
+  ],
+  "ops": [
+   "order"
+  ],
+  "residual": 0,
+  "status": "valid",
+  "summary": 0,
+  "syllabus": 0
+ },
+ "mass/commonwealth_v._arias": {
+  "attorneys": 0,
+  "criteria": [
+   "decision_date",
+   "docket_number",
+   "judges",
+   "parties",
+   "submitted"
+  ],
+  "hm": 30,
+  "lead_bylined": true,
+  "op_blocks": [
+   37
+  ],
+  "ops": [
+   "majority"
+  ],
+  "residual": 0,
+  "status": "valid",
+  "summary": 0,
+  "syllabus": 0
+ },
+ "mass/commonwealth_v._donovan": {
+  "attorneys": 0,
+  "criteria": [
+   "decision_date",
+   "docket_number",
+   "judges",
+   "parties",
+   "submitted"
+  ],
+  "hm": 27,
+  "lead_bylined": true,
+  "op_blocks": [
+   39
+  ],
+  "ops": [
+   "majority"
+  ],
+  "residual": 0,
+  "status": "valid",
+  "summary": 0,
+  "syllabus": 0
+ },
+ "mass/commonwealth_v._psikarakis_commonwealth_v._smith": {
+  "attorneys": 0,
+  "criteria": [
+   "decision_date",
+   "docket_number",
+   "judges",
+   "parties",
+   "submitted"
+  ],
+  "hm": 25,
+  "lead_bylined": true,
+  "op_blocks": [
+   26,
+   14
+  ],
+  "ops": [
+   "majority",
+   "dissent"
+  ],
+  "residual": 0,
+  "status": "valid",
+  "summary": 0,
+  "syllabus": 0
+ },
+ "mass/opinion_of_the_justices_to_the_senate": {
+  "attorneys": 0,
+  "criteria": [
+   "decision_date",
+   "docket_number",
+   "parties"
+  ],
+  "hm": 8,
+  "lead_bylined": false,
+  "op_blocks": [
+   22
+  ],
+  "ops": [
+   "majority"
+  ],
+  "residual": 0,
+  "status": "valid",
+  "summary": 0,
+  "syllabus": 0
+ },
+ "massappct/avalonbay_communities_inc._v._vardenski": {
+  "attorneys": 0,
+  "criteria": [
+   "decision_date",
+   "docket_number",
+   "judges",
+   "parties",
+   "submitted"
+  ],
+  "hm": 20,
+  "hm_roles": {
+   "caption": 2,
+   "counsel": 2,
+   "court": 1,
+   "date": 1,
+   "docket": 2,
+   "headnotes": 6,
+   "lower-court": 5,
+   "panel": 1
+  },
+  "lead_bylined": true,
+  "op_blocks": [
+   33
+  ],
+  "ops": [
+   "majority"
+  ],
+  "residual": 0,
+  "status": "valid",
+  "summary": 0,
+  "syllabus": 0
+ },
+ "massappct/commonwealth_v._albert": {
+  "attorneys": 0,
+  "criteria": [
+   "decision_date",
+   "docket_number",
+   "judges",
+   "parties",
+   "submitted"
+  ],
+  "hm": 17,
+  "hm_roles": {
+   "caption": 1,
+   "counsel": 3,
+   "court": 1,
+   "date": 1,
+   "docket": 2,
+   "headnotes": 5,
+   "lower-court": 3,
+   "panel": 1
+  },
+  "lead_bylined": true,
+  "op_blocks": [
+   42,
+   30
+  ],
+  "ops": [
+   "majority",
+   "dissent"
+  ],
+  "residual": 0,
+  "status": "valid",
+  "summary": 0,
+  "syllabus": 0
+ },
+ "massappct/commonwealth_v._nancy_white.": {
+  "attorneys": 0,
+  "criteria": [
+   "docket_number",
+   "parties"
+  ],
+  "hm": 7,
+  "hm_roles": {
+   "caption": 3,
+   "court": 2,
+   "docket": 1,
+   "title": 1
+  },
+  "lead_bylined": false,
+  "op_blocks": [
+   11
+  ],
+  "ops": [
+   "order"
+  ],
+  "residual": 0,
+  "status": "valid",
+  "summary": 0,
+  "syllabus": 0
+ },
+ "massappct/diane_alicea_v._director_of_the_department_of_unemployment_assistance_": {
+  "attorneys": 0,
+  "criteria": [
+   "docket_number",
+   "parties"
+  ],
+  "hm": 7,
+  "hm_roles": {
+   "caption": 3,
+   "court": 2,
+   "docket": 1,
+   "title": 1
+  },
+  "lead_bylined": false,
+  "op_blocks": [
+   20
+  ],
+  "ops": [
+   "order"
+  ],
+  "residual": 0,
+  "status": "valid",
+  "summary": 0,
+  "syllabus": 0
+ },
+ "massappct/haverhill_stem_llc_v._jennings": {
+  "attorneys": 0,
+  "criteria": [
+   "decision_date",
+   "docket_number",
+   "judges",
+   "parties",
+   "submitted"
+  ],
+  "hm": 22,
+  "hm_roles": {
+   "caption": 1,
+   "counsel": 3,
+   "court": 1,
+   "date": 1,
+   "docket": 2,
+   "headnotes": 6,
+   "lower-court": 7,
+   "panel": 1
+  },
+  "lead_bylined": true,
+  "op_blocks": [
+   58
+  ],
+  "ops": [
+   "majority"
+  ],
+  "residual": 0,
+  "status": "valid",
+  "summary": 0,
+  "syllabus": 0
+ },
+ "massappct/michael_gallaghers_case": {
+  "attorneys": 0,
+  "criteria": [
+   "docket_number",
+   "parties"
+  ],
+  "hm": 5,
+  "hm_roles": {
+   "caption": 1,
+   "court": 2,
+   "docket": 1,
+   "title": 1
+  },
+  "lead_bylined": false,
+  "op_blocks": [
+   25
+  ],
+  "ops": [
+   "order"
+  ],
+  "residual": 0,
+  "status": "valid",
+  "summary": 0,
+  "syllabus": 0
+ },
+ "massappct/skechers_usa_inc._v._commissioner_of_revenue": {
+  "attorneys": 0,
+  "criteria": [
+   "decision_date",
+   "docket_number",
+   "judges",
+   "parties",
+   "submitted"
+  ],
+  "hm": 11,
+  "hm_roles": {
+   "caption": 1,
+   "counsel": 3,
+   "court": 1,
+   "date": 1,
+   "docket": 2,
+   "headnotes": 1,
+   "lower-court": 1,
+   "panel": 1
+  },
+  "lead_bylined": true,
+  "op_blocks": [
+   40
+  ],
+  "ops": [
+   "majority"
+  ],
+  "residual": 0,
+  "status": "valid",
+  "summary": 0,
+  "syllabus": 0
+ },
+ "massappct/v.b._v._b.w.r.t.": {
+  "attorneys": 0,
+  "criteria": [
+   "docket_number",
+   "parties"
+  ],
+  "hm": 7,
+  "hm_roles": {
+   "caption": 3,
+   "court": 2,
+   "docket": 1,
+   "title": 1
+  },
+  "lead_bylined": false,
+  "op_blocks": [
+   16
+  ],
+  "ops": [
+   "order"
+  ],
+  "residual": 0,
+  "status": "valid",
+  "summary": 0,
+  "syllabus": 0
+ },
+ "me/ellsworth_me_solar_llc_v._public_utilities_comission": {
+  "attorneys": 0,
+  "criteria": [
+   "decision_date",
+   "docket_number",
+   "judges",
+   "parties",
+   "submitted"
+  ],
+  "hm": 1,
+  "lead_bylined": true,
+  "op_blocks": [
+   67
+  ],
+  "ops": [
+   "majority"
+  ],
+  "residual": 0,
+  "status": "valid",
+  "summary": 0,
+  "syllabus": 0
+ },
+ "me/state_of_maine_v._austin_w._davis": {
+  "attorneys": 0,
+  "criteria": [
+   "decision_date",
+   "docket_number",
+   "judges",
+   "submitted"
+  ],
+  "hm": 1,
+  "lead_bylined": true,
+  "op_blocks": [
+   45
+  ],
+  "ops": [
+   "majority"
+  ],
+  "residual": 0,
+  "status": "valid",
+  "summary": 0,
+  "syllabus": 0
+ },
+ "mich/darnell_hairston_v._josh_lku": {
+  "attorneys": 0,
+  "criteria": [
+   "decision_date",
+   "docket_number",
+   "parties",
+   "submitted"
+  ],
+  "hm": 23,
+  "lead_bylined": true,
+  "op_blocks": [
+   64
+  ],
+  "ops": [
+   "majority"
+  ],
+  "residual": 0,
+  "status": "valid",
+  "summary": 0,
+  "syllabus": 10
+ },
+ "michctapp/ahmed_imtiaz_uddin_v._samira_mukarram": {
+  "attorneys": 0,
+  "criteria": [
+   "decision_date",
+   "docket_number",
+   "judges",
+   "parties",
+   "publication_status"
+  ],
+  "hm": 7,
+  "lead_bylined": true,
+  "op_blocks": [
+   28
+  ],
+  "ops": [
+   "majority"
+  ],
+  "residual": 0,
+  "status": "valid",
+  "summary": 0,
+  "syllabus": 0
+ },
+ "mo/in_re_todd_n._agron": {
+  "attorneys": 0,
+  "criteria": [
+   "decision_date",
+   "docket_number",
+   "lower_court",
+   "parties"
+  ],
+  "hm": 4,
+  "lead_bylined": true,
+  "op_blocks": [
+   66
+  ],
+  "ops": [
+   "majority"
+  ],
+  "residual": 0,
+  "status": "valid",
+  "summary": 0,
+  "syllabus": 0
+ },
+ "mo/john_doe_v._eric_t._olson": {
+  "attorneys": 0,
+  "criteria": [
+   "decision_date",
+   "docket_number",
+   "lower_court",
+   "parties"
+  ],
+  "hm": 5,
+  "lead_bylined": true,
+  "op_blocks": [
+   59
+  ],
+  "ops": [
+   "order"
+  ],
+  "residual": 0,
+  "status": "valid",
+  "summary": 0,
+  "syllabus": 0
+ },
+ "mo/state_of_missouri_v._anthony_tate": {
+  "attorneys": 0,
+  "criteria": [
+   "decision_date",
+   "docket_number",
+   "lower_court",
+   "parties"
+  ],
+  "hm": 5,
+  "lead_bylined": true,
+  "op_blocks": [
+   52
+  ],
+  "ops": [
+   "majority"
+  ],
+  "residual": 0,
+  "status": "valid",
+  "summary": 0,
+  "syllabus": 0
+ },
+ "mo/state_of_missouri_v._marcellus_williams": {
+  "attorneys": 0,
+  "criteria": [
+   "decision_date",
+   "docket_number",
+   "parties"
+  ],
+  "hm": 5,
+  "lead_bylined": true,
+  "op_blocks": [
+   22
+  ],
+  "ops": [
+   "majority"
+  ],
+  "residual": 0,
+  "status": "valid",
+  "summary": 0,
+  "syllabus": 0
+ },
+ "nd/adams_v._state": {
+  "attorneys": 0,
+  "criteria": [
+   "disposition",
+   "docket_number",
+   "lower_court",
+   "parties"
+  ],
+  "hm": 17,
+  "hm_roles": {
+   "author": 1,
+   "caption": 6,
+   "citation": 1,
+   "counsel": 4,
+   "court": 2,
+   "disposition": 1,
+   "docket": 1,
+   "lower-court": 2
+  },
+  "lead_bylined": true,
+  "op_blocks": [
+   8
+  ],
+  "ops": [
+   "per-curiam"
+  ],
+  "residual": 0,
+  "status": "valid",
+  "summary": 0,
+  "syllabus": 0
+ },
+ "nd/alber_v._rodin": {
+  "attorneys": 0,
+  "criteria": [
+   "disposition",
+   "docket_number",
+   "lower_court",
+   "parties"
+  ],
+  "hm": 16,
+  "lead_bylined": true,
+  "op_blocks": [
+   76
+  ],
+  "ops": [
+   "majority"
+  ],
+  "residual": 0,
+  "status": "valid",
+  "summary": 0,
+  "syllabus": 0
+ },
+ "nd/bauer_v._adam": {
+  "attorneys": 0,
+  "criteria": [
+   "disposition",
+   "docket_number",
+   "lower_court",
+   "parties"
+  ],
+  "hm": 23,
+  "lead_bylined": true,
+  "op_blocks": [
+   48
+  ],
+  "ops": [
+   "majority"
+  ],
+  "residual": 0,
+  "status": "valid",
+  "summary": 0,
+  "syllabus": 0
+ },
+ "nd/interest_of_m.s.h.": {
+  "attorneys": 0,
+  "criteria": [
+   "disposition",
+   "docket_number",
+   "lower_court",
+   "parties"
+  ],
+  "hm": 18,
+  "hm_roles": {
+   "author": 1,
+   "caption": 24,
+   "citation": 1,
+   "counsel": 2,
+   "court": 2,
+   "disposition": 1,
+   "docket": 2,
+   "lower-court": 2
+  },
+  "lead_bylined": true,
+  "op_blocks": [
+   20
+  ],
+  "ops": [
+   "majority"
+  ],
+  "residual": 0,
+  "status": "valid",
+  "summary": 0,
+  "syllabus": 0
+ },
+ "nd/interest_of_w.j.": {
+  "attorneys": 0,
+  "criteria": [
+   "disposition",
+   "docket_number",
+   "lower_court",
+   "parties"
+  ],
+  "hm": 16,
+  "hm_roles": {
+   "author": 1,
+   "caption": 12,
+   "citation": 1,
+   "counsel": 3,
+   "court": 2,
+   "disposition": 1,
+   "docket": 1,
+   "lower-court": 2
+  },
+  "lead_bylined": true,
+  "op_blocks": [
+   6
+  ],
+  "ops": [
+   "per-curiam"
+  ],
+  "residual": 0,
+  "status": "valid",
+  "summary": 0,
+  "syllabus": 0
+ },
+ "nd/marschner_v._marschner": {
+  "attorneys": 0,
+  "criteria": [
+   "disposition",
+   "docket_number",
+   "lower_court",
+   "parties"
+  ],
+  "hm": 17,
+  "lead_bylined": true,
+  "op_blocks": [
+   21,
+   13
+  ],
+  "ops": [
+   "majority",
+   "concurrence"
+  ],
+  "residual": 0,
+  "status": "valid",
+  "summary": 0,
+  "syllabus": 0
+ },
+ "nd/pederson_v._state": {
+  "attorneys": 0,
+  "criteria": [
+   "disposition",
+   "docket_number",
+   "lower_court",
+   "parties"
+  ],
+  "hm": 17,
+  "lead_bylined": true,
+  "op_blocks": [
+   51
+  ],
+  "ops": [
+   "majority"
+  ],
+  "residual": 0,
+  "status": "valid",
+  "summary": 0,
+  "syllabus": 0
+ },
+ "nd/rousseau_v._armstrong": {
+  "attorneys": 0,
+  "criteria": [
+   "disposition",
+   "docket_number",
+   "lower_court",
+   "parties"
+  ],
+  "hm": 16,
+  "hm_roles": {
+   "author": 1,
+   "caption": 18,
+   "citation": 1,
+   "counsel": 3,
+   "court": 2,
+   "disposition": 1,
+   "docket": 1,
+   "lower-court": 2
+  },
+  "lead_bylined": true,
+  "op_blocks": [
+   19
+  ],
+  "ops": [
+   "majority"
+  ],
+  "residual": 0,
+  "status": "valid",
+  "summary": 0,
+  "syllabus": 0
+ },
+ "nh/appeal_of_doe_bd._of_med.": {
+  "attorneys": 0,
+  "criteria": [
+   "decision_date",
+   "docket_number"
+  ],
+  "hm": 14,
+  "lead_bylined": true,
+  "op_blocks": [
+   31
+  ],
+  "ops": [
+   "majority"
+  ],
+  "residual": 0,
+  "status": "valid",
+  "summary": 0,
+  "syllabus": 0
+ },
+ "nh/ortolano_v._city_of_nashua": {
+  "attorneys": 0,
+  "criteria": [
+   "decision_date",
+   "docket_number",
+   "parties"
+  ],
+  "hm": 18,
+  "lead_bylined": true,
+  "op_blocks": [
+   20
+  ],
+  "ops": [
+   "majority"
+  ],
+  "residual": 0,
+  "status": "valid",
+  "summary": 0,
+  "syllabus": 0
+ },
+ "nh/state_v._cummings": {
+  "attorneys": 0,
+  "criteria": [
+   "decision_date",
+   "docket_number",
+   "parties"
+  ],
+  "hm": 16,
+  "lead_bylined": true,
+  "op_blocks": [
+   29
+  ],
+  "ops": [
+   "majority"
+  ],
+  "residual": 0,
+  "status": "valid",
+  "summary": 0,
+  "syllabus": 0
+ },
+ "nj/a-1-25_state_v._paul_j._caneiro": {
+  "attorneys": 0,
+  "criteria": [
+   "decision_date",
+   "docket_number",
+   "lower_court",
+   "parties",
+   "submitted"
+  ],
+  "hm": 38,
+  "lead_bylined": true,
+  "op_blocks": [
+   81
+  ],
+  "ops": [
+   "majority"
+  ],
+  "residual": 0,
+  "status": "valid",
+  "summary": 0,
+  "syllabus": 15
+ },
+ "ohio/disciplinary_counsel_v._grendell": {
+  "attorneys": 0,
+  "criteria": [
+   "decision_date",
+   "docket_number",
+   "lower_court",
+   "parties",
+   "submitted"
+  ],
+  "hm": 5,
+  "lead_bylined": false,
+  "op_blocks": [
+   6
+  ],
+  "ops": [
+   "order"
+  ],
+  "residual": 0,
+  "status": "valid",
+  "summary": 0,
+  "syllabus": 0
+ },
+ "ohio/in_re_resignation_of_yerman": {
+  "attorneys": 0,
+  "criteria": [
+   "decision_date",
+   "docket_number",
+   "lower_court",
+   "parties",
+   "submitted"
+  ],
+  "hm": 8,
+  "lead_bylined": false,
+  "op_blocks": [
+   23
+  ],
+  "ops": [
+   "order"
+  ],
+  "residual": 0,
+  "status": "valid",
+  "summary": 0,
+  "syllabus": 0
+ },
+ "ohio/jones_v._galloway": {
+  "attorneys": 0,
+  "criteria": [
+   "decision_date",
+   "disposition",
+   "docket_number",
+   "lower_court",
+   "parties",
+   "submitted"
+  ],
+  "hm": 12,
+  "lead_bylined": true,
+  "op_blocks": [
+   23
+  ],
+  "ops": [
+   "per-curiam"
+  ],
+  "residual": 0,
+  "status": "valid",
+  "summary": 0,
+  "syllabus": 0
+ },
+ "ohio/posan_v._boyer": {
+  "attorneys": 0,
+  "criteria": [
+   "decision_date",
+   "disposition",
+   "docket_number",
+   "lower_court",
+   "parties",
+   "submitted"
+  ],
+  "hm": 14,
+  "lead_bylined": false,
+  "op_blocks": [
+   4
+  ],
+  "ops": [
+   "majority"
+  ],
+  "residual": 0,
+  "status": "valid",
+  "summary": 0,
+  "syllabus": 0
+ },
+ "ohio/state_ex_rel._awms_water_solutions_l.l.c._v._mertz": {
+  "attorneys": 0,
+  "criteria": [
+   "decision_date",
+   "disposition",
+   "docket_number",
+   "lower_court",
+   "parties",
+   "submitted"
+  ],
+  "hm": 21,
+  "lead_bylined": true,
+  "op_blocks": [
+   100
+  ],
+  "ops": [
+   "majority"
+  ],
+  "residual": 0,
+  "status": "valid",
+  "summary": 0,
+  "syllabus": 0
+ },
+ "ohio/state_ex_rel._bates_v._copley": {
+  "attorneys": 0,
+  "criteria": [
+   "decision_date",
+   "disposition",
+   "docket_number",
+   "lower_court",
+   "parties",
+   "submitted"
+  ],
+  "hm": 13,
+  "lead_bylined": true,
+  "op_blocks": [
+   18
+  ],
+  "ops": [
+   "per-curiam"
+  ],
+  "residual": 0,
+  "status": "valid",
+  "summary": 0,
+  "syllabus": 0
+ },
+ "ohio/state_ex_rel._ctr._for_media__democracy_v._yost": {
+  "attorneys": 0,
+  "criteria": [
+   "decision_date",
+   "disposition",
+   "docket_number",
+   "lower_court",
+   "parties",
+   "submitted"
+  ],
+  "hm": 32,
+  "lead_bylined": true,
+  "op_blocks": [
+   94,
+   60
+  ],
+  "ops": [
+   "majority",
+   "dissent"
+  ],
+  "residual": 0,
+  "status": "valid",
+  "summary": 0,
+  "syllabus": 0
+ },
+ "ohio/state_v._turner": {
+  "attorneys": 0,
+  "criteria": [
+   "decision_date",
+   "disposition",
+   "docket_number",
+   "lower_court",
+   "parties",
+   "submitted"
+  ],
+  "hm": 21,
+  "lead_bylined": true,
+  "op_blocks": [
+   89,
+   47,
+   11
+  ],
+  "ops": [
+   "majority",
+   "dissent",
+   "dissent"
+  ],
+  "residual": 0,
+  "status": "valid",
+  "summary": 0,
+  "syllabus": 0
+ },
+ "pa/commonwealth_v._foster_j._aplt.": {
+  "attorneys": 0,
+  "criteria": [
+   "docket_number",
+   "parties"
+  ],
+  "hm": 6,
+  "lead_bylined": true,
+  "op_blocks": [
+   39
+  ],
+  "ops": [
+   "majority"
+  ],
+  "residual": 0,
+  "status": "valid",
+  "summary": 0,
+  "syllabus": 0
+ },
+ "pasuperct/adoption_of_j.l._appeal_of_k.j.l.": {
+  "attorneys": 0,
+  "criteria": [
+   "decision_date",
+   "docket_number",
+   "judges",
+   "lower_court",
+   "publication_status"
+  ],
+  "hm": 10,
+  "lead_bylined": true,
+  "op_blocks": [
+   46
+  ],
+  "ops": [
+   "majority"
+  ],
+  "residual": 0,
+  "status": "valid",
+  "summary": 0,
+  "syllabus": 0
+ },
+ "pasuperct/com._v._mitchell_i.": {
+  "attorneys": 0,
+  "criteria": [
+   "decision_date",
+   "docket_number",
+   "judges",
+   "lower_court",
+   "parties"
+  ],
+  "hm": 7,
+  "lead_bylined": true,
+  "op_blocks": [
+   50
+  ],
+  "ops": [
+   "majority"
+  ],
+  "residual": 0,
+  "status": "valid",
+  "summary": 0,
+  "syllabus": 0
+ },
+ "scotus/abouammo_v._united_states": {
+  "attorneys": 0,
+  "criteria": [
+   "decision_date",
+   "docket_number",
+   "lower_court",
+   "parties",
+   "submitted"
+  ],
+  "hm": 7,
+  "lead_bylined": true,
+  "op_blocks": [
+   25
+  ],
+  "ops": [
+   "majority"
+  ],
+  "residual": 0,
+  "status": "valid",
+  "summary": 0,
+  "syllabus": 11
+ },
+ "scotus/alabama_v._powell": {
+  "attorneys": 0,
+  "criteria": [
+   "decision_date",
+   "docket_number",
+   "lower_court",
+   "parties"
+  ],
+  "hm": 4,
+  "lead_bylined": false,
+  "op_blocks": [
+   1,
+   12
+  ],
+  "ops": [
+   "order",
+   "dissent"
+  ],
+  "residual": 0,
+  "status": "valid",
+  "summary": 0,
+  "syllabus": 0
+ },
+ "scotus/allen_v._caster": {
+  "attorneys": 0,
+  "criteria": [
+   "decision_date",
+   "docket_number",
+   "lower_court",
+   "parties"
+  ],
+  "hm": 7,
+  "lead_bylined": false,
+  "op_blocks": [
+   2,
+   11
+  ],
+  "ops": [
+   "order",
+   "dissent"
+  ],
+  "residual": 0,
+  "status": "valid",
+  "summary": 0,
+  "syllabus": 0
+ },
+ "scotus/allen_v._milligan": {
+  "attorneys": 0,
+  "criteria": [
+   "decision_date",
+   "docket_number",
+   "lower_court",
+   "parties"
+  ],
+  "hm": 17,
+  "lead_bylined": true,
+  "op_blocks": [
+   24,
+   47
+  ],
+  "ops": [
+   "per-curiam",
+   "dissent"
+  ],
+  "residual": 0,
+  "status": "valid",
+  "summary": 0,
+  "syllabus": 0
+ },
+ "scotus/danco_laboratories_llc_v._louisiana": {
+  "attorneys": 0,
+  "criteria": [
+   "decision_date",
+   "docket_number",
+   "lower_court",
+   "parties"
+  ],
+  "hm": 12,
+  "lead_bylined": false,
+  "op_blocks": [
+   1,
+   11,
+   13
+  ],
+  "ops": [
+   "order",
+   "dissent",
+   "dissent"
+  ],
+  "residual": 0,
+  "status": "valid",
+  "summary": 0,
+  "syllabus": 0
+ },
+ "scotus/klein_v._martin": {
+  "attorneys": 0,
+  "criteria": [
+   "decision_date",
+   "docket_number",
+   "lower_court",
+   "parties"
+  ],
+  "hm": 4,
+  "lead_bylined": true,
+  "op_blocks": [
+   58
+  ],
+  "ops": [
+   "per-curiam"
+  ],
+  "residual": 0,
+  "status": "valid",
+  "summary": 0,
+  "syllabus": 0
+ },
+ "scotus/m__k_employee_solutions_inc._v._trustees_of_iam_nat._pension": {
+  "attorneys": 0,
+  "criteria": [
+   "decision_date",
+   "docket_number",
+   "lower_court",
+   "parties",
+   "submitted"
+  ],
+  "hm": 7,
+  "lead_bylined": true,
+  "op_blocks": [
+   43
+  ],
+  "ops": [
+   "majority"
+  ],
+  "residual": 0,
+  "status": "valid",
+  "summary": 0,
+  "syllabus": 9
+ },
+ "scotus/trump_v._slaughter": {
+  "attorneys": 0,
+  "criteria": [
+   "decision_date",
+   "docket_number",
+   "lower_court",
+   "parties",
+   "submitted"
+  ],
+  "hm": 7,
+  "lead_bylined": true,
+  "op_blocks": [
+   116,
+   56,
+   131
+  ],
+  "ops": [
+   "majority",
+   "concurrence",
+   "dissent"
+  ],
+  "residual": 0,
+  "status": "valid",
+  "summary": 0,
+  "syllabus": 30
+ },
+ "tenn/brad_wigdor_v._electric_research__manufacturing_cooperative_inc.": {
+  "attorneys": 0,
+  "criteria": [
+   "disposition",
+   "docket_number",
+   "lower_court",
+   "parties",
+   "submitted"
+  ],
+  "hm": 21,
+  "lead_bylined": true,
+  "op_blocks": [
+   35,
+   1
+  ],
+  "ops": [
+   "majority",
+   "per-curiam"
+  ],
+  "residual": 0,
+  "status": "scanned",
+  "summary": 0,
+  "syllabus": 0
+ },
+ "tenn/cinda_haddon_v._ladarius_vanlier": {
+  "attorneys": 0,
+  "criteria": [
+   "decision_date",
+   "disposition",
+   "docket_number",
+   "lower_court",
+   "parties",
+   "submitted"
+  ],
+  "hm": 32,
+  "lead_bylined": true,
+  "op_blocks": [
+   40
+  ],
+  "ops": [
+   "majority"
+  ],
+  "residual": 0,
+  "status": "valid",
+  "summary": 0,
+  "syllabus": 0
+ },
+ "tenn/state_of_tennessee_v._pervis_tyrone_payne": {
+  "attorneys": 0,
+  "criteria": [
+   "decision_date",
+   "disposition",
+   "docket_number",
+   "lower_court",
+   "parties",
+   "submitted"
+  ],
+  "hm": 44,
+  "lead_bylined": true,
+  "op_blocks": [
+   49
+  ],
+  "ops": [
+   "majority"
+  ],
+  "residual": 0,
+  "status": "valid",
+  "summary": 0,
+  "syllabus": 0
+ },
+ "tenn/teresa_thompson_locke_v._jason_d._aston_m.d.": {
+  "attorneys": 0,
+  "criteria": [
+   "decision_date",
+   "docket_number",
+   "lower_court",
+   "parties",
+   "submitted"
+  ],
+  "hm": 12,
+  "lead_bylined": true,
+  "op_blocks": [
+   19
+  ],
+  "ops": [
+   "per-curiam"
+  ],
+  "residual": 0,
+  "status": "valid",
+  "summary": 0,
+  "syllabus": 0
+ },
+ "tenn/tony_carruthers_v._state_of_tennessee": {
+  "attorneys": 0,
+  "criteria": [
+   "decision_date",
+   "disposition",
+   "docket_number",
+   "lower_court",
+   "parties"
+  ],
+  "hm": 29,
+  "lead_bylined": true,
+  "op_blocks": [
+   54
+  ],
+  "ops": [
+   "per-curiam"
+  ],
+  "residual": 0,
+  "status": "valid",
+  "summary": 0,
+  "syllabus": 0
+ },
+ "tex/in_re_s.h.": {
+  "attorneys": 0,
+  "criteria": [
+   "decision_date",
+   "docket_number",
+   "lower_court",
+   "parties"
+  ],
+  "hm": 9,
+  "lead_bylined": true,
+  "op_blocks": [
+   18
+  ],
+  "ops": [
+   "per-curiam"
+  ],
+  "residual": 0,
+  "status": "valid",
+  "summary": 0,
+  "syllabus": 0
+ },
+ "tex/in_re_state_of_texas": {
+  "attorneys": 0,
+  "criteria": [
+   "decision_date",
+   "docket_number",
+   "lower_court",
+   "parties"
+  ],
+  "hm": 15,
+  "lead_bylined": true,
+  "op_blocks": [
+   16
+  ],
+  "ops": [
+   "majority"
+  ],
+  "residual": 0,
+  "status": "valid",
+  "summary": 0,
+  "syllabus": 0
+ },
+ "tex/in_the_interest_of_a.b._a_child": {
+  "attorneys": 0,
+  "criteria": [
+   "decision_date",
+   "docket_number",
+   "lower_court",
+   "parties"
+  ],
+  "hm": 9,
+  "lead_bylined": false,
+  "op_blocks": [
+   17
+  ],
+  "ops": [
+   "concurrence"
+  ],
+  "residual": 0,
+  "status": "valid",
+  "summary": 0,
+  "syllabus": 0
+ },
+ "tex/in_the_interest_of_m.h._a_child": {
+  "attorneys": 0,
+  "criteria": [
+   "decision_date",
+   "docket_number",
+   "lower_court",
+   "parties"
+  ],
+  "hm": 45,
+  "lead_bylined": false,
+  "op_blocks": [
+   10
+  ],
+  "ops": [
+   "concurrence"
+  ],
+  "residual": 0,
+  "status": "valid",
+  "summary": 0,
+  "syllabus": 0
+ },
+ "tex/river_creek_development_corporation_and_city_of_hutto_texas_v._preston": {
+  "attorneys": 0,
+  "criteria": [
+   "decision_date",
+   "docket_number",
+   "lower_court",
+   "parties",
+   "submitted"
+  ],
+  "hm": 15,
+  "lead_bylined": true,
+  "op_blocks": [
+   46
+  ],
+  "ops": [
+   "majority"
+  ],
+  "residual": 0,
+  "status": "valid",
+  "summary": 0,
+  "syllabus": 0
+ },
+ "tex/river_creek_development_corporation_and_city_of_hutto_texas_v._preston_1": {
+  "attorneys": 0,
+  "criteria": [
+   "decision_date",
+   "docket_number",
+   "lower_court",
+   "parties"
+  ],
+  "hm": 14,
+  "lead_bylined": false,
+  "op_blocks": [
+   54
+  ],
+  "ops": [
+   "concurrence"
+  ],
+  "residual": 0,
+  "status": "valid",
+  "summary": 0,
+  "syllabus": 0
+ },
+ "va/blow_v._commonwealth": {
+  "attorneys": 0,
+  "criteria": [
+   "decision_date",
+   "docket_number",
+   "judges",
+   "lower_court",
+   "parties"
+  ],
+  "hm": 8,
+  "lead_bylined": true,
+  "op_blocks": [
+   19
+  ],
+  "ops": [
+   "majority"
+  ],
+  "residual": 0,
+  "status": "valid",
+  "summary": 0,
+  "syllabus": 0
+ },
+ "va/commonwealth_v._antle": {
+  "attorneys": 0,
+  "criteria": [
+   "decision_date",
+   "docket_number",
+   "judges",
+   "lower_court",
+   "parties"
+  ],
+  "hm": 11,
+  "lead_bylined": true,
+  "op_blocks": [
+   38
+  ],
+  "ops": [
+   "majority"
+  ],
+  "residual": 0,
+  "status": "valid",
+  "summary": 0,
+  "syllabus": 0
+ },
+ "va/cupp_v._delta_air_lines_inc.": {
+  "attorneys": 0,
+  "criteria": [
+   "decision_date",
+   "docket_number",
+   "judges",
+   "lower_court",
+   "parties"
+  ],
+  "hm": 9,
+  "lead_bylined": true,
+  "op_blocks": [
+   35
+  ],
+  "ops": [
+   "majority"
+  ],
+  "residual": 0,
+  "status": "valid",
+  "summary": 0,
+  "syllabus": 0
+ },
+ "va/in_re_hargrove": {
+  "attorneys": 0,
+  "criteria": [
+   "decision_date",
+   "docket_number",
+   "judges",
+   "parties"
+  ],
+  "hm": 8,
+  "lead_bylined": true,
+  "op_blocks": [
+   127
+  ],
+  "ops": [
+   "majority"
+  ],
+  "residual": 0,
+  "status": "valid",
+  "summary": 0,
+  "syllabus": 0
+ },
+ "va/koski_v._republican_national_committee_order_1": {
+  "attorneys": 0,
+  "criteria": [
+   "decision_date",
+   "docket_number",
+   "parties"
+  ],
+  "hm": 12,
+  "lead_bylined": false,
+  "op_blocks": [
+   36
+  ],
+  "ops": [
+   "order"
+  ],
+  "residual": 0,
+  "status": "valid",
+  "summary": 0,
+  "syllabus": 0
+ },
+ "va/mast_v._a.a.": {
+  "attorneys": 0,
+  "criteria": [
+   "decision_date",
+   "docket_number",
+   "judges",
+   "lower_court",
+   "parties"
+  ],
+  "hm": 11,
+  "lead_bylined": true,
+  "op_blocks": [
+   166,
+   143,
+   1
+  ],
+  "ops": [
+   "majority",
+   "dissent",
+   "dissent"
+  ],
+  "residual": 0,
+  "status": "valid",
+  "summary": 0,
+  "syllabus": 0
+ },
+ "va/norwood_v._commonwealth_order": {
+  "attorneys": 0,
+  "criteria": [
+   "decision_date",
+   "docket_number",
+   "lower_court",
+   "parties"
+  ],
+  "hm": 14,
+  "lead_bylined": false,
+  "op_blocks": [
+   3
+  ],
+  "ops": [
+   "order"
+  ],
+  "residual": 0,
+  "status": "valid",
+  "summary": 0,
+  "syllabus": 0
+ },
+ "va/perkins_v._howington": {
+  "attorneys": 0,
+  "criteria": [
+   "decision_date",
+   "docket_number",
+   "judges",
+   "lower_court",
+   "parties"
+  ],
+  "hm": 10,
+  "lead_bylined": true,
+  "op_blocks": [
+   60
+  ],
+  "ops": [
+   "majority"
+  ],
+  "residual": 0,
+  "status": "valid",
+  "summary": 0,
+  "syllabus": 0
+ },
+ "va/swango_v._virginia_state_bar": {
+  "attorneys": 0,
+  "criteria": [
+   "decision_date",
+   "docket_number",
+   "judges",
+   "lower_court",
+   "parties"
+  ],
+  "hm": 12,
+  "lead_bylined": true,
+  "op_blocks": [
+   79
+  ],
+  "ops": [
+   "majority"
+  ],
+  "residual": 0,
+  "status": "valid",
+  "summary": 0,
+  "syllabus": 0
+ },
+ "virginislands/erbey_holding_corporation_v._black_rock_financial_management_inc.": {
+  "attorneys": 0,
+  "criteria": [
+   "decision_date",
+   "docket_number",
+   "judges",
+   "lower_court",
+   "parties",
+   "publication_status",
+   "submitted"
+  ],
+  "hm": 29,
+  "lead_bylined": true,
+  "op_blocks": [
+   78
+  ],
+  "ops": [
+   "majority"
+  ],
+  "residual": 0,
+  "status": "valid",
+  "summary": 0,
+  "syllabus": 0
+ },
+ "virginislands/hodge_v._allenbaugh": {
+  "attorneys": 0,
+  "criteria": [
+   "decision_date",
+   "docket_number",
+   "judges",
+   "lower_court",
+   "parties",
+   "publication_status",
+   "submitted"
+  ],
+  "hm": 17,
+  "lead_bylined": true,
+  "op_blocks": [
+   74
+  ],
+  "ops": [
+   "majority"
+  ],
+  "residual": 0,
+  "status": "scanned",
+  "summary": 0,
+  "syllabus": 0
+ },
+ "virginislands/in_re_lambertsen": {
+  "attorneys": 0,
+  "criteria": [
+   "decision_date",
+   "docket_number",
+   "judges",
+   "lower_court",
+   "parties",
+   "publication_status"
+  ],
+  "hm": 35,
+  "lead_bylined": true,
+  "op_blocks": [
+   28
+  ],
+  "ops": [
+   "per-curiam"
+  ],
+  "residual": 0,
+  "status": "valid",
+  "summary": 0,
+  "syllabus": 0
+ },
+ "virginislands/in_re_sixteen_plus_corporation": {
+  "attorneys": 0,
+  "criteria": [
+   "decision_date",
+   "docket_number",
+   "judges",
+   "lower_court",
+   "parties",
+   "publication_status"
+  ],
+  "hm": 13,
+  "lead_bylined": true,
+  "op_blocks": [
+   32
+  ],
+  "ops": [
+   "per-curiam"
+  ],
+  "residual": 0,
+  "status": "valid",
+  "summary": 0,
+  "syllabus": 0
+ },
+ "virginislands/vi_government_hospitals_and_health_facilities_corp_v._wrensford": {
+  "attorneys": 0,
+  "criteria": [
+   "decision_date",
+   "docket_number",
+   "judges",
+   "lower_court",
+   "parties",
+   "publication_status"
+  ],
+  "hm": 19,
+  "lead_bylined": true,
+  "op_blocks": [
+   288
+  ],
+  "ops": [
+   "majority"
+  ],
+  "residual": 0,
+  "status": "scanned",
+  "summary": 0,
+  "syllabus": 0
+ },
+ "wash/a_better_richland_v._chilton": {
+  "attorneys": 0,
+  "criteria": [
+   "decision_date",
+   "docket_number",
+   "parties"
+  ],
+  "hm": 3,
+  "lead_bylined": true,
+  "op_blocks": [
+   17,
+   37,
+   19,
+   43
+  ],
+  "ops": [
+   "per-curiam",
+   "majority",
+   "concurrence",
+   "dissent"
+  ],
+  "residual": 0,
+  "status": "valid",
+  "summary": 0,
+  "syllabus": 0
+ },
+ "wash/in_re_det._of_m.e.": {
+  "attorneys": 0,
+  "criteria": [
+   "decision_date",
+   "docket_number",
+   "parties"
+  ],
+  "hm": 5,
+  "lead_bylined": true,
+  "op_blocks": [
+   86
+  ],
+  "ops": [
+   "majority"
+  ],
+  "residual": 0,
+  "status": "valid",
+  "summary": 0,
+  "syllabus": 0
+ },
+ "wash/in_re_disciplinary_proc._against_feyissa": {
+  "attorneys": 0,
+  "criteria": [
+   "decision_date",
+   "docket_number",
+   "parties"
+  ],
+  "hm": 3,
+  "lead_bylined": true,
+  "op_blocks": [
+   296
+  ],
+  "ops": [
+   "majority"
+  ],
+  "residual": 0,
+  "status": "valid",
+  "summary": 0,
+  "syllabus": 0
+ },
+ "wash/preston_v._sbc_ltd.": {
+  "attorneys": 0,
+  "criteria": [
+   "decision_date",
+   "docket_number",
+   "lower_court",
+   "parties"
+  ],
+  "hm": 3,
+  "lead_bylined": true,
+  "op_blocks": [
+   47,
+   32
+  ],
+  "ops": [
+   "majority",
+   "dissent"
+  ],
+  "residual": 0,
+  "status": "valid",
+  "summary": 0,
+  "syllabus": 0
+ },
+ "wash/scott_v._amazon.com_inc.": {
+  "attorneys": 0,
+  "criteria": [
+   "decision_date",
+   "docket_number",
+   "parties"
+  ],
+  "hm": 6,
+  "lead_bylined": false,
+  "op_blocks": [
+   1,
+   65,
+   12,
+   102,
+   5
+  ],
+  "ops": [
+   "order",
+   "majority",
+   "concurrence",
+   "concurrence",
+   "concurrence"
+  ],
+  "residual": 0,
+  "status": "valid",
+  "summary": 0,
+  "syllabus": 0
+ },
+ "wash/state_v._abrams": {
+  "attorneys": 0,
+  "criteria": [
+   "decision_date",
+   "docket_number",
+   "parties"
+  ],
+  "hm": 3,
+  "lead_bylined": true,
+  "op_blocks": [
+   56,
+   4,
+   25,
+   17
+  ],
+  "ops": [
+   "majority",
+   "concurrence",
+   "dissent",
+   "dissent"
+  ],
+  "residual": 0,
+  "status": "valid",
+  "summary": 0,
+  "syllabus": 0
+ },
+ "wash/state_v._buck": {
+  "attorneys": 0,
+  "criteria": [
+   "decision_date",
+   "docket_number",
+   "parties"
+  ],
+  "hm": 3,
+  "lead_bylined": true,
+  "op_blocks": [
+   39
+  ],
+  "ops": [
+   "majority"
+  ],
+  "residual": 0,
+  "status": "valid",
+  "summary": 0,
+  "syllabus": 0
+ },
+ "wis/planned_parenthood_of_wisconsin_v._joel_urmanski": {
+  "attorneys": 0,
+  "criteria": [
+   "decision_date",
+   "docket_number",
+   "parties",
+   "publication_status"
+  ],
+  "hm": 13,
+  "lead_bylined": false,
+  "op_blocks": [
+   5,
+   3
+  ],
+  "ops": [
+   "order",
+   "statement"
+  ],
+  "residual": 0,
+  "status": "scanned",
+  "summary": 0,
+  "syllabus": 0
+ },
+ "wva/andrea_dale_daye_v._farmers__mechanics_mutual_insurance_company_of_west": {
+  "attorneys": 0,
+  "criteria": [
+   "decision_date",
+   "disposition",
+   "docket_number",
+   "lower_court",
+   "parties",
+   "submitted"
+  ],
+  "hm": 28,
+  "lead_bylined": true,
+  "op_blocks": [
+   12,
+   59
+  ],
+  "ops": [
+   "majority",
+   "majority"
+  ],
+  "residual": 0,
+  "status": "valid",
+  "summary": 0,
+  "syllabus": 0
+ },
+ "wva/arthur_c._v._jonathan_frame_superintendent_mt._olive_correctional_complex": {
+  "attorneys": 0,
+  "criteria": [
+   "decision_date",
+   "disposition",
+   "docket_number",
+   "lower_court",
+   "parties",
+   "submitted"
+  ],
+  "hm": 28,
+  "lead_bylined": true,
+  "op_blocks": [
+   9,
+   78
+  ],
+  "ops": [
+   "majority",
+   "majority"
+  ],
+  "residual": 0,
+  "status": "valid",
+  "summary": 0,
+  "syllabus": 0
+ },
+ "wva/city_of_weirton_and_city_of_weirton_board_of_zoning_appeals_v._swn": {
+  "attorneys": 0,
+  "criteria": [
+   "decision_date",
+   "disposition",
+   "docket_number",
+   "lower_court",
+   "parties",
+   "submitted"
+  ],
+  "hm": 48,
+  "lead_bylined": true,
+  "op_blocks": [
+   8,
+   59
+  ],
+  "ops": [
+   "majority",
+   "majority"
+  ],
+  "residual": 0,
+  "status": "valid",
+  "summary": 0,
+  "syllabus": 0
+ },
+ "wva/in_re_p.f._and_m.f.-1": {
+  "attorneys": 0,
+  "criteria": [
+   "decision_date",
+   "disposition",
+   "docket_number",
+   "lower_court",
+   "parties",
+   "submitted"
+  ],
+  "hm": 30,
+  "lead_bylined": true,
+  "op_blocks": [
+   11,
+   38
+  ],
+  "ops": [
+   "majority",
+   "majority"
+  ],
+  "residual": 0,
+  "status": "valid",
+  "summary": 0,
+  "syllabus": 0
+ },
+ "wva/raze_international_inc._v._wheeling_hospital_inc._city_of_wheeling_and": {
+  "attorneys": 0,
+  "criteria": [
+   "decision_date",
+   "docket_number",
+   "parties"
+  ],
+  "hm": 10,
+  "lead_bylined": false,
+  "op_blocks": [
+   14
+  ],
+  "ops": [
+   "order"
+  ],
+  "residual": 0,
+  "status": "valid",
+  "summary": 0,
+  "syllabus": 0
+ },
+ "wva/state_of_west_virginia_v._austin_stevens": {
+  "attorneys": 0,
+  "criteria": [
+   "decision_date",
+   "disposition",
+   "docket_number",
+   "lower_court",
+   "parties",
+   "submitted"
+  ],
+  "hm": 30,
+  "lead_bylined": true,
+  "op_blocks": [
+   9,
+   52
+  ],
+  "ops": [
+   "majority",
+   "majority"
+  ],
+  "residual": 0,
+  "status": "valid",
+  "summary": 0,
+  "syllabus": 0
+ },
+ "wva/state_of_west_virginia_v._brendan_w": {
+  "attorneys": 0,
+  "criteria": [
+   "decision_date",
+   "docket_number",
+   "parties"
+  ],
+  "hm": 1,
+  "lead_bylined": false,
+  "op_blocks": [
+   17
+  ],
+  "ops": [
+   "concurring-in-part-and-dissenting-in-part"
+  ],
+  "residual": 0,
+  "status": "valid",
+  "summary": 0,
+  "syllabus": 0
+ },
+ "wva/state_of_west_virginia_v._randy_c._cain.": {
+  "attorneys": 0,
+  "criteria": [
+   "decision_date",
+   "disposition",
+   "docket_number",
+   "lower_court",
+   "parties",
+   "submitted"
+  ],
+  "hm": 30,
+  "lead_bylined": true,
+  "op_blocks": [
+   12,
+   73
+  ],
+  "ops": [
+   "majority",
+   "majority"
+  ],
+  "residual": 0,
+  "status": "valid",
+  "summary": 0,
+  "syllabus": 0
+ }
+}

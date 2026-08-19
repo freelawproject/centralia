@@ -1,0 +1,379 @@
+<!doctype html>
+<meta charset="utf-8">
+<title>centralia v2 review</title>
+<style>
+:root { --bg:#f4f3f1; --ink:#222; --line:#ddd; --accent:#6b4b9a }
+* { box-sizing:border-box }
+html, body { height:100%; overflow:hidden }
+body { margin:0; font:13px system-ui,sans-serif; color:var(--ink);
+  display:grid; grid-template-columns:308px 312px 1fr; height:100vh }
+#courts,#files { overflow-y:auto; border-right:1px solid var(--line);
+  background:var(--bg); height:100vh; min-height:0 }
+#courts div,#files div { padding:4px 10px; cursor:pointer; white-space:nowrap;
+  overflow:hidden; text-overflow:ellipsis }
+#courts div.on,#files div.on { background:var(--accent); color:#fff }
+#courts { padding-bottom:20px }
+#courts .ghead { position:sticky; top:0; z-index:2; display:flex;
+  align-items:center; gap:6px; padding:7px 10px 5px; font-size:10px;
+  letter-spacing:.09em; text-transform:uppercase; color:#7c7a77;
+  font-weight:700; cursor:pointer; background:var(--bg);
+  border-top:1px solid var(--line); border-bottom:1px solid var(--line) }
+#courts .ghead:first-child { border-top:0 }
+#courts .ghead:hover { color:var(--ink) }
+#courts .ghead .caret { font-size:8px; width:8px; transition:transform .12s }
+#courts .ghead.shut .caret { transform:rotate(-90deg) }
+#courts .ghead .gcount { margin-left:auto; font-weight:600; color:#9a9895;
+  letter-spacing:0 }
+#courts .ghead .gdone { color:#2c8a4b }
+
+/* One court: name row, then a hairline review-progress bar. */
+#courts .crow { display:grid; grid-template-columns:1fr auto;
+  align-items:center; column-gap:6px; padding:5px 10px 4px; cursor:pointer;
+  white-space:nowrap; border-left:3px solid transparent }
+#courts .crow:hover { background:#eceae7 }
+#courts .crow.on { background:var(--accent); color:#fff }
+#courts .crow.on .cn, #courts .crow.on .q { color:#e6dcf5 }
+#courts .cname { overflow:hidden; text-overflow:ellipsis }
+#courts .cn { font-size:11px; color:#8a8783; font-variant-numeric:tabular-nums }
+#courts .bar { grid-column:1/-1; height:3px; border-radius:2px;
+  background:#e2dfda; margin-top:3px; overflow:hidden }
+#courts .crow.on .bar { background:rgba(255,255,255,.28) }
+#courts .bar i { display:block; height:100%; background:#b9b4ac }
+#courts .bar i.done { background:#2c8a4b }
+#courts .crow.on .bar i { background:#d9cdf0 }
+
+/* A PORTED court is done: reader in, sentinels pinned, marked. An ACTIVE
+   one is being ported right now. Everything else reads as ordinary. */
+#courts .crow[data-st="complete"] { font-weight:600;
+  border-left-color:#2c8a4b }
+#courts .crow[data-st="active"] { font-weight:600;
+  border-left-color:#c08a1e; background:#fbf4e6 }
+#courts .crow[data-st="active"].on { background:var(--accent) }
+#courts .st { font-size:10px; margin-left:5px }
+#courts .st.ok { color:#2c8a4b } #courts .st.go { color:#c08a1e }
+#courts .st.nordr { color:#c9c5be }
+#courts .st.rdy { color:#6b4b9a }
+/* A COURT THAT HAS BEEN WORKED ON reads as worked on. Only `complete` was
+   bold, so 22 ported-but-unreviewed courts looked identical to the 194 that
+   have no reader at all, and the sidebar gave no sense of how far along the
+   whole thing is (the user, 2026-08-19). */
+#courts .crow:has(.st.rdy) { border-left-color:#b9a6de; font-weight:600 }
+#courts .crow:has(.st.nordr) .cname { color:#8d8a85 }
+#courts .crow.on .st { color:#fff }
+#main { display:flex; flex-direction:column; min-height:0; min-width:0;
+        overflow:hidden; height:100vh }
+#bar { display:flex; gap:6px; align-items:center; padding:6px 10px;
+  border-bottom:1px solid var(--line); background:var(--bg) }
+#bar b { font-size:12px; margin-right:auto; overflow:hidden; white-space:nowrap }
+#bar button { font:12px system-ui; border:1px solid var(--line); background:#fff;
+  border-radius:4px; padding:2px 9px; cursor:pointer }
+#bar button.on { background:var(--accent); color:#fff; border-color:var(--accent) }
+#panes { flex:1; display:flex; min-height:0 }
+#panes iframe { flex:1; border:0; width:100%; height:100% }
+#pdfpane { display:none; flex:1; overflow-y:auto; border-left:2px solid var(--line);
+  background:#666; padding:8px }
+#panes.split #pdfpane { display:block }
+#pdfpane .pg { position:relative; margin:0 auto 10px; max-width:820px }
+#pdfpane .pg img { width:100%; display:block; background:#fff;
+  box-shadow:0 1px 4px rgba(0,0,0,.4) }
+#pdfpane .pg .n { position:absolute; top:4px; right:4px; font:600 11px system-ui;
+  color:#fff; background:rgba(0,0,0,.55); border-radius:8px; padding:1px 8px }
+#pdfpane .pg.cur .n { background:var(--accent) }
+.tier { position:relative }
+.stale { font-size:10px; margin-left:1px }
+.stale.ch { color:#c0392b } .stale.rr { color:#c08a1e } .stale.uk { color:#bbb }
+.mark { font-size:11px; color:#666; margin-left:4px }
+.q { font:700 11px system-ui; margin-right:2px }
+#help { color:#999; font-size:11px }
+</style>
+<div id="courts"></div>
+<div id="files"></div>
+<div id="main">
+  <div id="bar">
+    <b id="title">—</b>
+    <span id="help">↓/↑ file · →/← court · 1–5 mark · 0 clear · a old/new · p pdf · r re-run · R court</span>
+    <button data-t="nay">✗ nay</button><button data-t="some">◔ some</button>
+    <button data-t="good">◑ good</button><button data-t="almost">~ almost</button>
+    <button data-t="yay">✅ yay</button>
+    <button id="ab">A/B: new</button>
+    <button id="pdfbtn">PDF</button>
+    <button id="syncbtn" class="on" title="PDF pane follows your scroll">sync</button>
+    <button id="runfile" title="Re-run the engine on THIS pdf (r)">⟳ file</button>
+    <button id="runcourt" title="Re-run the engine on this whole court (R)">⟳ court</button>
+  </div>
+  <div id="panes"><iframe id="frame"></iframe><div id="pdfpane"></div></div>
+</div>
+<script>
+let MAN = {}, MARKS = {}, QUAL = {files:{}, courts:{}}, CMETA = {}, STALE = {},
+    courts = [], ci = 0, fi = 0, old = false;
+const $ = s => document.querySelector(s);
+const key = () => courts.length ? courts[ci] + "/" + MAN[courts[ci]][fi] : null;
+
+async function boot() {
+  MAN = await (await fetch("/api/manifest")).json();
+  MARKS = await (await fetch("/api/marks")).json();
+  try { STALE = await (await fetch("/api/stale")).json(); } catch (e) { STALE = {}; }
+  try { QUAL = await (await fetch("/api/quality")).json(); } catch (e) {}
+  if (!QUAL.files) QUAL = {files:{}, courts:{}};
+  courts = Object.keys(MAN);
+  // Grouped order comes from the server, which owns the classification —
+  // 'nd' (North Dakota) and 'ndd' (D.N.D.) cannot be told apart by any rule
+  // the front end could sensibly carry.
+  try {
+    const cm = await (await fetch("/api/courtmeta")).json();
+    CMETA = cm.meta || {};
+    if (cm.order) courts = cm.order.filter(c => MAN[c]);
+  } catch (e) {}
+  pick(...restoreKey());
+}
+const GCOLOR = {A:"#2c8a4b", B:"#5b9a3c", C:"#c08a1e", D:"#c05c1e", F:"#b3372f"};
+function gradeChip(g) {
+  return g ? `<b class="q" style="color:${GCOLOR[g]||"#999"}">${g}</b>` : "";
+}
+function restoreKey() {
+  const want = decodeURI(location.hash.slice(1)) ||
+               localStorage.getItem("lastKey") || "";
+  const cut = want.indexOf("/");
+  if (cut < 0) return [0, 0];
+  const c = courts.indexOf(want.slice(0, cut));
+  if (c < 0) return [0, 0];
+  const f = MAN[courts[c]].indexOf(want.slice(cut + 1));
+  return [c, Math.max(f, 0)];
+}
+function tierGlyph(t) { return {nay:"✗",some:"◔",good:"◑",almost:"~",yay:"✅"}[t] || ""; }
+// A MARK IS A JUDGEMENT ABOUT A PARTICULAR RENDERING. Re-render the file and
+// the judgement may no longer describe it — ca9 carried 45 nays whose every
+// file had been re-rendered since, 35 of them mechanically clean by the time
+// anyone looked, and nothing here said so. 'changed' is proven by digest;
+// 're-rendered' only means the file was rewritten; 'unknown' predates the log.
+function staleGlyph(k) {
+  return {changed:"<span class=\"stale ch\" title=\"the rendering CHANGED since you marked this\">◆</span>",
+          "re-rendered":"<span class=\"stale rr\" title=\"re-rendered since you marked it — may or may not have changed\">◇</span>",
+          unknown:"<span class=\"stale uk\" title=\"marked before the journal existed — cannot be vouched for\">·</span>"
+         }[STALE[k]] || "";
+}
+const GLABEL = {"fed-appellate":"federal appellate", "state":"state courts",
+                "other":"other tribunals", "fed-district":"federal district"};
+let SHUT = new Set(JSON.parse(localStorage.getItem("shutGroups") || "[]"));
+function toggleGroup(g) {
+  SHUT.has(g) ? SHUT.delete(g) : SHUT.add(g);
+  localStorage.setItem("shutGroups", JSON.stringify([...SHUT]));
+  drawCourts();
+}
+// How far THIS court has been reviewed by hand: marks set, of files present.
+function reviewed(c) {
+  const files = MAN[c] || [];
+  let n = 0;
+  for (const f of files) if (MARKS[c + "/" + f]) n++;
+  return {n, total: files.length, pct: files.length ? n / files.length : 0};
+}
+function drawCourts() {
+  const rows = [];
+  let lastG = null, buf = [], head = null;
+  const flush = () => {
+    if (!head) return;
+    const done = buf.filter(x => (CMETA[x.c] || {}).status === "complete").length;
+    rows.push(head.replace("__COUNT__",
+      (done ? `<span class="gdone">${done}✓</span> · ` : "") + buf.length));
+    if (!SHUT.has(lastG)) rows.push(...buf.map(x => x.html));
+  };
+  courts.forEach((c, i) => {
+    const meta = CMETA[c] || {}, g = meta.group || "state";
+    if (g !== lastG) {
+      flush(); buf = []; lastG = g;
+      head = `<div class="ghead${SHUT.has(g) ? " shut" : ""}" ` +
+             `onclick="toggleGroup('${g}')"><span class="caret">▼</span>` +
+             `${GLABEL[g] || g}<span class="gcount">__COUNT__</span></div>`;
+    }
+    const st = meta.status || "", r = reviewed(c);
+    // A court with no headmatter reader is core-only, however good its
+    // grade looks — fla graded A with all 50 records unread.
+    const noRdr = meta.reader === false
+                ? '<span class="st nordr" title="no headmatter reader — ' +
+                  'core only">○</span>' : "";
+    // A PORT YOU HAVE NOT REVIEWED YET is the thing to go and look at, and
+    // nothing said so: 'complete' and 'no reader' were the only two states
+    // the sidebar could show, so 20 courts ported today read as ordinary.
+    const ready = meta.reader !== false && st !== "complete"
+                ? '<span class="st rdy" title="ported — ready for review">●</span>' : "";
+    const glyph = st === "complete" ? '<span class="st ok">✓</span>'
+                : st === "active"   ? '<span class="st go">▶</span>'
+                : (noRdr || ready);
+    buf.push({c, html:
+      `<div class="crow ${i === ci ? "on" : ""}" data-st="${st}" ` +
+      `onclick="pick(${i},0)" title="${c} — ${r.n}/${r.total} reviewed">` +
+      `<span class="cname">${gradeChip((QUAL.courts[c]||{}).g)} ${c}${glyph}</span>` +
+      `<span class="cn">${r.n ? r.n + "/" : ""}${r.total}</span>` +
+      `<span class="bar"><i class="${r.n === r.total ? "done" : ""}" ` +
+      `style="width:${(r.pct * 100).toFixed(1)}%"></i></span></div>`});
+  });
+  flush();
+  $("#courts").innerHTML = rows.join("");
+  const on = $("#courts .on"); if (on) on.scrollIntoView({block:"nearest"});
+}
+function drawFiles() {
+  const c = courts[ci] || "";
+  $("#files").innerHTML = (MAN[c]||[]).map((s, i) =>
+    `<div class="${i===fi?"on":""}" onclick="pick(${ci},${i})">` +
+    `${gradeChip((QUAL.files[c+"/"+s]||{}).g)}` +
+    `${tierGlyph(MARKS[c+"/"+s])}${staleGlyph(c+"/"+s)} ${s}</div>`).join("");
+  const on = $("#files .on"); if (on) on.scrollIntoView({block:"nearest"});
+}
+function pick(c, f) {
+  if (!courts.length) return;
+  ci = (c + courts.length) % courts.length;
+  fi = (f + MAN[courts[ci]].length) % MAN[courts[ci]].length;
+  const k = key();
+  if (k) { localStorage.setItem("lastKey", k);
+           history.replaceState(null, "", "#" + encodeURI(k)); }
+  drawCourts(); drawFiles(); show();
+}
+let showPdf = localStorage.getItem("showPdf") === "1";
+let syncOn = localStorage.getItem("syncPdf") !== "0";
+let pdfKey = null;
+
+async function buildPdfPane(k) {
+  if (pdfKey === k) return;
+  pdfKey = k;
+  const pane = $("#pdfpane");
+  pane.innerHTML = "";
+  // The key is claimed BEFORE the fetch, so a fetch that fails (the server
+  // restarting, or a re-render holding it) would leave the pane cleared and
+  // the key claimed — and every later call early-returns, so the pages
+  // never come back until a reload. Release the key on failure instead.
+  let info;
+  try {
+    const r = await fetch("/pginfo/" + k);
+    if (!r.ok) throw new Error(r.status);
+    info = await r.json();
+  } catch (e) {
+    pdfKey = null;
+    pane.innerHTML = '<div style="padding:1em;color:#a00">page images '
+                   + 'unavailable — retrying on next selection</div>';
+    return;
+  }
+  for (let n = 1; n <= (info.pages || 0); n++) {
+    const d = document.createElement("div");
+    d.className = "pg"; d.dataset.pg = n;
+    d.innerHTML = `<img loading="lazy" src="/pgimg/${k}/${n}.png">` +
+                  `<span class="n">${n}</span>`;
+    pane.appendChild(d);
+  }
+}
+function jumpPdf(page, smooth) {
+  const el = document.querySelector(`#pdfpane .pg[data-pg="${page}"]`);
+  if (!el) return;
+  document.querySelectorAll("#pdfpane .pg.cur").forEach(x => x.classList.remove("cur"));
+  el.classList.add("cur");
+  el.scrollIntoView({behavior: smooth ? "smooth" : "auto", block: "start"});
+}
+let lastSynced = 0;
+function topVisiblePage() {
+  const doc = $("#frame").contentDocument;
+  if (!doc) return null;
+  const win = $("#frame").contentWindow;
+  const els = doc.querySelectorAll("[data-pg]");
+  let best = null;
+  for (const el of els) {
+    const r = el.getBoundingClientRect();
+    if (r.bottom > 40) { best = el; break; }   // first block still in view
+  }
+  return best ? parseInt(best.dataset.pg) : null;
+}
+function wireSync() {
+  const win = $("#frame").contentWindow;
+  const doc = $("#frame").contentDocument;
+  if (!win || !doc) return;
+  let t = null;
+  win.addEventListener("scroll", () => {
+    if (!showPdf || !syncOn) return;
+    clearTimeout(t);
+    t = setTimeout(() => {
+      const pg = topVisiblePage();
+      if (pg && pg !== lastSynced) { lastSynced = pg; jumpPdf(pg, true); }
+    }, 150);
+  });
+  doc.addEventListener("click", e => {
+    const el = e.target.closest("[data-pg]");
+    if (el && showPdf) jumpPdf(parseInt(el.dataset.pg), true);
+  });
+}
+$("#frame") && ($("#frame").onload = wireSync);
+
+async function rerun(whole) {
+  const court = courts[ci], stem = MAN[court][fi];
+  const btn = whole ? $("#runcourt") : $("#runfile");
+  const label = btn.textContent;
+  btn.textContent = whole ? "running court…" : "running…";
+  btn.disabled = true;
+  try {
+    const r = await fetch("/api/render", {
+      method: "POST",
+      body: JSON.stringify(whole ? {court} : {court, stem}),
+    }).then(x => x.json());
+    btn.textContent = r.ok ? "✓ done" : "✗ failed";
+    if (r.msg) btn.title = r.msg;
+    // the viewer serves output/ off disk — reload to see the new render
+    QUAL = await fetch("/api/quality").then(x => x.json()).catch(() => QUAL);
+    show();
+  } catch (e) {
+    btn.textContent = "✗ error";
+  }
+  setTimeout(() => { btn.textContent = label; btn.disabled = false; }, 2500);
+}
+
+function show() {
+  const k = key(); if (!k) return;
+  const q = QUAL.files[k];
+  $("#title").textContent = k + (MARKS[k] ? "  [" + MARKS[k] + "]" : "")
+    + (q ? `  ·  ${q.g}${q.f.length ? " (" + q.f.join(", ") + ")" : ""}` : "");
+  $("#frame").src = (old ? "/old/" : "/out/") + k + ".html";
+  $("#ab").textContent = "A/B: " + (old ? "old" : "new");
+  $("#ab").classList.toggle("on", old);
+  $("#panes").classList.toggle("split", showPdf);
+  $("#pdfbtn").classList.toggle("on", showPdf);
+  $("#syncbtn").classList.toggle("on", syncOn);
+  if (showPdf) buildPdfPane(k); else pdfKey = null, $("#pdfpane").innerHTML = "";
+  lastSynced = 0;
+  document.querySelectorAll("#bar button[data-t]").forEach(b =>
+    b.classList.toggle("on", MARKS[k] === b.dataset.t));
+}
+function togglePdf() {
+  showPdf = !showPdf;
+  localStorage.setItem("showPdf", showPdf ? "1" : "0");
+  show();
+}
+async function mark(tier) {
+  const k = key(); if (!k) return;
+  if (tier === null) delete MARKS[k]; else MARKS[k] = tier;
+  delete STALE[k];                    // you just judged what is on screen
+  await fetch("/api/marks", {method:"POST", body: JSON.stringify({key:k, tier})});
+  drawFiles(); show();
+}
+document.querySelectorAll("#bar button[data-t]").forEach(b =>
+  b.onclick = () => mark(b.dataset.t));
+$("#ab").onclick = () => { old = !old; show(); };
+$("#runfile").onclick = () => rerun(false);
+$("#runcourt").onclick = () => rerun(true);
+$("#pdfbtn").onclick = togglePdf;
+$("#syncbtn").onclick = () => {
+  syncOn = !syncOn;
+  localStorage.setItem("syncPdf", syncOn ? "1" : "0");
+  $("#syncbtn").classList.toggle("on", syncOn);
+};
+document.onkeydown = e => {
+  if (e.target.tagName === "TEXTAREA") return;
+  const t = {"1":"nay","2":"some","3":"good","4":"almost","5":"yay"}[e.key];
+  if (t) return mark(t);
+  if (e.key === "0") return mark(null);
+  if (e.key === "r") { e.preventDefault(); return rerun(false); }
+  if (e.key === "R") { e.preventDefault(); return rerun(true); }
+  if (e.key === "j" || e.key === "ArrowDown") { e.preventDefault(); return pick(ci, fi + 1); }
+  if (e.key === "k" || e.key === "ArrowUp") { e.preventDefault(); return pick(ci, fi - 1); }
+  if (e.key === "J" || e.key === "ArrowRight") { e.preventDefault(); return pick(ci + 1, 0); }
+  if (e.key === "K" || e.key === "ArrowLeft") { e.preventDefault(); return pick(ci - 1, 0); }
+  if (e.key === "a") { old = !old; show(); }
+  if (e.key === "p") togglePdf();
+};
+boot();
+</script>

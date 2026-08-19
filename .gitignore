@@ -1,0 +1,8 @@
+# 3.9G of regenerable renders — the readers rebuild these
+output/*
+# except the things no re-render can recreate: the user's marks and status
+!output/notes/
+output/notes/*.tmp
+__pycache__/
+*.pyc
+.venv/

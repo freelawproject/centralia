@@ -1,0 +1,68 @@
+{
+ "ca1": {
+  "error": 0,
+  "failed": 0,
+  "review": 1,
+  "valid": 88
+ },
+ "ca10": {
+  "error": 0,
+  "failed": 0,
+  "review": 0,
+  "valid": 103
+ },
+ "ca11": {
+  "error": 1,
+  "failed": 0,
+  "review": 1,
+  "valid": 100
+ },
+ "ca2": {
+  "error": 0,
+  "failed": 0,
+  "review": 0,
+  "valid": 73
+ },
+ "ca3": {
+  "error": 0,
+  "failed": 0,
+  "review": 0,
+  "valid": 103
+ },
+ "ca5": {
+  "error": 0,
+  "failed": 0,
+  "review": 0,
+  "valid": 102
+ },
+ "ca6": {
+  "error": 0,
+  "failed": 0,
+  "review": 0,
+  "valid": 103
+ },
+ "ca9": {
+  "error": 0,
+  "failed": 0,
+  "review": 0,
+  "valid": 102
+ },
+ "cadc": {
+  "error": 1,
+  "failed": 0,
+  "review": 1,
+  "valid": 98
+ },
+ "cafc": {
+  "error": 0,
+  "failed": 0,
+  "review": 2,
+  "valid": 98
+ },
+ "scotus": {
+  "error": 0,
+  "failed": 0,
+  "review": 0,
+  "valid": 100
+ }
+}
