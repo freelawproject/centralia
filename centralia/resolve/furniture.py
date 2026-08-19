@@ -260,6 +260,12 @@ def _looks_like_efiling_stamp(text: str) -> bool:
     return fields >= 2 and digits >= 6
 
 
+# PRE-PRINTED FORM FURNITURE's band and type ceiling. Measured on nev, whose
+# form number runs 3.0-6.5pt against a 12.0pt body in the last 7% of the page.
+_FORM_BAND = 0.07
+_FORM_SIZE_MAX = 0.6
+
+
 @dataclass
 class FurnitureFinder:
     """Document-level furniture state + per-line classification."""
@@ -325,6 +331,26 @@ class FurnitureFinder:
         if set(text) <= {"/", " "} and "/" in text:
             return "filler"
         frac = line.top / pm.height
+        # PRE-PRINTED FORM FURNITURE: a row in tiny type, in the top or
+        # bottom band, standing ENTIRELY OUTSIDE the body measure. That is
+        # the court's own stationery — a form number, a seal caption — and no
+        # opinion text is ever set there.
+        #
+        # Nevada prints '(O) 1947A' under a 'SUPREME COURT / NEVADA' seal
+        # caption at the foot of every page, and its scans OCR it differently
+        # every time ('(01 1947A MilDro', '0) 1947A', '(0) I 947A', '19•17A'),
+        # so the repeat-keyed rules above never see it and it landed in the
+        # body as a paragraph. Measured over nev: top >= 0.93 of the height,
+        # 3.0-6.5pt against a 12.0pt body, and x1 <= 70.4 against a measured
+        # body rail of 107 — every one of the 60 rows is clear of the measure
+        # on the left. The test is 'outside the measure', not 'short and
+        # small', so a genuine short row AT the rail cannot be caught by it.
+        if (frac <= _FORM_BAND or frac >= 1.0 - _FORM_BAND) \
+                and line.size and self.body_size \
+                and line.size <= self.body_size * _FORM_SIZE_MAX \
+                and (line.x1 < self.body_x0
+                     or line.x0 > pm.width - self.body_x0):
+            return "stamp"
         # THE DOCUMENT'S OWN SOURCE PATH is the template talking, not the
         # court — it renders as the writing's last paragraph on 10 of kyed's
         # 25 records. Surfaced as a removal so the record still says what

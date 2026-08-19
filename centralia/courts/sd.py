@@ -157,8 +157,9 @@ _AXIS_TOL = 14.0
 # The second column's rail. Measured across all 50 records and both of the
 # pages a record's headmatter can occupy: every row that leaves the left
 # column starts at x0 = 360.0 exactly (min 360.0, max 360.0).
-_COL2_X0 = 360.0
-_GUTTER = 350.0          # the 345–360 band the left column's ink never enters
+# x0 = 360.0; the test is the GUTTER between the columns, 345–360, which the
+# left column's ink never enters on any of the 50 records.
+_GUTTER = 350.0
 # The left rail is 72.0; a firm-name wrap is set one indent in at 88.7/88.8
 # ('& Simmons, L.L.P.', 'Hinrichs & Tysdal, LLP').
 _RAIL_TOL = 20.0
@@ -261,7 +262,7 @@ def read_headmatter_sd(model, geom, **_):
     counsel: list[str] = []
     printed: list[str] = []     # every caption row, as printed
     pivot_at: int | None = None
-    lead_case = True            # still inside the FIRST of consolidated captions
+    lead_case = True            # inside the FIRST of consolidated captions
     stop = False
 
     for page in model.pages[:_MAX_PAGES]:
@@ -278,7 +279,8 @@ def read_headmatter_sd(model, geom, **_):
             lead = pieces[0]
             x1 = max(l.x1 for l in pieces)
             single = len(pieces) == 1
-            centred = single and abs((lead.x0 + x1) / 2 - width / 2) <= _AXIS_TOL
+            centred = (single
+                       and abs((lead.x0 + x1) / 2 - width / 2) <= _AXIS_TOL)
             at_rail = abs(lead.x0 - body_x0) <= _RAIL_TOL
             in_col2 = lead.x0 >= _GUTTER
 
@@ -449,7 +451,8 @@ def read_headmatter_sd(model, geom, **_):
             ctx.crit.setdefault("case_name", f"{lhs} v. {rhs}")
             ctx.crit.setdefault("parties", [lhs, rhs])
     elif centre_run:
-        ctx.crit.setdefault("case_name", _norm(" ".join(centre_run)).rstrip("."))
+        ctx.crit.setdefault("case_name",
+                            _norm(" ".join(centre_run)).rstrip("."))
     if below:
         # The recital names an ACTION ('APPEAL FROM …'); the field wants the
         # court, so the opening phrase comes off and the rest stands as the

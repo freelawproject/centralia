@@ -661,7 +661,15 @@ def _cover_band(ctx, pieces, text: str, role: str, label: str) -> None:
         return
     if value:
         if role == "caption":
-            ctx.crit["case_name"] = value
+            # THE TITLE OF CASE WRAPS, and on a consolidated record the band
+            # holds TWO of them (asa_s._davis) — the rows are joined, never
+            # replaced, or the criterion keeps only the last line printed
+            # ('Company of America.' on cynthia_a._roberge).
+            # (accumulated OUTSIDE `crit`: an undeclared criteria key is
+            # attached by setattr and never serializes.)
+            ctx.roster["title"] = _norm(
+                ctx.roster.get("title", "") + " " + value)
+            ctx.crit["case_name"] = ctx.roster["title"]
         elif role == "date":
             ctx.crit.setdefault("decision_date", value)
         elif role == "panel":
