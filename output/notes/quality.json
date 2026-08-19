@@ -393,10 +393,10 @@
 "sign": 0.0
 },
 "del": {
-"ab": 0.94,
-"g": "B",
+"ab": 0.24,
+"g": "C",
 "n": 50,
-"s": 0.79,
+"s": 3.03,
 "sign": 1.0
 },
 "delch": {
@@ -18750,11 +18750,9 @@
 "s": 0.0
 },
 "del/aim_ventura_capital_fund_llc_v._gabb_wireless_inc.": {
-"f": [
-"split-label\u00d71"
-],
-"g": "B",
-"s": 1.0
+"f": [],
+"g": "A",
+"s": 0.0
 },
 "del/benchmark_investments_llc_v._pacer_advisors_inc.": {
 "f": [],
@@ -18763,10 +18761,11 @@
 },
 "del/best_v._state": {
 "f": [
-"split-label\u00d71"
+"split-label\u00d71",
+"hm-unread\u00d723"
 ],
-"g": "B",
-"s": 1.0
+"g": "C",
+"s": 4.0
 },
 "del/boulden_v._state": {
 "f": [],
@@ -18774,16 +18773,19 @@
 "s": 0.0
 },
 "del/brown_caitlyn_v._kenneth_tucker": {
-"f": [],
-"g": "A",
-"s": 0.0
+"f": [
+"hm-unread\u00d724"
+],
+"g": "C",
+"s": 3.0
 },
 "del/brown_dr._erika_v._transforming_lives_inc.": {
 "f": [
-"split-label\u00d71"
+"split-label\u00d71",
+"hm-unread\u00d723"
 ],
-"g": "B",
-"s": 1.0
+"g": "C",
+"s": 4.0
 },
 "del/brp_group_inc._v._ruby_wagner": {
 "f": [],
@@ -18797,128 +18799,146 @@
 },
 "del/camden_foley_v._session_corp.": {
 "f": [
-"split-label\u00d71"
-],
-"g": "B",
-"s": 1.0
-},
-"del/cannon_v._state": {
-"f": [
-"split-label\u00d71"
-],
-"g": "B",
-"s": 1.0
-},
-"del/clark_v._state": {
-"f": [
-"split-label\u00d71"
-],
-"g": "B",
-"s": 1.0
-},
-"del/cruz-webster_v._state": {
-"f": [
-"split-label\u00d71"
-],
-"g": "B",
-"s": 1.0
-},
-"del/eller_associates_inc._v._ryan_a._turner": {
-"f": [
-"naked-rail\u00d73",
-"split-label\u00d71"
+"split-label\u00d71",
+"hm-unread\u00d725"
 ],
 "g": "C",
 "s": 4.0
 },
+"del/cannon_v._state": {
+"f": [
+"split-label\u00d71",
+"hm-unread\u00d722"
+],
+"g": "C",
+"s": 4.0
+},
+"del/clark_v._state": {
+"f": [
+"split-label\u00d71",
+"hm-unread\u00d730"
+],
+"g": "C",
+"s": 4.0
+},
+"del/cruz-webster_v._state": {
+"f": [
+"split-label\u00d71",
+"hm-unread\u00d734"
+],
+"g": "C",
+"s": 4.0
+},
+"del/eller_associates_inc._v._ryan_a._turner": {
+"f": [
+"naked-rail\u00d73",
+"split-label\u00d71",
+"hm-unread\u00d770"
+],
+"g": "D",
+"s": 7.0
+},
 "del/ferrer-vasquez_v._state": {
+"f": [
+"hm-unread\u00d718"
+],
+"g": "C",
+"s": 3.0
+},
+"del/francis_madeline_v._maxwell_meyer": {
+"f": [
+"split-label\u00d71",
+"hm-unread\u00d724"
+],
+"g": "C",
+"s": 4.0
+},
+"del/gordon_v._state": {
 "f": [],
 "g": "A",
 "s": 0.0
 },
-"del/francis_madeline_v._maxwell_meyer": {
-"f": [
-"split-label\u00d71"
-],
-"g": "B",
-"s": 1.0
-},
-"del/gordon_v._state": {
-"f": [
-"split-label\u00d71"
-],
-"g": "B",
-"s": 1.0
-},
 "del/griffin_v._state": {
 "f": [
-"split-label\u00d71"
+"split-label\u00d71",
+"hm-unread\u00d722"
 ],
-"g": "B",
-"s": 1.0
+"g": "C",
+"s": 4.0
 },
 "del/gulf_lng_energy_v._eni_usa_gas_marketing": {
 "f": [
 "joins\u00d71",
 "hyph\u00d71",
-"split-label\u00d71"
+"split-label\u00d71",
+"hm-unread\u00d739"
 ],
-"g": "B",
-"s": 2.0
+"g": "C",
+"s": 5.0
 },
 "del/gupta_lachhman_dass_and_manjula_gupta_v._citizens_bank_successor_to": {
-"f": [],
-"g": "A",
-"s": 0.0
+"f": [
+"hm-unread\u00d730"
+],
+"g": "C",
+"s": 3.0
 },
 "del/hsu_lee_lifeng_v._trinidad_navarro_delaware_insurance_commissioner_and": {
-"f": [],
-"g": "A",
-"s": 0.0
+"f": [
+"hm-unread\u00d732"
+],
+"g": "C",
+"s": 3.0
 },
 "del/imo_the_petition_for_a_writ_of_mandamus_or_prohibition_by_candido_reynolds": {
 "f": [
-"split-label\u00d71"
+"split-label\u00d71",
+"hm-unread\u00d715"
 ],
-"g": "B",
-"s": 1.0
+"g": "C",
+"s": 4.0
 },
 "del/in_re_the_aes_corporation_and_owens_corning": {
 "f": [
 "joins\u00d72",
 "hyph\u00d71",
-"split-label\u00d71"
+"split-label\u00d71",
+"hm-unread\u00d750"
 ],
 "g": "C",
-"s": 2.5
+"s": 5.5
 },
 "del/in_the_matter_of_a_member_of_the_bar_of_the_supreme_court_of_the_state_of": {
 "f": [
-"split-label\u00d71"
+"split-label\u00d71",
+"hm-unread\u00d717"
 ],
-"g": "B",
-"s": 1.0
+"g": "C",
+"s": 4.0
 },
 "del/jake_scott_v._department_of_services_for_children_youth_and_their_families": {
 "f": [
-"split-label\u00d71"
+"split-label\u00d71",
+"hm-unread\u00d729"
 ],
-"g": "B",
-"s": 1.0
+"g": "C",
+"s": 4.0
 },
 "del/jones_v._state": {
 "f": [
-"split-label\u00d71"
+"split-label\u00d71",
+"hm-unread\u00d723"
 ],
-"g": "B",
-"s": 1.0
+"g": "C",
+"s": 4.0
 },
 "del/marc_j._centrella_v._avantor_inc.": {
 "f": [
-"split-label\u00d71"
+"split-label\u00d71",
+"hm-unread\u00d721"
 ],
-"g": "B",
-"s": 1.0
+"g": "C",
+"s": 4.0
 },
 "del/matta_v._state": {
 "f": [],
@@ -18927,97 +18947,112 @@
 },
 "del/millman_tasha_v._dscyfdfs_tpr": {
 "f": [
-"split-label\u00d71"
-],
-"g": "B",
-"s": 1.0
-},
-"del/new_castle_county_v._dpml_jamison_corner_llc": {
-"f": [
-"naked-rail\u00d77",
-"split-label\u00d71"
+"split-label\u00d71",
+"hm-unread\u00d729"
 ],
 "g": "C",
 "s": 4.0
 },
+"del/new_castle_county_v._dpml_jamison_corner_llc": {
+"f": [
+"naked-rail\u00d77",
+"split-label\u00d71",
+"hm-unread\u00d778"
+],
+"g": "D",
+"s": 7.0
+},
 "del/pachis_zander_v._renee_quayle": {
-"f": [],
-"g": "A",
-"s": 0.0
+"f": [
+"hm-unread\u00d726"
+],
+"g": "C",
+"s": 3.0
 },
 "del/peoples_tristan_v._lauren_wallace": {
-"f": [],
-"g": "A",
-"s": 0.0
+"f": [
+"decap\u00d71"
+],
+"g": "B",
+"s": 2.0
 },
 "del/reybold_venture_group_xvi_llc_v._tesla_industries_inc.": {
 "f": [
-"split-label\u00d71"
+"split-label\u00d71",
+"hm-unread\u00d721"
 ],
-"g": "B",
-"s": 1.0
+"g": "C",
+"s": 4.0
 },
 "del/rooten_allice_v._department_of_family_services_for_children_youth_and": {
 "f": [
-"split-label\u00d71"
+"split-label\u00d71",
+"hm-unread\u00d729"
 ],
-"g": "B",
-"s": 1.0
+"g": "C",
+"s": 4.0
 },
 "del/smith_v._state": {
-"f": [],
-"g": "A",
-"s": 0.0
+"f": [
+"hm-unread\u00d720"
+],
+"g": "C",
+"s": 3.0
 },
 "del/sono_international_co._ltd._v._tfi_tutti_llc": {
-"f": [],
-"g": "A",
-"s": 0.0
+"f": [
+"hm-unread\u00d724"
+],
+"g": "C",
+"s": 3.0
 },
 "del/spcp_group_llc_v._svalbard_holdings_limited": {
-"f": [
-"split-label\u00d71"
-],
-"g": "B",
-"s": 1.0
-},
-"del/starstone_specialty_insurance_company_v._view_operating_corporation": {
 "f": [],
 "g": "A",
 "s": 0.0
+},
+"del/starstone_specialty_insurance_company_v._view_operating_corporation": {
+"f": [
+"hm-unread\u00d728"
+],
+"g": "C",
+"s": 3.0
 },
 "del/sullivan_cindy_v._kira_wilson_and_scott_wilson": {
 "f": [
-"split-label\u00d71"
+"split-label\u00d71",
+"hm-unread\u00d733"
 ],
-"g": "B",
-"s": 1.0
+"g": "C",
+"s": 4.0
 },
 "del/suncor_energy_inc._v._magellan_pipeline_company_l.p.": {
 "f": [
-"split-label\u00d71"
+"split-label\u00d71",
+"hm-unread\u00d727"
 ],
-"g": "B",
-"s": 1.0
+"g": "C",
+"s": 4.0
 },
 "del/suppi_construction_inc._v._melissa_r._sadowski": {
 "f": [
-"split-label\u00d71"
+"split-label\u00d71",
+"hm-unread\u00d725"
 ],
-"g": "B",
-"s": 1.0
+"g": "C",
+"s": 4.0
 },
 "del/tbd_standard_llc_as_personal_representative_of_the_estate_of_donald_bodick": {
+"f": [
+"hm-unread\u00d727"
+],
+"g": "C",
+"s": 3.0
+},
+"del/tomales_bay_capital_anduril_iii_l.p._v._pro_publica_inc.": {
 "f": [],
 "g": "A",
 "s": 0.0
-},
-"del/tomales_bay_capital_anduril_iii_l.p._v._pro_publica_inc.": {
-"f": [
-"split-label\u00d71"
-],
-"g": "B",
-"s": 1.0
 },
 "del/town_of_fenwick_island_and_sussex_county_v._state_of_delaware": {
 "f": [],
@@ -19025,42 +19060,50 @@
 "s": 0.0
 },
 "del/trina_lindsey_v._shannon_cooper": {
-"f": [],
-"g": "A",
-"s": 0.0
+"f": [
+"hm-unread\u00d719"
+],
+"g": "C",
+"s": 3.0
 },
 "del/turner_jacob_v._erin_michaels": {
 "f": [
-"split-label\u00d71"
+"split-label\u00d71",
+"hm-unread\u00d724"
 ],
-"g": "B",
-"s": 1.0
+"g": "C",
+"s": 4.0
 },
 "del/turner_v._state": {
 "f": [
-"split-label\u00d71"
+"split-label\u00d71",
+"hm-unread\u00d722"
 ],
-"g": "B",
-"s": 1.0
+"g": "C",
+"s": 4.0
 },
 "del/velez-santiago_v._state": {
 "f": [
-"split-label\u00d71"
+"split-label\u00d71",
+"hm-unread\u00d721"
 ],
-"g": "B",
-"s": 1.0
+"g": "C",
+"s": 4.0
 },
 "del/vincent_bennett_v._eden_michaels": {
 "f": [
-"split-label\u00d71"
+"split-label\u00d71",
+"hm-unread\u00d725"
 ],
-"g": "B",
-"s": 1.0
+"g": "C",
+"s": 4.0
 },
 "del/west_v._state": {
-"f": [],
-"g": "A",
-"s": 0.0
+"f": [
+"hm-unread\u00d720"
+],
+"g": "C",
+"s": 3.0
 },
 "delch/advent_international_l.p._v._servicios_funerarios_gg_s.a._de_c.v.": {
 "f": [

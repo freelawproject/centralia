@@ -8,10 +8,89 @@ run right after.
 
 from __future__ import annotations
 
+# A FontDescriptor /Descent past this many em is not a typeface's descent —
+# it is its /FontBBox depth mis-copied. MEASURED across the corpus: honest
+# faces run 0.246-0.299 em (Aptos, Cambria-Bold, Cambria-Italic), the broken
+# descriptors 0.660 (Tunga), 0.680/0.710 (CourierNewPSMT/-BoldMT), 0.789
+# (SegoeUISymbol) and 2.464 (Cambria/CambriaMath) — a wide empty band at 0.6.
+_DESCENT_MAX = 0.6
+
 
 # --------------------------------------------------------------------------
 # char-level
 # --------------------------------------------------------------------------
+
+def normalize_font_descent(chars: list, event) -> None:
+    """Put every glyph's BOX back on its own baseline when the font lies about
+    its descent.
+
+    pdfminer derives a char's box from the baseline plus the FontDescriptor's
+    /Descent (``y0 = baseline + descent * size``), so a descriptor that
+    reports its /FontBBox depth instead of its real descent drops the whole
+    face DOWN the page while its siblings stay put. MEASURED in
+    me/adoption_by_kathleen_c.: the body face ``AEPVZY+Cambria`` declares
+    Descent -2464 / Ascent 3117 — verbatim its FontBBox y-range — while
+    ``Cambria-Italic`` (-279), ``Cambria-Bold`` (-299) and ``Aptos`` (-275)
+    on the same page are honest. Every roman glyph therefore reports a `top`
+    (2.464 - 0.277) x 14.04pt = 30.71pt too large, one row pitch (32.85pt)
+    low, so the ITALIC trial-judge run on baseline 419.40 reports top 362.47
+    while the roman half of its own row reports 393.15 and the roman row
+    ABOVE it reports 360.27 — 2.2pt away. pdfplumber clusters within 3pt,
+    welds the two, and sorts by x: 'sBuebnjseocnt,  oJ.f a pending…'.
+
+    The cure is the baseline, which never lies: ``matrix[5]`` is the glyph's
+    device-space baseline, so ``(matrix[5] - y0) / size`` recovers the
+    descent the descriptor actually declared. A face whose recovered descent
+    is past -0.6 em is not a typeface — real ones on this corpus run 0.246 to
+    0.299 em, the bogus ones 0.66 (CourierNewPS-BoldMT) to 2.464 (Cambria) —
+    and its boxes are re-hung on the page's own honest descent. The proof is
+    the paper: me's top text margin reads 98.6pt (1.37in) before and 74.5pt
+    (1.03in) after, on a page whose left margin is exactly 72pt.
+
+    Rotated glyphs are skipped — their box is not a vertical shift of the
+    baseline."""
+    import statistics
+    per: dict = {}
+    for c in chars:
+        m = c.get("matrix")
+        size = float(c.get("size") or 0)
+        if not m or size <= 0 or "y0" not in c:
+            continue
+        if abs(m[1]) > 1e-6 or abs(m[2]) > 1e-6:
+            continue                      # rotated/skewed: not a y-shift
+        per.setdefault(c.get("fontname") or "", []).append(
+            (m[5] - c["y0"]) / size)
+    ratios = {f: statistics.median(v) for f, v in per.items() if v}
+    honest = [r for r in ratios.values() if r <= _DESCENT_MAX]
+    bogus = {f: r for f, r in ratios.items() if r > _DESCENT_MAX}
+    if not honest or not bogus:
+        return                            # nothing to hang it from, or nothing to fix
+    # Clamped to the measured band of real faces so one odd reference face
+    # cannot drag a whole page off its baselines.
+    ref = min(max(statistics.median(honest), 0.20), 0.35)
+    moved = 0
+    for c in chars:
+        r = bogus.get(c.get("fontname") or "")
+        if r is None:
+            continue
+        size = float(c.get("size") or 0)
+        if size <= 0:
+            continue
+        d = (ref - r) * size              # negative: the box rises
+        c["top"] += d
+        c["bottom"] += d
+        if "doctop" in c:
+            c["doctop"] += d
+        c["y0"] -= d
+        c["y1"] -= d
+        moved += 1
+    if moved:
+        event("font-descent",
+              f"re-hung {moved} glyphs in {len(bogus)} bogus-descent "
+              f"fonts on descent {ref:.3f} ("
+              + ", ".join(f"{f.split('+')[-1]} {r:.2f}"
+                          for f, r in sorted(bogus.items())) + ")")
+
 
 def drop_white_glyphs(chars: list, event) -> None:
     """Drop glyphs PAINTED WHITE — invisible on paper, used as spacers (a

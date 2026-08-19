@@ -45,11 +45,23 @@ always prints — never by a title and never by wording about the case:
     (city_of_weirton, west_virginia_department_of_human_services, statoil).
 
     'separate slip' (13 of 50) — a concurrence or dissent released on its
-    own. No fences and no caption: the clerk's stamp, at most two rows
-    naming the docket and the case, and then the byline.
+    own. No fences and no full caption: the clerk's stamp, then THE
+    WRITING'S OWN CAPTION — the docket and the case on one row, set at the
+    body rail in the body's own type — and then the byline.
 
         No. 23-558 – State of West Virginia v. Brendan W.
         WOOTON, Justice, concurring, in part, and dissenting, in part:
+
+    THAT ROW IS CAPTION MATTER, NOT A TITLE. It states no name for the
+    paper; it states the parties, the pivot and the number — the cover the
+    court gives a writing it releases alone (the user's call on
+    credit_acceptance, 2026-08-19: 'the line there is more like the
+    caption'). Measured over the corpus: 12 of the 13 separate slips print
+    it, in 15 rows all told (three carry the case name onto a second row —
+    state_ex_rel…young, …butler_1, …the_honorable), always on page 1, at the
+    body rail, in the body's own type, above the byline;
+    state_of_west_virginia_v._richard_william_page prints none and opens on
+    its byline.
 
     'clerk's hand-down' (1 of 50) — a per-curiam disposition entered by
     the Court and attested by the clerk. It names the STATE, not the
@@ -79,7 +91,7 @@ printed DOCKET is the second landmark. wva's declared grammar reads both
 the forms the court signs with ('JUSTICE WOOTON delivered the Opinion of
 the Court.' and 'TRUMP, Justice:'), but not the title-case form one slip
 uses ('Justice Wooton, dissenting:' — credit_acceptance). Rather than
-invent a byline test here, the slip reader takes the title row on the
+invent a byline test here, the slip reader takes the caption row on the
 strength of the docket the court printed on it, and the writing below is
 left exactly as core reads it.
 
@@ -156,7 +168,7 @@ _WRAP_GAP_FACTOR = 1.6
 _MEASURE_SLACK = 3.0
 
 # THE COURT'S OWN DOCKET, in the three forms it prints: alone inside the
-# sandwich, leading a separate slip's title row, trailing one.
+# sandwich, leading a separate slip's caption row, trailing one.
 _DOCKET_ANY = re.compile(r"\bNos?\.\s*(\d{2}-\d{1,5})\b", re.I)
 _DOCKET_LIST = re.compile(
     r"^Nos?\.\s*\d{2}-\d{1,5}"
@@ -515,10 +527,11 @@ def read_headmatter_wva(model, geom, **_):
     if not rows:
         return NOTHING
     head = _plain(rows[0][2].plain)
-    # A SEPARATE SLIP IS THE CLERK'S STAMP OVER A TITLE ROW. Either the
-    # first content row states the case and its docket at the body rail, or
-    # the writing starts straight away and there is no title at all.
-    if stamp.rows and (_is_slip_title(rows[0][2], geom)
+    # A SEPARATE SLIP IS THE CLERK'S STAMP OVER THE WRITING'S OWN CAPTION.
+    # Either the first content row states the case and its docket at the
+    # body rail, or the writing starts straight away and this slip prints no
+    # cover at all (state_of_west_virginia_v._richard_william_page).
+    if stamp.rows and (_is_slip_caption(rows[0][2], geom)
                        or any(parser.parse(_plain(l.plain))
                               for _p, _t, l in rows[:3])):
         return _read_slip(model, geom, rows, stamp, parser)
@@ -741,8 +754,8 @@ def _sides(rows: list, one_sided: bool = False):
 # the separate slip
 # --------------------------------------------------------------------------
 
-def _is_slip_title(line, geom) -> bool:
-    """The slip's title row: this court's own docket, set at the body rail.
+def _is_slip_caption(line, geom) -> bool:
+    """The slip's own caption row: this court's docket, set at the body rail.
 
     'No. 23-558 - State of West Virginia v. Brendan W.' and 'State of West
     Virginia v. Tina Frymyer, No. 23-513' are the two forms; the docket is
@@ -753,10 +766,19 @@ def _is_slip_title(line, geom) -> bool:
 
 
 def _read_slip(model, geom, rows, stamp, parser):
-    """A concurrence or dissent released on its own: the clerk's stamp, at
-    most two rows naming the docket and the case, then the writing."""
+    """A concurrence or dissent released on its own: the clerk's stamp, the
+    writing's own caption — the docket and the case, in at most two rows —
+    then the writing.
+
+    THE CAPTION ROW IS TAGGED `caption`, NOT `title`. wva reprints no full
+    caption on a separate slip; this one row IS the cover, and what it
+    carries is the parties, the pivot and the number. It was read as a
+    `title` until 2026-08-19, which said the paper called itself
+    'No. 24-305 - Credit Acceptance Corporation v. …' — and rendered it in
+    the tint the court's own nameplate uses. Nothing on this paper names
+    the paper, so no row here is a title."""
     ctx = _Ctx(model, geom, STYLE_SLIP)
-    title: list[str] = []
+    caption: list[str] = []
     signed = False
     prev: tuple = ()
     for page, top, line in rows[:4]:
@@ -764,33 +786,38 @@ def _read_slip(model, geom, rows, stamp, parser):
         if parser.parse(text) is not None:
             signed = True
             break                          # the writing starts here
-        if not title:
-            # THE TITLE ROW STANDS AT THE BODY RAIL. Nothing else on this
-            # paper does.
+        if not caption:
+            # THE CAPTION ROW STANDS AT THE BODY RAIL. Nothing else on this
+            # paper does. Measured on the 12 slips that print it: x0 is the
+            # document's own rail (72.0 on eleven of them, 75.6 on
+            # …the_honorable, which indents its cover 3.6pt), the type is the
+            # body's own (13.0 on eleven, 12.0 on …honorable_james_young),
+            # and the row always stands on page 1 above the byline
+            # (credit_acceptance: top 108.9 against the byline's 143.8).
             if abs(line.x0 - ctx.body_x0) > 6:
                 return NOTHING
         else:
             # A WRAP follows at the type's own leading and stays inside the
             # measure; it may hang indented (the_honorable sets its second
             # row 69pt in) or return to the rail (butler). Anything set
-            # further down the page is the writing, not the title.
+            # further down the page is the writing, not the caption.
             if page != prev[0] or top - prev[1] > \
                     (line.size or ctx.body_size) * _WRAP_GAP_FACTOR:
                 break
             if not (ctx.body_x0 - 6 <= line.x0 <= ctx.body_x0 + 108):
                 break
-        title.append(text)
-        ctx.emit(line, "title")
+        caption.append(text)
+        ctx.emit(line, "caption")
         prev = (page, top)
-    if not (signed or title):
+    if not (signed or caption):
         return NOTHING
-    printed = _norm(" ".join(title))
-    # A TITLE THE COURT DID NOT NUMBER IS NOT A TITLE. Where the byline
-    # names the writing the reader has its landmark; where it does not
+    printed = _norm(" ".join(caption))
+    # A COVER THE COURT DID NOT NUMBER IS NOT THIS PAPER'S COVER. Where the
+    # byline names the writing the reader has its landmark; where it does not
     # (credit_acceptance signs 'Justice Wooton, dissenting:', which this
     # court's declared grammar does not read), the printed docket is the
     # only thing that says this paper is one of wva's.
-    if title and not signed and not _DOCKET_ANY.search(printed):
+    if caption and not signed and not _DOCKET_ANY.search(printed):
         return NOTHING
     if printed:
         hit = _DOCKET_ANY.search(printed)

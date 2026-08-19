@@ -586,3 +586,15 @@ from . import ky                                             # noqa: E402,F401
 from . import miss                                           # noqa: E402,F401
 from . import nh                                             # noqa: E402,F401
 from . import mont                                           # noqa: E402,F401
+
+# COURTS WHOSE ID IS A PYTHON KEYWORD. 'del' (Delaware) and 'or' (Oregon)
+# have perfectly legal FILENAMES — centralia/courts/del.py, or.py, the same
+# convention as every other court — but `from . import del` is a syntax
+# error, so they are imported the long way. The court id on the decider is
+# what dispatch uses; the module name never mattered to it.
+import importlib as _importlib                               # noqa: E402
+for _kw in ("del", "or"):
+    try:
+        _importlib.import_module(f".{_kw}", __name__)
+    except ModuleNotFoundError:
+        pass

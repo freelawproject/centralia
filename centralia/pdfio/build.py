@@ -163,6 +163,9 @@ def build_page(page, page_no: int, id_start: int) -> PageModel:
                    height=float(page.height))
 
     chars = page.chars
+    # FIRST: a lying /Descent moves a whole face down the page, and every
+    # later repair (and pdfplumber's own 3pt row clustering) reads `top`.
+    quirks.normalize_font_descent(chars, pm.event)
     quirks.drop_white_glyphs(chars, pm.event)
     quirks.decode_cid_glyphs(chars, pm.event)
     quirks.drop_micro_glyphs(chars, pm.event)

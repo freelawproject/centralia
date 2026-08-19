@@ -68,11 +68,36 @@ fifths of the measure (measured 237-290pt over the corpus), drawn on the
 slip and TYPED on the order and on a consolidation. The reader ends at
 the first byline, always.
 
+A SEPARATE WRITING PRINTS ITS OWN COVER. Michigan paginates every
+writing on its own (the majority's folio reads 35 on the page above a
+dissent whose first page reads 1), and sets a fresh cover over each one —
+the court naming itself CENTRED ON THE PAGE AXIS, then the whole caption
+again, then the shelf, then the byline:
+
+    S T A T E  O F  M I C H I G A N   centred, and NO letterhead: the
+    SUPREME COURT                       fences belong to the Reporter's
+    PINEBROOK WARREN, LLC, …            release and the lead cover only
+         Plaintiffs-Appellants,
+    v                    No. 164869
+    …
+    ──────────────── (251.9pt shelf)
+    VIVIANO, J. (dissenting).         …and the separate writing starts
+
+That cover is a VERBATIM REPEAT of the block the lead cover already
+printed, and the reader claims it as `Dropped`. It has to: the cover
+opens BELOW the first byline, so assembly files it into the PRECEDING
+writing, where it renders as a heading and 400 rows of body prose
+(pinebrook_warren_llc_v._city_of_warren_1, pages 41-52, at the tail of
+the majority). Measured over the 50-record corpus: 52 such covers on 30
+records, every one closed by a byline, and NOT ONE containing a single
+full-measure lower-case row — no prose is ever inside one, so the run
+from the centred court row to the next byline is safe to claim whole. A
+candidate page that never reaches a byline is not this shape, and then
+nothing is claimed.
+
 WHAT THE READER DOES NOT TOUCH. The Reporter's syllabus is core's
 section, and its own title and 'Docket No. … Argued … Decided …' row are
-read for criteria but left where the page prints them. A separate
-writing repeats the caption on its own cover page; that page lies inside
-an assembled writing and the reader does not reach into it. mich prints
+read for criteria but left where the page prints them. mich prints
 NO appearance of counsel anywhere in the corpus.
 """
 
@@ -129,6 +154,18 @@ _RAIL_TOL = 6.0
 # HOW FAR THE COVER MAY RUN. pinebrook_warren repeats its caption once per
 # consolidated docket and carries it from page 6 to page 17.
 _MAX_COVER_PAGES = 14
+# HOW FAR A SEPARATE WRITING'S REPRINTED COVER MAY RUN. Those same nine
+# consolidated dockets carry the dissent's cover of
+# pinebrook_warren_llc_v._city_of_warren_1 from page 41 to page 52 — 12
+# pages, the corpus maximum (the other 51 reprints run one page, two on
+# c-spine_orthopedics and parie_wallace). Two pages of headroom, and the
+# run must still CLOSE ON A BYLINE before anything is claimed.
+_REPRINT_PAGES = 14
+# THE PAGE AXIS. The court's name is the one row Michigan centres, on the
+# lead cover and on every reprint alike; the tolerance is the one the lead
+# walk already uses (measured: 'S T A T E  O F  M I C H I G A N' spans
+# 218.3-393.6 on a 612pt sheet, centre 305.95 against the axis at 306.0).
+_AXIS_TOL = 12.0
 # HOW FAR THE COVER MAY BE FROM PAGE 1. philip_m_ohalloran's syllabus runs
 # eight pages before the opinion's own cover.
 _MAX_SYLLABUS_PAGES = 20
@@ -378,6 +415,75 @@ class _Parties:
 
 
 # --------------------------------------------------------------------------
+# the cover a separate writing prints over itself
+# --------------------------------------------------------------------------
+
+def _reprint_block(ctx: _Ctx, page_no: int, banner: str,
+                   parser: BylineParser) -> list:
+    """The reprinted cover that OPENS on ``page_no``, or [].
+
+    Two facts identify it and both are the page's own geometry: the first
+    content row of the page is CENTRED ON THE AXIS and is the very row the
+    lead cover printed as the court naming itself (compared against what
+    THIS document printed, never against a wording list), and the run
+    closes at the next BYLINE — the same landmark that ends the lead walk.
+
+    A run that reaches `_REPRINT_PAGES` without a byline is NOT this shape
+    and returns nothing: better to leave the rows to core than to drop
+    prose. Measured on the corpus: 52 blocks, all 52 closed by a byline,
+    none holding a full-measure lower-case row.
+    """
+    rows = ctx.lines(page_no)
+    if not rows:
+        return []
+    pm = ctx.pages[page_no]
+    head = rows[0]
+    if abs((head.x0 + head.x1) / 2 - pm.width / 2) > _AXIS_TOL:
+        return []
+    # the tracked-out row is the same row closed up — 'S T A T E  O F …'
+    if _untrack(head.plain).strip().upper() != banner:
+        return []
+    block: list = []
+    last = min(page_no + _REPRINT_PAGES, len(ctx.model.pages))
+    for page in range(page_no, last + 1):
+        for line in ctx.lines(page):
+            if parser.parse(_norm(line.plain)) is not None:
+                return block          # the writing starts HERE, not above
+            block.append(line)
+    return []
+
+
+def _drop_reprints(ctx: _Ctx, after: int, court: list,
+                   parser: BylineParser) -> None:
+    """Claim every reprinted cover below the lead byline.
+
+    Recorded as `Dropped(kind="superfluous")`, the kind core already uses
+    for cover apparatus a court prints twice — the rows are a verbatim
+    repeat of the caption that renders whole at the head of the document,
+    so nothing court-written is lost, and core still mines a superfluous
+    drop for criteria. One `Dropped` PER PAGE, because a `Dropped` carries
+    one page in its prov and its text preview is capped at 1200 characters
+    — pinebrook_warren's 12-page dissent cover would lose most of its
+    attestation as a single record.
+
+    The claim is subtractive and happens BEFORE assembly, so this is not
+    the reader reaching into a writing: these rows never enter one.
+    """
+    if not court:
+        return
+    banner = court[0].strip().upper()
+    page_no = after + 1
+    while page_no <= len(ctx.model.pages):
+        block = _reprint_block(ctx, page_no, banner, parser)
+        if not block:
+            page_no += 1
+            continue
+        for page in sorted({l.page for l in block}):
+            ctx.drop([l for l in block if l.page == page], "superfluous")
+        page_no = max(l.page for l in block) + 1
+
+
+# --------------------------------------------------------------------------
 # the reported slip
 # --------------------------------------------------------------------------
 
@@ -395,6 +501,7 @@ def _read_slip(ctx: _Ctx, cover: int):
     caption: list = []
     parties = _Parties()
     signed = False
+    signed_page = 0
     band = fences[1].top
     for page_no in range(cover, min(cover + _MAX_COVER_PAGES,
                                     len(ctx.model.pages)) + 1):
@@ -411,6 +518,7 @@ def _read_slip(ctx: _Ctx, cover: int):
                 rules.remove(r)
             if parser.parse(text) is not None:
                 signed = True
+                signed_page = page_no
                 break
             if _PANEL.match(text):
                 ctx.crit["panel_line"] = text
@@ -455,6 +563,10 @@ def _read_slip(ctx: _Ctx, cover: int):
         break
     if not (signed and rail is not None and caption):
         return NOTHING
+    # EVERY SEPARATE WRITING BELOW re-prints this same cover; those rows are
+    # claimed too, or they read as body prose at the tail of the writing
+    # above them.
+    _drop_reprints(ctx, signed_page, court, parser)
     ctx.crit["headmatter_style"] = STYLE_SLIP
     if court:
         ctx.crit["court"] = " ".join(court)
