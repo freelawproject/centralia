@@ -842,3 +842,95 @@ were sampled.
 Related but distinct: item 5 (`a space that advances nothing is not a space`)
 and the wash `(cid:NN)` clerk-signature glyphs are both about unmapped fonts,
 but neither removes an unreadable PAGE.
+
+## 35. `_reversed` does not survive a FOOTNOTE MARK on the author's name — `resolve/bylines.py`
+
+From the illappct port, 2026-08-20. The Fifth District hangs a footnote on
+the byline to explain a panel substitution:
+
+    people_v._lee p1 top 377.6:
+      'JUSTICE CLARKE* delivered the judgment of the court, with opinion.'
+
+`BylineParser.parse` returns None, so the record assembles as ONE UNBYLINED
+majority. Same shape on `people_v._spears`, whose roster reads
+`Justices Hackett* and Clarke** concurred …`.
+
+    # near the top of _reversed(), before the title match
+    _FN_MARKS = "*∗†‡§"
+    text = text.translate({ord(c): None for c in _FN_MARKS})
+
+Also wanted in `is_caps_name`'s tokenizer. Sandbox-verified: with the marks
+removed the string parses to `Byline(name='CLARKE', title='Justice')`. Scope:
+2 illappct records, plus any court that footnotes a byline — and utah's port
+noted its own footnote stars come in three interchangeable forms (`*`,
+`∗` and the PRIVATE-USE ``), so the mark set should include PUA
+variants where a court is known to use them.
+
+## 36. HOLD — the illappct CourtProfile needs two byline flags (`courts/__init__.py:221-225`)
+
+**This one is MINE to apply, not core's, and it is deliberately not applied
+yet:** three porters were appending their own import lines to
+`courts/__init__.py` at the time, and a read-modify-write on that file could
+drop one of them — which is precisely the "a port is not real until it is
+wired in" failure that hid six ports on 2026-08-19. Apply when the tree is
+quiet, then verify every expected import is still present.
+
+illappct numbers its paragraphs with a hanging pilcrow AND numbers its
+separate-writing bylines, exactly as ill does, and signs some abbreviated:
+
+    people_v._salinas p21:  '¶ 59 JUSTICE BIRKETT, concurring in part and dissenting in part:'
+    in_re_a.b.       p15:  '¶ 57 Ellis, J., dissenting.'
+
+Without `strip_para_marker=True` and `also_abbrev=True` every announced
+separate writing in the corpus is LOST and the document assembles as one
+majority.
+
+    register(CourtProfile(
+        "illappct", "Illinois Appellate Court",
+        byline=BylineGrammar(style="reversed", allow_titlecase_name=True,
+                             strip_para_marker=True, also_abbrev=True,
+                             rev_titles=("JUSTICE", "PRESIDING JUSTICE",
+                                         "Justice", "Presiding Justice"))))
+
+Sandbox-verified: with both flags the strings above parse and the majority
+byline and concurrence-roster rows behave exactly as before. It WILL change
+the `ops` signature of `people_v._salinas` and `in_re_a.b.` — bless those
+deliberately. Neither is pinned yet, on purpose.
+
+## 37. A parsable dissent byline is dropped by assembly — `resolve/assemble.py`
+
+From illappct. `people_v._reyes` p15 top 478.9 prints
+`PRESIDING JUSTICE NAVARRO, dissenting:`, which `BylineParser` DOES parse
+(`Byline(name='NAVARRO', title='Presiding Justice', kind='dissenting:')`) —
+yet the document assembles with a single writing
+(`ops [('majority','OCASIO',72)]`). Not the byline grammar, and not the
+court's claim. **v1 also loses it, so v1diff is blind here** — another entry
+for the oracle blind spots.
+
+## 38. The criteria box hides seven populated fields — `render/html.py:305-318`
+
+From illappct. `panel`, `panel_line`, `court`, `case_name`, `motion`,
+`lower_court_judge` and `headmatter_style` are populated on 41-42 of 42
+illappct records and are INVISIBLE in review — the agent had to write a
+scratch script to see them. `criteria · N` therefore undercounts what a
+reader actually read, which is the same class of blindness `hm-unread` was
+added to fix. Additive patch: extend the `crit_rows` tuple.
+
+## 39. There is no `endmatter.read` seam — every illappct record loses its counsel
+
+From illappct, and this is a SEAM GAP rather than a bug. All 42 records end
+with a drawn two-column CASE-INFORMATION page carrying counsel, and it stays
+in the writing as body prose: `criteria.attorneys` is empty on 42/42 while
+the page prints e.g. `Attorneys for Appellant: Adam Goodman, of Goodman
+Tovrov Hardy & Johnson LLC, of Chicago, for appellant.`
+
+v1 lifted it into `doc.trailer` via `page_lines`
+(`illappct.py::_case_info_table`), detected from the drawn seam where each row
+rule is laid as TWO SEGMENTS MEETING AT A SHARED COLUMN X — geometry, not
+wording. A court file cannot do this today: `headmatter.read` is the only
+reader seam, and it cannot reach the last page's grid.
+
+Relates to item 30 (`criteria.attorneys` cannot see a `CaptionBlock`) and to
+ri's cover sheet, which only reached the endmatter because ri could return it
+under the `attorneys` key from `headmatter.read`. A general `endmatter.read`
+seam would serve illappct, ri, haw and the whole two-column endmatter family.
