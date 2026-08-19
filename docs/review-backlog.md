@@ -775,3 +775,40 @@ they are what a port fixes, and both courts are unported):
   arguably right. A rule that refuses a counsel criterion carrying no name,
   no firm and no representation clause would fix the 13 — it touches counsel
   harvesting for every court, so it wants a guard run behind it.
+
+## Signature-band epic, ranked PER COURT (swept 2026-08-20)
+
+Found by generalising the user's haw finding into a class and sweeping every
+rendered court, then asking the only question that matters: does the court
+LOSE the data, or merely print it in the wrong place? `Document.signature` is
+used by NO court in the corpus (`sig_blocks=0` everywhere), so every `/s/`
+run currently lives inside `sec-opinions` as body prose.
+
+REAL DATA LOSS — the band is the only place the names/date appear, and both
+criteria fields come back empty. Fix these first:
+
+    md         32 of 50 files   judges=None  date=None   (bar applications, attorney grievance)
+    del        42 of 50 files   judges=None  date sometimes present
+    me          2 of 50 files   judges=None  date=None   — and ONE of the two is a
+               FALSE POSITIVE: opinion_of_the_justices_ranked-choice_voting matches on
+               'SPONSORED BY: _______/s/____' inside a QUOTED legislative joint order
+               (Senator RENY), not a judicial signature. Real scope for me is ONE file.
+
+    Counting note: the first pass reported 32/16/42 as OCCURRENCE counts, which
+    overstated me by 8x — one file can carry a dozen '/s/' rows. Per-FILE counts are
+    the ones above, and they are what ranks the work.
+
+COSMETIC ONLY — the band is body prose but the court already captures both
+fields from its headmatter, so nothing is lost and these are low priority:
+
+    michctapp     119 sig-runs   judges + date populated
+    cadc           38 sig-runs   judges + date populated
+    virginislands  26 + 18 dated judges + date populated
+
+Under active fix on 2026-08-20: haw (183 + 38, the user's exemplar) and ri
+(5, plus its 36-file OPINION COVER SHEET). Small tails not yet triaged:
+tennctapp 8, wyo 7, nev 2, wash 2, bap1 1, ca11 1, ca6 1, wva 1.
+
+Companion negative result worth keeping: the ill defect (a public-domain
+citation wearing the `docket` role) was swept across all 82 readers and
+occurs NOWHERE else — it was genuinely isolated, and is fixed.
