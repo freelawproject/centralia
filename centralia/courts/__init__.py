@@ -579,3 +579,7 @@ from . import kanctapp                                      # noqa: E402,F401
 from . import nc                                             # noqa: E402,F401
 from . import ind                                            # noqa: E402,F401
 from . import tennctapp                                      # noqa: E402,F401
+from . import coloctapp                                      # noqa: E402,F401
+from . import me                                             # noqa: E402,F401
+from . import minn                                           # noqa: E402,F401
+from . import ky                                             # noqa: E402,F401

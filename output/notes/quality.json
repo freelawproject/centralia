@@ -659,11 +659,11 @@
 "sign": null
 },
 "ky": {
-"ab": 0.96,
+"ab": 0.86,
 "g": "B",
 "n": 50,
-"s": 0.7,
-"sign": 1.0
+"s": 0.98,
+"sign": 0.74
 },
 "kyctapp": {
 "ab": 1.0,
@@ -25956,17 +25956,19 @@
 },
 "ky/city_of_paintsville_v._paula_m._haney_as_personal_representative_of_estate": {
 "f": [
+"authorless",
 "counsel-in-body\u00d74"
 ],
-"g": "B",
-"s": 2.0
+"g": "C",
+"s": 4.0
 },
 "ky/commonwealth_of_kentucky_ex_rel._attorney_general_russell_coleman_v.": {
 "f": [
+"authorless",
 "counsel-in-body\u00d72"
 ],
-"g": "B",
-"s": 2.0
+"g": "C",
+"s": 4.0
 },
 "ky/commonwealth_of_kentucky_v._darrell_strunk": {
 "f": [],
@@ -26030,9 +26032,11 @@
 "s": 0.0
 },
 "ky/hollie_jackson_as_administrator_of_the_estate_of_emma_hayes_and_on_behalf": {
-"f": [],
-"g": "A",
-"s": 0.0
+"f": [
+"authorless"
+],
+"g": "B",
+"s": 2.0
 },
 "ky/isaiah_brown_v._commonwealth_of_kentucky": {
 "f": [],
@@ -26096,10 +26100,11 @@
 },
 "ky/kentucky_parole_board_v._timothy_shane": {
 "f": [
-"joins\u00d71"
+"joins\u00d71",
+"authorless"
 ],
-"g": "B",
-"s": 0.5
+"g": "C",
+"s": 2.5
 },
 "ky/kevon_lawless_v._commonwealth_of_kentucky": {
 "f": [],
@@ -26149,10 +26154,11 @@
 },
 "ky/minova_usa_inc._v._tom_jolly": {
 "f": [
-"joins\u00d72"
+"joins\u00d72",
+"authorless"
 ],
-"g": "B",
-"s": 1.0
+"g": "C",
+"s": 3.0
 },
 "ky/missionaries_of_saint_john_the_baptist_inc._v._joel_frederic": {
 "f": [
@@ -26162,9 +26168,11 @@
 "s": 2.0
 },
 "ky/nathan_torian_individually_and_as_a_representative_of_a_class_of": {
-"f": [],
-"g": "A",
-"s": 0.0
+"f": [
+"authorless"
+],
+"g": "B",
+"s": 2.0
 },
 "ky/paul_jones_v._commonwealth_of_kentucky": {
 "f": [],
@@ -26197,10 +26205,11 @@
 },
 "ky/russell_coleman_in_his_official_capacity_as_attorney_general_of_the": {
 "f": [
+"authorless",
 "counsel-in-body\u00d73"
 ],
-"g": "B",
-"s": 2.0
+"g": "C",
+"s": 4.0
 },
 "ky/shawn_hollingsworth_jr._v._commonwealth_of_kentucky": {
 "f": [],
