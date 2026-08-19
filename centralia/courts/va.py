@@ -20,19 +20,28 @@ first row.
                              APRIL 16, 2026                  …and the date
        COMMONWEALTH OF VIRGINIA              the left column resumes
        FROM THE COURT OF APPEALS OF VIRGINIA   the origin, ON THE PAGE AXIS
-       After an undercover law-enforcement officer …   the body, indented 36pt
+       After an undercover officer … — the body, indented 36pt
 
-   The columns are read by x0, not by wording: every row of the
-   announcement stack starts past ``_ANNOUNCE_X0`` (313-415pt over the
-   corpus) and no left-column row ever starts past 145pt.  The block ends
-   at the ORIGIN RECITAL — the first ALL-CAPS row below the announcement
-   that is centred on the PAGE AXIS.  Nothing else in the caption is:  the
-   announcement stack centres on 414-450, the parties on 110-205.  Below it
-   the court may name the judges who tried the case (the bar-discipline
-   records: 'Dontae L. Bugg, Chief Judge Designate,'), also on the axis and
-   in title case, so the origin run continues while a row stays on the axis
-   AND off both the body rail (72pt) and the paragraph indent (108pt).  The
-   body is the first row that returns to one of those two.
+   THE DIVIDER IS NOT DRAWN, SO THE THRESHOLD IS THE DIVIDER.  va sets no
+   rule and no rail glyph anywhere on this page — the gutter is white
+   space, and the only measurement that separates the two stacks is where
+   a row STARTS.  Every row of the announcement stack starts past
+   ``_ANNOUNCE_X0`` (313-415pt over the corpus) and no left-column row
+   ever starts past 145pt, a 168pt gutter with nothing in it; the columns
+   are read by that x0 and never by wording.  The two stacks are rendered
+   as a ``CaptionBlock`` with ``rail=None`` — the whitespace gutter — and
+   they are NOT row-paired: on mast the announcement rows sit at
+   117.9/131.6/145.5 against parties at 95.1/122.7/136.4/150.3, so each
+   stack keeps its own leading and padding the short one would only add
+   blank rows.  The block ends at the ORIGIN RECITAL — the first ALL-CAPS
+   row below the announcement that is centred on the PAGE AXIS.  Nothing
+   else in the caption is:  the announcement stack centres on 414-450,
+   the parties on 110-205.  Below it the court may name the judges who
+   tried the case (the bar-discipline records: 'Dontae L. Bugg, Chief
+   Judge Designate,'), also on the axis and in title case, so the origin
+   run continues while a row stays on the axis AND off both the body rail
+   (72pt) and the paragraph indent (108pt).  The body is the first row
+   that returns to one of those two.
 
 2. THE CONVENING ORDER (9 of 50). The court convenes in writing, and says
    so in a masthead a full step larger than the body:
@@ -61,16 +70,26 @@ the announced caption.  A record printing neither is not this court's paper
 and gets NOTHING — core's shared walk is a smaller error than a confident
 misreading.
 
-WHAT THE READER CANNOT DO, AND WHY IT IS REPORTED RATHER THAN WORKED
-AROUND.  On the announced caption the majority carries NO byline: the
-author is a caption row, and the caption renders whole.  Core signs a
-writing only from a byline left in the stream, so 38 of these 41 records
-came out with an unauthored majority.  Leaving the announcement row
-unclaimed would sign the writing at the cost of tearing the label
-('OPINION BY') away from the name it labels and dropping the two rows
-printed BELOW it into the opinion.  The right fix is one key on the
-reader's result — ``announced_author`` — applied where ``doc_type_final``
-already is; it is reported with this port, not applied here.
+WHY THE ORDER FORM STAYS ONE COLUMN.  Its status labels ARE a second
+cell — 'APPELLANT,' at x0=460 beside 'BOARD OF SUPERVISORS OF' at 72 —
+but they are row-paired with the party they label and the page prints
+them in reading order, so the flat sequence already reads party, status,
+pivot, docket, party, status.  Setting them as a second stack would buy
+nothing and cost the block a blank cell for every row that carries no
+label.  No rail is drawn there either, so there is nothing to reproduce:
+one column is the honest reading.  (The origin recital below the caption
+is flush right, not a column — it is the last thing above the body.)
+
+WHAT THE READER CANNOT DO ALONE.  On the announced caption the majority
+carries NO byline: the author is a caption row, and the caption renders
+whole.  Core signs a writing only from a byline left in the stream, so 38
+of these 41 records came out with an unauthored majority.  Leaving the
+announcement row unclaimed would sign the writing at the cost of tearing
+the label ('OPINION BY') away from the name it labels and dropping the
+two rows printed BELOW it into the opinion.  So the reader REPORTS what
+the caption announced, in ``announced_author``, and core signs the lead
+writing from it with the court's own grammar — only where the document
+prints no byline of its own.
 """
 
 from __future__ import annotations
@@ -168,6 +187,20 @@ def _norm(text: str) -> str:
     return " ".join((text or "").split())
 
 
+def _ink_x0(line) -> float:
+    """Where the row's INK starts, not where its box does.
+
+    A row the column-gap split left with its padding intact ('        Court
+    of Appeals Nos. 1855-22-2,' on mast) has an x0 24pt left of its first
+    glyph, and the render sets headmatter rows `white-space:pre-wrap` — so
+    an indent measured from x0 and the spaces themselves would count the
+    same gap twice, and the cell would hang 24pt past where the page puts
+    it."""
+    xs = [c["x0"] for c in (line.chars or [])
+          if (c.get("text") or "").strip()]
+    return min(xs) if xs else line.x0
+
+
 def _is_caps(text: str) -> bool:
     t = _norm(text)
     return bool(t) and t == t.upper() and any(c.isalpha() for c in t)
@@ -204,7 +237,8 @@ class _Ctx:
         self.crit: dict = {}
         self.dropped: list = []
 
-    def row(self, line, role: str, align: str | None = None):
+    def _line(self, line, role: str, align: str | None,
+              rel: float = 0.0, trim: bool = False) -> m.HmLine:
         # ``align`` DECLARES the column. Measured per row, a right-column
         # cell whose text happens to run wide reads as left-aligned, so the
         # announcement stack came out with 'OPINION BY' right and the two
@@ -213,11 +247,41 @@ class _Ctx:
         if align is None:
             align = line_alignment(line, pm.width, self.geom,
                                    banner_center_min_size=self.body_size + 2.0)
-        self.items.append(m.HmLine(
-            text=line_markup(line), prov=m.Prov(line.page, (line.id,)),
+        text = line_markup(line)
+        return m.HmLine(
+            text=text.strip() if trim else text,
+            prov=m.Prov(line.page, (line.id,)),
             align=m.Align(align), x0=line.x0, size=line.size or 0.0,
-            bold=bool(line.all_bold), role=role))
+            bold=bool(line.all_bold), role=role, rel=rel)
+
+    def row(self, line, role: str, align: str | None = None,
+            rel: float = 0.0):
+        self.items.append(self._line(line, role, align, rel))
         self.consumed.add(line.id)
+
+    def cell(self, line, role: str, align: str,
+             rel: float = 0.0) -> m.HmLine:
+        """A caption cell — built, not emitted: it goes in a CaptionBlock.
+
+        A cell's own padding is not content: the column places it, so the
+        text is trimmed and the offset is carried in `rel`."""
+        self.consumed.add(line.id)
+        return self._line(line, role, align, rel, trim=True)
+
+    def caption(self, page: int, left: list, right: list,
+                ids: list) -> None:
+        # THE TWO STACKS ARE NOT ROW-PAIRED, and the gutter is white space.
+        # va draws no rule and sets no rail glyph, so `rail=None` is the
+        # measurement and not a default: the divider is the x0 threshold
+        # this file declares. Each column flows on its own leading — the
+        # announcement is set on its own axis a half-line off the party
+        # rows it stands beside — so pairing them would only pad the short
+        # column with blank tinted rows.
+        self.items.append(m.CaptionBlock(
+            left=left, right=right, rail=None, rail_rows=0,
+            style_id="whitespace-gutter",
+            fp={"rail": None, "gutter_x0": _ANNOUNCE_X0},
+            prov=m.Prov(page, tuple(sorted(ids)))))
 
     def result(self, doc_type=None, announced=None):
         return {"criteria": self.crit, "items": self.items, "attorneys": [],
@@ -369,7 +433,7 @@ def _at_rail(line, body_x0: float) -> bool:
 def _read_announced(model, geom, pm, rows, body_x0, body_size, width):
     """Contract 1 — the roster, the two-column caption, the axis origin."""
     ann = next((i for i, l in enumerate(rows)
-                if l.x0 >= _ANNOUNCE_X0
+                if _ink_x0(l) >= _ANNOUNCE_X0
                 and _ANNOUNCE_LABEL.match(_norm(l.plain))), None)
     if ann is None:
         return NOTHING                    # no announcement: not this paper
@@ -401,32 +465,55 @@ def _read_announced(model, geom, pm, rows, body_x0, body_size, width):
     # ---- the caption: left column the parties, right the announcement ---
     # WHICH COLUMN a row is in is decided by where it starts, never by what
     # it says. Inside the left column the DOCKET CELL is the one thing set
-    # off the party rail, and its wrap goes with it.
+    # off the party rail, and its wrap goes with it. The two columns go out
+    # as ONE CaptionBlock: emitted as a flat sequence they interleave, and
+    # a consolidated caption reads its cases out of order (antle came out
+    # party / pivot / party / OPINION BY / author / party / date / pivot).
+    # WHERE THE INK STARTS, not where the box does: the column-gap split
+    # leaves a piece its padding, so mast's docket cell has an x0 24pt left
+    # of its first glyph. Read on the box, a padded right-hand piece would
+    # fall on the wrong side of the threshold that IS the divider.
+    band = rows[head:origin]
+    l_rows = [l for l in band if _ink_x0(l) < _ANNOUNCE_X0]
+    r_rows = [l for l in band if _ink_x0(l) >= _ANNOUNCE_X0]
+    # THE LEFT COLUMN'S OWN RAIL, measured inside the band. The docket cell
+    # is the one thing set off it (mast: 129.1 against a 72.0 party rail),
+    # and inside a column that offset is the cell's own indent — carried as
+    # `rel` so the cell renders where the page prints it.
+    own_x0 = min((_ink_x0(l) for l in l_rows), default=body_x0)
+    left_cells: list = []
+    right_cells: list = []
     left: list[tuple[str, str]] = []
     announced: str | None = None
-    for line in rows[head:origin]:
+    for line in r_rows:
         text = _norm(line.plain)
-        if line.x0 >= _ANNOUNCE_X0:
-            # ONE COLUMN, so one alignment — declared, not measured per row.
-            if _ANNOUNCE_LABEL.match(text):
-                ctx.row(line, "title", align="R")
-            elif _DATE.match(text):
-                ctx.crit.setdefault("decision_date", text.rstrip("."))
-                ctx.row(line, "date", align="R")
-            else:
-                # THE ANNOUNCED AUTHOR — not the panel. va prints a real
-                # roster row ('PRESENT: …') at the head of the same block,
-                # and tagging both `panel` made the author and the bench
-                # indistinguishable.
-                ctx.crit.setdefault("judges", text)
-                if announced is None:
-                    announced = text
-                ctx.row(line, "author", align="R")
-            continue
-        off_rail = line.x0 >= body_x0 + _DOCKET_CELL
+        # ONE COLUMN, so one alignment — declared, not measured per row.
+        # The announcement stack is centred on its OWN axis (414.0-414.3 on
+        # appian, 441.2-441.4 on blow, within 0.3pt inside a record), which
+        # is what the right cell of the block centres on.
+        if _ANNOUNCE_LABEL.match(text):
+            right_cells.append(ctx.cell(line, "title", "C"))
+        elif _DATE.match(text):
+            ctx.crit.setdefault("decision_date", text.rstrip("."))
+            right_cells.append(ctx.cell(line, "date", "C"))
+        else:
+            # THE ANNOUNCED AUTHOR — not the panel. va prints a real
+            # roster row ('PRESENT: …') at the head of the same block,
+            # and tagging both `panel` made the author and the bench
+            # indistinguishable.
+            ctx.crit.setdefault("judges", text)
+            if announced is None:
+                announced = text
+            right_cells.append(ctx.cell(line, "author", "C"))
+    for line in l_rows:
+        text = _norm(line.plain)
+        x0 = _ink_x0(line)
+        off_rail = x0 >= own_x0 + _DOCKET_CELL
         role = "docket" if (_DOCKET.search(text) or off_rail) else "caption"
-        ctx.row(line, role)
+        left_cells.append(ctx.cell(line, role, "L",
+                                   rel=x0 - own_x0 if off_rail else 0.0))
         left.append((role, text))
+    ctx.caption(pm.number, left_cells, right_cells, [l.id for l in band])
     _case_name(ctx, left)
     _dockets(ctx, left)
     ctx.crit["caption"] = _norm(" ".join(t for _r, t in left))[:2000]
@@ -490,11 +577,30 @@ def _read_order(model, geom, pm, rows, body_x0, body_size, width):
         head += 1
 
     # ---- the caption ----------------------------------------------------
+    # ONE COLUMN, WITH A FLUSH-RIGHT STATUS CELL. The order form sets its
+    # party rows at the rail, its docket cell 72pt in (144.0 against 72.0)
+    # and the side's status hard against the text margin ('APPELLANT,' at
+    # 460.3-538.7 on a 537.9 margin) — so the status is a CELL of the party
+    # row, not a stack of its own, and the page prints the two in reading
+    # order (party, status, pivot, docket, party, status). It stays one
+    # column for that reason: a second stack would hold two cells against
+    # five and would have to be padded with a blank for every row that
+    # carries no label. What the column DOES get is a declared alignment —
+    # measured per row it came out left for 'APPELLANT,' and right for
+    # 'APPELLEE.', one column rendered as two — and the docket cell keeps
+    # its own indent.
     left: list[tuple[str, str]] = []
+    own_x0 = min((_ink_x0(l) for l in rows[head:origin]
+                  if _ink_x0(l) < _ANNOUNCE_X0), default=body_x0)
     for line in rows[head:origin]:
         text = _norm(line.plain)
         role = "docket" if _DOCKET.match(text) else "caption"
-        ctx.row(line, role)
+        x0 = _ink_x0(line)
+        if x0 >= _ANNOUNCE_X0:
+            ctx.row(line, role, align="R")
+        else:
+            off = x0 >= own_x0 + _DOCKET_CELL
+            ctx.row(line, role, align="L", rel=x0 - own_x0 if off else 0.0)
         left.append((role, text))
     _case_name(ctx, left)
     _dockets(ctx, left)
@@ -515,7 +621,13 @@ def _read_order(model, geom, pm, rows, body_x0, body_size, width):
         court_rows.append(_norm(line.plain))
         i += 1
     names = _names_a_court(" ".join(court_rows))
+    # ONE RECITAL, ONE ALIGNMENT. Its three rows are set flush right
+    # (x1 = 540.1-540.3 against a 537.9 margin) and ragged left, so
+    # measured per row the first read right and the two under it left.
+    flush = bool(rows[origin:i]) and all(
+        l.x1 >= right_x1 - _FLUSH_RIGHT for l in rows[origin:i])
     for line in rows[origin:i]:
-        ctx.row(line, "lower-court" if names else "case-info")
+        ctx.row(line, "lower-court" if names else "case-info",
+                align="R" if flush else None)
     _origin_criterion(ctx, court_rows)
     return ctx.result(m.DocType.ORDER)

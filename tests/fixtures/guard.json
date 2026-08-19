@@ -7799,7 +7799,16 @@
    "lower_court",
    "parties"
   ],
-  "hm": 8,
+  "hm": 3,
+  "hm_roles": {
+   "author": 1,
+   "caption": 2,
+   "date": 1,
+   "docket": 1,
+   "lower-court": 1,
+   "panel": 1,
+   "title": 1
+  },
   "lead_bylined": true,
   "op_blocks": [
    19
@@ -7821,10 +7830,19 @@
    "lower_court",
    "parties"
   ],
-  "hm": 11,
+  "hm": 3,
+  "hm_roles": {
+   "author": 1,
+   "caption": 4,
+   "date": 1,
+   "docket": 2,
+   "lower-court": 1,
+   "panel": 1,
+   "title": 1
+  },
   "lead_bylined": true,
   "op_blocks": [
-   38
+   40
   ],
   "ops": [
    "majority"
@@ -7843,7 +7861,16 @@
    "lower_court",
    "parties"
   ],
-  "hm": 9,
+  "hm": 4,
+  "hm_roles": {
+   "author": 1,
+   "caption": 2,
+   "date": 1,
+   "docket": 1,
+   "lower-court": 2,
+   "panel": 1,
+   "title": 1
+  },
   "lead_bylined": true,
   "op_blocks": [
    35
@@ -7864,7 +7891,16 @@
    "judges",
    "parties"
   ],
-  "hm": 8,
+  "hm": 3,
+  "hm_roles": {
+   "author": 1,
+   "caption": 2,
+   "case-info": 1,
+   "date": 1,
+   "docket": 1,
+   "panel": 1,
+   "title": 1
+  },
   "lead_bylined": true,
   "op_blocks": [
    127
@@ -7906,7 +7942,16 @@
    "lower_court",
    "parties"
   ],
-  "hm": 11,
+  "hm": 3,
+  "hm_roles": {
+   "author": 1,
+   "caption": 3,
+   "date": 1,
+   "docket": 3,
+   "lower-court": 1,
+   "panel": 1,
+   "title": 1
+  },
   "lead_bylined": true,
   "op_blocks": [
    166,
@@ -7953,7 +7998,16 @@
    "lower_court",
    "parties"
   ],
-  "hm": 10,
+  "hm": 4,
+  "hm_roles": {
+   "author": 1,
+   "caption": 3,
+   "date": 1,
+   "docket": 1,
+   "lower-court": 1,
+   "panel": 2,
+   "title": 1
+  },
   "lead_bylined": true,
   "op_blocks": [
    60
@@ -7975,7 +8029,16 @@
    "lower_court",
    "parties"
   ],
-  "hm": 12,
+  "hm": 5,
+  "hm_roles": {
+   "author": 1,
+   "caption": 4,
+   "date": 1,
+   "docket": 1,
+   "lower-court": 3,
+   "panel": 1,
+   "title": 1
+  },
   "lead_bylined": true,
   "op_blocks": [
    79
