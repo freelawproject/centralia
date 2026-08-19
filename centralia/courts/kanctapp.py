@@ -63,6 +63,10 @@ _BANNER = "in the court of appeals of the state of kansas"
 _DOCKET = re.compile(r"^(?:Bar\s+Docket\s+)?Nos?\.\s*[\d,]+\.?$", re.I)
 # A consolidation is ranged UNDER the first number, with no label.
 _DOCKET_MORE = re.compile(r"^\d{1,3},\d{3}\.?$")
+# 'Before CLINE, P.J., BOLTON FLEMING, J., and JEFFREY GETTLER, District
+# Judge, assigned.' — the panel, as this court names it. Judges sitting
+# by assignment are named in full and titled, so the row is not all-caps.
+_PANEL = re.compile(r"^Before\s+.*?(?:JJ?\.|Judges?)\b.*$", re.S)
 # THE RECITAL Kansas prints over every authored opinion. It is the last row
 # of the headmatter and the only body-size row below the apparatus that is
 # not a byline.
@@ -217,7 +221,6 @@ def read_headmatter_kanctapp(model, geom, **_):
         block.append(line)
     if len(block) < 3 or block[0].page != 1:
         return NOTHING
-    del _head
 
     # THE DISPATCH, second half: is there an apparatus a full type step
     # below the body? Its presence names the paper.
@@ -234,9 +237,14 @@ def read_headmatter_kanctapp(model, geom, **_):
     # begins where the docket ends and the title is measured against the
     # caption's own leading.
     kinds: list[str] = ["caption"] * len(block)
-    kinds[0] = "court"
+    # The masthead is at _head, NOT necessarily at row 0 — this court sets
+    # its docket above its own name, so row 0 is a docket on every record
+    # that dispatched through the second branch above.
+    kinds[_head] = "court"
     in_docket = False
-    for i in range(1, len(block)):
+    for i in range(0, len(block)):
+        if i == _head:
+            continue
         text = _norm(block[i].plain)
         if _DOCKET.match(text) or (in_docket and _DOCKET_MORE.match(text)):
             kinds[i] = "docket"
@@ -247,7 +255,12 @@ def read_headmatter_kanctapp(model, geom, **_):
                           if k == "caption"), len(block))
     title_at = _title_index(block, first_caption)
     if title_at is not None:
-        kinds[title_at] = "title"
+        # 'SYLLABUS BY THE COURT' NAMES THE SYLLABUS, not the paper. It is
+        # the heading of the numbered points below it and belongs to that
+        # block; a 'title' is what the paper calls ITSELF ('OPINION').
+        kinds[title_at] = ("syllabus"
+                           if _norm(block[title_at].plain).upper().rstrip(".")
+                           == "SYLLABUS BY THE COURT" else "title")
 
     caption: list[str] = []
     dockets: list[str] = []
@@ -324,6 +337,19 @@ def read_headmatter_kanctapp(model, geom, **_):
     # ---- the recital over the byline -------------------------------------
     if i < len(rows) and _DELIVERED.match(_norm(rows[i].plain)):
         ctx.emit(rows[i], "case-info")
+        i += 1
+
+    # ---- WHO SAT ---------------------------------------------------------
+    # The Court of Appeals sits in PANELS and names them; the Supreme Court
+    # sits en banc and does not, which is why kan.py has no counterpart to
+    # this. Unclaimed, the roster fell into the writing and read as the
+    # opinion's first sentence on 28 of 42 records.
+    if i < len(rows):
+        _p = _norm(rows[i].plain)
+        if _PANEL.match(_p):
+            ctx.emit(rows[i], "panel")
+            ctx.crit["panel_line"] = _p.rstrip(".")
+            i += 1
 
     if not recital:
         return NOTHING                    # not the paper this contract names

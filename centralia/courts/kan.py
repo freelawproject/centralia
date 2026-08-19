@@ -316,7 +316,12 @@ def read_headmatter_kan(model, geom, **_):
                           if k == "caption"), len(block))
     title_at = _title_index(block, first_caption)
     if title_at is not None:
-        kinds[title_at] = "title"
+        # 'SYLLABUS BY THE COURT' NAMES THE SYLLABUS, not the paper. It is
+        # the heading of the numbered points below it and belongs to that
+        # block; a 'title' is what the paper calls ITSELF ('OPINION').
+        kinds[title_at] = ("syllabus"
+                           if _norm(block[title_at].plain).upper().rstrip(".")
+                           == "SYLLABUS BY THE COURT" else "title")
 
     caption: list[str] = []
     dockets: list[str] = []

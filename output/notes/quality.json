@@ -746,7 +746,7 @@
 "ab": 0.98,
 "g": "A",
 "n": 50,
-"s": 0.13,
+"s": 0.09,
 "sign": 1.0
 },
 "mdag": {
@@ -28451,11 +28451,9 @@
 "s": 0.0
 },
 "md/in_re_criminal_investn._no._cid_18-2673_balt._city_circuit_court": {
-"f": [
-"docket-suspect"
-],
-"g": "B",
-"s": 2.0
+"f": [],
+"g": "A",
+"s": 0.0
 },
 "md/in_the_matter_of_hon._knapp": {
 "f": [],
