@@ -110,6 +110,10 @@ _SYLLABUS_HEAD = re.compile(r"^Syllabus$", re.I)
 _ARGUED_RELEASED = re.compile(
     r"^(?:Argued|Submitted)\s+(.+?)[—–-]\s*officially released\s+(.+)$", re.I)
 _RELEASED_ONLY = re.compile(r"^officially released\s+(.+)$", re.I)
+# A FOOTNOTE MARK RIDES THE DATE. The Reporter stars the released date where
+# it notes a release-date correction ('February 17, 2026*'), and the star is
+# not part of the date.
+_DATE_MARK = "*\u2020\u2021\u2217\u204e\ufe61\uff0a "
 _PIVOT = re.compile(r"\sv\.\s", re.I)
 # 'Procedural History' heads the band beneath it and belongs to that band.
 _HISTORY_HEAD = re.compile(r"^Procedural History$", re.I)
@@ -119,6 +123,14 @@ _OPINION_HEAD = re.compile(r"^Opinion$", re.I)
 _FOLIO = re.compile(r"^\d{1,4}$")
 # A paragraph OPENS a step in from the Reporter's rail: 184.0 against 174.0.
 _INDENT_MIN = 6.0
+
+
+# THE CRITERIA FIELD NAMES ARE THE MODEL'S. `Criteria` (centralia/model.py)
+# has no `docket` field and no `argued` field: the docket is
+# `docket_number` (a string) plus `other_dockets` (the rest), and an argued
+# date belongs in `submitted`, which the render labels 'argued/submitted'.
+# Written under the wrong names they were attached to the object by setattr
+# and never serialized — read as read, reported as nothing.
 
 
 def _norm(text: str) -> str:
@@ -235,10 +247,13 @@ def read_headmatter_conn(model, geom, **_):
             if both:
                 g = both.groups()
                 if len(g) == 2:
-                    ctx.crit.setdefault("argued", _norm(g[0]))
-                    ctx.crit.setdefault("decision_date", _norm(g[1]))
+                    ctx.crit.setdefault("submitted",
+                                        _norm(g[0]).rstrip(_DATE_MARK))
+                    ctx.crit.setdefault("decision_date",
+                                        _norm(g[1]).rstrip(_DATE_MARK))
                 else:
-                    ctx.crit.setdefault("decision_date", _norm(g[0]))
+                    ctx.crit.setdefault("decision_date",
+                                        _norm(g[0]).rstrip(_DATE_MARK))
                 ctx.emit(group, "date")
                 continue
             if _SYLLABUS_HEAD.match(text):
@@ -246,10 +261,12 @@ def read_headmatter_conn(model, geom, **_):
                 ctx.emit(group, "syllabus")
                 continue
             if _DOCKET.match(text):
-                ctx.crit.setdefault(
-                    "docket", [t.strip() for t in
-                               text.strip("()").replace(";", ",").split(",")
-                               if t.strip()])
+                _dk = [t.strip() for t in
+                       text.strip("()").replace(";", ",").split(",")
+                       if t.strip()]
+                ctx.crit.setdefault("docket_number", _dk[0])
+                if _dk[1:]:
+                    ctx.crit.setdefault("other_dockets", _dk[1:])
                 ctx.emit(group, "docket")
                 continue
             if band == "syllabus":
@@ -270,7 +287,7 @@ def read_headmatter_conn(model, geom, **_):
         if stopped:
             break
 
-    if not ctx.crit.get("docket") or not stopped:
+    if not ctx.crit.get("docket_number") or not stopped:
         return NOTHING
     if caption:
         ctx.crit.setdefault("case_name", " ".join(caption))

@@ -81,13 +81,21 @@ _LABELS = {
     "corrected": "date",
 }
 # The criteria a label fills, where the criterion exists.
-_CRIT = {"decision": "citation", "docket": "docket", "decided": "decision_date",
-         "argued": "argued", "submitted on briefs": "submitted",
-         "submitted": "submitted"}
+_CRIT = {"decision": "citation", "docket": "docket_number",
+         "decided": "decision_date", "argued": "submitted",
+         "submitted on briefs": "submitted", "submitted": "submitted"}
 _REPORTER_COL = re.compile(r"^Reporter of Decisions$", re.I)
 _BYLINE = re.compile(
     r"^[A-Z][A-Za-z'’\-]+(?:,\s*[A-Z][A-Za-z'’\-]+)*,\s*"
     r"(?:C\.?\s*J\.?|J\.?|JJ\.?)\s*$")
+
+
+# THE CRITERIA FIELD NAMES ARE THE MODEL'S. `Criteria` (centralia/model.py)
+# has no `docket` field and no `argued` field: the docket is
+# `docket_number` (a string) plus `other_dockets` (the rest), and an argued
+# date belongs in `submitted`, which the render labels 'argued/submitted'.
+# Written under the wrong names they were attached to the object by setattr
+# and never serialized — read as read, reported as nothing.
 
 
 def _norm(text: str) -> str:
@@ -176,7 +184,7 @@ def read_headmatter_me(model, geom, **_):
         # opening — leave it to core.
         break
 
-    if not ctx.crit.get("docket"):
+    if not ctx.crit.get("docket_number"):
         return NOTHING
     if caption:
         ctx.crit.setdefault("case_name", " ".join(caption))

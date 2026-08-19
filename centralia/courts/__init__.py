@@ -600,3 +600,8 @@ for _kw in ("del", "or"):
         _importlib.import_module(f".{_kw}", __name__)
     except ModuleNotFoundError:
         pass
+from . import dc                                             # noqa: E402,F401
+from . import nev                                            # noqa: E402,F401
+from . import la                                             # noqa: E402,F401
+from . import neb                                            # noqa: E402,F401
+from . import nm                                             # noqa: E402,F401

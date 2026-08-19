@@ -666,8 +666,58 @@ def assemble(model, geom: DocGeometry | None, segments_by_page: dict,
     # segment's KIND is no gate: a tight-set cover classifies as notice yet
     # its 'Opinión del Tribunal emitida por…' head is the byline (prsupreme)
     # — the grammar is the evidence.
+    # A BYLINE SET RIGHT OF THE MEASURE IS A SIGNATURE, not a writing. A
+    # writing's byline stands at the rail or on the page axis; a name pushed
+    # into the right half of the sheet is the conformed signature that CLOSES
+    # one. nm signs 'MICHAEL E. VIGIL, Justice' at x0=324 of 612 above its
+    # 'WE CONCUR:' roster, and core opened a second majority on it in 41 of
+    # nm's 50 records — a writing whose whole body was the roster beneath the
+    # signature. Tested on the row's CENTRE and not its left edge, so a
+    # centred byline ('PER CURIAM') is not caught: nm's signature centres at
+    # 413 against a page centre of 306, while a centred row centres at 306.
+    _SIG_OFF_AXIS = 40.0
+
+    def _signature_flush(seg) -> bool:
+        if not seg.lines:
+            return False
+        line = seg.lines[0]
+        mid = (line.x0 + line.x1) / 2
+        return mid > model.pages[0].width / 2 + _SIG_OFF_AXIS
+
+    # …AND A BYLINE THAT SIGNS OFF IS A SIGNATURE TOO. nm sets the author's
+    # conformed name at the rail on some records and flushed right on others,
+    # but either way an ATTESTATION follows it — 'WE CONCUR:' over the roster
+    # of justices who joined. A writing never opens its body with 'WE
+    # CONCUR:'; that row is what closes the writing above. This catches the
+    # 23 nm records where the signature is at the rail and the position test
+    # cannot see it.
+    _ATTEST = re.compile(r"^(?:WE|I)\s+(?:CONCUR|CONCURRED|DISSENT)\b"
+                         r"|^CONCUR(?:RED)?\s*:", re.I)
+
+    def _signs_off(i: int) -> bool:
+        """Is the byline at `i` followed by an attestation?
+
+        The attestation may fall inside the byline's own segment or open the
+        NEXT one — the segmenter breaks on the blank line the court leaves
+        above 'WE CONCUR:' — so both are checked. Looking only inside the
+        segment found nothing on any of nm's records.
+        """
+        seg = split_stream[i]
+        tail = list(seg.lines[1:4])
+        if i + 1 < len(split_stream):
+            tail += list(split_stream[i + 1].lines[:2])
+        for line in tail:
+            text = " ".join((line.plain or "").split())
+            if not text:
+                continue
+            if _ATTEST.match(text):
+                return True
+        return False
+
     starts = [i for i, seg in enumerate(split_stream)
               if head_byline(seg)[0]
+              and not _signature_flush(seg)
+              and not _signs_off(i)
               # a caption RUN-ON page carries no writing (ca9 devas)
               and seg.page not in _runon
               and not (i > 0 and split_stream[i - 1].lines

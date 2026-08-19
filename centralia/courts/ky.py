@@ -115,6 +115,14 @@ _COUNSEL_LABEL = re.compile(
     r"^(?:COUNSEL|ATTORNEYS?|BRIEFS?)\s+FOR\b|^COUNSEL\s*:|^APPEARANCES", re.I)
 
 
+# THE CRITERIA FIELD NAMES ARE THE MODEL'S. `Criteria` (centralia/model.py)
+# has no `docket` field and no `argued` field: the docket is
+# `docket_number` (a string) plus `other_dockets` (the rest), and an argued
+# date belongs in `submitted`, which the render labels 'argued/submitted'.
+# Written under the wrong names they were attached to the object by setattr
+# and never serialized — read as read, reported as nothing.
+
+
 def _norm(text: str) -> str:
     return " ".join(text.split())
 
@@ -173,9 +181,11 @@ def read_headmatter_ky(model, geom, **_):
             ctx.emit(pieces, "court")
             continue
         if _DOCKET.match(text):
-            ctx.crit.setdefault(
-                "docket", [t.strip() for t in re.split(r",|\band\b|&", text)
-                           if t.strip()])
+            _dk = [t.strip() for t in re.split(r",|\band\b|&", text)
+                   if t.strip()]
+            ctx.crit.setdefault("docket_number", _dk[0])
+            if _dk[1:]:
+                ctx.crit.setdefault("other_dockets", _dk[1:])
             ctx.emit(pieces, "docket")
             continue
         if _OPINION_BY.match(text) or _PER_CURIAM.match(text):
@@ -216,7 +226,7 @@ def read_headmatter_ky(model, geom, **_):
             ctx.cap_left(piece)
     ctx.flush_caption()
 
-    if not ctx.crit.get("docket"):
+    if not ctx.crit.get("docket_number"):
         return NOTHING
     if caption:
         ctx.crit.setdefault("parties", caption[:8])

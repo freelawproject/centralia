@@ -80,6 +80,10 @@ _LABELS = (
     (re.compile(r"^(?:MOTION FOR REHEARING FILED|MANDATE ISSUED"
                 r"|DATE OF MANDATE)", re.I), "case-info"),
 )
+# THE DISPOSITION STATES THE DATE. Mississippi prints no separate decision
+# date: 'DISPOSITION: AFFIRMED AND REMANDED - 03/26/2026' is the only place
+# the paper says when it was handed down, so the date is read out of it.
+_DISPO_DATE = re.compile(r"-\s*(\d{1,2}/\d{1,2}/\d{4})\s*$")
 _CRIT = ((re.compile(r"^TRIAL JUDGE", re.I), "lower_court_judge"),
          (re.compile(r"^COURT FROM WHICH APPEALED", re.I), "lower_court"),
          (re.compile(r"^DISPOSITION", re.I), "disposition"))
@@ -105,6 +109,14 @@ _BYLINE = re.compile(
     r"^(?:[A-Z][A-Z'’\-]+(?:,\s*[A-Z][A-Z'’\-]+)*,\s*"
     r"(?:PRESIDING\s+|CHIEF\s+)?(?:JUSTICE|JUDGE)\b.*|PER CURIAM\.?)$", re.I)
 _PARA = re.compile(r"^¶\s*\d+\.?$")
+
+
+# THE CRITERIA FIELD NAMES ARE THE MODEL'S. `Criteria` (centralia/model.py)
+# has no `docket` field and no `argued` field: the docket is
+# `docket_number` (a string) plus `other_dockets` (the rest), and an argued
+# date belongs in `submitted`, which the render labels 'argued/submitted'.
+# Written under the wrong names they were attached to the object by setattr
+# and never serialized — read as read, reported as nothing.
 
 
 def _norm(text: str) -> str:
@@ -146,10 +158,12 @@ def read_headmatter_miss(model, geom, **_):
             ctx.emit(pieces, "court")
             continue
         if _DOCKET.match(text):
-            ctx.crit.setdefault(
-                "docket", [t.strip() for t in
-                           re.split(r",|\band\b|&", text.split(".", 1)[-1])
-                           if t.strip()])
+            _dk = [t.strip() for t in
+                   re.split(r",|\band\b|&", text.split(".", 1)[-1])
+                   if t.strip()]
+            ctx.crit.setdefault("docket_number", _dk[0])
+            if _dk[1:]:
+                ctx.crit.setdefault("other_dockets", _dk[1:])
             ctx.emit(pieces, "docket")
             continue
         if _PANEL.match(text):
@@ -192,6 +206,10 @@ def read_headmatter_miss(model, geom, **_):
             for pat, key in _CRIT:
                 if pat.search(label_text) and value_text:
                     ctx.crit.setdefault(key, value_text)
+            if role == "disposition" and value_text:
+                _d = _DISPO_DATE.search(value_text)
+                if _d:
+                    ctx.crit.setdefault("decision_date", _d.group(1))
             continue
         # A RUNOVER VALUE belongs to the label above it, and stands in the
         # value column with NO label beside it.
@@ -211,7 +229,7 @@ def read_headmatter_miss(model, geom, **_):
             caption.append(text)
         ctx.emit(pieces, "caption", centre=False)
 
-    if not ctx.crit.get("docket"):
+    if not ctx.crit.get("docket_number"):
         return NOTHING
     if caption:
         ctx.crit.setdefault("parties", caption[:8])

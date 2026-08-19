@@ -94,7 +94,7 @@ _DATE_LABEL = re.compile(
     r"|Decided):\s*(.+)$", re.I)
 _DATE_CRIT = {"opinion issued": "decision_date", "opinion filed": "decision_date",
               "issued": "decision_date", "decided": "decision_date",
-              "argued": "argued", "reargued": "argued",
+              "argued": "submitted", "reargued": "submitted",
               "submitted": "submitted"}
 # The tribunal the appeal came from, printed at the rail above the docket and
 # again in parentheses under the caption.
@@ -114,6 +114,14 @@ _BYLINE = re.compile(
     r"^(?:[A-Z][A-Za-z'’\-]+(?:,\s*[A-Z][A-Za-z'’\-]+)*,\s*"
     r"(?:C\.?\s*J\.?|JJ?\.?)|PER CURIAM\.?)$")
 _PARA = re.compile(r"^\[¶\s*\d+\]")
+
+
+# THE CRITERIA FIELD NAMES ARE THE MODEL'S. `Criteria` (centralia/model.py)
+# has no `docket` field and no `argued` field: the docket is
+# `docket_number` (a string) plus `other_dockets` (the rest), and an argued
+# date belongs in `submitted`, which the render labels 'argued/submitted'.
+# Written under the wrong names they were attached to the object by setattr
+# and never serialized — read as read, reported as nothing.
 
 
 def _norm(text: str) -> str:
@@ -170,9 +178,10 @@ def read_headmatter_nh(model, geom, **_):
             continue
         docket = _DOCKET.match(text)
         if docket:
-            ctx.crit.setdefault(
-                "docket", [t.strip() for t in docket.group(1).split(",")
-                           if t.strip()])
+            _dk = [t.strip() for t in docket.group(1).split(",") if t.strip()]
+            ctx.crit.setdefault("docket_number", _dk[0])
+            if _dk[1:]:
+                ctx.crit.setdefault("other_dockets", _dk[1:])
             ctx.emit(pieces, "docket", centre=False)
             continue
         cite = _CITATION.match(text)
@@ -214,7 +223,7 @@ def read_headmatter_nh(model, geom, **_):
         # tinted with a role that would be a guess.
         continue
 
-    if not ctx.crit.get("docket"):
+    if not ctx.crit.get("docket_number"):
         return NOTHING
     if caption:
         ctx.crit.setdefault("case_name", " ".join(caption))

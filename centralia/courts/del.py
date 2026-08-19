@@ -89,7 +89,7 @@ _BELOW_NO = re.compile(
 _DATE_LABEL = re.compile(
     r"^(Submitted|Decided|Argued|Reargued|Revised|Corrected):\s*(.+)$", re.I)
 _DATE_CRIT = {"decided": "decision_date", "submitted": "submitted",
-              "argued": "argued", "reargued": "argued"}
+              "argued": "submitted", "reargued": "submitted"}
 _PANEL = re.compile(r"^Before\b|constituting the Court", re.I)
 _ORIGIN = re.compile(r"^Upon (?:appeal|report|certification|petition)", re.I)
 _DISPO = re.compile(
@@ -104,6 +104,14 @@ _PIVOT = re.compile(r"^v\.?$|^vs\.?$", re.I)
 _BYLINE = re.compile(
     r"^(?:[A-Z][A-Za-z'’\-]+(?:-[A-Z][A-Za-z'’\-]+)?,\s*"
     r"(?:Chief\s+)?Justice\s*:?|PER CURIAM\s*:?)$")
+
+
+# THE CRITERIA FIELD NAMES ARE THE MODEL'S. `Criteria` (centralia/model.py)
+# has no `docket` field and no `argued` field: the docket is
+# `docket_number` (a string) plus `other_dockets` (the rest), and an argued
+# date belongs in `submitted`, which the render labels 'argued/submitted'.
+# Written under the wrong names they were attached to the object by setattr
+# and never serialized — read as read, reported as nothing.
 
 
 def _norm(text: str) -> str:
@@ -257,7 +265,7 @@ def read_headmatter_del(model, geom, **_):
                   None)
     if docket is None:
         return NOTHING
-    ctx.crit["docket"] = [_norm(docket.group(1))]
+    ctx.crit["docket_number"] = _norm(docket.group(1))
     if caption:
         ctx.crit.setdefault("parties", caption[:8])
     _hist = [t for t in right_plain if _COURT_BELOW.match(t)

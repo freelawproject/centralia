@@ -106,9 +106,17 @@ _DATE_LABEL = re.compile(
     r"^(Submitted on Briefs|Submitted|Argued|Reargued|Decided|Filed|Dated"
     r"|Heard|Ordered)\s*:\s*(.*)$", re.I)
 _DATE_CRIT = {"decided": "decision_date", "submitted": "submitted",
-              "submitted on briefs": "submitted", "argued": "argued",
-              "reargued": "argued", "heard": "argued"}
+              "submitted on briefs": "submitted", "argued": "submitted",
+              "reargued": "submitted", "heard": "submitted"}
 _TYPED_RULE = re.compile(r"^_{6,}$")
+
+
+# THE CRITERIA FIELD NAMES ARE THE MODEL'S. `Criteria` (centralia/model.py)
+# has no `docket` field and no `argued` field: the docket is
+# `docket_number` (a string) plus `other_dockets` (the rest), and an argued
+# date belongs in `submitted`, which the render labels 'argued/submitted'.
+# Written under the wrong names they were attached to the object by setattr
+# and never serialized — read as read, reported as nothing.
 
 
 def _norm(text: str) -> str:
@@ -162,9 +170,11 @@ def read_headmatter_mont(model, geom, **_):
             ctx.emit(pieces, "citation")
             continue
         if _DOCKET.match(text) and band == "ident":
-            ctx.crit.setdefault(
-                "docket", [t.strip() for t in re.split(r",|\band\b|&", text)
-                           if t.strip()])
+            _dk = [t.strip() for t in re.split(r",|\band\b|&", text)
+                   if t.strip()]
+            ctx.crit.setdefault("docket_number", _dk[0])
+            if _dk[1:]:
+                ctx.crit.setdefault("other_dockets", _dk[1:])
             ctx.emit(pieces, "docket")
             continue
         # ---- the ladders --------------------------------------------------
@@ -217,7 +227,7 @@ def read_headmatter_mont(model, geom, **_):
         # tinted with a role that would be a guess.
         continue
 
-    if not ctx.crit.get("docket"):
+    if not ctx.crit.get("docket_number"):
         return NOTHING
     if caption:
         ctx.crit.setdefault("parties", caption[:8])

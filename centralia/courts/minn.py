@@ -96,6 +96,14 @@ _SYL_NUM = re.compile(r"^\d+\.$")
 _RIGHT_COL_MIN = 0.48          # of the measure
 
 
+# THE CRITERIA FIELD NAMES ARE THE MODEL'S. `Criteria` (centralia/model.py)
+# has no `docket` field and no `argued` field: the docket is
+# `docket_number` (a string) plus `other_dockets` (the rest), and an argued
+# date belongs in `submitted`, which the render labels 'argued/submitted'.
+# Written under the wrong names they were attached to the object by setattr
+# and never serialized — read as read, reported as nothing.
+
+
 def _norm(text: str) -> str:
     return " ".join(text.split())
 
@@ -146,7 +154,10 @@ def read_headmatter_minn(model, geom, **_):
             ctx.emit(pieces, "court")
             continue
         if _DOCKET.match(text):
-            ctx.crit.setdefault("docket", [t.strip() for t in text.split(",")])
+            _dk = [t.strip() for t in text.split(",") if t.strip()]
+            ctx.crit.setdefault("docket_number", _dk[0])
+            if _dk[1:]:
+                ctx.crit.setdefault("other_dockets", _dk[1:])
             ctx.emit(pieces, "docket")
             continue
         if _SYLLABUS_HEAD.match(text):
@@ -210,7 +221,7 @@ def read_headmatter_minn(model, geom, **_):
             # tinted with a role that would be a guess.
             continue
 
-    if not ctx.crit.get("docket"):
+    if not ctx.crit.get("docket_number"):
         return NOTHING
     if caption:
         ctx.crit.setdefault("parties", caption[:6])

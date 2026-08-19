@@ -132,6 +132,14 @@ _DATE = re.compile(
 _SUBJECT = re.compile(r"[—–]")
 
 
+# THE CRITERIA FIELD NAMES ARE THE MODEL'S. `Criteria` (centralia/model.py)
+# has no `docket` field and no `argued` field: the docket is
+# `docket_number` (a string) plus `other_dockets` (the rest), and an argued
+# date belongs in `submitted`, which the render labels 'argued/submitted'.
+# Written under the wrong names they were attached to the object by setattr
+# and never serialized — read as read, reported as nothing.
+
+
 def _norm(text: str) -> str:
     return " ".join(text.split())
 
@@ -262,8 +270,11 @@ def read_headmatter_coloctapp(model, geom, **_):
 
     if not dockets:
         return NOTHING
-    ctx.crit["docket"] = [d.split("Nos.", 1)[-1].split("No.", 1)[-1].strip()
-                          for d in dockets]
+    _dk = [d.split("Nos.", 1)[-1].split("No.", 1)[-1].strip()
+           for d in dockets]
+    ctx.crit["docket_number"] = _dk[0]
+    if _dk[1:]:
+        ctx.crit["other_dockets"] = _dk[1:]
     if parties:
         ctx.crit.setdefault("parties", parties[:6])
     if below:
