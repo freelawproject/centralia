@@ -462,3 +462,59 @@ stems for a new `"dc"` key in `tests/criteria_manifest.py`.
 Note `dc/in_re_kester` becomes over-split only AFTER the margin-stamp fix
 landed: dropping the 1-line stamp segment took its `body_before` from 10 to
 9, across the same floor. Same defect, same patch.
+
+## 20. The folio top-band threshold disagrees with the key-learning band by 0.01 — `resolve/furniture.py`
+
+Diagnosed by the conn agent on 2026-08-20, verified at runtime by
+monkeypatching rather than editing core. NOT applied.
+
+Connecticut's Law Journal prints its volume folio at top **150.5 of a 792pt
+page = 0.1900252**, two hundredths of a point ABOVE a `0.19` cut.
+`furniture.py:137` already documents this exact number ("Connecticut's
+reporter row sits at exactly 0.1900 of a Law Journal page") and the
+key-LEARNING band was already widened to **0.22** for this same row — but the
+folio DECISION at lines ~378/384 still tests `0.19`. The two bands disagree
+by a hair, so the bare folio falls through as content.
+
+    -        if is_folio_text(text) and (frac <= 0.19 or frac >= 0.82):
+    +        # Top band 0.20, not 0.19: Connecticut's Law Journal folio stands
+    +        # at 150.5 of 792 = 0.190025 — two hundredths of a point below a
+    +        # 0.19 cut. The key-learning band above was already widened to
+    +        # 0.22 for this same row; the two must agree.
+    +        if is_folio_text(text) and (frac <= 0.20 or frac >= 0.82):
+    -            if frac <= 0.19:
+    +            if frac <= 0.20:
+                     return "folio"
+
+0.20 is the narrowest value that clears 0.1900252. Consequence today, on
+pages 7+ where a headmatter reader cannot reach (inside an assembled
+writing): stray numeric blocks and paragraphs split mid-sentence —
+`state_v._matheney_1` leaks `['216','219','222','223','226','229','230',
+'235','238']`, `state_v._johnson_2` leaks `['99','100','101','104','107',
+'108','114','122','127']` and `['141']`.
+
+Verified effect (scratchpad/conn-lawjournal/stray20.py): every stray numeral
+disappears and paragraphs rejoin across pages — matheney majority 87 -> 62
+blocks, johnson_2 80 -> 51 and 67 -> 44, walton 4 -> 3. `residual` stays 0
+and the 38 advance-release records are unaffected.
+
+**Blast radius is wider than conn**: any court printing a bare numeral or
+`Page N` between 19% and 20% of page height. This one wants a full `guard`
+run behind it, unlike item 19 whose radius was already measured at 4 files.
+
+## Pending sentinel work once the tree is quiet
+
+- `conn/amadasun_v._armstrong_town_clerk_of_south_windsor` was **already
+  regressed before any work today** (`syllabus 8->0`, `hm 12->80`, `parties`
+  added): the fixture predates conn's existing format-A branch. Investigate
+  whether the pin or the reading is wrong BEFORE blessing — do not bless it
+  blind.
+- Pin, one per conn format: `conn/del_rio_v._amazon.com_services_inc._1`
+  (Law Journal extract), `conn/walton_v._walton_1` (extract with NO syllabus
+  band, 3pp, body_size 8.0 — the finder's blind spot),
+  `conn/state_v._johnson_1` (slip separate opinion: notice only, no caption).
+- Pin dc's three AFTER item 19 lands (see item 19).
+- Apply the drafted `harness/quality.py` `_CITE_AFTER` fix (va's `joins`
+  false positive) and the va + conn + dc `tests/criteria_manifest.py` entries.
+- Item 19 is STAGED and anchor-verified at
+  `scratchpad/apply_item19.py` (`--check` to re-verify, no args to apply).

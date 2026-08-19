@@ -74,6 +74,50 @@ court's front matter read in place, exactly as kan's 852 numbered points are.
 the history the court writes, so the heading is where the block ends and the
 paper begins.
 
+THE OTHER PAPER: THE BOUND REPORTER. Connecticut publishes the SAME case
+twice, and the companion file (the `_1` / `_2` suffix) is the CONNECTICUT LAW
+JOURNAL printing — an extract of the bound volume, with no Reporter's notice
+and no page 1 of its own. It reads the same from the caption down; what
+differs is everything ABOVE the caption, which is three running heads:
+
+    ┌─ page 1 (of an extract that begins at the volume's page 151) ───────┐
+    │ February 10, 2026   CONNECTICUT LAW JOURNAL      Page 3   7.5pt     │ the Journal's
+    │   354 Conn. 151        FEBRUARY, 2026            151     10.8pt     │ three heads
+    │           Del Rio v. Amazon.com Services, Inc.            8pt       │
+    │      JAVIER DEL RIO ET AL. v. AMAZON.COM                 11pt       │ the caption
+    │             SERVICES, INC., ET AL.                                  │
+    │                   (SC 21109)                             11pt       │ the docket
+    │        Mullins, C. J., and McDonald, D'Auria, Ecker,       8pt       │ the panel
+    │            Alexander, Dannehy and Bright, Js.                       │
+    │                      Syllabus                             8pt       │
+    └────────────────────────────────────────────────────────────────────┘
+
+THE MIDDLE HEAD CARRIES THE CITATION AND IS STILL A HEAD. '354 Conn. 151' is
+the reporter citation — volume, reporter, first page — and it is printed on
+EVERY page of the extract, swapping rails with the folio as the volume's
+recto and verso alternate. Printed identically thirty times it cannot be this
+page's content, so the row is dropped as a running head and the cite it
+carries is kept as `criteria.citation`, the field the model added for a
+court-printed cite. The row is FOUND by repetition, not by wording: the same
+cite-shaped line, at the same baseline, on two or more pages. That baseline
+then names the row on every page, which is how the bare folio ('152') that
+core's furniture finder cannot see — it stands inside the body measure — is
+still accounted for.
+
+WHICH PAPER THIS IS, IS A LANDMARK QUESTION. The slip opens with the
+asterisk rule of the Reporter's notice; the Journal extract prints the
+reporter's running head. Neither present, the reader returns NOTHING and
+core's generic walk has it. The two branches then share ONE walk, because
+from the caption down the two papers are the same paper.
+
+A SLIP WITH NO CAPTION IS A SEPARATE OPINION, NOT A FAILURE. Four records
+here are the advance release of a dissent or a concurrence alone: the notice
+page, then a byline on page 2 and nothing else. There is no caption, no
+docket and no precis to read, and the whole of their headmatter is the
+notice. The claim is the notice, recorded as dropped — which is what leaves
+the render honest rather than leaving the asterisk rule standing alone as the
+document's entire front matter.
+
 THE NOTICE NAMES ITSELF. It opens with a rule of asterisks and every line of
 it stands in the Reporter's measure (x0 174-186) on page 1 alone. It is
 dropped, not tinted: none of it is the court's writing, and it is printed
@@ -97,19 +141,26 @@ _AXIS_TOL = 30.0        # the Reporter's measure is narrow and centred
 _COURT_SIZE_MIN = 10.5
 
 _ASTERISKS = re.compile(r"^\*{6,}$")
-_NOTICE_WORDS = re.compile(
-    r"officially released|subject to modification|Connecticut Law Journal"
-    r"|advance release version|considered authoritative"
-    r"|Connecticut Reports|Connecticut Appellate Reports", re.I)
 # '(SC 21016)' / '(AC 46012)' / '(SC 21016, SC 21017)'
 _DOCKET = re.compile(r"^\((?:SC|AC)\s*\d+[\s,;]*(?:(?:SC|AC)?\s*\d+)*\)$", re.I)
 # The panel roster: a list of names closing in 'Js.' or 'J.'
 _ROSTER = re.compile(r"\bJs?\.\s*$")
 _SYLLABUS_HEAD = re.compile(r"^Syllabus$", re.I)
 # 'Argued March 5—officially released May 5, 2026'
+#
+# THE LIGATURE IS BROKEN IN THE BOUND PRINTING. The Journal extract's fonts
+# set 'ffi' as a single glyph and the extractor recovers it as 'offi cially'
+# ('fi led', 'certifi ed', 'affi rming' likewise) — measured on all eight
+# extracts. The slip's fonts do not, so the same landmark needs both
+# spellings; written with only the closed one, the released date went
+# unrecorded on every extract and the row read as 'syllabus' or as 'panel'
+# instead of as the date it is.
+_OFFICIALLY = r"of\s?f\s?i\s?c\s?ially"
 _ARGUED_RELEASED = re.compile(
-    r"^(?:Argued|Submitted)\s+(.+?)[—–-]\s*officially released\s+(.+)$", re.I)
-_RELEASED_ONLY = re.compile(r"^officially released\s+(.+)$", re.I)
+    r"^(?:Argued|Submitted)\s+(.+?)[—–-]\s*" + _OFFICIALLY
+    + r"\s+released\s+(.+)$", re.I)
+_RELEASED_ONLY = re.compile(
+    r"^" + _OFFICIALLY + r"\s+released\s+(.+)$", re.I)
 # A FOOTNOTE MARK RIDES THE DATE. The Reporter stars the released date where
 # it notes a release-date correction ('February 17, 2026*'), and the star is
 # not part of the date.
@@ -124,6 +175,30 @@ _FOLIO = re.compile(r"^\d{1,4}$")
 # A paragraph OPENS a step in from the Reporter's rail: 184.0 against 174.0.
 _INDENT_MIN = 6.0
 
+# ---- the bound volume's running head ---------------------------------
+# '354 Conn. 151' / '234 Conn. App. 56' — volume, reporter, first page. A
+# SHAPE, not a name: three tokens, two of them numbers, the middle one an
+# abbreviation. It is accepted as a running head only where the SAME line
+# stands at the SAME baseline on two or more pages, which is the measurement
+# that separates a head from a citation that happens to fill a short line.
+_REPORTER_CITE = re.compile(
+    r"^(\d{1,4})\s+([A-Z][A-Za-z]{1,11}\.(?:\s*[A-Z][A-Za-z]{1,11}\.)?)"
+    r"\s+(\d{1,4})$")
+# Every head on these pages stands in the top quarter of the sheet: 108.5,
+# 150.5 and 169.4 against 792. The body's own first row is at 187.5 (0.237),
+# so the zone alone does not identify a head — the repetition does.
+_HEAD_ZONE = 0.25
+_HEAD_TOL = 1.5         # the head's baseline is invariant to a tenth
+# The head is a SHORT row: 71pt of a 264pt measure. A full-measure line of
+# prose can never be one, whatever it says.
+_HEAD_MEASURE_MAX = 0.5
+
+# THE PANEL, printed and parsed. The roster runs over two rows and only the
+# LAST of them closes in 'Js.', so the printed form is the rows joined. The
+# bench titles are a closed vocabulary — 'C. J.', 'J.', 'Js.' — and taking
+# them out leaves the names.
+_BENCH_TITLE = re.compile(r",?\s*(?:C\.\s*J\.|Js\.|J\.)(?=,|\s|$)")
+
 
 # THE CRITERIA FIELD NAMES ARE THE MODEL'S. `Criteria` (centralia/model.py)
 # has no `docket` field and no `argued` field: the docket is
@@ -137,26 +212,107 @@ def _norm(text: str) -> str:
     return " ".join(text.split())
 
 
+def _digitless(text: str) -> str:
+    """A repetition key: the line without its numbers, so a head that counts
+    the volume's pages ('354 Conn. 151' / '152') still matches itself."""
+    return "".join(c for c in text if not c.isdigit()).strip()
+
+
+def _running_heads(model, body_x0: float, right_x1: float):
+    """`(baselines, citation)` — the tops the paper prints a head on, and the
+    reporter citation one of them carries. `(set(), None)` where there is no
+    reporter head, which is what says this is not the Journal's extract.
+
+    A HEAD IS FOUND BY REPETITION, never by wording: the same line, less its
+    digits, standing at the same baseline in the top zone of two or more
+    pages. That is the only test that reaches all three of this paper's
+    heads, because core's own furniture finder reads the pages against the
+    document's dominant type and a three-page extract is dominated by the
+    Reporter's 8pt — on `walton_v._walton_1` it takes the folio and leaves
+    the Journal's date line and the case-name line standing.
+
+    The citation head is the one whose line is the reporter's own shape —
+    volume, reporter, page — inside half the measure. It is a head like the
+    others; what makes it worth naming is that the cite is a criterion.
+    """
+    measure = max(right_x1 - body_x0, 1.0)
+    seen: dict = {}
+    for pm in model.pages:
+        for line in pm.lines:
+            text = _norm(line.plain)
+            if not text or line.top > pm.height * _HEAD_ZONE:
+                continue
+            key = (round(line.top, 1), _digitless(text))
+            pages, _t, narrow = seen.get(key, (set(), text, False))
+            pages.add(pm.number)
+            seen[key] = (pages, _t,
+                         narrow or (_REPORTER_CITE.match(text) is not None
+                                    and line.x1 - line.x0
+                                    <= measure * _HEAD_MEASURE_MAX))
+    tops = {t for (t, _k), (pgs, _x, _n) in seen.items() if len(pgs) >= 2}
+    cite = None
+    best = 1
+    for (top, _k), (pgs, text, narrow) in seen.items():
+        if narrow and len(pgs) > best:
+            cite, best = text, len(pgs)
+    return (tops, cite) if cite else (set(), None)
+
+
+def _panel_names(text: str) -> list[str]:
+    """The roster's names, the bench titles taken out."""
+    out = []
+    for part in re.split(r",|\band\b", _BENCH_TITLE.sub(",", text)):
+        name = part.strip(" .,;")
+        if name:
+            out.append(name)
+    return out
+
+
 @decider("headmatter.read", court="conn")
 def read_headmatter_conn(model, geom, **_):
-    """Read Connecticut's advance release block, or NOTHING."""
+    """Read Connecticut's block — the advance release slip or the Law
+    Journal's bound extract, one walk under two landmarks — or NOTHING."""
     if len(model.pages) < 2:
         return NOTHING
     body_size = (geom.body_size if geom and geom.body_size else 11.0)
     body_x0 = (geom.body_x0 if geom and geom.body_x0 else 174.0)
+    right_x1 = (geom.right_x1 if geom and geom.right_x1 else 438.6)
     finder = FurnitureFinder(model, body_x0, body_size)
 
     ctx = _Ctx()
-    # ---- page 1: the Reporter's notice, whole ---------------------------
+    # ---- WHICH OF THE TWO PAPERS IS THIS? -------------------------------
+    # The slip opens on the Reporter's notice, whole, on page 1. The Law
+    # Journal extract opens on the bound volume's running head. Each is a
+    # landmark the paper always prints; a record printing neither is not
+    # Connecticut's and core's walk has it.
+    #
+    # THE NOTICE IS ITS RULE. It was first written as 'the asterisk rule OR a
+    # line of the notice's wording', and the wording included 'Connecticut
+    # Law Journal' — which is what the OTHER paper prints across the top of
+    # every page. On `walton_v._walton_1` that matched the running head in
+    # the first row of page 1 and the cascade below it then dropped the
+    # caption, the panel, the history, the appearances and the first
+    # thirty-five lines of the per curiam opinion as 'notice'. The landmark
+    # is the RULE, and the notice is what follows it.
+    opened = False
     for group in _rows(model.pages[0], finder):
         text = _norm(" ".join(l.plain for l in group))
         if not text:
             continue
-        if _ASTERISKS.match(text) or _NOTICE_WORDS.search(text) \
-                or ctx.dropped:
-            ctx.drop(group, "notice")
-    if not ctx.dropped:
-        return NOTHING          # no notice page: not this paper
+        if not opened and not _ASTERISKS.match(text):
+            continue
+        opened = True
+        ctx.drop(group, "notice")
+    slip = opened
+    heads: set = set()
+    if not slip:
+        heads, cite = _running_heads(model, body_x0, right_x1)
+        if not cite:
+            return NOTHING      # neither notice nor reporter head
+        ctx.crit["citation"] = cite
+    # The slip's own paper begins on the page AFTER the notice; the extract
+    # begins on its first.
+    _first = 1 if slip else 0
 
     # ---- the paper's own opening -----------------------------------------
     # THE CAPTION is the first row the COURT sets — 11pt, centred, carrying
@@ -176,40 +332,44 @@ def read_headmatter_conn(model, geom, **_):
     # swallowed all 64 rows this reader had claimed — an empty headmatter on
     # 23 of 50 records, with the claim intact and every row 'reunited' into
     # the opinion. A claim with a hole at the top is worse than no claim.
-    caption_pm = caption_idx = None
-    for pm in model.pages[1:_MAX_PAGES]:
-        rows = _rows(pm, finder)
-        if not any(_DOCKET.match(_norm(" ".join(l.plain for l in g)))
-                   for g in rows):
-            continue
-        caption_pm = pm
-        for idx, group in enumerate(rows):
-            text = _norm(" ".join(l.plain for l in group))
-            # The Reporter's folio stands alone at the head of the page.
-            if not text or _FOLIO.match(text):
-                continue
-            caption_idx = idx
+    caption_pm = None
+    for pm in model.pages[_first:_MAX_PAGES]:
+        if any(_DOCKET.match(_norm(" ".join(l.plain for l in g)))
+               for g in _rows(pm, finder)):
+            caption_pm = pm
             break
-        break
     if caption_pm is None:
-        return NOTHING
+        # NO DOCKET IS NOT ALWAYS A MISREADING. On the slip it means the
+        # paper is a separate opinion released alone: notice, then a byline.
+        # The notice is the whole of its headmatter and the claim is that,
+        # recorded as dropped. On the extract it would mean a shape this
+        # reader has not measured, so the claim is withdrawn.
+        return ctx.result() if slip else NOTHING
 
     caption: list[str] = []
     history: list[str] = []
     paras = 0
     stopped = False
     band = "caption"        # caption | syllabus | history | counsel
+    panel: list[str] = []
     pages = [pm for pm in model.pages[caption_pm.number - 1:_MAX_PAGES]]
-    for pi, pm in enumerate(pages):
-        rows = _rows(pm, finder)
-        if pi == 0:
-            rows = rows[caption_idx:]
-        for group in rows:
+    for pm in pages:
+        for group in _rows(pm, finder):
             text = _norm(" ".join(l.plain for l in group))
             if not text:
                 continue
             first = group[0]
+            # THE HEADS THE CLAIM INHERITS. Core's furniture finder takes
+            # the Journal's date/name/folio band and the case-name head, but
+            # not the citation head — the row stands INSIDE the body measure
+            # and its folio changes on every page. Named by its measured
+            # baseline and recorded, never skipped: an unrecorded row a
+            # reader passed over comes back as residual.
+            if any(abs(first.top - t) <= _HEAD_TOL for t in heads):
+                ctx.drop(group, "running-head")
+                continue
             if _FOLIO.match(text):
+                ctx.drop(group, "folio")
                 continue
             if _OPINION_HEAD.match(text):
                 # THE PAPER NAMES ITSELF. Everything below is the writing.
@@ -273,7 +433,8 @@ def read_headmatter_conn(model, geom, **_):
                 ctx.emit(group, "syllabus", centre=False)
                 continue
             if _ROSTER.search(text) and (first.size or 0.0) < _COURT_SIZE_MIN:
-                ctx.crit.setdefault("panel_line", text)
+                if band == "caption":
+                    panel.append(text)
                 ctx.emit(group, "panel")
                 continue
             if (first.size or 0.0) >= _COURT_SIZE_MIN:
@@ -283,17 +444,36 @@ def read_headmatter_conn(model, geom, **_):
             # A ROSTER'S FIRST LINE ends in a comma, not in 'Js.' — it is
             # still the roster, and it is the only other thing the Reporter
             # sets in this band above the précis.
+            # THE ROSTER IS READ IN THE CAPTION BAND AND NOWHERE ELSE.
+            # This is the walk's last resort, so anything the Reporter sets
+            # in 8pt that no landmark claimed arrives here; taking it into
+            # the panel criterion put 'Argued December 3, 2025—offi cially
+            # released March 10, 2026' among walton's justices.
+            if band == "caption":
+                panel.append(text)
             ctx.emit(group, "panel")
         if stopped:
             break
 
-    if not ctx.crit.get("docket_number") or not stopped:
-        return NOTHING
     if caption:
         ctx.crit.setdefault("case_name", " ".join(caption))
         ctx.crit.setdefault("parties", caption[:4])
+    if panel:
+        # THE PRINTED FORM BESIDE THE PARSED FORM. The roster spans two rows
+        # and only the second closes in 'Js.', so the line is the rows
+        # joined — recorded whole as `judges` and `panel_line`, and split on
+        # the bench titles into `panel`.
+        line = " ".join(panel)
+        ctx.crit.setdefault("panel_line", line)
+        ctx.crit.setdefault("judges", line)
+        names = _panel_names(line)
+        if names:
+            ctx.crit.setdefault("panel", names)
     if history:
         ctx.crit.setdefault("history", " ".join(history)[:2000])
+    # THE GATE COMES LAST, and it judges what the walk actually populated.
+    if not ctx.crit.get("docket_number") or not stopped:
+        return NOTHING
     return ctx.result()
 
 
