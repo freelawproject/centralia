@@ -32,10 +32,26 @@ Above it stand two stamps the court flushes right: the release date
 ('RENDERED: …', which is the decision date) and the publication status
 ('TO BE PUBLISHED' / 'NOT TO BE PUBLISHED').
 
-THE PARTY ROLE IS A COLUMN. 'APPELLANTS' and 'APPELLEE' stand alone at the
-right margin beside the party they label, and the page sets them on the same
-line as a party row — so a row is read PIECE BY PIECE, never joined, or the
-role welds onto the end of the party's name.
+THE BLOCK IS THREE ZONES, not two. Kentucky sets the parties at the left
+rail, flushes their ROLE to the right margin on the same line, and prints
+the courts below CENTRED between one party group and the next:
+
+    ADAM WHEELER; COURTNEY L.                          APPELLANTS
+    GRAHAM; AND STRAUSE LAW              <- left rail       ^ right margin
+    GROUP, PLLC
+                 ON REVIEW FROM COURT OF APPEALS      <- centred
+    V.                    NO. 2023-CA-1147
+                 BULLITT CIRCUIT COURT NO. 20-CI-00486
+    CITY OF PIONEER VILLAGE,                           APPELLEE
+    KENTUCKY
+
+So a row is read PIECE BY PIECE, never joined, or the role welds onto the
+end of the party's name. And the two caption columns are PAIRED: a party
+group and the role that labels it are emitted as one `CaptionBlock`, which
+is this repo's structure for a block the page sets in two columns. A centred
+row is none of the three columns' business, so it CLOSES the pending block
+and stands on its own — which is exactly how the page reads, one party group
+per court below.
 
 THE DRAWN RULE CLOSES THE BLOCK. Measured over 50 records the page draws one
 rule and it sits between the disposition and the first paragraph of the
@@ -91,6 +107,12 @@ _DISPO = re.compile(
     r"|REVERSED|VACATED|DENYING|GRANTING|SUSTAINING|MODIFYING|SET ASIDE)"
     r"[\w\s,;'’&/-]*\.?$", re.I)
 _RIGHT_COL_MIN = 0.60          # of the measure — where the role column sits
+# THE CLOSING APPEARANCES. Kentucky prints counsel at the END of the paper,
+# under its own labels, below the sitting roster and the vote line. The
+# labels are the landmark; the roster and the vote ARE the court's writing
+# and are left in the opinion where the court put them.
+_COUNSEL_LABEL = re.compile(
+    r"^(?:COUNSEL|ATTORNEYS?|BRIEFS?)\s+FOR\b|^COUNSEL\s*:|^APPEARANCES", re.I)
 
 
 def _norm(text: str) -> str:
@@ -168,32 +190,31 @@ def read_headmatter_ky(model, geom, **_):
             ctx.emit(pieces, "lower-court")
             continue
 
-        # A ROW IN TWO COLUMNS is read piece by piece: the party stands at
-        # the rail and its ROLE at the right margin, on the same line.
-        placed = False
+        # A ROW IN THREE ZONES is read piece by piece: the party stands at
+        # the rail, its ROLE at the right margin, and a court below in the
+        # middle — all three on one printed line.
         for piece in pieces:
             one = _norm(piece.plain)
             if not one:
                 continue
             right = piece.x0 >= page1.width * _RIGHT_COL_MIN
+            mid = (piece.x0 + piece.x1) / 2
+            middle = (not right and piece.x0 > body_x0 + 20.0
+                      and abs(mid - page1.width / 2) <= 60.0)
             if right and _PARTY_ROLE.match(one):
-                ctx.emit([piece], "caption", centre=False)
-                placed = True
+                ctx.cap_right(piece)
                 continue
-            if _BELOW_NO.match(one) or _ON_REVIEW.match(one):
+            if _BELOW_NO.match(one) or _ON_REVIEW.match(one) or middle:
                 below.append(one)
-                ctx.emit([piece], "lower-court", centre=False)
-                placed = True
+                ctx.flush_caption()
+                ctx.emit([piece], "lower-court")
                 continue
             if _PIVOT.match(one):
-                ctx.emit([piece], "caption", centre=False)
-                placed = True
+                ctx.cap_left(piece)
                 continue
             caption.append(one)
-            ctx.emit([piece], "caption", centre=False)
-            placed = True
-        if not placed:
-            continue
+            ctx.cap_left(piece)
+    ctx.flush_caption()
 
     if not ctx.crit.get("docket"):
         return NOTHING
@@ -201,7 +222,38 @@ def read_headmatter_ky(model, geom, **_):
         ctx.crit.setdefault("parties", caption[:8])
     if below:
         ctx.crit.setdefault("history", " ".join(below)[:2000])
+    _read_closing_counsel(ctx, model, finder)
     return ctx.result()
+
+
+def _read_closing_counsel(ctx, model, finder) -> None:
+    """The appearances Kentucky prints at the END of the paper.
+
+        COUNSEL FOR APPELLANTS:
+        Courtney L. Graham
+        Strause Law Group PLLC
+
+        COUNSEL FOR APPELLEE:
+        Mark Edward Edison
+
+    Claimed from the first label DOWN, and no further up: the rows above it
+    ('Lambert, C.J.; … JJ., sitting.' and 'All concur. Goodwine, J., not
+    sitting.') are the court's own closing lines — the panel and the vote —
+    and they belong to the writing, not to a roster.
+    """
+    pm = model.pages[-1]
+    lines = [l for l in sorted(pm.lines, key=lambda l: (l.top, l.x0))
+             if l.plain.strip() and not finder.kind(pm, l)]
+    start = next((i for i, l in enumerate(lines)
+                  if _COUNSEL_LABEL.match(_norm(l.plain))), None)
+    if start is None:
+        return
+    for line in lines[start:]:
+        ctx.attorneys.append(m.HmLine(
+            text=line_markup(line), prov=m.Prov(line.page, (line.id,)),
+            align=m.Align.LEFT, x0=line.x0, size=line.size or 0.0,
+            bold=bool(line.all_bold), role="counsel"))
+        ctx.consumed.add(line.id)
 
 
 def _rows(pm, finder) -> list[list]:
@@ -226,8 +278,16 @@ class _Ctx:
         self.dropped: list = []
         self.consumed: set[int] = set()
         self.crit: dict = {}
+        self._left: list = []
+        self._right: list = []
+        self.attorneys: list = []
 
     def emit(self, group: list, role: str, centre: bool = True) -> None:
+        # A ROW THAT IS NOT THE CAPTION closes the pending pair: emitted
+        # after it, the caption would render below a row the page prints
+        # beneath it.
+        if role != "caption":
+            self.flush_caption()
         parts = sorted(group, key=lambda l: l.x0)
         if not parts:
             return
@@ -244,7 +304,36 @@ class _Ctx:
             bold=all(bool(p.all_bold) for p in parts), role=role))
         self.consumed.update(p.id for p in parts)
 
+    # ---- the paired caption ----------------------------------------------
+    def _row(self, line, role: str):
+        return m.HmLine(
+            text=line_markup(line), prov=m.Prov(line.page, (line.id,)),
+            align=m.Align.LEFT, x0=line.x0, size=line.size or 0.0,
+            bold=bool(line.all_bold), role=role)
+
+    def cap_left(self, line) -> None:
+        self._left.append(self._row(line, "caption"))
+        self.consumed.add(line.id)
+
+    def cap_right(self, line) -> None:
+        self._right.append(self._row(line, "caption"))
+        self.consumed.add(line.id)
+
+    def flush_caption(self) -> None:
+        """A party group and the role that labels it are ONE block. With no
+        role beside it the group is just rows — a CaptionBlock with an empty
+        column would draw a gutter the page does not print."""
+        if self._left and self._right:
+            self.items.append(m.CaptionBlock(
+                left=list(self._left), right=list(self._right), rail=None,
+                prov=self._left[0].prov))
+        else:
+            self.items.extend(self._left or self._right)
+        self._left, self._right = [], []
+
     def result(self) -> dict:
-        return {"criteria": self.crit, "items": self.items, "attorneys": [],
+        self.flush_caption()
+        return {"criteria": self.crit, "items": self.items,
+                "attorneys": self.attorneys,
                 "dropped": self.dropped, "consumed": self.consumed,
                 "anchor_ids": [], "doc_type_final": None}

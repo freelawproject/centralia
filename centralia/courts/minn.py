@@ -110,7 +110,14 @@ def read_headmatter_minn(model, geom, **_):
     page1 = model.pages[0]
     finder = FurnitureFinder(model, body_x0, body_size)
 
-    rows = _rows(page1, finder)
+    # THE BLOCK IS NOT ONE PAGE. Minnesota's syllabus is numbered and runs
+    # as long as it needs to: `adrian_dominic_riley` sets point 1 on page 1
+    # and point 2 with its 'Affirmed.' on page 2, and reading page 1 alone
+    # left point 2 in the stream, where core opened a PHANTOM WRITING on it
+    # ('2. Although the district court erred…' / 'Affirmed.') ahead of the
+    # real opinion. The walk spans pages and stops where the paper names
+    # itself, at the centred 'O P I N I O N'.
+    rows = [g for pm in model.pages[:_MAX_PAGES] for g in _rows(pm, finder)]
     if len(rows) < 5:
         return NOTHING
     # THE DISPATCH: the masthead pair, centred, at the head of the page.
@@ -152,6 +159,8 @@ def read_headmatter_minn(model, geom, **_):
             ctx.emit(pieces, "title")
             break
         if band == "syllabus":
+            # 'Affirmed.' / 'Reversed and remanded.' closes the syllabus —
+            # it is the syllabus's own last line, printed on its indent.
             ctx.emit(pieces, "syllabus", centre=False)
             continue
 

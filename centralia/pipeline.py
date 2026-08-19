@@ -21,6 +21,7 @@ from .resolve.bylines import BylineParser
 from .resolve.captions import classify_page
 from .resolve.evidence import Trace
 from .resolve.footnotes import FootnoteZones
+import collections as _collections
 import os as _os_env
 import re as _re
 
@@ -287,6 +288,25 @@ def _extract_model(model, court_id: str, pdf_path) -> ExtractionResult:
     _figures: list = []
     _mastheads: list = []   # page-1 seals: headmatter, not body
     _sig_imgs: list = []    # last-page signature stamps
+    # STATIONERY REPEATS; A FIGURE DOES NOT. An image printed at the SAME
+    # position on page after page is the court's watermark or letterhead,
+    # not something the opinion refers to — ky sets its seal at 124,249,
+    # 363x294pt, on all 24 pages of every record, and it passes the figure
+    # test (22% of the page, clear of both margins), so all 1,448 page
+    # rasters across the court were cropped and planted in the body. This
+    # is the same rule the furniture pass already applies to running heads
+    # and folios, stated for images: keyed on the position and size, three
+    # pages or more is stationery.
+    _img_key = _collections.Counter(
+        (round(_i.x0), round(_i.top), round(_i.x1 - _i.x0),
+         round(_i.bottom - _i.top))
+        for _pm in model.pages for _i in _pm.images)
+    _STATIONERY_PAGES = 3
+
+    def _is_stationery(_i) -> bool:
+        return _img_key[(round(_i.x0), round(_i.top), round(_i.x1 - _i.x0),
+                         round(_i.bottom - _i.top))] >= _STATIONERY_PAGES
+
     from .resolve.headmatter import looks_like_docket as _slug_ld
     for pm in model.pages:
         keep = []
@@ -327,10 +347,33 @@ def _extract_model(model, court_id: str, pdf_path) -> ExtractionResult:
             # … just put it at the top centered of the headmatter".
             _first_text = min((l.top for l in pm.lines if l.plain.strip()),
                               default=0.0)
-            _is_masthead = (pm.number == 1 and _im.top <= _first_text)
+            # A SEAL IS SMALL. Standing above the type is what makes a
+            # graphic stationery rather than a figure, but it does not make
+            # it a SEAL: a scanned source carries the whole page as one
+            # raster at 0,0, and that image is above the first text row too.
+            # virginislands's `3rc__company_inc._v._boynes_trucking_system`
+            # had its entire first page cropped and planted at the head of
+            # the headmatter. A masthead is a device the court prints at the
+            # top of its stationery, so it is bounded — measured against the
+            # seals actually in the corpus, no real one comes near half the
+            # measure or a quarter of the page's height.
+            # …AND A MASTHEAD STANDS IN THE MEASURE. An e-filing stamp is
+            # also small and also above the type, but the clerk puts it in a
+            # CORNER — virginislands's sits at x0=497 of 612, hard against
+            # the right edge. A device the court prints as its own
+            # letterhead is centred or set at the left margin, never flush
+            # to the far edge, so the graphic's centre must fall in the
+            # middle of the page.
+            _imid = (_im.x0 + _im.x1) / 2
+            _is_masthead = (pm.number == 1 and _im.top <= _first_text
+                            and _w <= pm.width * 0.55
+                            and _h <= pm.height * 0.25
+                            and abs(_imid - pm.width / 2) <= pm.width * 0.35
+                            and not _is_stationery(_im))
             _is_figure = (
                 _w >= 60 and _h >= 40
                 and not _is_masthead
+                and not _is_stationery(_im)
                 and _im.top > pm.height * 0.08
                 and _im.bottom < pm.height * 0.92
                 and not (pm.number == model.n_pages
@@ -366,8 +409,10 @@ def _extract_model(model, court_id: str, pdf_path) -> ExtractionResult:
             if _is_figure:
                 _figures.append(_im)
             elif _w >= 20 and _h >= 20:
+                _what = ("watermark/stationery" if _is_stationery(_im)
+                         else "seal/logo/stamp")
                 doc.dropped.append(m.Dropped(
-                    text=f"graphic {_w:.0f}×{_h:.0f}pt (seal/logo/stamp)",
+                    text=f"graphic {_w:.0f}×{_h:.0f}pt ({_what})",
                     prov=m.Prov(pm.number), kind="image"))
     # Dedupe repeated furniture for display — but keep EVERY dropped line's
     # identity: the sweep must know page 3's folio was dropped even though
