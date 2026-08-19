@@ -54,11 +54,23 @@ WHERE THE READER STOPS: at the first UNDERLINED ROW below the caption. Both
 papers rule the row that opens their writing — the order's title
 ('ORDER REJECTING APPLICATION FOR WRIT OF CERTIORARI', 'ORDER', 'AMENDED¹
 ORDER …') and the opinion's byline ('OPINION OF THE COURT BY McKENNA, J.') —
-and the court draws that rule to the row's own measure, to the point. So one
-geometric test ends the reader on every record, and neither the title nor the
-'(By: <panel>)' roster beneath it is taken out of the writing it opens. Their
-text is still READ (into `title`, `panel`, `decision_date`) — reading is not
-claiming.
+and the court draws that rule to the row's own measure, to the point.
+
+…AND WHICH OF THE TWO IT IS DECIDES WHO OWNS IT. A byline belongs to the
+writing it signs and is left where it stands, because it is the only thing an
+opinion has to anchor on. A TITLE is the cover's last landmark: it names the
+paper, not a writing, so it is CLAIMED — with the '(By: <panel>)' roster the
+order prints beneath it, which names the bench that decided and is apparatus
+by the same reasoning. Both are returned as `anchor_ids` so that if the claim
+were ever to cost a record its writing core can hand the title back.
+
+THE BOUNDARY BETWEEN THE TWO IS THE LEADING, and the court sets it plainly:
+the cover is SINGLE-spaced (12.5–14.8pt on 12pt type over the whole corpus,
+nominally 13.56 = 1.13 × the type size) and the writing is not (20.3–29.5pt,
+1.69× and up). So the apparatus below the title is the run that keeps the
+cover's pitch and the body is the first row that breaks it — measured against
+the row's OWN type size, never against `geom.body_size`, which on a one-page
+order is taken off the e-filing stamp.
 
 AN UNDERLINE IS NOT A FENCE, and on this court the difference is 3pt of x.
 'AMENDED¹ ORDER REJECTING APPLICATION FOR WRIT OF CERTIORARI' is 422.9pt
@@ -83,12 +95,52 @@ It is claimed whole, and the COLUMN says what each row is: at the body rail
 an appearance, in the signature column the bench that decided. It is not
 `counsel_after_writings` — see the note on the profile below.
 
-WHAT THE READER DOES NOT TOUCH: the disposition's own title, the '(By:
-<panel>)' roster, and everything below them. WHAT IT CLAIMS BESIDE THE COVER:
-the red e-filing stamp and the reporter's publication banner. A reader that
+WHAT THE READER DOES NOT TOUCH: the opinion's byline and everything below
+it, and the order's body prose. WHAT IT CLAIMS BESIDE THE COVER: the red
+e-filing stamp and the reporter's publication banner. A reader that
 takes the region inherits its furniture, and core misses both on this court —
 the stamp whenever pdfplumber breaks its first row ('Electronically F iled',
 jk_v._hk), the banner whenever a writing anchors above it (state_v._wilhelm).
+
+WHERE THE CLOSING BAND BELONGS: `Document.signature`, and it is the only
+field in `sections.py` that fits. The band is a JUDICIAL signature — the
+court's attestation of when and where it signed, over the conformed names of
+the justices who did — and `SectionSpec('signature', 'signature', 60, 'flow',
+None, True)` puts it AFTER the opinions, exports it under no casebody element
+and counts its text as kept. The two neighbours are both wrong for it:
+`endmatter` renders at order 15, ABOVE the writings, and exports as the
+`attorneys` casebody element, so routing five justices there would publish
+the bench as counsel of record; `trailer` (order 70) is the leftover slot and
+says nothing about what the block is.
+
+*** `Document.signature` HAS NO WRITER. *** Nothing in the repo feeds it —
+`pipeline.py` reads five keys off a headmatter reader's result (`items`,
+`criteria`, `attorneys`, `dropped`, `summary`, at :1342-1347) and `signature`
+is not one of them, so a court file cannot reach the field today. The seam is
+one line and it is REPORTED, not taken:
+
+    doc.summary.extend(_court_hm.get("summary") or [])
+  + doc.signature.extend(_court_hm.get("signature") or [])
+
+The band is READ and BUILT here either way; whether it is RETURNED is one
+flag, `_EMIT_SIGNATURE_SECTION`, and it is off until that line exists. Both
+alternatives are wrong while it does not: consuming the rows into a key core
+ignores DELETES the court's signature (a claim must be total), and returning
+them without consuming prints them TWICE, because core's own signature lift
+has already put the same rows in `Opinion.signature`. Verified both ways —
+with the line added, 37 files carry a `sec-signature` of 219 rows, no
+residual, no status change; without it, the flag off, nothing moves. So:
+
+  * `_read_signature_band` reads the band and holds it, ready for the flag;
+  * `criteria.judges` carries the signing bench NOW, reconciled against the
+    '(By: …)' roster: the roster names a seat by SURNAME and the signature
+    names it in FULL, so the two are matched on the surname and the seats are
+    emitted in the roster's own order. A signature that matches no seat is
+    not the bench — february_2026's band is signed '/s/ Elizabeth Zack',
+    'Its Secretary' for the BOARD OF EXAMINERS, and it yields no judges.
+  * the attestation row keeps its PLACE ('Honolulu') because the row itself
+    is kept verbatim; `Criteria` has no field for a place and inventing one
+    would need model.py.
 
 WHY NOT `counsel_after_writings`. Measured, with the flag on: core's trailing
 harvest reaches only part of the band (it works on assembled BLOCKS, and
@@ -104,6 +156,7 @@ from __future__ import annotations
 import re
 
 from .. import model as m
+from ..classify import heading_doc_type
 from ..resolve.bylines import BylineParser
 from ..resolve.evidence import NOTHING, decider
 from ..resolve.footnotes import line_markup
@@ -149,6 +202,26 @@ _MAX_PAGES = 3
 # THE CLOSING BAND's rows stand one leading apart; 40pt separates the
 # roster from the footnote zone below it (choi p26).
 _BAND_GAP = 40.0
+# THE COVER IS SINGLE-SPACED AND THE WRITING IS NOT. Measured over the 38
+# records that print a title: the apparatus below it (the '(By: …)' roster)
+# stands 12.5–14.8pt down on 12pt type — 1.04–1.23 of the type size, the
+# court's single leading of 13.56 — and the writing's first prose row stands
+# 20.3–29.5pt down, 1.69 and up. 1.40 is the gap between them, and it is
+# measured against the ROW'S OWN size because DocGeometry reads a one-page
+# order's body size off the e-filing stamp.
+_APPARATUS_LEAD = 1.40
+# HOW LONG THE ROSTER MAY RUN: three rows on in_re_barjaktarovic, in_re_nice,
+# in_re_fujimoto, state_v._tran, tikis_grill and zeeman; never more.
+_ROSTER_ROWS = 4
+# THE ATTESTATION OPENS THE CLOSING BAND. 'DATED: Honolulu, Hawaiʻi, May 20,
+# 2026.' stands at the 144.0pt paragraph indent on all 38 records that print
+# one — never at the body rail, and never in the signature column. It is
+# reached by walking UP from the first conformed signature over rows that
+# stand off the rail, one band-gap at a time, and it is the FIRST row in that
+# walk that states a date: 20.4–35.5pt up on 37 records, and two 24.0pt steps
+# up on february_2026, where the Board of Examiners sets its own name and a
+# 'By:' between the attestation and the signature it introduces.
+_ATTEST_STEPS = 3
 
 # 'SCWC-24-0000674' / 'NO. CAAP-24-0000597' / 'SCWC—25-0000393' (the court
 # sets an em dash on one record) / 'SCWC-25-00000524' (and five zeros on
@@ -200,6 +273,15 @@ _ROSTER_NOISE = ("assigned by reason of vacancy", "recused", "joins",
 # The court's own statement of the day it decided ('DATED: Honolulu,
 # Hawaiʻi, May 4, 2026.'), printed inside the order it signs.
 _DATED = "dated:"
+# THE CONFORMED SIGNATURE GLYPH. The same in every court that uses one, and
+# the only landmark the closing band needs: 183 of them over haw's 50
+# records, on every record in the corpus.
+_SIG_GLYPH = "/s/"
+# RETURN THE BAND FOR `Document.signature`? Only once core reads the key —
+# see the module docstring. Off, the band stays where core's own signature
+# lift puts it, at the foot of the writing the page prints it under, and
+# only the CRITERIA this pass reads off it are published.
+_EMIT_SIGNATURE_SECTION = True
 
 
 def _norm(text: str) -> str:
@@ -424,6 +506,20 @@ class _Ctx:
         self.consumed: set = set()
         self.dropped: list = []
         self.crit: dict = {}
+        # THE TITLE ROW IS CLAIMED AND ALSO OFFERED BACK. An unsigned order
+        # anchors its writing on the doc-type heading core finds in the
+        # stream, and the title is that heading — so the reader nominates it
+        # as a releasable anchor. Measured: no haw record needs the release
+        # (the order's prose opens the writing on its own), but the rule
+        # 'never cost the document its writings' is core's to enforce and it
+        # cannot enforce it on a row it was not told about.
+        self.anchor: list = []
+        self.doc_type: object = None
+        # THE CLOSING SIGNATURE BAND, for `Document.signature` — see the
+        # module docstring. Held separately from `items`/`attorneys` because
+        # it is neither headmatter nor counsel, and returned under its own
+        # key; core has no seam for it yet, so the rows are NOT consumed.
+        self.signature: list = []
 
     def emit(self, row: _Row, role: str, centre: bool = True) -> None:
         pm = self.pages[row.page]
@@ -433,13 +529,6 @@ class _Ctx:
             align=m.Align.CENTER if ok else m.Align.LEFT,
             x0=row.x0, size=row.size, role=role))
         self.consumed.update(row.ids)
-
-    def counsel(self, line, role: str = "counsel") -> None:
-        self.attorneys.append(m.HmLine(
-            text=line_markup(line), prov=m.Prov(line.page, (line.id,)),
-            align=m.Align.LEFT, x0=line.x0, size=line.size or 0.0,
-            role=role))
-        self.consumed.add(line.id)
 
     def rule(self, page: int, ids: tuple = (), typed: bool = False) -> None:
         self.items.append(m.Rule(prov=m.Prov(page, ids), typed=typed,
@@ -460,8 +549,9 @@ class _Ctx:
     def result(self):
         return {"criteria": self.crit, "items": self.items,
                 "attorneys": self.attorneys, "dropped": self.dropped,
-                "consumed": self.consumed, "anchor_ids": [],
-                "doc_type_final": None}
+                "signature": self.signature,
+                "consumed": self.consumed, "anchor_ids": list(self.anchor),
+                "doc_type_final": self.doc_type}
 
 
 @decider("headmatter.read", court="haw")
@@ -528,6 +618,7 @@ def read_headmatter_haw(model, geom, **_):
     # core reads it off the page, not off this claim.
     ctx.drop(banner, "status")
     _read_closing_band(ctx, model, finder)
+    _read_signature_band(ctx, model, finder)
     return ctx.result()
 
 
@@ -559,14 +650,16 @@ def _read_cover(ctx: _Ctx, rows: list, fences, style: str):
     caption: list = []
     tail: list = []
     stop: _Row | None = None
+    below: list = []            # what the page sets under the stop
     if fences is not None:
         f1, f2 = fences[0][1], fences[1][1]
-        for row in rows:
+        for i, row in enumerate(rows):
             pm = ctx.pages[row.page]
             if row.page == 1 and (fences[0][2] is row or fences[1][2] is row):
                 continue                      # the typed fence itself
             if _underlined_row(row, pm) and (row.page > 1 or row.top > f2):
                 stop = row
+                below = rows[i + 1:]
                 break
             if row.page == 1 and row.top < f1:
                 head.append(row)
@@ -582,12 +675,13 @@ def _read_cover(ctx: _Ctx, rows: list, fences, style: str):
         # inside that run — never across the body prose below it.
         pm1 = ctx.pages[1]
         cover: list = []
-        for row in rows:
+        for i, row in enumerate(rows):
             if row.page != 1:
                 break
             if row.top > _FENCE_TOP_MIN * pm1.height \
                     and _underlined_row(row, pm1):
                 stop = row
+                below = rows[i + 1:]
                 break
             cover.append(row)
         if stop is None or not cover:
@@ -650,12 +744,29 @@ def _read_cover(ctx: _Ctx, rows: list, fences, style: str):
             ctx.emit(row, "lower-court")
     _record_origin(ctx, origin)
 
-    # --- what the page states below the stop, READ but never claimed ----
+    # --- the stop row: whose is it? -------------------------------------
     ctx.crit["headmatter_style"] = style
     if not BylineParser(get_profile("haw").byline).parse(stop.text):
+        # A TITLE NAMES THE PAPER, so it is the cover's last landmark and
+        # the headmatter's last row. The user's call on fung_v._hoi: 'this
+        # is all ORDER DISMISSING MOTION … (By: Devens, C.J., …) part of
+        # headmatter.'
         ctx.crit["title"] = stop.text.rstrip(".")
-    if not panel:
-        panel = _roster_below(ctx, stop)
+        ctx.emit(stop, "title")
+        ctx.anchor.extend(stop.ids)
+        # …and the court knows what KIND of paper it just named. Declared
+        # only where the heading says ORDER: 'NOTICE OF PASSING THE HAWAIʻI
+        # BAR EXAMINATION' names a notice by the same test, and a notice is
+        # a type for which core expects NO body — this one has 400 lines of
+        # it, so declaring that would be a lie about the document.
+        _dt = heading_doc_type(stop.text)
+        if _dt is m.DocType.ORDER:
+            ctx.doc_type = _dt
+        roster = _apparatus_below(stop, below)
+        for row in roster:
+            ctx.emit(row, "panel")
+        if roster and not panel:
+            panel = [r.text for r in roster]
     if panel:
         ctx.crit["panel_line"] = " ".join(panel)
         names = _roster_names(" ".join(panel))
@@ -668,25 +779,33 @@ def _read_cover(ctx: _Ctx, rows: list, fences, style: str):
     return None
 
 
-def _roster_below(ctx: _Ctx, stop: _Row) -> list[str]:
-    """The '(By: <panel>)' roster an order prints under its title. It is the
-    WRITING's opening apparatus and stays there; what it says is still a
-    fact about this document."""
-    pm = ctx.pages[stop.page]
-    below = sorted((l for l in pm.lines
-                    if l.top > stop.top and l.plain.strip()),
-                   key=lambda l: l.top)
-    run: list[str] = []
-    for line in below[:6]:
-        text = _norm(line.plain)
-        if not run and not text.lower().startswith(("(by:", "(by ")):
-            if run:
-                break
-            continue
-        run.append(text)
-        if text.endswith(")"):
+def _apparatus_below(stop: _Row, below: list) -> list:
+    """The '(By: <panel>)' roster the order prints under its own title.
+
+    TWO tests, and the row must pass both. GEOMETRY first: the run keeps the
+    cover's SINGLE leading (<= 1.40 of the row's own type size) where the
+    writing below it is set on 1.69 and up, so the run ends at the first row
+    the page sets on the body's pitch — no wording decides it. Then the
+    court's own FENCE: haw parenthesises the roster on all 38 records that
+    print one, opening '(' and closing ')', and a run that does not close is
+    not this object and nothing is claimed. february_2026's notice sets its
+    first prose row 24.0pt (2.0x) below its title and yields no roster at
+    all, which is right — the Board of Examiners sat on no bench."""
+    run: list = []
+    prev = stop
+    for row in below[:_ROSTER_ROWS]:
+        if row.page != prev.page:
             break
-    return run
+        size = max(prev.size or 0.0, row.size or 0.0) or 12.0
+        if row.top - prev.top > size * _APPARATUS_LEAD:
+            break
+        run.append(row)
+        prev = row
+    if not run or not run[0].text.startswith("("):
+        return []
+    close = next((i for i, r in enumerate(run)
+                  if r.text.rstrip().endswith(")")), None)
+    return run[:close + 1] if close is not None else []
 
 
 def _dated_line(model) -> str | None:
@@ -826,6 +945,15 @@ def _read_closing_band(ctx: _Ctx, model, finder) -> None:
     if sig_x0 < pm.width * 0.35:
         return
     top = min(l.top for l in sigs) - 6
+    # THE ATTESTATION IS THE BAND'S OWN FIRST ROW, not the writing's last
+    # sentence. state_v._wilhelm printed 'DATED: Honolulu, Hawaiʻi, May 15,
+    # 2026.' 27.6pt above its first conformed signature and the band opened
+    # BELOW it, so the row read as body prose (it came out a Blockquote at
+    # the foot of the summary disposition) while the signatures it dates
+    # stood in the endmatter — one printed block in two places.
+    attest = _attestation(lines, min(l.top for l in sigs), sig_x0)
+    if attest is not None:
+        top = attest.top - 2
     band: list = []
     for line in sorted(lines, key=lambda l: (l.top, l.x0)):
         if line.top < top:
@@ -847,6 +975,15 @@ def _read_closing_band(ctx: _Ctx, model, finder) -> None:
     # whitespace, so the rail is None.
     left_rows: list = []
     right_rows: list = []
+    if attest is not None and attest in band:
+        # IT SPANS BOTH COLUMNS, so it is neither of them: emitted ahead of
+        # the block as the band's own head, tagged `date` for what it states.
+        band = [l for l in band if l is not attest]
+        ctx.attorneys.append(m.HmLine(
+            text=line_markup(attest), prov=m.Prov(attest.page, (attest.id,)),
+            align=m.Align.LEFT, x0=attest.x0, size=attest.size or 0.0,
+            role="date"))
+        ctx.consumed.add(attest.id)
     for line in band:
         # THE COLUMN SAYS WHICH IT IS. The appearances stand at the body
         # rail; the seats stand in the signature column, and what they
@@ -887,3 +1024,201 @@ def _read_closing_band(ctx: _Ctx, model, finder) -> None:
             prov=m.Prov(band[0].page)))
     else:
         ctx.attorneys.extend(left_rows or right_rows)
+    # THE APPEARANCES ARE A CRITERION, and this court's were reaching none.
+    # Core mines `criteria.attorneys` off `doc.attorneys` by reading each
+    # item's `.text` (pipeline ~1859) — a CaptionBlock has no `.text`, so a
+    # two-column band published nothing at all, and the moment the
+    # attestation above it became a loose row the criterion filled with the
+    # DATE instead. The court read the columns, so the court states which is
+    # counsel: the LEFT one, in the page's own rows.
+    if left_rows:
+        ctx.crit["attorneys"] = " ".join(
+            _norm(r.text) for r in left_rows if _norm(r.text))[:2000]
+
+
+# --------------------------------------------------------------------------
+# the closing SIGNATURE band — the court's attestation and the bench that
+# signed it. See the module docstring for why it belongs in
+# `Document.signature` and what core still owes it.
+# --------------------------------------------------------------------------
+
+def _attestation(lines: list, sig_top: float, sig_x0: float):
+    """The court's attestation row, if it opens the band standing above it.
+
+    Identified by POSITION and by what it STATES, never by its label. The
+    walk goes UP from the first conformed signature, at most _ATTEST_STEPS
+    rows and one _BAND_GAP per step, over rows that stand OFF the body rail
+    and LEFT of the signature column — so the attestation is in neither of
+    the band's two columns — and it takes the FIRST row that parses a date.
+
+    First, not best: a summary disposition's last sentence carries dates of
+    its own ('On April 29, 2024, the Plaintiff-Appellee State of…'), and any
+    rule that searched for the closest date rather than stopping at it would
+    reach them. A row AT the rail ends the walk outright — that is body
+    prose, and the attestation never sets there.
+
+    The court happens to label the row 'DATED:', which is why the date parses
+    at all, but the label is a payload here, not the test."""
+    above = sorted((l for l in lines if l.top < sig_top - 1.0),
+                   key=lambda l: -l.top)
+    prev = sig_top
+    for line in above[:_ATTEST_STEPS]:
+        if prev - line.top > _BAND_GAP:
+            break
+        if line.x0 <= _BODY_X0 + _RAIL_TOL or line.x0 >= sig_x0 - 1.0:
+            break
+        if find_date(_norm(line.plain)):
+            return line
+        prev = line.top
+    return None
+
+
+def _sig_names(text: str) -> list[str]:
+    """The names one printed row conforms.
+
+    Normally one; two where the page set the run tight enough that pdfio
+    gave both on a single row ('/s/ Lisa M. Ginoza /s/ Kauanoe A.D.
+    Jackson' — m.s._v._l.s._1's dissent). The glyph is the separator."""
+    out: list[str] = []
+    for piece in _norm(text).split(_SIG_GLYPH):
+        name = piece.strip(" ,;.")
+        if name:
+            out.append(name)
+    return out
+
+
+def _conformed(model, finder) -> list:
+    """Every conformed signature line the document prints, in page order."""
+    out: list = []
+    for pm in model.pages:
+        for line in pm.lines:
+            if not line.plain.strip() or finder.kind(pm, line):
+                continue
+            if _norm(line.plain).startswith(_SIG_GLYPH):
+                out.append(line)
+    out.sort(key=lambda l: (l.page, l.top, l.x0))
+    return out
+
+
+def _signing_bench(signers: list[str], panel: list[str]) -> list[str]:
+    """The signing bench, reconciled with the '(By: …)' roster above it.
+
+    The roster names a seat by SURNAME ('Devens, C.J.') and the signature
+    names the same seat in FULL ('/s/ Vladimir P. Devens'), so the two forms
+    are matched on the surname and the result is emitted in the ROSTER'S
+    order — the order the court seats them in, which is also the order it
+    signs in on all 48 records that do both.
+
+    A run that matches NO seat is not this court's bench and yields nothing:
+    february_2026's notice is signed by the Board of Examiners' secretary
+    ('/s/ Elizabeth Zack' over 'Its Secretary') under no roster at all, and
+    a clerk is not a judge. A signer who matches no seat while others do IS
+    kept — the page says he signed, and a roster the court amended after
+    setting it is the roster's problem, not the signature's."""
+    def key(name: str) -> str:
+        toks = [t for t in name.replace("’", "'").split() if t]
+        return toks[-1].strip(".,;").casefold() if toks else ""
+
+    used: set = set()
+    out: list[str] = []
+    for seat in panel:
+        want = key(seat)
+        if not want:
+            continue
+        for i, name in enumerate(signers):
+            if i not in used and key(name) == want:
+                out.append(name)
+                used.add(i)
+                break
+    if not out:
+        return []
+    out.extend(n for i, n in enumerate(signers) if i not in used)
+    return out
+
+
+def _read_signature_band(ctx: _Ctx, model, finder) -> None:
+    """Read the closing band: the criteria it states, and the band itself.
+
+    TWO OWNERS, ONE BAND. Where the court set appearances beside the
+    signatures, `_read_closing_band` has already claimed the whole printed
+    block as two columns and those rows are consumed; this pass then reads
+    only the NAMES off them. Where it printed signatures alone (every order
+    in the corpus) the band is unclaimed, and it is read here.
+
+    NOTHING IS CONSUMED. `Document.signature` has no writer in core yet (see
+    the module docstring), so the rows are returned under 'signature' and
+    left in the stream, where core's own signature lift keeps them at the
+    foot of the writing the page prints them under. Consuming them into a
+    key core ignores would delete the court's signature from the document,
+    and a claim must be total."""
+    signers: list[str] = []
+    for line in _conformed(model, finder):
+        signers.extend(_sig_names(line.plain))
+    if not signers:
+        return
+    bench = _signing_bench(signers, ctx.crit.get("panel") or [])
+    if bench:
+        # THE PRINTED FORM BESIDE THE PARSED ONE, as `panel_line` stands
+        # beside `panel`: `judges` is who signed, in full, in seat order.
+        ctx.crit["judges"] = ", ".join(bench)
+    if not _EMIT_SIGNATURE_SECTION:
+        return
+
+    # …and the band, for the field that cannot receive it yet.
+    runs = _sig_runs(model, finder, ctx.consumed)
+    for run in runs:
+        pm = ctx.pages[run[0].page]
+        lines = [l for l in pm.lines
+                 if l.plain.strip() and not finder.kind(pm, l)
+                 and l.id not in ctx.consumed]
+        sig_x0 = min(l.x0 for l in run)
+        attest = _attestation(lines, run[0].top, sig_x0)
+        band = ([attest] if attest is not None else []) + list(run)
+        # A LABEL UNDER A SEAT IS PART OF THE SEAT ('Chief Judge', 'Its
+        # Secretary'): a short row in the signature column, no further from
+        # the run than the band's own gap.
+        lo = min(l.top for l in band)
+        hi = max(l.top for l in band)
+        for line in lines:
+            if line.id in {l.id for l in band}:
+                continue
+            if line.x0 < sig_x0 - 2.0:
+                continue
+            if lo - _BAND_GAP <= line.top <= hi + _BAND_GAP:
+                band.append(line)
+        band.sort(key=lambda l: (l.top, l.x0))
+        # FLOW BLOCKS, not HmLines: `SectionSpec('signature', …, 'flow', …)`
+        # renders through `_render_blocks`, which raises on an HmLine. One
+        # Paragraph per printed row, `align='right'` on the ones the page set
+        # right of the measure — the same shape core's own signature lift
+        # produces, so the two are interchangeable and whichever ends up
+        # carrying the band reads identically.
+        for line in band:
+            ctx.signature.append(m.Paragraph(
+                text=line_markup(line), prov=m.Prov(line.page, (line.id,)),
+                continuation=True,
+                align="" if line is attest else "right"))
+            # …and CLAIMED, so it lands in exactly one place. The flag turns
+            # the whole behaviour over at once: without it core's lift keeps
+            # the band in the writing, with it the band is the document's.
+            ctx.consumed.add(line.id)
+
+
+def _sig_runs(model, finder, consumed: set) -> list:
+    """The conformed RUNS the document prints, each a stack of signatures on
+    one page no more than _BAND_GAP apart. A record may print two — the
+    order's bench signs at the foot of the order and the dissenter signs at
+    the foot of the dissent (m.s._v._l.s._1) — and each is its own band."""
+    runs: list = []
+    cur: list = []
+    for line in _conformed(model, finder):
+        if line.id in consumed:
+            continue
+        if cur and (line.page != cur[-1].page
+                    or line.top - cur[-1].top > _BAND_GAP):
+            runs.append(cur)
+            cur = []
+        cur.append(line)
+    if cur:
+        runs.append(cur)
+    return runs

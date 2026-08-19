@@ -1345,6 +1345,13 @@ def _extract_model(model, court_id: str, pdf_path) -> ExtractionResult:
         doc.attorneys.extend(_court_hm.get("attorneys") or [])
         doc.dropped.extend(_court_hm.get("dropped") or [])
         doc.summary.extend(_court_hm.get("summary") or [])
+        # THE SIGNATURE BAND A COURT READ ITSELF. Declared on the model
+        # and in sections.py since the section list existed, but never
+        # written: every court's /s/ run was opinion body prose, so
+        # md lost its signing judge and me lost five of them. A court
+        # that reads the band must be able to hand it over, or the
+        # choice is between deleting it and printing it twice.
+        doc.signature.extend(_court_hm.get("signature") or [])
         # …and ANY HEADMATTER LINE THE READER DID NOT TAKE still gets placed
         # by the shared walk. A court reader states what it recognizes; what
         # it passes over is not thereby junk, and dropping the shared walk

@@ -688,3 +688,64 @@ structure. Suggested guard in the `line_rects` comprehension:
                                + 4 * (chars[0].get("size") or 12)
 
 Corpus-wide by nature — any court drawing a fence at a row's baseline.
+
+## 29. APPLIED 2026-08-20 — `Document.signature` had no writer (`pipeline.py`)
+
+Landed with `_EMIT_SIGNATURE_SECTION = True` in `centralia/courts/haw.py`; the
+two are one change, and either alone is wrong (consuming into a key core
+ignores DELETES the court's signature, returning without consuming prints it
+TWICE beside core's own `Opinion.signature` lift).
+
+    doc.summary.extend(_court_hm.get("summary") or [])
+    + doc.signature.extend(_court_hm.get("signature") or [])
+
+Declared on `model.py:324` and in `sections.py` since the section list
+existed, written by nobody: `sig_blocks=0` corpus-wide, so every court's
+`/s/` run was opinion body prose.
+
+Safe to land with a porter still holding the tree because **haw.py is the only
+court emitting a `signature` key**, so the blast radius outside haw is nil —
+verified after the fact: `guard utah wis va ill kan ri` = **37/37**.
+
+Measured on haw: **37 of 50 files gain a `sec-signature` of 219 rows**, zero
+duplication (`DATED: Honolulu` no longer appears inside `sec-opinions` on any
+file), 50/50 valid, residual 0, headmatter still 825/825 = 100%, ʻokina
+intact. Exactly what the agent's in-memory proof predicted.
+
+**This is the pattern for `md` (32 of 50 files) and `del` (42 of 50)**, which
+lose judges AND date to the same gap — see the signature-band epic in
+`docs/review-backlog.md`.
+
+## 30. `criteria.attorneys` cannot see a `CaptionBlock` — `pipeline.py:1859`
+
+From haw. `" ".join(… getattr(b, "text", "") for b in doc.attorneys)` — a
+`CaptionBlock` has no `.text`, so any court emitting counsel as TWO COLUMNS
+publishes no `attorneys` criterion at all, and a single loose row beside the
+block captures the field instead (haw's filled with the DATE until the court
+set the criterion itself). Walk `left`/`right`, or reuse `sections.iter_text`.
+Affects every two-column endmatter court — ri and va both emit CaptionBlocks
+now.
+
+## 31. `Criteria` has no place field — `model.py`
+
+From haw. The attestation states WHERE the court signed (`DATED: Honolulu,
+Hawaiʻi, May 20, 2026.`) and there is nowhere declared to put it, so it
+survives only as printed text. `place: str | None = None` on `model.Criteria`
+if wanted — `setattr` would otherwise attach it silently and never serialize.
+
+## 32. Three more ʻokina shapes defeat the glyph quirk — `pdfio/quirks.py`
+
+From haw, pre-existing. `february_2026` renders `Hawai#i`; `kenny_v._lange`,
+`kenny_v._roberts` and `west_physicians_associates_llc_v._quiane` render
+`Hawaii` (private-use glyph); several render `Hawai'i` (U+2018). The
+glyph-bbox rule handles the common case — `fung_v._hoi` is correct U+02BB —
+but not these three shapes.
+
+## 33. `haw/m.s._v._l.s._1`'s dissent types `majority` — `resolve/bylines.py`
+
+From haw. `DISSENT BY GINOZA, J.` parses as a byline but the writing comes
+back `type='majority'`. Its signature was also welded (`'/s/ Lisa M. Ginoza
+/s/ Kauanoe A.D. Jackson'` as one paragraph) because `_unweld_conformed`
+splits on the glyph only when the paragraph has >= 2 source lines and pdfio
+gave both names on one visual row — the item 29 seam fixed the welding as a
+side effect, but the TYPE is still wrong.
