@@ -610,3 +610,81 @@ reporter-less `slip op.` as additional cues.
 
 `wis/planned_parenthood_of_wisconsin_v._joel_urmanski` is already pinned and
 passes (its page 5 is a genuine image-only page — the 1 `scanned` status).
+
+## 25. A reversed byline accepts an UNTERMINATED verb clause — `resolve/bylines.py`
+
+From the utah port, 2026-08-20. This is why 48 of 50 utah records carried the
+cover's authorship summary inside the majority before that port.
+
+    BylineParser(get_profile('utah').byline).parse(
+        'JUSTICE HAGEN authored the opinion of the Court, in which')
+      -> Byline(name='HAGEN', title='Justice', kind=None, end=57)
+
+That row is NOT a byline — it is the cover's authorship summary, and the
+writing signs itself `JUSTICE HAGEN, opinion of the Court:` twenty rows later.
+
+v1 encoded this deliberately: `_reversedjustice.py` comments that `'authored'`
+is *absent* from `_OPINION_VERBS` because "treating 'authored' as a verb would
+double-count the two", and its comma-form branch required the row to END at
+its kind (`_KIND_ENDINGS`). The new parser has NEITHER guard.
+
+The rule: **a reversed byline must terminate at its kind or a colon, and
+`authored` is not an opinion verb.** Blast radius is every `also_reversed`
+court, so measure before tightening. utah is immune court-locally today
+(`_is_writing_byline()` refuses any row containing `authored`, and the summary
+is claimed as `panel` so it is subtracted from the stream).
+
+## 26. A court claim is never subtracted from the FOOTNOTE ZONES — `pipeline.py`
+
+From the ri port. **8 of 50** ri records, and pre-existing (identical with
+ri's decider popped).
+
+Zones are measured in step 6, the reader runs in step 8, and `_claimed` is
+subtracted only from `segments_by_page` — never from the zone lines. On those
+8 records the cover sheet's first fence reads as a note separator, so every
+band below it is ALSO published as a block of the last writing's last
+footnote. On `american_express_national_bank_v._anna_perretta_1` that is 19 of
+the 27 lines the reader claims on page 10, reproduced verbatim inside
+footnote 5.
+
+Patch, beside the existing subtraction at `pipeline.py:495-501`:
+
+    for _pg, _ls in list(zone_lines_by_page.items()):
+        _keep = [l for l in _ls if l.id not in _claimed]
+        if _keep:
+            zone_lines_by_page[_pg] = _keep
+        else:
+            zone_lines_by_page.pop(_pg)
+            zone_tops.pop(_pg, None)
+
+`zone_tops` is only read after this point by `assemble` and the residual
+sweep, both of which want the claimed page gone; segmentation already
+happened at line 473. Affected ri stems: american_express, asa_s._davis,
+estate_of_louis_campagnone, in_re_e.g.s, jay_patel_v._mancini,
+robert_schmidt, the_providence_community_health_centers, william_fairhurst.
+
+## 27. `render/casebody.py` hard-codes the hm section's element — `render/casebody.py:100`
+
+From the ri port. `_hm_xml(value, "summary", out)` ignores `spec.casebody`, so
+the endmatter exports as `<summary>` rows rather than `<attorneys>`. The fix
+is literally `_hm_xml(value, spec.casebody, out)` — but that changes the
+HEADMATTER's element too, so it is a casebody-compatibility call for the core
+owner, not a local fix. Flagged, not decided.
+
+## 28. A drawn fence is read as an UNDERLINE — `pdfio/quirks.py:tag_underlined_chars`
+
+From the ri port. **229 spurious `<u>` runs across all 50 ri files**,
+pre-existing and untouched by that port.
+
+The rule requires only horizontal OVERLAP plus a -2.5…+5.0pt vertical window,
+so ri's 470pt band fence tags the band's last value row: `<u>(KC 21-1031)</u>`,
+`<u>Long, JJ.</u>`, `<u>Matthew Casey, Esq.</u>`.
+
+An underline is the width of what it underlines; a hairline overhanging both
+ends of the row by more than a couple of ems is a rule the page set as
+structure. Suggested guard in the `line_rects` comprehension:
+
+    and (r["x1"] - r["x0"]) <= (chars[-1]["x1"] - chars[0]["x0"]) \
+                               + 4 * (chars[0].get("size") or 12)
+
+Corpus-wide by nature — any court drawing a fence at a row's baseline.

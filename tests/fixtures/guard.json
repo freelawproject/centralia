@@ -7364,6 +7364,124 @@
   "summary": 0,
   "syllabus": 0
  },
+ "ri/american_express_national_bank_v._anna_perretta_1": {
+  "attorneys": 25,
+  "criteria": [
+   "decision_date",
+   "docket_number",
+   "judges",
+   "lower_court",
+   "parties"
+  ],
+  "hm": 10,
+  "hm_roles": {
+   "caption": 6,
+   "court": 2,
+   "docket": 2,
+   "lower-court": 2,
+   "panel": 1,
+   "title": 1
+  },
+  "lead_bylined": true,
+  "op_blocks": [
+   34
+  ],
+  "ops": [
+   "majority"
+  ],
+  "residual": 0,
+  "status": "valid",
+  "summary": 0,
+  "syllabus": 0
+ },
+ "ri/asa_s._davis_iii_v._wood_estates_inc._asa_s._davis_v._town_of_exeter": {
+  "attorneys": 25,
+  "criteria": [
+   "decision_date",
+   "docket_number",
+   "judges",
+   "lower_court",
+   "parties"
+  ],
+  "hm": 6,
+  "hm_roles": {
+   "": 12,
+   "caption": 12,
+   "court": 2,
+   "docket": 4,
+   "lower-court": 4,
+   "panel": 1,
+   "title": 1
+  },
+  "lead_bylined": true,
+  "op_blocks": [
+   70
+  ],
+  "ops": [
+   "majority"
+  ],
+  "residual": 0,
+  "status": "valid",
+  "summary": 0,
+  "syllabus": 0
+ },
+ "ri/estate_of_louis_campagnone_by_and_through_its_administrator_dana": {
+  "attorneys": 25,
+  "criteria": [
+   "decision_date",
+   "docket_number",
+   "judges",
+   "lower_court",
+   "parties"
+  ],
+  "hm": 10,
+  "hm_roles": {
+   "caption": 10,
+   "court": 2,
+   "docket": 2,
+   "lower-court": 2,
+   "panel": 1,
+   "title": 1
+  },
+  "lead_bylined": true,
+  "op_blocks": [
+   24
+  ],
+  "ops": [
+   "majority"
+  ],
+  "residual": 0,
+  "status": "valid",
+  "summary": 0,
+  "syllabus": 0
+ },
+ "ri/in_the_matter_of_kevin_m._brill": {
+  "attorneys": 23,
+  "criteria": [
+   "decision_date",
+   "docket_number",
+   "judges",
+   "parties"
+  ],
+  "hm": 4,
+  "hm_roles": {
+   "caption": 1,
+   "court": 1,
+   "docket": 1,
+   "title": 1
+  },
+  "lead_bylined": true,
+  "op_blocks": [
+   15
+  ],
+  "ops": [
+   "order"
+  ],
+  "residual": 0,
+  "status": "valid",
+  "summary": 0,
+  "syllabus": 0
+ },
  "scotus/abouammo_v._united_states": {
   "attorneys": 0,
   "criteria": [
@@ -7784,6 +7902,205 @@
   ],
   "ops": [
    "concurrence"
+  ],
+  "residual": 0,
+  "status": "valid",
+  "summary": 0,
+  "syllabus": 0
+ },
+ "utah/anderson_v._hon._bates": {
+  "attorneys": 0,
+  "criteria": [
+   "decision_date",
+   "docket_number",
+   "lower_court",
+   "parties",
+   "submitted"
+  ],
+  "hm": 35,
+  "hm_roles": {
+   "caption": 5,
+   "case-info": 1,
+   "citation": 1,
+   "counsel": 4,
+   "court": 2,
+   "date": 2,
+   "docket": 1,
+   "lower-court": 3,
+   "panel": 8
+  },
+  "lead_bylined": true,
+  "op_blocks": [
+   53
+  ],
+  "ops": [
+   "majority"
+  ],
+  "residual": 0,
+  "status": "valid",
+  "summary": 0,
+  "syllabus": 0
+ },
+ "utah/christensen_v._labor_commission": {
+  "attorneys": 0,
+  "criteria": [
+   "decision_date",
+   "docket_number",
+   "lower_court",
+   "parties",
+   "submitted"
+  ],
+  "hm": 38,
+  "hm_roles": {
+   "caption": 8,
+   "case-info": 1,
+   "citation": 1,
+   "counsel": 8,
+   "court": 2,
+   "date": 2,
+   "docket": 1,
+   "lower-court": 2,
+   "panel": 5
+  },
+  "lead_bylined": true,
+  "op_blocks": [
+   135
+  ],
+  "ops": [
+   "majority"
+  ],
+  "residual": 0,
+  "status": "valid",
+  "summary": 0,
+  "syllabus": 0
+ },
+ "utah/in_re_estate_of_davies": {
+  "attorneys": 0,
+  "criteria": [
+   "decision_date",
+   "docket_number",
+   "lower_court",
+   "parties",
+   "submitted"
+  ],
+  "hm": 32,
+  "hm_roles": {
+   "caption": 7,
+   "case-info": 1,
+   "citation": 1,
+   "counsel": 3,
+   "court": 2,
+   "date": 2,
+   "docket": 1,
+   "lower-court": 3,
+   "panel": 3
+  },
+  "lead_bylined": true,
+  "op_blocks": [
+   60
+  ],
+  "ops": [
+   "majority"
+  ],
+  "residual": 0,
+  "status": "valid",
+  "summary": 0,
+  "syllabus": 0
+ },
+ "utah/maxfield_v._cox": {
+  "attorneys": 0,
+  "criteria": [
+   "decision_date",
+   "docket_number",
+   "parties"
+  ],
+  "hm": 21,
+  "hm_roles": {
+   "caption": 6,
+   "case-info": 1,
+   "citation": 1,
+   "counsel": 3,
+   "court": 2,
+   "date": 1,
+   "docket": 1
+  },
+  "lead_bylined": true,
+  "op_blocks": [
+   9
+  ],
+  "ops": [
+   "per-curiam"
+  ],
+  "residual": 0,
+  "status": "valid",
+  "summary": 0,
+  "syllabus": 0
+ },
+ "utah/state_v._harris": {
+  "attorneys": 0,
+  "criteria": [
+   "decision_date",
+   "docket_number",
+   "lower_court",
+   "parties",
+   "submitted"
+  ],
+  "hm": 34,
+  "hm_roles": {
+   "caption": 5,
+   "case-info": 1,
+   "citation": 1,
+   "counsel": 4,
+   "court": 2,
+   "date": 2,
+   "docket": 1,
+   "lower-court": 3,
+   "panel": 7
+  },
+  "lead_bylined": true,
+  "op_blocks": [
+   48,
+   24
+  ],
+  "ops": [
+   "majority",
+   "dissent"
+  ],
+  "residual": 0,
+  "status": "valid",
+  "summary": 0,
+  "syllabus": 0
+ },
+ "utah/state_v._jennings": {
+  "attorneys": 0,
+  "criteria": [
+   "decision_date",
+   "docket_number",
+   "lower_court",
+   "parties",
+   "submitted"
+  ],
+  "hm": 34,
+  "hm_roles": {
+   "caption": 5,
+   "case-info": 1,
+   "citation": 1,
+   "counsel": 4,
+   "court": 2,
+   "date": 3,
+   "docket": 1,
+   "lower-court": 3,
+   "panel": 5,
+   "title": 1
+  },
+  "lead_bylined": true,
+  "op_blocks": [
+   68,
+   25
+  ],
+  "ops": [
+   "majority",
+   "concurring-in-part-and-dissenting-in-part"
   ],
   "residual": 0,
   "status": "valid",
@@ -8331,6 +8648,94 @@
   "summary": 0,
   "syllabus": 0
  },
+ "wis/elizabeth_bothfeld_v._wisconsin_elections_commission": {
+  "attorneys": 0,
+  "criteria": [
+   "decision_date",
+   "docket_number",
+   "parties"
+  ],
+  "hm": 14,
+  "hm_roles": {
+   "caption": 7,
+   "citation": 1,
+   "date": 1,
+   "docket": 1
+  },
+  "lead_bylined": false,
+  "op_blocks": [
+   19,
+   5,
+   43,
+   24
+  ],
+  "ops": [
+   "order",
+   "concurring-in-part-and-dissenting-in-part",
+   "dissent",
+   "dissent"
+  ],
+  "residual": 0,
+  "status": "valid",
+  "summary": 0,
+  "syllabus": 0
+ },
+ "wis/josh_kaul_v._wisconsin_state_legislature": {
+  "attorneys": 0,
+  "criteria": [
+   "decision_date",
+   "docket_number",
+   "lower_court",
+   "parties"
+  ],
+  "hm": 18,
+  "hm_roles": {
+   "author": 2,
+   "caption": 5,
+   "citation": 1,
+   "date": 1,
+   "docket": 1,
+   "lower-court": 2
+  },
+  "lead_bylined": true,
+  "op_blocks": [
+   74
+  ],
+  "ops": [
+   "majority"
+  ],
+  "residual": 0,
+  "status": "valid",
+  "summary": 0,
+  "syllabus": 0
+ },
+ "wis/office_of_lawyer_regulation_v._bryant_h._klos": {
+  "attorneys": 0,
+  "criteria": [
+   "decision_date",
+   "docket_number",
+   "parties"
+  ],
+  "hm": 16,
+  "hm_roles": {
+   "caption": 5,
+   "case-info": 3,
+   "citation": 1,
+   "date": 1,
+   "docket": 1
+  },
+  "lead_bylined": true,
+  "op_blocks": [
+   34
+  ],
+  "ops": [
+   "per-curiam"
+  ],
+  "residual": 0,
+  "status": "valid",
+  "summary": 0,
+  "syllabus": 0
+ },
  "wis/planned_parenthood_of_wisconsin_v._joel_urmanski": {
   "attorneys": 0,
   "criteria": [
@@ -8351,6 +8756,106 @@
   ],
   "residual": 0,
   "status": "scanned",
+  "summary": 0,
+  "syllabus": 0
+ },
+ "wis/scot_van_oudenhoven_v._wisconsin_department_of_justice": {
+  "attorneys": 0,
+  "criteria": [
+   "decision_date",
+   "docket_number",
+   "lower_court",
+   "parties"
+  ],
+  "hm": 16,
+  "hm_roles": {
+   "caption": 5,
+   "citation": 1,
+   "date": 1,
+   "docket": 1,
+   "lower-court": 3
+  },
+  "lead_bylined": true,
+  "op_blocks": [
+   4,
+   3,
+   33,
+   1
+  ],
+  "ops": [
+   "per-curiam",
+   "concurrence",
+   "dissent",
+   "dissent"
+  ],
+  "residual": 0,
+  "status": "valid",
+  "summary": 0,
+  "syllabus": 0
+ },
+ "wis/state_v._andreas_w._rauch_sharak": {
+  "attorneys": 0,
+  "criteria": [
+   "decision_date",
+   "docket_number",
+   "lower_court",
+   "parties"
+  ],
+  "hm": 18,
+  "hm_roles": {
+   "author": 2,
+   "caption": 5,
+   "citation": 1,
+   "date": 1,
+   "docket": 1,
+   "lower-court": 2
+  },
+  "lead_bylined": true,
+  "op_blocks": [
+   55
+  ],
+  "ops": [
+   "majority"
+  ],
+  "residual": 0,
+  "status": "valid",
+  "summary": 0,
+  "syllabus": 0
+ },
+ "wis/state_v._michael_joseph_gasper": {
+  "attorneys": 0,
+  "criteria": [
+   "decision_date",
+   "docket_number",
+   "lower_court",
+   "parties"
+  ],
+  "hm": 27,
+  "hm_roles": {
+   "author": 10,
+   "caption": 5,
+   "citation": 1,
+   "date": 1,
+   "docket": 1,
+   "lower-court": 3
+  },
+  "lead_bylined": true,
+  "op_blocks": [
+   105,
+   23,
+   52,
+   21,
+   56
+  ],
+  "ops": [
+   "majority",
+   "concurrence",
+   "concurrence",
+   "concurrence",
+   "concurring-in-part-and-dissenting-in-part"
+  ],
+  "residual": 0,
+  "status": "valid",
   "summary": 0,
   "syllabus": 0
  },
