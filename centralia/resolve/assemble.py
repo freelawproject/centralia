@@ -100,6 +100,25 @@ class Assembled:
 _OUTLINE = re.compile(r"^(?:[IVXLCDM]{1,5}|[A-Za-z]|\d{1,2})\.?$")
 
 
+# A PARAGRAPH NUMBER OPENS A PARAGRAPH. A court that numbers its paragraphs
+# sets the number at the RAIL and its first line of text indented beside it,
+# which is the opposite of an indent — so the indent test below never fires
+# and every numbered paragraph joined the one above it. Measured on miss:
+# ¶ markers buried mid-paragraph on 41 of 50 records, up to 82 in one file.
+# The glyph is the landmark and it is the same in every court that uses it
+# ('¶1.', '¶ 2', '[¶4]'); a marker that is only part of a longer line is not
+# matched, because there the page has already joined it to its own text.
+# The mark may stand alone as its own piece ('¶1.' at x0 72 beside its text at
+# 108) or open the line it belongs to ('¶10. When investigators asked…'),
+# depending on how wide a gap pdfio saw. Both are the same thing to a reader,
+# so the rule is 'the line BEGINS with the mark'.
+_PARA_MARK = re.compile(r"^\[?\s*¶+\s*\d+\s*[.\)\]]?(?:\s|$)")
+
+
+def _is_para_mark(line) -> bool:
+    return bool(_PARA_MARK.match(" ".join((line.plain or "").split())))
+
+
 def _is_outline_label(line, segmenter) -> bool:
     """An OUTLINE LABEL is a hierarchy mark, not prose: a lone 'I' /
     'A' / '1' / 'a' set centered on the page axis between paragraphs.
@@ -180,9 +199,10 @@ def _paragraph_blocks(seg: Segment, segmenter: Segmenter,
             prev = line
             after_label = True
             continue
-        opens = (bool(paras) and not same_row
-                 and abs(line.x0 - rail) >= step
-                 and (line.x0 < fence or returns))
+        opens = bool(paras) and not same_row and (
+            _is_para_mark(line)
+            or (abs(line.x0 - rail) >= step
+                and (line.x0 < fence or returns)))
         # A label OPENS what follows it. Without this the next line joins
         # the label's own slot, and the slot renders as the heading alone —
         # its lines silently discarded (scotus 'a' after '2' came back as

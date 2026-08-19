@@ -84,6 +84,19 @@ _CRIT = ((re.compile(r"^TRIAL JUDGE", re.I), "lower_court_judge"),
          (re.compile(r"^COURT FROM WHICH APPEALED", re.I), "lower_court"),
          (re.compile(r"^DISPOSITION", re.I), "disposition"))
 
+# A LADDER ROW IS NAMED BY ITS LABEL, and the label is an all-caps phrase
+# closed by a colon. It is NOT identified by 'the line ends with a colon':
+# pdfio returns the label and its value as one line whenever the gap between
+# the columns is narrow, so on
+# `benard_hubbard_ii_v._nexion_health_at_clinton_inc._dba_woodlands` every
+# row came back as 'DATE OF JUDGMENT: 12/18/2024' and the whole table was
+# read as CAPTION. The colon splits the row wherever pdfio happened to break
+# it.
+_LADDER_LABEL = re.compile(r"^([A-Z][A-Z0-9 /&'’.\-]*?):\s*(.*)$")
+# A consolidated record prints a SECOND case below the first, under its own
+# announcement. Measured: 'CONSOLIDATED WITH' centred, then a second docket,
+# caption and ladder.
+_CONSOLIDATED = re.compile(r"^CONSOLIDATED WITH$", re.I)
 _PIVOT = re.compile(r"^v\.?$|^vs\.?$", re.I)
 _PANEL = re.compile(r"^(?:BEFORE\b|EN BANC\.?$)", re.I)
 # 'COLEMAN, PRESIDING JUSTICE, FOR THE COURT:' / 'ISHEE, JUSTICE, FOR THE
@@ -146,24 +159,39 @@ def read_headmatter_miss(model, geom, **_):
             ctx.emit(pieces, "panel")
             continue
 
-        # A LADDER ROW: a label at the rail, its value out at 290. THE TWO
-        # COLUMNS ARE KEPT AS TWO COLUMNS — see `_ladder` below.
-        label = first if (first.x0 <= _LABEL_MAX_X0
-                          and _norm(first.plain).endswith(":")) else None
-        if label is not None:
+        # A SECOND CASE. A consolidated record announces it and starts over
+        # with its own docket, caption and ladder, so the ladder is closed
+        # and the walk returns to the caption band. Skipping this dropped
+        # everything below it out of the block.
+        if _CONSOLIDATED.match(text):
+            in_ladder = False
+            ctx.flush_ladder()
+            ctx.emit(pieces, "case-info")
+            continue
+
+        # A LADDER ROW: a label, and its value in the second column.
+        lad = _LADDER_LABEL.match(text) if first.x0 <= _LABEL_MAX_X0 else None
+        if lad is not None:
             in_ladder = True
+            label_text, value_text = lad.group(1) + ":", _norm(lad.group(2))
             role = "case-info"
             for pat, r in _LABELS:
-                if pat.search(_norm(label.plain)):
+                if pat.search(label_text):
                     role = r
                     break
             last_role = role
+            # WHERE pdfio SPLIT THE ROW decides how the cells are built, and
+            # the reading is the same either way: separate pieces keep their
+            # own provenance, a single line is divided at the colon.
             value_parts = [p for p in pieces[1:] if p.x0 >= _VALUE_MIN_X0]
-            ctx.ladder(label, value_parts, role)
-            value = " ".join(_norm(p.plain) for p in value_parts)
+            if len(pieces) > 1 and value_parts:
+                ctx.ladder(pieces[0], value_parts, role)
+                value_text = " ".join(_norm(p.plain) for p in value_parts)
+            else:
+                ctx.ladder_text(label_text, value_text, pieces, role)
             for pat, key in _CRIT:
-                if pat.search(_norm(label.plain)) and value:
-                    ctx.crit.setdefault(key, value)
+                if pat.search(label_text) and value_text:
+                    ctx.crit.setdefault(key, value_text)
             continue
         # A RUNOVER VALUE belongs to the label above it, and stands in the
         # value column with NO label beside it.
@@ -171,15 +199,16 @@ def read_headmatter_miss(model, geom, **_):
             ctx.ladder(None, pieces, last_role)
             continue
 
-        if in_ladder:
-            # Past the ladder and not a panel or a byline: leave it to core
-            # rather than tint it with the nearest neighbour's role.
-            continue
-        # THE CAPTION is the all-caps run between the docket and the ladder.
-        if _PIVOT.match(text):
-            ctx.emit(pieces, "caption", centre=False)
-            continue
-        caption.append(text)
+        # THE CAPTION is the all-caps run between a docket and its ladder.
+        # NOTHING IN THE BLOCK IS LEFT UNCLAIMED: a hole here is not merely
+        # an untagged row — core opens a WRITING on it and the bisection
+        # invariant then pulls the rows around it into that writing, which is
+        # how `billy_ray_gibson_aka_billy_gibson_v._state_of_mississippi`
+        # came to have a line of its headmatter standing as an opinion.
+        ctx.flush_ladder()
+        in_ladder = False
+        if not _PIVOT.match(text):
+            caption.append(text)
         ctx.emit(pieces, "caption", centre=False)
 
     if not ctx.crit.get("docket"):
@@ -231,6 +260,21 @@ class _Ctx:
             text=text, prov=m.Prov(parts[0].page, tuple(p.id for p in parts)),
             align=m.Align.LEFT, x0=parts[0].x0, size=parts[0].size or 0.0,
             bold=all(bool(p.all_bold) for p in parts), role=role)
+
+    def ladder_text(self, label_text: str, value_text: str, pieces: list,
+                    role: str) -> None:
+        """One ladder row that pdfio returned as a SINGLE line. Both cells
+        carry the whole row's provenance — the row is one printed line, and
+        splitting its ids would claim characters, not lines."""
+        prov = m.Prov(pieces[0].page, tuple(p.id for p in pieces))
+        size = pieces[0].size or 0.0
+        self._lab.append(m.HmLine(text=label_text, prov=prov,
+                                  align=m.Align.LEFT, x0=pieces[0].x0,
+                                  size=size, role=role))
+        self._val.append(m.HmLine(text=value_text, prov=prov,
+                                  align=m.Align.LEFT, x0=pieces[0].x0,
+                                  size=size, role=role))
+        self.consumed.update(p.id for p in pieces)
 
     def ladder(self, label, value_parts, role: str) -> None:
         """One printed row of the case-history table: its LABEL and its
