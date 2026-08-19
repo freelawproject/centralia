@@ -312,9 +312,6 @@ register(CourtProfile(
                          titles=("Judge", "Chief Judge", "Special Judge",
                                  "Presiding Judge", "JUDGE", "J.",
                                  "C.J.", "P.J."))))
-register(CourtProfile(
-    "nc", "Supreme Court of North Carolina",
-    byline=BylineGrammar(style="prose", titles=("Justice", "Chief Justice"))))
 register(CourtProfile("ncctapp", "North Carolina Court of Appeals",
                       byline=_JUDGE_PROSE))
 register(CourtProfile(
@@ -579,3 +576,6 @@ from . import moctapp                                       # noqa: E402,F401
 from . import kan                                           # noqa: E402,F401
 from . import md                                            # noqa: E402,F401
 from . import kanctapp                                      # noqa: E402,F401
+from . import nc                                             # noqa: E402,F401
+from . import ind                                            # noqa: E402,F401
+from . import tennctapp                                      # noqa: E402,F401

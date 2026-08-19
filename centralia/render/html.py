@@ -335,7 +335,9 @@ def render_html(doc: m.Document, title: str | None = None) -> str:
         if not value:
             continue
         if spec.name == "endmatter" and not all(
-                isinstance(x, m.HmLine) for x in value):
+                isinstance(x, (m.HmLine, m.CaptionBlock, m.Rule,
+                               m.Divider, m.Gap, m.ImageBlock))
+                for x in value):
             # The roster is normally rebuilt into the page's own rows and
             # renders exactly like the headmatter. When provenance could not
             # place them the pipeline keeps the assembled BLOCKS instead —

@@ -837,13 +837,53 @@ def _read_closing_band(ctx: _Ctx, model, finder) -> None:
                       if l.x0 <= _BODY_X0 + _RAIL_TOL).lower()
     if not any(mk in joined for mk in _COUNSEL_MARKS):
         return
+    # TWO COLUMNS ARE READ AS TWO COLUMNS. Claimed row by row in page
+    # order the stacks INTERLEAVE, and the block comes out as neither of
+    # the things the page prints — an appearance, a signature, half an
+    # appearance, a signature ('Sheena M. Crail' / '/s/ Vladimir P.
+    # Devens' / '(Nicolette Winter on the' / '/s/ Sabrina S. McKenna' /
+    # 'briefs) for petitioners'). `CaptionBlock` is this repo's structure
+    # for a block the page sets in two columns; the gutter here is
+    # whitespace, so the rail is None.
+    left_rows: list = []
+    right_rows: list = []
     for line in band:
         # THE COLUMN SAYS WHICH IT IS. The appearances stand at the body
         # rail; the seats stand in the signature column, and what they
         # name is the bench that decided ('/s/ Karen T. Nakasone' over
-        # 'Chief Judge'). Two rows in the corpus set the two columns close
-        # enough that pdfio could not split them ('Legal Aid Society of
-        # Hawaiʻi /s/ Todd W. Eddins'); a row the page glued is read as
-        # the appearance it opens with rather than torn in half.
+        # 'Chief Judge').
         left = line.x0 <= _BODY_X0 + _RAIL_TOL
-        ctx.counsel(line, "counsel" if left else "panel")
+        text = line_markup(line)
+        role = "counsel" if left else "panel"
+        # A ROW THE PAGE GLUED still belongs to both columns. Two rows in
+        # the corpus set the columns close enough that pdfio could not
+        # split them ('(Sandra D. Lynch on the briefs) /s/ Sabrina S.
+        # McKenna' — bolos); torn in half by x0 alone the signature would
+        # ride into the appearance column and read as part of the firm's
+        # name. The glyph says where the second column starts, so the row
+        # is split THERE and each half filed under its own column.
+        cut = text.find("/s/", 1)
+        if left and cut > 0:
+            _l, _r = text[:cut].rstrip(), text[cut:].strip()
+            if _l and _r:
+                left_rows.append(m.HmLine(
+                    text=_l, prov=m.Prov(line.page, (line.id,)),
+                    align=m.Align.LEFT, x0=line.x0,
+                    size=line.size or 0.0, role="counsel"))
+                right_rows.append(m.HmLine(
+                    text=_r, prov=m.Prov(line.page, (line.id,)),
+                    align=m.Align.LEFT, x0=line.x0,
+                    size=line.size or 0.0, role="panel"))
+                ctx.consumed.add(line.id)
+                continue
+        (left_rows if left else right_rows).append(m.HmLine(
+            text=text, prov=m.Prov(line.page, (line.id,)),
+            align=m.Align.LEFT, x0=line.x0, size=line.size or 0.0,
+            role=role))
+        ctx.consumed.add(line.id)
+    if left_rows and right_rows:
+        ctx.attorneys.append(m.CaptionBlock(
+            left=left_rows, right=right_rows, rail=None,
+            prov=m.Prov(band[0].page)))
+    else:
+        ctx.attorneys.extend(left_rows or right_rows)

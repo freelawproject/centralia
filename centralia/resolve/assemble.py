@@ -386,6 +386,69 @@ def _is_dispo_line(txt: str) -> bool:
     return " ".join(txt.split()).lower().rstrip(".").strip() in _DISPO
 
 
+def _unweld_conformed(blocks: list, by_id: dict, vocab: set[str] | None) -> list:
+    """Re-split a paragraph that swallowed a conformed '/s/' run.
+
+    `_paragraphs` opens a block only where the flow RETURNS to the rail, so
+    a run set far right of the measure reads as a quotation continuation and
+    welds into the paragraph above it. A court that signs en banc prints one
+    conformed name per justice at one right-hand edge, and none of them
+    returns: haw's five cost `bloch_v._bloch_1` its entire signature (the
+    DATED line and all five signers in a single body paragraph, so the lift's
+    `'/s/' in text[:20]` test never fired) and `fung_v._hoi` four of its
+    five — only the last signer opened a block, because the last line of a
+    segment returns by default.
+
+    The run is re-split HERE, on the '/s/' GLYPH, and not by widening the
+    stack rule's step window: haw signs on a 27pt lead and bloch on 20pt,
+    while the printed rosters that window was measured for run 30-42pt, so
+    the geometry that separates these is the court's, not the corpus's. The
+    glyph is the landmark and it is the same in every court that uses it.
+    """
+    out: list = []
+    for b in blocks:
+        text = getattr(b, "text", "") or ""
+        ids = getattr(getattr(b, "prov", None), "line_ids", ())
+        lines = [by_id[i] for i in ids if i in by_id]
+        if (not isinstance(b, m.Paragraph) or len(lines) < 2
+                or "/s/" not in text
+                or text.replace("<strong>", "").lstrip().startswith("/s/")):
+            out.append(b)
+            continue
+        # ONE ELEMENT PER PRINTED LINE that opens with the glyph; everything
+        # else keeps the run it was in.
+        lines.sort(key=lambda l: (l.page, round(l.top, 1), l.x0))
+        groups: list[tuple[str, list]] = []
+        for line in lines:
+            plain = " ".join(line.plain.split())
+            # THE ATTESTATION THAT OPENS THE BLOCK breaks the run too. The
+            # lift already knows a short 'DATED …' / 'BY THE COURT:' line
+            # directly above the signers belongs to them, but it can only
+            # claim it if it is a block of its own — welded into the body
+            # paragraph it left fung_v._hoi reading '… costs is denied.
+            # DATED: Honolulu, Hawaiʻi, May 20, 2026.' as one sentence.
+            kind = "text"
+            if plain.startswith("/s/"):
+                kind = "sig"
+            elif len(plain) < 120 and (
+                    plain.upper().startswith("DATED")
+                    or plain.upper().rstrip(":") in ("BY THE COURT",
+                                                     "FOR THE COURT")):
+                kind = "attest"
+            if kind != "text" or not groups or groups[-1][0] != "text":
+                groups.append((kind, [line]))
+            else:
+                groups[-1][1].append(line)
+        if len(groups) < 2:
+            out.append(b)
+            continue
+        for _kind, ls in groups:
+            piece = _join(ls, vocab)
+            if piece.strip():
+                out.append(m.Paragraph(text=piece, prov=_prov(ls)))
+    return out
+
+
 def assemble(model, geom: DocGeometry | None, segments_by_page: dict,
              zones: FootnoteZones, zone_tops: dict, zone_lines_by_page: dict,
              parser: BylineParser, vocab: set[str] | None,
@@ -1768,7 +1831,12 @@ def assemble(model, geom: DocGeometry | None, segments_by_page: dict,
 
     # Signature lift: a conformed '/s/' block (with its DATED line and title
     # lines) at an opinion's end is the signature, not body prose.
+    _by_id = {l.id: l for pm in model.pages for l in pm.lines}
     for op in result.opinions:
+        # A WELDED RUN CANNOT BE LIFTED: the scan below reads the head of a
+        # block, so a signature that is sitting inside a body paragraph is
+        # invisible to it. Unweld first.
+        op.blocks = _unweld_conformed(op.blocks, _by_id, vocab)
         cut = None
 
         def _is_sig(b):
@@ -1811,7 +1879,6 @@ def assemble(model, geom: DocGeometry | None, segments_by_page: dict,
             if all(len(getattr(b, "text", "") or "") < 200 for b in tail):
                 # The page may set the signer block RIGHT of the measure
                 # (haw signs at 53% width) — keep its position.
-                _by_id = {l.id: l for pm in model.pages for l in pm.lines}
                 for b in tail:
                     ids = getattr(getattr(b, "prov", None), "line_ids", ())
                     xs = [_by_id[i].x0 for i in ids if i in _by_id]
