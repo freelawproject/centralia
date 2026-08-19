@@ -645,10 +645,10 @@
 "sign": 1.0
 },
 "kanctapp": {
-"ab": 1.0,
-"g": "A",
+"ab": 0.67,
+"g": "B",
 "n": 42,
-"s": 0.01,
+"s": 1.01,
 "sign": 1.0
 },
 "ksd": {
@@ -25606,9 +25606,11 @@
 "s": 0.0
 },
 "kanctapp/dept._for_children_and_families_v._c.a.n.": {
-"f": [],
-"g": "A",
-"s": 0.0
+"f": [
+"hm-unread\u00d716"
+],
+"g": "C",
+"s": 3.0
 },
 "kanctapp/estate_of_kuebler_v._kansas_village_at_old_town": {
 "f": [],
@@ -25626,9 +25628,11 @@
 "s": 0.0
 },
 "kanctapp/in_re_i.h.": {
-"f": [],
-"g": "A",
-"s": 0.0
+"f": [
+"hm-unread\u00d720"
+],
+"g": "C",
+"s": 3.0
 },
 "kanctapp/in_re_k.s.": {
 "f": [],
@@ -25646,9 +25650,11 @@
 "s": 0.0
 },
 "kanctapp/kenyatta_v._sopha": {
-"f": [],
-"g": "A",
-"s": 0.0
+"f": [
+"hm-unread\u00d716"
+],
+"g": "C",
+"s": 3.0
 },
 "kanctapp/letourneau_v._law_offices_of_richard_lester": {
 "f": [],
@@ -25681,14 +25687,18 @@
 "s": 0.0
 },
 "kanctapp/state_v._bausby": {
-"f": [],
-"g": "A",
-"s": 0.0
+"f": [
+"hm-unread\u00d713"
+],
+"g": "C",
+"s": 3.0
 },
 "kanctapp/state_v._bishop": {
-"f": [],
-"g": "A",
-"s": 0.0
+"f": [
+"hm-unread\u00d715"
+],
+"g": "C",
+"s": 3.0
 },
 "kanctapp/state_v._carter": {
 "f": [],
@@ -25696,19 +25706,25 @@
 "s": 0.0
 },
 "kanctapp/state_v._degraeve": {
-"f": [],
-"g": "A",
-"s": 0.0
+"f": [
+"hm-unread\u00d715"
+],
+"g": "C",
+"s": 3.0
 },
 "kanctapp/state_v._garrett": {
-"f": [],
-"g": "A",
-"s": 0.0
+"f": [
+"hm-unread\u00d731"
+],
+"g": "C",
+"s": 3.0
 },
 "kanctapp/state_v._hardesty": {
-"f": [],
-"g": "A",
-"s": 0.0
+"f": [
+"hm-unread\u00d713"
+],
+"g": "C",
+"s": 3.0
 },
 "kanctapp/state_v._hughes": {
 "f": [],
@@ -25716,14 +25732,18 @@
 "s": 0.0
 },
 "kanctapp/state_v._mcahren": {
-"f": [],
-"g": "A",
-"s": 0.0
+"f": [
+"hm-unread\u00d714"
+],
+"g": "C",
+"s": 3.0
 },
 "kanctapp/state_v._odell": {
-"f": [],
-"g": "A",
-"s": 0.0
+"f": [
+"hm-unread\u00d714"
+],
+"g": "C",
+"s": 3.0
 },
 "kanctapp/state_v._odom": {
 "f": [],
@@ -25738,24 +25758,32 @@
 "s": 0.5
 },
 "kanctapp/state_v._richmond": {
-"f": [],
-"g": "A",
-"s": 0.0
+"f": [
+"hm-unread\u00d713"
+],
+"g": "C",
+"s": 3.0
 },
 "kanctapp/state_v._shrubshall": {
-"f": [],
-"g": "A",
-"s": 0.0
+"f": [
+"hm-unread\u00d715"
+],
+"g": "C",
+"s": 3.0
 },
 "kanctapp/state_v._slaton": {
-"f": [],
-"g": "A",
-"s": 0.0
+"f": [
+"hm-unread\u00d715"
+],
+"g": "C",
+"s": 3.0
 },
 "kanctapp/state_v._stark": {
-"f": [],
-"g": "A",
-"s": 0.0
+"f": [
+"hm-unread\u00d715"
+],
+"g": "C",
+"s": 3.0
 },
 "kanctapp/state_v._williams": {
 "f": [],

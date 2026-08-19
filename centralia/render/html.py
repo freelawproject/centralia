@@ -69,6 +69,10 @@ details > summary { font:600 12px system-ui,sans-serif; text-transform:uppercase
    'Attorneys—Misconduct—…—Public reprimand.' (ohio). The user's call,
    2026-08-19: these are headnotes, and a précis is a different thing. */
 .hmrow[data-role="headnotes"] { background:#f6f6f2; border-left-color:#c2c0a8 }
+/* A SYLLABUS IS NOT HEADNOTES. Kansas (and wva) print numbered points of
+   law BY THE COURT in the headmatter; headnotes are the reporter's subject
+   list. Same band of the page, different authorship, so a different tint. */
+.hmrow[data-role="syllabus"] { background:#f2f4f6; border-left-color:#a8b6c2 }
 /* AUTHOR: who the caption says wrote it, where the court ANNOUNCES the
    author instead of signing the writing ('OPINION BY' over 'JUSTICE WESLEY
    G. RUSSELL, JR.' — va). Distinct from `panel`: va prints a real roster
@@ -376,6 +380,7 @@ def render_html(doc: m.Document, title: str | None = None) -> str:
                       ("caption", "caption"), ("counsel", "counsel"),
                       ("case-info", "case info"), ("disposition", "disposition"),
                       ("citation", "citation"), ("headnotes", "headnotes"),
+                      ("syllabus", "syllabus"),
                       ("author", "author"),
                       ("summary", "summary")]
             _legend = (

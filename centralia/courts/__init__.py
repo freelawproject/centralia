@@ -578,3 +578,4 @@ from . import texcrimapp                                    # noqa: E402,F401
 from . import moctapp                                       # noqa: E402,F401
 from . import kan                                           # noqa: E402,F401
 from . import md                                            # noqa: E402,F401
+from . import kanctapp                                      # noqa: E402,F401

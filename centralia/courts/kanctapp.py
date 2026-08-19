@@ -1,94 +1,14 @@
-"""Supreme Court of the State of Kansas ('kan').
+"""kanctapp — Kansas Court of Appeals.
 
-THE CONTRACT. Kansas sets ONE masthead and then decides, by the size of the
-type under it, which of TWO papers this is. Nothing is drawn on the page —
-over the 50-record corpus the court prints not a single rule, horizontal or
-vertical — so every boundary here is leading, measure and type SIZE.
+A COPY OF kan.py, not an import of it: court files may not import each
+other, so a family that prints the same paper is ported by copying the
+reader and rebinding the id. Kansas sets its Supreme Court and its Court of
+Appeals from the same stationery — same masthead block, same 'SYLLABUS BY
+THE COURT' in the same band of the headmatter, same Reporter's apparatus a
+type step down, same byline forms. Everything below is kan's, verbatim,
+with the decider bound to kanctapp.
 
-THE MASTHEAD BLOCK is the same on all 50 records: a run of rows CENTRED ON
-THE PAGE AXIS and standing clear of the paragraph indent, opening on the
-court naming itself and closing on the paper's own title.
-
-    IN THE SUPREME COURT OF THE STATE OF KANSAS   the banner, on the axis
-    No. 123,647                                   the docket…
-      128,517                                     …and its consolidations,
-                                                  ranged under the number
-    STATE OF KANSAS,                              the caption: a party…
-        Appellee,                                 …its status, ITALIC…
-    v.                                            …the pivot…
-    ANTHONY DARRYL ALLEN,
-        Appellant.
-    SYLLABUS BY THE COURT                         …and the paper's title
-
-THE TITLE IS THE LAST ROW OF THE BLOCK, and it is read as a title only
-where it stands CLEAR of the caption — the gap above it is wider than any
-leading inside the caption (measured: 30-45pt against a 15pt caption
-leading, never closer than 1.5x). A block whose last row is not all-caps
-and clear has no title, and the run is all caption.
-
-WHERE THE BLOCK ENDS is the same question twice. The caption's own rows are
-centred and start at x0>=110; the page's content starts at the RAIL (72) or
-the PARAGRAPH INDENT (108) and never between. So the block closes at the
-first row set at or left of the indent — geometry, with the caption's own
-consolidated-docket rows (ranged under the number, 14.5pt off the axis)
-still inside it.
-
-THE TYPE STEP NAMES THE PAPER. Kansas sets its body at 13pt and the
-Reporter's apparatus a full step down at 11pt:
-
-    'reported slip' (45 of 50) — an 11pt apparatus stands between the
-    syllabus and the writing. It is ONE recital paragraph followed by the
-    appearances, both opening at the indent and wrapping to the rail:
-
-        SYLLABUS BY THE COURT             …the title, and beneath it
-        1.                                the syllabus by the court, at
-        The Sixth Amendment to the …      BODY size — numbered points of
-        …                                 law, the court's own headnotes
-        Review of the judgment of the     the recital, at 11pt: history,
-        Court of Appeals in 62 Kan. …     the court below and its judge,
-        Appeal from Johnson District      when it was argued, when the
-        Court; TIMOTHY MCCARTHY, judge.   opinion was filed, and what
-        Opinion filed June 5, 2026. …     this court did
-        Adam Sokoloff, of The Sokoloff    the appearances, one paragraph
-        Law Firm, … for appellant.        per side
-        The opinion of the court was      the recital Kansas prints over
-        delivered by                      every authored opinion…
-        STANDRIDGE, J.: Mother appeals…   …and the writing starts
-
-    'court order' (5 of 50) — NO apparatus at any size. The order's body
-    opens at the paragraph indent directly under the title and runs to the
-    signature; there is no syllabus, no appearance, and no byline. The
-    reader claims the block and stops at the title.
-
-        ORDER OF DISBARMENT               the title…
-        The court admitted respondent …   …and the order itself starts
-
-THE DISPATCH is therefore two questions, both about the page and neither
-about a case's wording: does row 1 name this court, and is there a row set
-a full type step below the body within the first four pages? Yes/yes is the
-slip; yes/no is the order; anything else is not this paper and gets
-NOTHING.
-
-WHERE THE SYLLABUS GOES. Kansas publishes a syllabus by the court — the
-numbered points of law under 'SYLLABUS BY THE COURT' — and it is printed in
-the middle of the headmatter, between the caption and the Reporter's
-recital. It STAYS THERE — the headmatter renders whole and in the page's
-order — but tagged `syllabus`, NOT `headnotes`: headnotes are the
-REPORTER's subject list ('Attorneys-Misconduct-...'), while this is the
-COURT's own numbered statements of law. Same band of the page, different
-authorship. Lifting it
-into a section (which is what the old engine did) reorders the page and
-puts the recital that follows it above it. Core's own syllabus inference
-never fired on this court in any case — it keys on a bare 'SYLLABUS'
-heading opening a page, and Kansas labels 'SYLLABUS BY THE COURT' a third
-of the way down the caption page — so it was mis-routing the RECITAL to the
-syllabus section instead. No `syllabus.pages` decider is registered: the
-extent is a row range inside one page, which that seam cannot express.
-
-WHAT THE READER DOES NOT TOUCH. The folio at the page foot is core's
-furniture. The order's body is the writing's, from its first paragraph —
-core was reading the first three paragraphs of every disbarment order as
-headmatter and opening the writing in the middle of it (in_re_edwards).
+If the two courts ever diverge, THIS file changes and kan.py does not.
 """
 
 from __future__ import annotations
@@ -138,7 +58,7 @@ _SMALL_MIN_WIDTH = 40.0
 # and its apparatus with it; nothing in the corpus needs a fourth page.
 _MAX_PAGES = 4
 
-_BANNER = "in the supreme court of the state of kansas"
+_BANNER = "in the court of appeals of the state of kansas"
 # THIS court's own docket, and the bar docket the discipline papers carry.
 _DOCKET = re.compile(r"^(?:Bar\s+Docket\s+)?Nos?\.\s*[\d,]+\.?$", re.I)
 # A consolidation is ranged UNDER the first number, with no label.
@@ -241,8 +161,8 @@ def _centred(line, page_width: float) -> bool:
 # the walk
 # --------------------------------------------------------------------------
 
-@decider("headmatter.read", court="kan")
-def read_headmatter_kan(model, geom, **_):
+@decider("headmatter.read", court="kanctapp")
+def read_headmatter_kanctapp(model, geom, **_):
     """Read Kansas's centred masthead and the apparatus under it, or
     NOTHING."""
     if not model.pages:
@@ -275,9 +195,19 @@ def read_headmatter_kan(model, geom, **_):
     if len(rows) < 4:
         return NOTHING
 
-    # THE DISPATCH, first half: row 1 names this court.
+    # THE DISPATCH, first half: this court names itself in the leading
+    # centred run. WHERE kan sets the masthead first and the docket under
+    # it, kanctapp sets the DOCKET FIRST and the masthead under it — the
+    # only structural difference between the two papers, which is why the
+    # id could not simply be rebound. The banner is therefore looked for in
+    # the first two rows, and a row above it must be the docket.
+    _head = 0
     if not _is_banner(rows[0].plain):
-        return NOTHING
+        if len(rows) > 1 and _is_banner(rows[1].plain) \
+                and _DOCKET.match(_norm(rows[0].plain)):
+            _head = 1
+        else:
+            return NOTHING
 
     # THE MASTHEAD BLOCK: the leading run of centred rows.
     block: list = []
@@ -287,6 +217,7 @@ def read_headmatter_kan(model, geom, **_):
         block.append(line)
     if len(block) < 3 or block[0].page != 1:
         return NOTHING
+    del _head
 
     # THE DISPATCH, second half: is there an apparatus a full type step
     # below the body? Its presence names the paper.
