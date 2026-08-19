@@ -256,8 +256,23 @@ def _is_announcement(text: str) -> bool:
     return any(f" {v} " in low for v in _DELIVERS)
 
 
+# THE ANNOUNCEMENT'S OWN SENTENCE. Eight of the 35 announcement blocks in
+# the corpus announce the SEPARATE writings in the same block — '… JJ.,
+# joined. DWIGHT E. TARWATER, J., filed a separate concurring opinion.'
+# (state_of_tennessee_v._ambreia_washington_1; also heather_smith,
+# pharma_conference, trentham, randall_johnson_1, terry_case and its _1,
+# vanessa_colley) — and those sentences name a DIFFERENT writing's author,
+# so they are no part of THIS writing's byline. Every announcement closes
+# its own sentence on a WHOLE WORD ('joined.' on all 35 measured); every
+# other period inside one ends an initial ('S.') or an abbreviated title
+# ('C.J.,', 'JJ.,', 'SR. J.'), which is one or two letters and never three.
+_SENTENCE_END = re.compile(r"[A-Za-z]{3,}\.(?=\s)")
+
+
 def _announced(text: str) -> str:
-    return text
+    """The announcement's own sentence: what core signs the writing with."""
+    mm = _SENTENCE_END.search(text)
+    return text[:mm.end()] if mm else text
 
 
 def _is_disposition(text: str) -> bool:
@@ -649,8 +664,20 @@ def _read(model, geom, rows, stamped, band):
             #   filed a separate concurring opinion.' behind.
             # Claiming the whole block leaves core no cut to make and no
             # crumbs to drop.
+            # THE BLOCK IS MEASURED FROM THE ANNOUNCEMENT ITSELF, not read
+            # out of the partition: `block_at` starts its blocks at the top
+            # of the stream, and where the summary's last block runs over the
+            # sheet onto the announcement's own page (charles_youree, flade,
+            # mcnabb and adkisson all open page 2 with the announcement at
+            # top=73.8-88.7 against a 15pt leading) the announcement is
+            # INSIDE that block and has no entry of its own. The fallback
+            # took one row, and the wrap went on to the appearances branch
+            # and came back tagged 'counsel' — a mis-tag, which is worse than
+            # the untagged row it hid.
             idx = index[id(line)]
-            end, whole = block_at.get(idx, (idx + 1, text))
+            end = _block_end(vrows, idx, lead, pages)
+            whole = _norm(" ".join(x.plain for k in range(idx, end)
+                                   for x in vrows[k]))
             for k in range(idx, end):
                 ctx.row(vrows[k], "author")
             delivered = _announced(whole)
