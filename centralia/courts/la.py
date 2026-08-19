@@ -142,6 +142,19 @@ _SEE = re.compile(r"\bSEE\s+(?:OPINION|PER CURIAM|ORDER)\s*\.?$", re.I)
 # opens on a bench word and carries an assignment word.
 _VOTE = re.compile(
     r"^[A-Z][A-Za-z'’\-]+,\s*(?:C\.J\.|JJ?\.|A\.H\.J\.)\s*,", re.I)
+# HOW THE COURT SIGNS A SEPARATE WRITING, used ONLY to CLOSE a reprinted
+# cover — never to open a writing, which is core's job. The bench title and
+# the verb are both closed vocabularies, and the commas are optional because
+# the court drops them: 'GRIFFIN J., dissents and assigns reasons.'
+# (bruce_a._okrepki p26), 'GUIDRY, J. dissents for the reasons assigned by
+# Chief Justice Weimer.' (justin_irwin p29), 'Hughes, J. additionally
+# concurring.' (gary_crockett p26), and set in caps as 'PENZATO, JUSTICE PRO
+# TEMPORE, CONCURS IN THE RESULT.' (edward_f._breaux p17).
+_SIGNS = re.compile(
+    r"^[A-Z][A-Za-z'’\-]+,?\s*"
+    r"(?:C\.\s?J\.|JJ?\.|A\.H\.J\.|Justice(?:\s+Pro\s+Tempore"
+    r"|\s+ad\s+hoc)?)"
+    r",?\s+(?:additionally\s+)?(?:concur|dissent|would\b)", re.I)
 _SITTING = re.compile(
     r"^(?:Retired\s+Judge|Chief\s+Justice|Justice|Judge)\b.*"
     r"\b(?:ad\s+hoc|[Pp]ro\s+[Tt]empore|recused|sitting|heard this case)\b")
@@ -568,16 +581,21 @@ def _reprint_block(model, page_no, banner, finder, parser, cap) -> list:
             text = _norm(" ".join(l.plain for l in pieces))
             x1 = max(l.x1 for l in pieces)
             width = (x1 - pieces[0].x0) / pm.width
-            # A COVER ROW IS CENTRED ON THE COVER'S OWN AXIS; the byline is
-            # not — it runs from the rail to wherever its words end
-            # (mid-point 163-289 against a 306 axis on vinton_harbor's four
-            # reprints, 175.4 where the court indents it to 108.0 on
-            # state_of_louisiana_v._leonidas_lowry page 7). So an off-axis
-            # row either CLOSES the run, if it is byline-shaped, or ABORTS
-            # it. Nothing else may stand between a cover and its byline.
+            # THE BYLINE CLOSES THE RUN, tested first and wherever it
+            # stands: most sit off the axis, running from the rail to
+            # wherever their words end (mid-point 163-289 against a 306 axis
+            # on vinton_harbor's four reprints, 175.4 where the court
+            # indents it to 108.0 on state_of_louisiana_v._leonidas_lowry
+            # page 7), but a long one is justified to the full measure and
+            # lands back ON the axis ('WEIMER, C.J., concurs in the result
+            # for the reasons assigned by Cole, J., and' — edward_f._breaux
+            # page 14).
+            if _is_byline(text, parser):
+                return block          # the writing starts HERE, not above
+            # A COVER ROW IS CENTRED ON THE COVER'S OWN AXIS. Anything else
+            # standing between a cover and its byline means this is not the
+            # shape, and nothing is claimed.
             if abs((pieces[0].x0 + x1) / 2 - axis) > _AXIS_TOL:
-                if _is_byline(text, parser):
-                    return block      # the writing starts HERE, not above
                 return []
             # …and a JUSTIFIED prose row is centred by accident, so the run
             # also aborts on full measure opening lower-case.
@@ -611,7 +629,8 @@ def _is_byline(text: str, parser) -> bool:
     return (parser.parse(text) is not None
             or parser.parse(bare) is not None
             or _BYLINE.match(bare) is not None
-            or _VOTE.match(text) is not None)
+            or _VOTE.match(text) is not None
+            or _SIGNS.match(text) is not None)
 
 
 def _rows(pm, finder) -> list[list]:

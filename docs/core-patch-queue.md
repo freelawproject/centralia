@@ -269,6 +269,28 @@ differs from the document's caption; check before choosing.
 **Blocked on:** `resolve/assemble.py`, held by the mass agent while it lands
 patch 1 (the standalone disposition). Start this the moment that reports.
 
+## 20. Footnote zones are measured BEFORE the court reader's claim
+
+Reported by ri's porter, 2026-08-19.
+
+`pipeline.py:449-464` measures the footnote zones, and only afterwards does
+`court_decides("headmatter.read")` run (:485); the reader's claim is then
+subtracted from `segments_by_page` alone (:495-502). So a drawn rule the court
+uses for something else has already been read as a footnote separator by the
+time the court file says what it is, and the reader has no way to withdraw it.
+
+Rhode Island closes every record with the Clerk's cover sheet, a label/value
+grid fenced by drawn rules. On 7 records its FIRST fence reads as a footnote
+separator, so the grid's bands land in the last writing's last footnote —
+`american_express_national_bank_v._anna_perretta_1` has footnote 5 =
+'No. 2024-396-Appeal. Case Number (KC 21-1031) Date Opinion Filed ...'. The
+bands therefore render TWICE: once as the endmatter the reader claimed, once
+inside the footnote. Identical with the ri decider popped, so it is core's.
+
+The fix is an ordering one and its blast radius is every court with footnotes,
+so it is queued rather than attempted: either the zones are re-measured after
+the claim is known, or the claim also subtracts from the zone lines.
+
 ## 16. A stacked panel roster at the foot of a writing is mangled 3 ways
 
 Found by nd's porter, 2026-08-19, then re-measured after I pushed back on its

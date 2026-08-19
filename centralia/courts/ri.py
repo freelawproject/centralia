@@ -143,6 +143,17 @@ Core already routes the cover page out of assembly and into the headmatter
 (`pipeline.py`, `_COVER_TITLES`, which names ri). What this reader adds is
 the READING of it: the panel, the date filed, the author, the court below
 and its judge, and the appearances, each off its own band.
+
+ONE CORE DEFECT SHOWS THROUGH HERE, unchanged by this reader and REPORTED,
+not patched: on 7 of the 50 records the cover sheet's first drawn fence
+reads as a FOOTNOTE SEPARATOR, so the bands below it are appended to the
+last writing's last footnote (american_express, footnote 5: 'No.
+2024-396-Appeal. Case Number (KC 21-1031) Date Opinion Filed …'). The
+footnote zones are measured in `pipeline.py` before any reader runs and a
+claim is subtracted only from `segments_by_page`, so no reader can take
+those lines back — identical with this file's decider popped. Consequence
+worth knowing: on those 7 records the affected bands render twice, once
+tagged here and once inside that footnote.
 """
 
 from __future__ import annotations
@@ -159,7 +170,8 @@ from ..resolve.furniture import FurnitureFinder
 _MASTHEAD = re.compile(r"^Supreme Court$")
 # 'No. 2024-396-Appeal.' / 'No. 2021-314-M.P.' / 'No. 2024-104-C.A.' — the
 # three suffixes measured over the corpus (appeal, miscellaneous petition,
-# criminal appeal). The trailing period is the sentence's, not the number's.
+# criminal appeal). The number KEEPS its final period: stripping it as
+# sentence punctuation also took the abbreviation's ('2021-314-M.P').
 _DOCKET = re.compile(r"^No\.\s*(\d{4}-\d+-[A-Za-z.]+)$")
 _PAREN = re.compile(r"^\((.+)\)$")
 # A DOCKET CARRIES NO WORDS. Two consecutive lower-case letters separate the
