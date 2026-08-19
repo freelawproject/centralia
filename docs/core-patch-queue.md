@@ -794,3 +794,51 @@ page 1 — `NO. 103715-5`/`No. 103715-5`, `EN BANC`/`En Banc`, `acting in her
 capacity as the Benton County Auditor`/`…as Benton County Auditor`, and a
 different rail x (321.1 vs 305.5). So identity must never be tested on the
 caption TEXT; the banner row is the only row stable enough to compare.
+
+## 34. `triage()`'s CID test is DOCUMENT-wide, so one unreadable PAGE always passes — `pipeline.py`
+
+Found by the pasuperct port, 2026-08-20. NOT previously in this queue. This is
+the highest-impact quality defect measured so far: it takes a court from
+**F, mean 193.512 to A, mean 0.226**.
+
+`classify.py:41` compares `cid / ink` summed over the WHOLE document against
+`CID_MAX_FRAC = 0.2`. On **21 of the 42 pasuperct records the LAST page** is
+set in a subset font with no usable encoding: pdfplumber returns it as
+`(cid:N)` runs with the surviving letters shifted three places (`WKUHFRG` for
+`therecord`) and advance widths collapsed to zero, so even the row order is
+meaningless. That page is emitted as body prose — mojibake inside the writing.
+
+Measured separation is clean: those 21 pages run **0.220-0.818** CID per ink
+char while their DOCUMENTS run **0.001-0.016**, so the same constant applied
+PER PAGE separates them exactly. Over 2,323 pages of pa, pacommwct, ca6, wyo,
+ohioctapp and mass it catches NONE.
+
+Patch goes in `pipeline.py` immediately after the existing `_img_only` block
+(~line 248), before `if verdict == "unreadable":`, mirroring that block's
+idiom — full text with its comment is in the agent's report; the shape is:
+
+    from .classify import CID_MAX_FRAC
+    _cid_bad = [pm for pm in model.pages
+                if pm.ink_chars and pm.cid_chars >= 10
+                and pm.cid_chars / pm.ink_chars > CID_MAX_FRAC]
+    if _cid_bad and verdict != "unreadable" and len(_cid_bad) < model.n_pages:
+        for pm in _cid_bad:
+            doc.dropped.append(m.Dropped(..., kind="unreadable-page"))
+            pm.event("cid-page", f"{pm.cid_chars}/{pm.ink_chars} CID")
+            pm.lines = []
+
+Validated in-process (monkeypatched, no core file edited): pasuperct F/193.512
+-> A/0.226, all 42 stay `valid`, headmatter stays 686/686, both pasuperct pins
+still compare OK.
+
+**Deliberate design choice to preserve when landing:** record the page as a
+`Dropped(kind="unreadable-page")`, NOT as a `doc.warnings` entry. A warning
+containing "unreadable text layer" added to `SOURCE_WARNINGS` would flip those
+21 records from `valid` to `scanned` and move the `status` field of every pin
+the test catches — a corpus-wide decision for the owner, not a side effect of
+a page fix. Whoever lands it should run the FULL guard; only six other courts
+were sampled.
+
+Related but distinct: item 5 (`a space that advances nothing is not a space`)
+and the wash `(cid:NN)` clerk-signature glyphs are both about unmapped fonts,
+but neither removes an unreadable PAGE.
