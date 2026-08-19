@@ -8693,12 +8693,19 @@
    "parties"
   ],
   "hm": 3,
+  "hm_roles": {
+   "caption": 13,
+   "court": 1,
+   "date": 1,
+   "docket": 1,
+   "panel": 1
+  },
   "lead_bylined": true,
   "op_blocks": [
+   7,
+   36,
    17,
-   37,
-   19,
-   43
+   41
   ],
   "ops": [
    "per-curiam",
@@ -8782,20 +8789,58 @@
    "parties"
   ],
   "hm": 6,
-  "lead_bylined": false,
+  "hm_roles": {
+   "caption": 53,
+   "court": 1,
+   "date": 1,
+   "docket": 1,
+   "panel": 1
+  },
+  "lead_bylined": true,
   "op_blocks": [
-   1,
-   65,
-   12,
-   102,
+   64,
+   10,
+   94,
    5
   ],
   "ops": [
-   "order",
    "majority",
    "concurrence",
    "concurrence",
    "concurrence"
+  ],
+  "residual": 0,
+  "status": "valid",
+  "summary": 0,
+  "syllabus": 0
+ },
+ "wash/state_v._a.m.w.": {
+  "attorneys": 0,
+  "criteria": [
+   "decision_date",
+   "docket_number",
+   "parties"
+  ],
+  "hm": 3,
+  "hm_roles": {
+   "caption": 13,
+   "court": 1,
+   "date": 1,
+   "docket": 1,
+   "panel": 1
+  },
+  "lead_bylined": true,
+  "op_blocks": [
+   129,
+   5,
+   59,
+   5
+  ],
+  "ops": [
+   "majority",
+   "concurrence",
+   "dissent",
+   "dissent"
   ],
   "residual": 0,
   "status": "valid",

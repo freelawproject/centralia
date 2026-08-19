@@ -749,3 +749,48 @@ back `type='majority'`. Its signature was also welded (`'/s/ Lisa M. Ginoza
 splits on the glyph only when the paragraph has >= 2 source lines and pdfio
 gave both names on one visual row — the item 29 seam fixed the welding as a
 side effect, but the TYPE is still wrong.
+
+## Item 6 — SHARPENED by wash, 2026-08-20, with a count-independent rule
+
+wash's port found the per-writing running head is a much bigger defect than
+item 6 records, and supplied the general rule item 6 was missing.
+
+Washington prints a head UNIQUE TO EACH WRITING, so its repeat count can never
+reach `_band_keys`' `0.4 * n_pages` floor and `FurnitureFinder.kind()` returns
+None on every page:
+
+    scott_v._amazon.com_inc.        'Ruth Scott et al. v. Amazon.com, Inc., No. 103730-9'
+                                    stands as a PARAGRAPH inside its majority on
+                                    pages 3,4,8,11,12,14,15,17,20 — 9 copies, and
+                                    only ONE Dropped(running-head) record exists
+                                    for all of them
+    luv_v._w._coast_servicing_inc.  'No. 103031-2' over '(Madsen, J., concurring)'
+                                    at the left margin, pages 14-19
+    a_better_richland_v._chilton    '… No. 103715-5 (González, J., concurring in
+                                    part)' WELDED to the head of a paragraph,
+                                    pages 19, 22, 23
+
+**The proposed rule, which is count-independent:** in the TOP band, a row is a
+running head when its docket-shaped tail equals a docket the document prints
+on page 1, regardless of repeat count. That catches a count-1 first-page head
+AND item 6's `alacrimapp` "unreachable by construction" case, and it is the
+same identity test wash's reader had to implement locally (`_docket_key`,
+which compares the NUMBER not the setting — the court prints `No. 202,258-8`
+in the caption and `No. 202258-8` at the head, `No.104342-2` tight and loose).
+
+**Not fixable from a court file in general**: claiming those rows in a reader
+would double-claim against core's own sweep on the pages where it DOES fire.
+
+## Item 15 — DONE for wash; scotus and nj remain
+
+Its re-scoped premise held exactly: a court claim is subtractive and
+pre-assembly (`pipeline.py:474-484`), so no `cover.reprint` seam was needed.
+A reader can only SUBTRACT a reprinted cover, never attach it to the writing
+it introduces, because `Opinion.caption` is filled by assembly, which runs
+AFTER `headmatter.read`.
+
+**One correction to item 15's text:** wash's reprint is NOT byte-identical to
+page 1 — `NO. 103715-5`/`No. 103715-5`, `EN BANC`/`En Banc`, `acting in her
+capacity as the Benton County Auditor`/`…as Benton County Auditor`, and a
+different rail x (321.1 vs 305.5). So identity must never be tested on the
+caption TEXT; the banner row is the only row stable enough to compare.

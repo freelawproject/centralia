@@ -70,6 +70,57 @@ opinion.
 WHAT THIS FILE DOES NOT DO. wash prints no appearance roster and no 'Before'
 line — 'En Banc' is the whole of what it says about its bench — so there is
 no counsel block and no panel block to read, and none is invented.
+
+THE FRONT MATTER A SEPARATE WRITING PRINTS OVER ITSELF. A wash paper that
+carries more than one writing sets each of them on a fresh page under its
+own front matter, and that front matter belongs to the writing BELOW it.
+Assembly anchors a writing at its byline, so left in the stream every one
+of those rows falls into the writing ABOVE — which is what put a whole
+reprinted caption, columns fused across the rule, at the foot of the per
+curiam in a_better_richland_v._chilton. The court sets it two ways:
+
+    THE WHOLE BLOCK AGAIN (2 records) — the clerk's two stamps, the banner,
+    the caption in its rail and the fence, printed exactly as page 1 prints
+    them. The GEOMETRY is page 1's, so it is read with page 1's measured
+    rule: a divider in the page's top 45%, the banner as the last row above
+    it, the fence closing the band. Nothing is matched against wording; the
+    banner is compared against the row THIS document printed on page 1.
+
+    THE WRITING'S OWN HEAD (57 rows on 38 records) — the docket alone, set
+    CENTRED on the page's text block above the byline, under the page's
+    running head:
+
+        State v. Abrams                          <- the page's running head
+                     No. 103058-4                <- the writing's own head
+        JOHNSON, J. (concurrence)—While I agree …
+
+    The centred row is identified by its geometry and by carrying a docket
+    THIS document's own page-1 caption printed. Measured over the corpus,
+    the row under every one of them is a separate writing's byline — 54 of
+    54 in the sample where the head sits within 13.5pt of that axis, and
+    the nearest row that is NOT a head stands 44pt off it.
+
+AND THE CONTINUATION PAGE'S RUNNING HEAD, for the same reason: where the
+caption ran onto page 2, core's late sweep leaves that page's running head
+standing (it sweeps pages 3-74 and stops at a page the reader claimed), and
+assembly opens a one-row ORDER on it — scott_v._amazon.com_inc. Recorded as
+the `running-head` it is.
+
+OWNERSHIP: ALL OF IT IS DROPPED, not moved. The reprint introduces the writing
+that follows, so it must stop being the previous writing's body; and it
+states nothing the document does not already print — the same court, the
+same parties, the same docket, the same sitting, the same filing date, all
+of which render whole in the headmatter at the head of the document, and
+the head row is the docket criterion itself. There is nowhere better to put
+it: a writing's `caption` field is filled by assembly, which runs after
+this reader, so a court file cannot hand rows to a writing that does not
+exist yet. So the rows are claimed and recorded as `Dropped` — attested,
+never silently deleted — in the kinds the page itself distinguishes: the
+clerk's stamps as `stamp`, exactly as page 1's are, the running head as
+`running-head`, and the reprinted caption and head as `superfluous`.
+Nothing court-WRITTEN is inside either block: the reprint holds no
+full-measure row at the body rail, and the head run holds nothing but the
+running head and the docket.
 """
 
 from __future__ import annotations
@@ -132,6 +183,41 @@ _FENCE_DROP = 30.0
 _MAX_PAGES = 3
 # A caption's CONTINUATION opens the next page's top band.
 _TOP_BAND = 0.25
+
+# ---- the front matter a SEPARATE WRITING prints over itself ------------
+# BODY PROSE runs the full measure at the body rail, and none is ever
+# inside a reprinted block — measured, the widest row in one is the banner
+# at 0.70 of the measure and it is centred, not at the rail. One
+# full-measure row at the rail and the block is not this shape.
+_PROSE_INK = 0.85
+# THE WRITING'S OWN HEAD is CENTRED — on the page's own text block, not on
+# the paper: a writing set on a wider measure (abrams' second concurrence,
+# x0=108) centres its head on that measure, 18pt right of the page axis.
+# Measured over every short docket row in a page's upper half, a head
+# stands 0 to 13.5pt off that axis and the nearest row that is NOT one
+# stands 44pt off (the docket cell of a reprinted caption) or 194pt off
+# (luv's left-margin running head). 20pt is inside that gap.
+_HEAD_AXIS_TOL = 20.0
+# …and it stands in the page's UPPER HALF, above the byline. Measured
+# 0.14 to 0.46 of the page.
+_HEAD_TOP_MAX = 0.50
+# WHAT MAY STAND ABOVE IT is the page's own running head, and nothing
+# else: measured over the corpus, 0 to 2 rows, every one of them in the
+# top 14% of the page and none wider than 0.72 of the measure. A row
+# outside those bounds is not the head's furniture and is left where it
+# is — that is what refuses a page whose previous writing is still
+# running, since body prose reaches the full measure.
+_HEAD_ABOVE_TOP = 0.18
+_HEAD_ABOVE_INK = 0.80
+_HEAD_ABOVE_MAX = 2
+# A head row states a docket and nothing else.
+_HEAD_MAX_CHARS = 60
+# THE PAGE'S OWN MEASURE, read off the rows that reach it. 0.9 admits the
+# byline row, which a paragraph indent shortens by one step.
+_AXIS_INK = 0.90
+# A DOCKET CARRIES A NUMBER. Washington's shortest is six digits
+# ('202272-3'); five is the floor a page number could never reach.
+_DOCKET_DIGITS = 5
 
 # THE PAPER'S OWN LABELS, set in the caption's right column. Closed
 # vocabularies, all of them: the court's own docket opener, the sitting it
@@ -478,6 +564,118 @@ def _stamp_runs(line) -> list:
 
 
 # --------------------------------------------------------------------------
+# the front matter a SEPARATE WRITING prints over itself
+# --------------------------------------------------------------------------
+
+def _measure(geom) -> tuple[float, float]:
+    """The body rail and the measure, as the document sets them."""
+    x0 = geom.body_x0 if geom else 72.0
+    x1 = geom.right_x1 if geom else 540.0
+    return x0, max(x1 - x0, 1.0)
+
+
+def _is_prose(line, geom) -> bool:
+    """Body prose: the FULL MEASURE at the body rail. A caption cell is a
+    column and a head row is short; neither ever reaches this."""
+    x0, measure = _measure(geom)
+    return (line.x0 <= x0 + 2.0
+            and (line.x1 - line.x0) >= _PROSE_INK * measure)
+
+
+def _text_axis(pm, page_rows) -> float:
+    """The middle of the page's OWN text block — the axis its head is
+    centred on.
+
+    Measured from the page's WIDEST rows, not from the document's rail: a
+    separate writing may be set on its own measure (abrams' second
+    concurrence runs x0=108 to x1=537.6) and it centres its head on that
+    measure, 18pt right of the paper's axis. The page axis is the
+    fallback, for a page too short to show a measure."""
+    if not page_rows:
+        return pm.width / 2
+    widest = max((l.x1 - l.x0) for l in page_rows)
+    body = [l for l in page_rows if (l.x1 - l.x0) >= _AXIS_INK * widest]
+    return (min(l.x0 for l in body) + max(l.x1 for l in body)) / 2
+
+
+def _docket_key(text: str) -> str:
+    """A docket's IDENTITY is its number, not its setting. The court prints
+    the same one as 'No. 202,258-8' in the caption and 'No. 202258-8' at
+    the head of a separate writing, and sets it tight ('No.104342-2') as
+    often as loose, so what is compared is the run of digits and hyphens.
+    '' where the row states no number."""
+    key = re.sub(r"[^0-9-]", "", _norm(text)).strip("-")
+    return key if sum(c.isdigit() for c in key) >= _DOCKET_DIGITS else ""
+
+
+def _reprint_block(pm, rows, find_rail, banner: str | None, geom):
+    """The WHOLE front block, printed again to open a separate writing.
+
+    Page 1's own contract, applied to a later page: a divider in the top
+    band, the court's banner as the last row above it, the caption's fence
+    closing the band under it. The banner is the row THIS document printed
+    on page 1, never a wording list. Returns
+    ``{'stamps', 'banner', 'band', 'rail_x'}`` or None.
+    """
+    if banner is None:
+        return None
+    r = find_rail(pm)
+    if r is None or r["top"] > pm.height * _RAIL_TOP_MAX:
+        return None
+    page_rows = [l for l in rows if l.page == pm.number]
+    if not page_rows:
+        return None
+    top = r["top"] - 6.0
+    fs = _fences(pm, r["x"], rows)
+    close = [t for t in fs if t >= r["bottom"] - _FENCE_DROP]
+    bottom = (close[0] if close else r["bottom"]) + 2.0
+    above = [l for l in page_rows if l.top < top]
+    band = [l for l in page_rows if top <= l.top <= bottom]
+    if not above or not band:
+        return None
+    # THE BLOCK OPENS THE PAGE. Its first row stands in the top band, so
+    # no part of the writing above it is printed here.
+    if above[0].top > pm.height * _TOP_BAND:
+        return None
+    if _norm(above[-1].plain).upper() != banner:
+        return None
+    if any(_is_prose(l, geom) for l in above + band):
+        return None
+    return {"stamps": above[:-1], "banner": above[-1], "band": band,
+            "rail_x": r["x"]}
+
+
+def _writing_head(pm, rows, dockets: set, geom) -> list:
+    """The head a separate writing prints over itself on ``pm``: the
+    document's own docket set CENTRED above the byline, plus the running
+    head standing over it. [] where the page prints no such row."""
+    page_rows = [l for l in rows if l.page == pm.number]
+    axis = _text_axis(pm, page_rows)
+    _x0, measure = _measure(geom)
+    for i, line in enumerate(page_rows):
+        if line.top > pm.height * _HEAD_TOP_MAX:
+            break
+        flat = _norm(line.plain)
+        if len(flat) > _HEAD_MAX_CHARS:
+            continue
+        if not flat.lower().lstrip("( ").startswith(_DOCKET_OPENERS):
+            continue
+        if _docket_key(flat) not in dockets:
+            continue
+        if abs((line.x0 + line.x1) / 2 - axis) > _HEAD_AXIS_TOL:
+            continue
+        # WHAT STANDS OVER IT is the page's running head or nothing.
+        over = page_rows[:i]
+        if (len(over) <= _HEAD_ABOVE_MAX
+                and all(o.top <= pm.height * _HEAD_ABOVE_TOP
+                        and (o.x1 - o.x0) <= _HEAD_ABOVE_INK * measure
+                        for o in over)):
+            return over + [line]
+        return [line]
+    return []
+
+
+# --------------------------------------------------------------------------
 # the walk
 # --------------------------------------------------------------------------
 
@@ -513,8 +711,11 @@ def read_headmatter_wash(model, geom, **_):
     # reader and drops what it takes outright, so a second record would
     # put the same running head in the Removed box twice. What that pass
     # leaves in the stamp zone is claimed below as the stamp it is.
+    # …and the list runs the WHOLE document, not just the front pages: the
+    # same furniture test decides what a separate writing's own front
+    # matter is, many pages down.
     rows: list = []
-    for pm in model.pages[:_MAX_PAGES]:
+    for pm in model.pages:
         for line in pm.lines:
             if not line.plain.strip():
                 continue
@@ -738,6 +939,73 @@ def read_headmatter_wash(model, geom, **_):
         crit["parties"] = parties
     if case_name:
         crit["case_name"] = case_name
+
+    # ---- the furniture of a CONTINUATION page ---------------------------
+    # A CAPTION THAT RAN OUT OF PAGE carries on under the next page's
+    # running head, and a reader that claims a region inherits its
+    # furniture. Core's late sweep leaves that head standing on a page the
+    # reader claimed — scott's 'Ruth Scott et al. v. Amazon.com, Inc., No.
+    # 103730-9' is swept from pages 3-74 and survives on page 2, where
+    # assembly then opens a one-row ORDER on it — so what stands in the
+    # top band above a continued band is recorded here.
+    for pno, (top, _bottom) in sorted(bands.items()):
+        if pno == 1:
+            continue
+        for line in rows:
+            if line.page != pno or line.id in consumed:
+                continue
+            if line.top >= top or line.top > pages[pno].height * _TOP_BAND:
+                continue
+            dropped.append(m.Dropped(
+                text=_norm(line.plain), prov=m.Prov(pno, (line.id,)),
+                kind="running-head"))
+            consumed.add(line.id)
+
+    # ---- what a SEPARATE WRITING prints over itself ---------------------
+    # Claimed, not moved — see the module docstring. The scan starts below
+    # the last page the caption itself used, so a caption that ran onto
+    # page 2 is never read twice.
+    banner = _norm(banner_rows[0]).upper() if banner_rows else None
+    dockets = {_docket_key(c) for c in docket_cells}
+    dockets |= {_docket_key(t) for _r, t, _y in right_rows
+                if _norm(t).lower().lstrip("( ").startswith(_DOCKET_OPENERS)}
+    dockets.discard("")
+    scan = [l for l in rows if l.id not in consumed]
+    for pm in model.pages[max(bands) if bands else 1:]:
+        block = _reprint_block(pm, scan, find_rail, banner, geom)
+        if block is not None:
+            # THE CLERK'S STAMPS are the same furniture page 1 prints, so
+            # they are recorded the same way, one Dropped per printed row.
+            for line in block["stamps"]:
+                for text in _stamp_runs(line):
+                    dropped.append(m.Dropped(
+                        text=text, prov=m.Prov(line.page, (line.id,)),
+                        kind="stamp"))
+                consumed.add(line.id)
+            # THE CAPTION, recorded COLUMN BY COLUMN. Even an attestation
+            # never joins across the drawn rule — reading order across it
+            # is the very defect this claim removes.
+            band = block["band"]
+            left = [_side(l, block["rail_x"], "L") for l in band]
+            right = [_side(l, block["rail_x"], "R") for l in band]
+            printed = " ".join(
+                _norm(l.plain) for l in
+                [block["banner"]] + [c for c in left if c is not None]
+                + [c for c in right if c is not None])
+            claimed = [block["banner"]] + band
+            dropped.append(m.Dropped(
+                text=printed[:1200],
+                prov=m.Prov(pm.number, tuple(l.id for l in claimed)),
+                kind="superfluous"))
+            consumed.update(l.id for l in claimed)
+            continue
+        head = _writing_head(pm, scan, dockets, geom)
+        if head:
+            dropped.append(m.Dropped(
+                text=" ".join(_norm(l.plain) for l in head)[:1200],
+                prov=m.Prov(pm.number, tuple(l.id for l in head)),
+                kind="superfluous"))
+            consumed.update(l.id for l in head)
 
     # ---- a claim must be TOTAL ------------------------------------------
     # THE CLERK'S STAMPS: two of them, and each is one Dropped row per line
