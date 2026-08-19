@@ -934,3 +934,68 @@ Relates to item 30 (`criteria.attorneys` cannot see a `CaptionBlock`) and to
 ri's cover sheet, which only reached the endmatter because ri could return it
 under the `attorneys` key from `headmatter.read`. A general `endmatter.read`
 seam would serve illappct, ri, haw and the whole two-column endmatter family.
+
+## 40. A title-case byline is only a byline when it is a BARE SURNAME on its whole line — `resolve/bylines.py`
+
+From the ohioctapp port, 2026-08-20, with the tradeoff MEASURED both ways
+(reader popped, so only the grammar varied). Six of Ohio's eight appellate
+districts sign in title case (`Baldwin, J.`, `Hess, J.`, `King, P.J.`), so
+`allow_titlecase_name` looks obviously right — and as the flag stands it is a
+NET LOSS:
+
+    allow_titlecase_name=False -> 45 writings,  9 records unauthored, typed 'order'
+    allow_titlecase_name=True  -> 72 writings,  those 9 authored, +27 PHANTOM writings
+
+The 27 phantoms are the conformed roster every district prints at the FOOT of
+its opinion — `Thomas J. Osowik, P.J.`, `Gene A. Zmuda, J.` — plus inline
+concur lines: `Hoffman, P.J. and`, `Gormley, J. concur.`, `Abele, J. &
+Wilkin, J.: Concur in Judgment and Opinion.`
+
+v1 solved this with two guards in `_appellate`/`ohioctapp`: `_name_ok` required
+a title-case name to be a SINGLE TOKEN, and `_byline_split` declined any split
+that left text over. `titlecase_kind_only` does NOT substitute — it rejects
+`Baldwin, J.` (no kind clause) and admits `Gormley, J. concur.`
+
+A NEW declared flag, so no existing court moves:
+
+    # in BylineGrammar, beside allow_titlecase_name
+    titlecase_bare_surname: bool = False
+
+    # ~line 547, at the two points that consult allow_titlecase_name
+    if not self.g.allow_titlecase_name and not self.g.titlecase_bare_surname \
+            and not is_caps_name(name):
+        return None
+    if self.g.titlecase_bare_surname and not is_caps_name(name) \
+            and (len(name.split()) != 1 or (rest or "").strip(" ,.;:—–")):
+        return None
+
+then `byline=BylineGrammar(style="abbrev", titlecase_bare_surname=True)` in
+`courts/ohioctapp.py`. Expected: 9 records gain their real author (bath, hsbc,
+eldridge, gates, krichbaum, m.m.a., mayle, kent, klingensmith), 0 phantoms.
+
+**Needs a corpus guard run: `neb` declares `allow_titlecase_name` today and
+must not move.** Separately, `cme_fed` carries a pre-existing ALL-CAPS phantom
+(`BOGGS, P.J.` out of its concur roster) that is present with the flag off and
+is untouched by this patch — it wants its own look.
+
+**Sentinel note:** `ohioctapp/bath_v._rudisill` was pinned and then UNPINNED
+on 2026-08-20, because its current `['order']` signature IS this bug — an
+unauthored majority typed as an order. Pin it only after this lands, when it
+should read as a bylined majority. `hsbc_bank_usa_v._pryor` is the same shape
+and is likewise unpinned. This is the 08-19 alaska mistake avoided rather than
+repeated.
+
+## Housekeeping lesson, 2026-08-20 — staging `courts/__init__.py` sweeps in other agents' work
+
+My illappct commit (`e357eec`) staged `centralia/courts/__init__.py`, which
+picked up the `from . import ohioctapp` line a concurrent porter had appended
+while `ohioctapp.py` itself was still untracked. **HEAD could not import the
+courts package at all** until that agent committed its own module
+(`3413854`), which it correctly did.
+
+Rule: when several porters are appending imports, either commit the module
+file together with the registry line, or do not stage `courts/__init__.py`.
+Verify with a clean checkout, not by eye:
+
+    T=$(mktemp -d); git archive HEAD | tar -x -C "$T"
+    (cd "$T" && .venv/bin/python -c "import centralia.courts as C; print(len(C.PROFILES))")

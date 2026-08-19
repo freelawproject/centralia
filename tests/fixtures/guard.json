@@ -7684,6 +7684,171 @@
   "summary": 0,
   "syllabus": 0
  },
+ "ohioctapp/in_re_s.w.": {
+  "attorneys": 0,
+  "criteria": [
+   "decision_date",
+   "docket_number",
+   "lower_court",
+   "parties"
+  ],
+  "hm": 19,
+  "hm_roles": {
+   "caption": 42,
+   "case-info": 6,
+   "citation": 1,
+   "counsel": 7,
+   "court": 2,
+   "date": 1,
+   "docket": 6,
+   "lower-court": 8,
+   "title": 1
+  },
+  "lead_bylined": true,
+  "op_blocks": [
+   75
+  ],
+  "ops": [
+   "majority"
+  ],
+  "residual": 0,
+  "status": "valid",
+  "summary": 0,
+  "syllabus": 0
+ },
+ "ohioctapp/quinlan-hall_v._sts._peter__paul_cemetery_assn._inc.": {
+  "attorneys": 0,
+  "criteria": [
+   "decision_date",
+   "disposition",
+   "docket_number",
+   "lower_court",
+   "parties"
+  ],
+  "hm": 28,
+  "hm_roles": {
+   "author": 2,
+   "caption": 42,
+   "case-info": 2,
+   "citation": 1,
+   "counsel": 3,
+   "court": 6,
+   "date": 1,
+   "disposition": 9,
+   "docket": 2,
+   "lower-court": 3,
+   "title": 2
+  },
+  "lead_bylined": false,
+  "op_blocks": [
+   33
+  ],
+  "ops": [
+   "order"
+  ],
+  "residual": 0,
+  "status": "valid",
+  "summary": 0,
+  "syllabus": 0
+ },
+ "ohioctapp/state_v._avery": {
+  "attorneys": 0,
+  "criteria": [
+   "disposition",
+   "docket_number",
+   "lower_court",
+   "parties"
+  ],
+  "hm": 22,
+  "hm_roles": {
+   "author": 2,
+   "caption": 12,
+   "citation": 1,
+   "counsel": 2,
+   "court": 3,
+   "disposition": 8,
+   "docket": 2,
+   "lower-court": 3,
+   "panel": 1,
+   "title": 3
+  },
+  "lead_bylined": true,
+  "op_blocks": [
+   40
+  ],
+  "ops": [
+   "majority"
+  ],
+  "residual": 0,
+  "status": "valid",
+  "summary": 0,
+  "syllabus": 0
+ },
+ "ohioctapp/state_v._combs": {
+  "attorneys": 0,
+  "criteria": [
+   "decision_date",
+   "docket_number",
+   "parties"
+  ],
+  "hm": 10,
+  "hm_roles": {
+   "caption": 6,
+   "citation": 1,
+   "counsel": 3,
+   "court": 3,
+   "date": 1,
+   "docket": 1,
+   "lower-court": 1,
+   "title": 1
+  },
+  "lead_bylined": true,
+  "op_blocks": [
+   56
+  ],
+  "ops": [
+   "majority"
+  ],
+  "residual": 0,
+  "status": "valid",
+  "summary": 0,
+  "syllabus": 0
+ },
+ "ohioctapp/state_v._wall": {
+  "attorneys": 0,
+  "criteria": [
+   "decision_date",
+   "disposition",
+   "docket_number",
+   "judges",
+   "lower_court",
+   "parties"
+  ],
+  "hm": 25,
+  "hm_roles": {
+   "caption": 5,
+   "citation": 1,
+   "counsel": 3,
+   "court": 3,
+   "date": 1,
+   "disposition": 2,
+   "docket": 1,
+   "lower-court": 3,
+   "panel": 2,
+   "title": 1
+  },
+  "lead_bylined": true,
+  "op_blocks": [
+   165
+  ],
+  "ops": [
+   "majority"
+  ],
+  "residual": 0,
+  "status": "valid",
+  "summary": 0,
+  "syllabus": 0
+ },
  "pa/commonwealth_v._foster_j._aplt.": {
   "attorneys": 0,
   "criteria": [
