@@ -113,6 +113,12 @@ _RIGHT_COL_MIN = 0.60          # of the measure — where the role column sits
 # and are left in the opinion where the court put them.
 _COUNSEL_LABEL = re.compile(
     r"^(?:COUNSEL|ATTORNEYS?|BRIEFS?)\s+FOR\b|^COUNSEL\s*:|^APPEARANCES", re.I)
+# How far back the closing block may reach. Measured: it runs over onto a
+# second page on the records with many amici, and never further.
+_CLOSING_PAGES = 3
+# An appearance row is short — a name, a title, a firm. The court's own prose
+# fills the measure.
+_COUNSEL_ROW_MAX = 70
 
 
 # THE CRITERIA FIELD NAMES ARE THE MODEL'S. `Criteria` (centralia/model.py)
@@ -239,23 +245,59 @@ def read_headmatter_ky(model, geom, **_):
 def _read_closing_counsel(ctx, model, finder) -> None:
     """The appearances Kentucky prints at the END of the paper.
 
-        COUNSEL FOR APPELLANTS:
-        Courtney L. Graham
-        Strause Law Group PLLC
+        COUNSEL FOR APPELLANT, RUSSELL M. COLEMAN,
+        IN HIS OFFICIAL CAPACITY AS ATTORNEY GENERAL
+        OF THE COMMONWEALTH OF KENTUCKY:
+        Russell M. Coleman
+        Attorney General of Kentucky
+        …
+        COUNSEL FOR APPELLEE,
+        JEFFERSON COUNTY BOARD OF EDUCATION:
+        …
 
-        COUNSEL FOR APPELLEE:
-        Mark Edward Edison
+    THE BLOCK IS NOT ONE PAGE. On a record with many amici it runs over:
+    `russell_coleman_in_his_official_capacity_as_attorney_general_of_the`
+    opens it on page 56 at top 427.3 and finishes on page 57, and reading
+    only the last page took the second half and left the first in the body
+    (the reviewer: "missed part of the end matter and only pulled out some
+    of it"; the quality sweep: `counsel-in-body x3`). So the walk starts at
+    the EARLIEST label with no prose after it and runs to the end of the
+    document.
 
-    Claimed from the first label DOWN, and no further up: the rows above it
-    ('Lambert, C.J.; … JJ., sitting.' and 'All concur. Goodwine, J., not
-    sitting.') are the court's own closing lines — the panel and the vote —
-    and they belong to the writing, not to a roster.
+    It reaches no further up than that. The rows above are the court's own
+    closing lines — the vote line ('Lambert, C.J.; and Conley, J., join.',
+    set on the paragraph indent) and the writing's last paragraph — and they
+    belong to the writing, not to a roster.
     """
-    pm = model.pages[-1]
-    lines = [l for l in sorted(pm.lines, key=lambda l: (l.top, l.x0))
-             if l.plain.strip() and not finder.kind(pm, l)]
-    start = next((i for i, l in enumerate(lines)
-                  if _COUNSEL_LABEL.match(_norm(l.plain))), None)
+    pages = model.pages[-_CLOSING_PAGES:] if len(model.pages) > _CLOSING_PAGES \
+        else model.pages
+    lines: list = []
+    for pm in pages:
+        lines.extend(l for l in sorted(pm.lines, key=lambda l: (l.top, l.x0))
+                     if l.plain.strip() and not finder.kind(pm, l))
+    if not lines:
+        return
+    body_x0 = min(l.x0 for l in lines)
+
+    def _is_prose(line) -> bool:
+        """A row of the court's own writing: it opens on the paragraph
+        indent, or it fills the measure. An appearance is a short row at the
+        rail — a name, a title, a firm."""
+        text = _norm(line.plain)
+        return (line.x0 > body_x0 + 6.0) or len(text) > _COUNSEL_ROW_MAX
+
+    # THE EARLIEST LABEL WITH NOTHING BUT APPEARANCES BELOW IT. Taking the
+    # first label outright would swallow a 'COUNSEL FOR' that the court
+    # happens to quote in its own text; requiring the tail to be clean is
+    # what makes the run the closing block and not a phrase inside a writing.
+    start = None
+    for i, line in enumerate(lines):
+        if not _COUNSEL_LABEL.match(_norm(line.plain)):
+            continue
+        if any(_is_prose(l) for l in lines[i:]):
+            continue
+        start = i
+        break
     if start is None:
         return
     for line in lines[start:]:

@@ -107,9 +107,11 @@ from __future__ import annotations
 import re
 
 from .. import model as m
+from ..resolve.bylines import BylineParser
 from ..resolve.evidence import NOTHING, decider
 from ..resolve.footnotes import line_markup
 from ..resolve.furniture import FurnitureFinder
+from . import get_profile
 
 STYLE = "clerk's-release + centred cover"
 
@@ -192,6 +194,30 @@ _MARK = re.compile(r"[\s.,:;*†‡\d]+$")
 # shares a line with.
 _FURNITURE_SKIP = frozenset(("folio", "running-foot", "gutter", "filler"))
 
+# ------------------------------------------------- the reprinted covers ---
+# HOW FAR A REPRINTED COVER MAY RUN. Measured over all 50 records: every one
+# of the 88 candidate pages carries its writing's byline on the SAME page, so
+# a run is one page. Two pages of headroom, and a run that reaches the cap
+# without meeting a byline is not this shape and nothing is claimed.
+_REPRINT_PAGES = 3
+# A COVER ROW IS CENTRED; PROSE IS NOT — but prose is JUSTIFIED to the full
+# measure, so its mid-point lands on the axis too. Measured: the widest cover
+# row is 0.76 of the sheet (the origin, and a long party row) and the body
+# runs 72.0-540.2 = 0.765 with its first line indented to 108.0. So a run is
+# ABORTED on a row that is full measure AND either opens on the paragraph
+# indent or opens lower-case — no prose can be inside a claimed run.
+_PROSE_WIDTH = 0.74
+_PARA_INDENT = 108.0
+_INDENT_TOL = 4.0
+# THE BODY RAIL, measured: every byline in the corpus stands at 71.8-72.2 and
+# no cover row does.
+_RAIL = 72.0
+_RAIL_TOL = 6.0
+# HOW MANY ROWS A COVER MAY HOLD. Measured: 6 on most reprints and 7 where
+# the origin wraps (vinton_harbor page 23). Three rows of headroom, and a run
+# that outgrows it is not a cover.
+_MAX_COVER_ROWS = 10
+
 
 def _norm(text: str) -> str:
     return " ".join(text.split())
@@ -231,6 +257,9 @@ def read_headmatter_la(model, geom, **_):
     _read_cover(ctx, cover, finder)
     if not ctx.crit.get("docket_number"):
         return NOTHING
+    # …and the cover the court reprints over every separate writing below.
+    _read_reprints(ctx, model, cover, (ctx.crit.get("court") or "").upper(),
+                   finder)
     ctx.crit["headmatter_style"] = STYLE
     return ctx.result()
 
@@ -460,6 +489,118 @@ def _read_cover(ctx, pm, finder) -> None:
 
 
 # --------------------------------------------------------------------------
+
+def _read_reprints(ctx, model, cover, banner, finder) -> None:
+    """Claim the cover Louisiana reprints over EVERY separate writing.
+
+    Each separate writing opens on a fresh page that repeats the whole
+    cover — masthead, docket, caption, origin — above its byline
+    (vinton_harbor prints it on pages 19, 21, 23 and 24). Left unclaimed
+    those rows render as the writing's first content, which is what the
+    reviewer saw. A reader's `consumed` set is subtracted from the segment
+    stream BEFORE assembly (pipeline.py:474-484), so claiming them here is
+    not reaching into a writing: the rows never enter one.
+
+    Recorded as `Dropped(kind="superfluous")`, the kind core already uses
+    for cover apparatus a court prints twice — every row is a verbatim
+    repeat of the cover that renders whole at the head of the document, so
+    nothing court-written is lost and core still mines the drop for
+    criteria. One `Dropped` PER PAGE: a `Dropped` carries a single page in
+    its prov.
+    """
+    if not banner:
+        return
+    parser = BylineParser(get_profile("la").byline)
+    page_no = cover.number + 1
+    while page_no <= len(model.pages):
+        block = _reprint_block(model, page_no, banner, finder, parser)
+        if not block:
+            page_no += 1
+            continue
+        for page in sorted({l.page for l in block}):
+            ctx.drop([l for l in block if l.page == page], "superfluous")
+        page_no = max(l.page for l in block) + 1
+
+
+def _reprint_block(model, page_no, banner, finder, parser) -> list:
+    """The reprinted cover that OPENS on ``page_no``, or [].
+
+    GEOMETRY IDENTIFIES IT, not wording: the page's first content row is
+    centred on the axis AND is the very row THIS document's own lead cover
+    printed as the court naming itself. The run then closes at the next
+    BYLINE — the same landmark that ends the lead walk — which stands at
+    the body rail while every cover row is centred.
+
+    THE ROW COUNT IS NOT FIXED and no top coordinate is keyed on: page 23
+    of vinton_harbor wraps its origin onto a second row ('Parish of
+    Calcasieu') that the other three covers fit on one line, and sets the
+    whole cover 32pt higher.
+    """
+    pages = {pm.number: pm for pm in model.pages}
+    pm = pages.get(page_no)
+    if pm is None:
+        return []
+    rows = _rows(pm, finder)
+    if not rows:
+        return []
+    head = sorted(rows[0], key=lambda l: l.x0)
+    mid = (head[0].x0 + max(l.x1 for l in head)) / 2
+    if abs(mid - pm.width / 2) > _AXIS_TOL:
+        return []
+    if _norm(" ".join(l.plain for l in head)).upper() != banner:
+        return []
+    block: list = []
+    last = min(page_no + _REPRINT_PAGES, len(model.pages))
+    for page in range(page_no, last + 1):
+        for row in _rows(pages[page], finder):
+            pieces = sorted(row, key=lambda l: l.x0)
+            text = _norm(" ".join(l.plain for l in pieces))
+            x1 = max(l.x1 for l in pieces)
+            width = (x1 - pieces[0].x0) / pm.width
+            centred = abs((pieces[0].x0 + x1) / 2 - pm.width / 2) <= _AXIS_TOL
+            # THE RAIL CLOSES THE COVER, and the AXIS says which rail row is
+            # the byline: every cover row is centred, and a byline is set
+            # from the rail to wherever its words end (mid-point 163-289
+            # against the 306 axis on vinton_harbor's four reprints). The
+            # origin row starts at 74.9 on page 19 of that record — inside
+            # the rail's tolerance — and it is the axis, not the rail alone,
+            # that keeps it in the cover where it belongs.
+            if pieces[0].x0 <= _RAIL + _RAIL_TOL and not centred:
+                if _is_byline(text, parser):
+                    return block      # the writing starts HERE, not above
+                return []
+            if width >= _PROSE_WIDTH \
+                    and (abs(pieces[0].x0 - _PARA_INDENT) <= _INDENT_TOL
+                         or text[:1].islower()):
+                return []             # prose: NOT this shape, claim nothing
+            block.extend(pieces)
+            if len({l.top for l in block}) > _MAX_COVER_ROWS:
+                return []             # too long to be a cover
+    return []
+
+
+def _is_byline(text: str, parser) -> bool:
+    """Is this row one of the forms Louisiana signs a writing with?
+
+    THREE GRAMMARS, because the court uses three and the shared parser is
+    deliberately narrower than the paper. It takes the participle forms
+    ('WEIMER, C.J., concurring in part and dissenting in part.',
+    'PENZATO, Justice Pro Tempore, concurring.') and the bare ones
+    ('McCALLUM, J.'), but NOT the finite-verb form the court also signs
+    with ('Hughes, J., concurs in part and dissents in part.' — vinton_harbor
+    page 21, 'GRIFFIN, J., dissents and assigns reasons.' —
+    state_ex_rel._darrell_j._robinson page 8), which the la profile keeps out
+    of the grammar on purpose so the Clerk's vote lines are not read as
+    bylines. That form is the same printed shape as those vote lines, so it
+    is recognized here by the very pattern that reads them (`_VOTE`), and
+    only ever to CLOSE a run — never to open a writing.
+    """
+    bare = _MARK.sub("", text)
+    return (parser.parse(text) is not None
+            or parser.parse(bare) is not None
+            or _BYLINE.match(bare) is not None
+            or _VOTE.match(text) is not None)
+
 
 def _rows(pm, finder) -> list[list]:
     """The page's rows, furniture removed, pieces of one printed line kept

@@ -178,6 +178,38 @@ def para_marker_len(text: str) -> int:
     return i
 
 
+def _tail_index(text: str, title: str, ntokens: int) -> int:
+    """Where the tail begins in TEXT, counted in the ORIGINAL spacing.
+
+    `_reversed` rebuilds the tail as `" ".join(tokens[consumed:])`, which
+    collapses every run of whitespace, so `len(text) - len(tail)` overshoots
+    the real offset by exactly the number of spaces collapsed — and callers
+    use that number as a character index into the uncollapsed row
+    (`assemble.py` slices the row at `byline.end`). pa sets its decided-date
+    in a second column, so the row arrives double-spaced
+    ('JUSTICE MUNDY DECIDED:  APRIL 30, 2026') and the byline ate one
+    character of it: author 'JUSTICE MUNDY D', first body paragraph
+    'ECIDED:  APRIL 30, 2026'. Any court whose byline row carries a run of
+    spaces in its tail was exposed.
+
+    The index is recomputed by walking the row itself: skip `ntokens`
+    whitespace-separated tokens, then the separators the tail is lstripped
+    of.
+    """
+    body = text[len(title):]
+    base = len(title) + (len(body) - len(body.lstrip()))
+    rest = body.strip()
+    i = 0
+    for _ in range(ntokens):
+        while i < len(rest) and rest[i].isspace():
+            i += 1
+        while i < len(rest) and not rest[i].isspace():
+            i += 1
+    while i < len(rest) and (rest[i].isspace() or rest[i] == ","):
+        i += 1
+    return base + i
+
+
 class BylineParser:
     _ABBREV_LIST = re.compile(
         r"^(?:[A-Z][A-Za-z'’‑-]+,\s*(?:[A-Z]\.\s*){1,4}"
@@ -775,7 +807,7 @@ class BylineParser:
             if low.startswith(("decided:", "filed:", "argued:",
                                "decided ", "filed ")):
                 return Byline(name, title.title(), None,
-                              len(text) - len(after))
+                              _tail_index(text, title, consumed))
             # The kind clause may carry a modifier ('specially concurring.',
             # 'concurring in part and dissenting in part.') — a SHORT tail
             # containing the participle is the kind; a long prose tail is not,
@@ -797,7 +829,8 @@ class BylineParser:
                 # ('for the court to decide') is not a marker.
                 if tail and tail[:1] not in ".:":
                     continue
-                end = len(text) - len(after) + len(mk) + (1 if tail else 0)
+                end = (_tail_index(text, title, consumed)
+                       + len(mk) + (1 if tail else 0))
                 return Byline(name, title.title(), None, end)
             kind = None
             # The passive 'joined by' lists joiners exactly like 'with whom'
@@ -817,7 +850,7 @@ class BylineParser:
                     # kind clause.
                     return Byline(name, title.title(),
                                   after.strip(" .,"), len(text))
-                end = len(text) - len(after) + stop + 1
+                end = _tail_index(text, title, consumed) + stop + 1
                 return Byline(name, title.title(),
                               after[:stop].strip(" .,"), end)
             verb = low.split()[0] if low.split() else ""

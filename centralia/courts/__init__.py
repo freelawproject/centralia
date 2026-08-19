@@ -623,3 +623,7 @@ from . import nev                                            # noqa: E402,F401
 from . import la                                             # noqa: E402,F401
 from . import neb                                            # noqa: E402,F401
 from . import nm                                             # noqa: E402,F401
+from . import pa                                             # noqa: E402,F401
+from . import sc                                             # noqa: E402,F401
+from . import sd                                             # noqa: E402,F401
+from . import ri                                             # noqa: E402,F401

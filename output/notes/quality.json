@@ -345,10 +345,10 @@
 },
 "coloctapp": {
 "ab": 1.0,
-"g": "A",
+"g": "B",
 "n": 42,
-"s": 0.02,
-"sign": 1.0
+"s": 0.64,
+"sign": null
 },
 "conn": {
 "ab": 0.84,
@@ -690,7 +690,7 @@
 "ab": 0.96,
 "g": "A",
 "n": 50,
-"s": 0.2,
+"s": 0.16,
 "sign": 1.0
 },
 "lactapp": {
@@ -1033,7 +1033,7 @@
 "ab": 0.96,
 "g": "A",
 "n": 50,
-"s": 0.16,
+"s": 0.23,
 "sign": 1.0
 },
 "njd": {
@@ -17353,9 +17353,11 @@
 "s": 0.0
 },
 "coloctapp/elken_v._bain": {
-"f": [],
-"g": "A",
-"s": 0.0
+"f": [
+"decap\u00d71"
+],
+"g": "B",
+"s": 2.0
 },
 "coloctapp/fawcett_v._lopez": {
 "f": [],
@@ -17380,9 +17382,11 @@
 "s": 0.5
 },
 "coloctapp/in_re_marriage_of_teruel_de_torres": {
-"f": [],
-"g": "A",
-"s": 0.0
+"f": [
+"decap\u00d71"
+],
+"g": "B",
+"s": 2.0
 },
 "coloctapp/inc.": {
 "f": [],
@@ -17390,9 +17394,11 @@
 "s": 0.0
 },
 "coloctapp/lt_income_llc_v._purnell": {
-"f": [],
-"g": "A",
-"s": 0.0
+"f": [
+"decap\u00d71"
+],
+"g": "B",
+"s": 2.0
 },
 "coloctapp/marriage_of_allison": {
 "f": [],
@@ -17435,14 +17441,18 @@
 "s": 0.0
 },
 "coloctapp/nesjan_v._j__a_distributing_inc.": {
-"f": [],
-"g": "A",
-"s": 0.0
+"f": [
+"decap\u00d71"
+],
+"g": "B",
+"s": 2.0
 },
 "coloctapp/nesjan_v._j_a_distributing_inc.": {
-"f": [],
-"g": "A",
-"s": 0.0
+"f": [
+"decap\u00d71"
+],
+"g": "B",
+"s": 2.0
 },
 "coloctapp/peo_v._woo": {
 "f": [],
@@ -17450,9 +17460,11 @@
 "s": 0.0
 },
 "coloctapp/people_in_interest_of_a.f.": {
-"f": [],
-"g": "A",
-"s": 0.0
+"f": [
+"decap\u00d71"
+],
+"g": "B",
+"s": 2.0
 },
 "coloctapp/people_in_interest_of_ferguson": {
 "f": [],
@@ -17460,9 +17472,11 @@
 "s": 0.0
 },
 "coloctapp/people_in_interest_of_h.l.b.": {
-"f": [],
-"g": "A",
-"s": 0.0
+"f": [
+"decap\u00d71"
+],
+"g": "B",
+"s": 2.0
 },
 "coloctapp/people_in_interest_of_o.j.r.": {
 "f": [],
@@ -17475,9 +17489,11 @@
 "s": 0.0
 },
 "coloctapp/people_v._berumen": {
-"f": [],
-"g": "A",
-"s": 0.0
+"f": [
+"decap\u00d71"
+],
+"g": "B",
+"s": 2.0
 },
 "coloctapp/people_v._brennan": {
 "f": [],
@@ -17485,9 +17501,11 @@
 "s": 0.0
 },
 "coloctapp/people_v._casper": {
-"f": [],
-"g": "A",
-"s": 0.0
+"f": [
+"decap\u00d71"
+],
+"g": "B",
+"s": 2.0
 },
 "coloctapp/people_v._chronis": {
 "f": [],
@@ -17515,19 +17533,25 @@
 "s": 0.0
 },
 "coloctapp/people_v._malcolm": {
-"f": [],
-"g": "A",
-"s": 0.0
+"f": [
+"decap\u00d71"
+],
+"g": "B",
+"s": 2.0
 },
 "coloctapp/people_v._romero": {
-"f": [],
-"g": "A",
-"s": 0.0
+"f": [
+"decap\u00d71"
+],
+"g": "B",
+"s": 2.0
 },
 "coloctapp/people_v._wilson": {
-"f": [],
-"g": "A",
-"s": 0.0
+"f": [
+"decap\u00d71"
+],
+"g": "B",
+"s": 2.0
 },
 "coloctapp/shive_v._24_hour_fitness": {
 "f": [],
@@ -17535,9 +17559,11 @@
 "s": 0.0
 },
 "coloctapp/smith_v._city_and_county_of_denver": {
-"f": [],
-"g": "A",
-"s": 0.0
+"f": [
+"decap\u00d71"
+],
+"g": "B",
+"s": 2.0
 },
 "coloctapp/sommers_v._marketplace_realty_llc": {
 "f": [
@@ -26858,11 +26884,9 @@
 "s": 0.0
 },
 "la/justin_irwin_v._john_bradley_brent": {
-"f": [
-"folio-leak\u00d71"
-],
-"g": "B",
-"s": 1.0
+"f": [],
+"g": "A",
+"s": 0.0
 },
 "la/kelly_o._orgeron_v._edward_j._orgeron_jr.": {
 "f": [
@@ -26976,11 +27000,9 @@
 "s": 0.0
 },
 "la/state_of_louisiana_v._maya_jones": {
-"f": [
-"folio-leak\u00d71"
-],
-"g": "B",
-"s": 1.0
+"f": [],
+"g": "A",
+"s": 0.0
 },
 "la/state_of_louisiana_v._michael_steven_white": {
 "f": [],
@@ -36753,17 +36775,17 @@
 },
 "nj/a-46-24_in_the_matter_of_rutgers_the_state_university_of_new_jersey_and": {
 "f": [
-"hyph\u00d71"
+"hyph\u00d72"
 ],
 "g": "B",
-"s": 0.5
+"s": 1.0
 },
 "nj/a-46-24_in_the_matter_of_rutgers_the_state_university_of_new_jersey_and_1": {
 "f": [
-"hyph\u00d71"
+"hyph\u00d72"
 ],
 "g": "B",
-"s": 0.5
+"s": 1.0
 },
 "nj/a-47-14_state_v._gerald_w._butler": {
 "f": [
@@ -36925,14 +36947,18 @@
 "s": 0.0
 },
 "nj/mist_pharmaceuticals_llc_v._berkley_insurance_company": {
-"f": [],
-"g": "A",
-"s": 0.0
+"f": [
+"hyph\u00d71"
+],
+"g": "B",
+"s": 0.5
 },
 "nj/russell_forde_hornor_v._upper_freehold_regional_board_of_education": {
-"f": [],
-"g": "A",
-"s": 0.0
+"f": [
+"counsel-in-body\u00d78"
+],
+"g": "B",
+"s": 2.0
 },
 "nj/salve_chipola_iii_v._sean_flannery_2": {
 "f": [
