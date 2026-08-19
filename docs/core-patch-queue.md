@@ -401,3 +401,64 @@ arizctapp pins failed only on `opN_blocks` roughly halving (129->67,
 281->149, 220->109, 169->93, 136->87, 89->50, 71->45). ops/hm/criteria/
 attorneys/summary/syllabus/residual/status all held, so that is paragraph
 re-uniting (representation-only) and those 12 pins were re-signed on 08-20.
+
+## 19. A GUESSED caption band eats body mass and blocks signature demotion — `resolve/assemble.py`
+
+Diagnosed and measured by the dc agent on 2026-08-20, with a corpus-wide
+blast radius. NOT applied: four porters held the tree.
+
+Core's two signature demotions (`terminal_author`, ~763-793, and the
+end-signature cluster, ~798-812) each require `body_before >= 10` lines, and
+each discounts page-1 segments falling inside `caption_band`. Where a court
+draws no caption rules to measure, `captions.py:79` FALLS BACK TO A GUESS —
+`band = (60.0, page_height * 0.55)` = (60.0, 435.6) — and on a short order
+that guess reaches into the body: `dc/in_re_correa` opens its first body
+paragraph at top 388.07. Ten of its 18 body lines are discounted,
+`body_before = 8 < 10`, the demotion never fires, and the trailing
+`PER CURIAM` opens a SECOND writing with ZERO blocks.
+
+The patch, gated so it can only affect documents whose headmatter a court
+reader actually claimed:
+
+    # ~line 763, above `terminal_author = None`
+    # A CLAIMED HEADMATTER LEAVES NO CAPTION APPARATUS BELOW IT. The band is
+    # a GUESS where the court draws no caption rules — captions.py falls back
+    # to (60.0, 55% of the page) — and on a short order that guess reaches
+    # into the body: dc's one-page bar order opens its first paragraph at top
+    # 388.1 of a 792pt page.
+    _cap_disc = None if headmatter_claimed else caption_band
+
+then substitute `_cap_disc` for `caption_band` AT THE TWO BODY-MASS COUNTS
+ONLY — `body_before` (~775-778) and `_body_before` (~800-803). Nothing else.
+
+**Measured over all 4,972 PDFs of the 84 reader courts:** the band
+mis-excludes body mass across the `>= 10` floor on 26 files; the
+`headmatter_claimed` gate reduces that to 9; of those only 4 change their
+writing signature, and all 4 become CORRECT:
+
+    dc/in_re_correa        order ''+per-curiam(0 blocks) -> per-curiam 4 blocks
+    dc/in_re_kester        order ''+per-curiam(0)         -> per-curiam 3
+    dc/in_re_tucker_jr.    order ''+per-curiam(0)         -> per-curiam 4
+    cadc/in_re_donald_trump_1  order ''+per-curiam(2)     -> per-curiam 8
+
+The cadc change AGREES WITH ITS v1 ORACLE, which reads that record as one
+writing. Five more files flip a count without changing their signature
+(cadc/joe_neguse, fla/equal_ground, nh/atl._anesthesia,
+sc/state_v._john_joseph_erb, wis/planned_parenthood). Nothing is lost in any
+of the four: the `PER CURIAM` row stays as the writing's last block and
+still supplies the author. Proof driver and flip scan:
+`scratchpad/dc-fixes/patched.py`, `flipscan.py`, `flips.jsonl`. Caveat
+recorded by the agent: `wis` was held by another porter, so its baseline may
+shift — re-verify that one row.
+
+**Do not pin `dc/in_re_kester` until this lands** — its signature today is
+the bug. After the patch, pin these three (one per dc format):
+`dc/allen_v._united_states` (axis slip, announced concurrence-in-part),
+`dc/in_re_kester` (rail bar order, head-margin stamp, page-crossing
+sentence), `dc/in_re_meta_platforms_inc.` (an `in re` slip whose docket is
+CENTRED, so wording would misroute it where geometry does not). Same three
+stems for a new `"dc"` key in `tests/criteria_manifest.py`.
+
+Note `dc/in_re_kester` becomes over-split only AFTER the margin-stamp fix
+landed: dropping the 1-line stamp segment took its `body_before` from 10 to
+9, across the same floor. Same defect, same patch.

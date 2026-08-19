@@ -144,6 +144,14 @@ _AXIS_TOL = 12.0                # 'No. 24-CO-0716' centres 306.0±1.0 on the
 _CENTRED_WIDTH_MAX = 0.72
 # The counsel indent: 108.0 against a 72.0 rail on every one of the 30.
 _INDENT_MIN = 18.0
+# THE HEAD-MARGIN STAMP'S TWO GUARDS. Page 1 establishes the type block (its
+# topmost row stands at 75.35 on all 30 records); a row on a later page
+# standing above that line is outside the measure. It must also STAND OFF
+# from the page's first row of text by more than 1.5x that page's own
+# leading (29.6pt against a 16.1pt lead on the two records that print one)
+# and reach no more than half the measure (95.7pt of 468.0).
+_STAMP_STANDOFF = 1.5
+_STAMP_WIDTH_MAX = 0.5
 
 # 'No. 24-CO-0716' / 'Nos. 18-CF-0686 & 25-CO-0349' (minor) / 'No. 26-BG-0060'
 _DOCKET = re.compile(r"^Nos?\.\s+(\S.*)$")
@@ -294,6 +302,10 @@ def read_headmatter_dc(model, geom, **_):
 
     reader = _read_order if style == "rail bar order" else _read_slip
     reader(rows, texts, dock, ctx, body_x0)
+    # THE HEAD-MARGIN STAMP is furniture of the same class as a running
+    # head, on every page the paper reaches. Recorded, never silently cut.
+    for stamp in _margin_stamps(model, finder, body_x0):
+        ctx.drop(stamp, "running-head")
     if not ctx.crit.get("docket_number"):
         return NOTHING
     return ctx.result()
@@ -519,6 +531,59 @@ def _emit_apparatus(ctx, groups: list, body_x0: float) -> None:
         runs.append(cur)
     for run in runs + right:
         ctx.emit(run, "case-info", False)
+
+
+def _margin_stamps(model, finder, body_x0: float) -> list[list]:
+    """THE DOCKET THE COURT STAMPS IN EVERY LATER PAGE'S HEAD MARGIN.
+
+    The bar order repeats its docket above the type block of every page
+    after the first — 'No. 26-BG-0060' at top 61.2 where page 1's own
+    topmost row stands at 75.35. It is stationery in exactly the sense a
+    running head is, and core cannot see it: the stamp is set at BODY SIZE
+    (14.0) at the rail, so no reduced-type test reaches it, and on a
+    two-page order its top-band count can never clear core's repeat floor
+    of 0.4 x n_pages, because page 1 prints the same docket at top 183.8 —
+    below the 0.22 band core learns heads in. Left in the stream it becomes
+    a segment of its own between two halves of one sentence and renders as
+    a heading inside the prose ('... during the' / 'No. 26-BG-0060' /
+    'period of suspension ...' — kester, alpert).
+
+    Read by POSITION, never by the docket's text: the row stands ABOVE the
+    measure page 1 establishes, stands OFF from the page's first text row
+    by more than that page's own leading, and is short. Measured over all
+    30 records those three tests take exactly the two stamps and nothing
+    else — every other row above the measure on a later page is the folio
+    core already drops.
+    """
+    pm0 = model.pages[0]
+    live0 = [l for l in pm0.lines
+             if l.plain.strip() and not finder.kind(pm0, l)]
+    if not live0:
+        return []
+    measure_top = min(l.top for l in live0)
+    out: list[list] = []
+    for pm in model.pages[1:]:
+        live = [l for l in pm.lines
+                if l.plain.strip() and not finder.kind(pm, l)]
+        tops = sorted({round(l.top, 0) for l in live})
+        # THE PAGE'S OWN LEADING, measured on the page: the stand-off is a
+        # ratio against it, so a court resetting its leading needs no edit.
+        gaps = [b - a for a, b in zip(tops, tops[1:]) if b - a > 2.0]
+        lead = min(gaps) if gaps else 0.0
+        for key in tops:
+            if key >= measure_top - 3.0:
+                break               # inside the measure: this is the text
+            below = [t for t in tops if t > key + 2.0]
+            if not lead or not below:
+                continue
+            if below[0] - key <= lead * _STAMP_STANDOFF:
+                continue            # flush with the text block, so content
+            row = [l for l in live if abs(l.top - key) <= 1.5]
+            width = max(l.x1 for l in row) - min(l.x0 for l in row)
+            if width > (pm.width - 2 * body_x0) * _STAMP_WIDTH_MAX:
+                continue
+            out.append(sorted(row, key=lambda l: l.x0))
+    return out
 
 
 def _row_text(group: list) -> str:
