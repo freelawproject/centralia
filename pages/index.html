@@ -26,7 +26,7 @@
   .row { display:flex; gap:14px; flex-wrap:wrap; align-items:flex-end; margin-bottom:14px }
   label { display:block; font-size:12px; text-transform:uppercase; letter-spacing:.06em;
           color:var(--mut); margin-bottom:5px }
-  select, input[type=url] { font:inherit; padding:7px 9px; border:1px solid var(--line);
+  select { font:inherit; padding:7px 9px; border:1px solid var(--line);
           border-radius:6px; background:var(--bg); color:var(--ink); min-width:230px }
   button { font:inherit; padding:7px 13px; border:1px solid var(--line); border-radius:6px;
            background:var(--panel); color:var(--ink); cursor:pointer }
@@ -82,15 +82,6 @@
   <div id="drop">
     <strong>Drop a court PDF here</strong> — or click to pick one
     <input type="file" id="file" accept="application/pdf" class="hide">
-  </div>
-
-  <div class="row" style="margin-top:14px">
-    <div style="flex:1">
-      <label for="url">…or fetch a PDF by URL</label>
-      <input type="url" id="url" style="width:100%"
-             placeholder="https://… (only works if that server sends CORS headers — most court sites do not)">
-    </div>
-    <button id="fetchbtn" disabled>Fetch</button>
   </div>
 
   <div id="result" class="hide">
@@ -260,22 +251,6 @@ for (const b of document.querySelectorAll(".sample")) {
         b.dataset.pdf.split("/").pop());
   };
 }
-
-$("fetchbtn").onclick = async () => {
-  const u = $("url").value.trim();
-  if (!u) return;
-  log(`fetching ${u} …`);
-  try {
-    const r = await fetch(u);
-    if (!r.ok) throw new Error(`HTTP ${r.status}`);
-    const buf = new Uint8Array(await r.arrayBuffer());
-    run(buf, $("court").value, u.split("/").pop() || "fetched.pdf");
-  } catch (e) {
-    log(`fetch blocked: ${e.message}`, "e");
-    log("this is almost always CORS — the court's server has to opt in with " +
-        "Access-Control-Allow-Origin, and they don't. Download the PDF and drop it above.", "d");
-  }
-};
 
 $("download").onclick = () => {
   const a = document.createElement("a");

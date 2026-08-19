@@ -126,6 +126,7 @@ def read_headmatter_miss(model, geom, **_):
         first = pieces[0]
 
         if _PARA.match(_norm(first.plain)) or _BYLINE.match(text):
+            ctx.flush_ladder()
             break                       # the paper begins
         if _MASTHEAD.match(text):
             ctx.crit.setdefault("court", text)
@@ -140,11 +141,13 @@ def read_headmatter_miss(model, geom, **_):
             continue
         if _PANEL.match(text):
             in_ladder = False
+            ctx.flush_ladder()
             ctx.crit.setdefault("panel_line", text)
             ctx.emit(pieces, "panel")
             continue
 
-        # A LADDER ROW: a label at the rail, its value out at 290.
+        # A LADDER ROW: a label at the rail, its value out at 290. THE TWO
+        # COLUMNS ARE KEPT AS TWO COLUMNS — see `_ladder` below.
         label = first if (first.x0 <= _LABEL_MAX_X0
                           and _norm(first.plain).endswith(":")) else None
         if label is not None:
@@ -155,16 +158,17 @@ def read_headmatter_miss(model, geom, **_):
                     role = r
                     break
             last_role = role
-            ctx.emit(pieces, role, centre=False)
-            value = " ".join(_norm(p.plain) for p in pieces[1:]
-                             if p.x0 >= _VALUE_MIN_X0)
+            value_parts = [p for p in pieces[1:] if p.x0 >= _VALUE_MIN_X0]
+            ctx.ladder(label, value_parts, role)
+            value = " ".join(_norm(p.plain) for p in value_parts)
             for pat, key in _CRIT:
                 if pat.search(_norm(label.plain)) and value:
                     ctx.crit.setdefault(key, value)
             continue
-        # A RUNOVER VALUE belongs to the label above it.
+        # A RUNOVER VALUE belongs to the label above it, and stands in the
+        # value column with NO label beside it.
         if in_ladder and first.x0 >= _VALUE_MIN_X0:
-            ctx.emit(pieces, last_role, centre=False)
+            ctx.ladder(None, pieces, last_role)
             continue
 
         if in_ladder:
@@ -207,8 +211,54 @@ class _Ctx:
         self.dropped: list = []
         self.consumed: set[int] = set()
         self.crit: dict = {}
+        self._lab: list = []
+        self._val: list = []
+
+    def _cell(self, parts, role: str):
+        """One cell of the ladder. An empty cell holds its row's place so the
+        two columns stay level."""
+        parts = sorted(parts or [], key=lambda l: l.x0)
+        if not parts:
+            return m.HmLine(text="", prov=m.Prov(1), align=m.Align.LEFT,
+                            role=role)
+        text = ""
+        for part in parts:
+            piece = line_markup(part)
+            text = (text.rstrip() + " " + piece.lstrip()) if text.strip() \
+                else piece
+        self.consumed.update(p.id for p in parts)
+        return m.HmLine(
+            text=text, prov=m.Prov(parts[0].page, tuple(p.id for p in parts)),
+            align=m.Align.LEFT, x0=parts[0].x0, size=parts[0].size or 0.0,
+            bold=all(bool(p.all_bold) for p in parts), role=role)
+
+    def ladder(self, label, value_parts, role: str) -> None:
+        """One printed row of the case-history table: its LABEL and its
+        VALUE, each in its own column.
+
+        Joined into a single row the table reads as a wall — the label runs
+        into its own value, and a runover value, which has no label at all,
+        stands alone as an orphan with no idea what it belongs to. The page
+        prints two columns and the render draws two.
+        """
+        self._lab.append(self._cell([label] if label is not None else [], role))
+        self._val.append(self._cell(value_parts, role))
+
+    def flush_ladder(self) -> None:
+        if not self._lab:
+            return
+        self.items.append(m.CaptionBlock(
+            left=list(self._lab), right=list(self._val), rail=None,
+            rail_rows=len(self._lab), style_id="case-history",
+            prov=self._lab[0].prov if self._lab[0].prov.line_ids
+            else self._val[0].prov))
+        self._lab, self._val = [], []
 
     def emit(self, group: list, role: str, centre: bool = True) -> None:
+        # A ROW THAT IS NOT A LADDER ROW closes the table: emitted after it,
+        # the table would render below a row the page prints beneath it.
+        if not getattr(self, "_in_flush", False):
+            self.flush_ladder()
         parts = sorted(group, key=lambda l: l.x0)
         if not parts:
             return
@@ -226,6 +276,7 @@ class _Ctx:
         self.consumed.update(p.id for p in parts)
 
     def result(self) -> dict:
+        self.flush_ladder()
         return {"criteria": self.crit, "items": self.items, "attorneys": [],
                 "dropped": self.dropped, "consumed": self.consumed,
                 "anchor_ids": [], "doc_type_final": None}

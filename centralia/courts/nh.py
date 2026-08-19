@@ -67,6 +67,21 @@ _MASTHEAD = re.compile(r"^THE SUPREME COURT OF NEW HAMPSHIRE$", re.I)
 _AXIS_TOL = 10.0
 _MAX_PAGES = 2
 
+# A CENTRED ROW IS A SHORT ROW. The mid-point test alone calls a full-measure
+# line centred whenever its text happens to balance: the first line of nh's
+# appearances runs 108.0-511.8, whose centre is 310 against a page centre of
+# 306, so 'Rath, Young, and Pignatelli, P.C., of Concord (Adam Pignatelli on
+# the' was read as CAPTION on appeal_of_doe_bd._of_med. A caption row, a date
+# row and the masthead are all short; prose fills the measure.
+_CENTRED_WIDTH_MAX = 0.72
+# THE APPEARANCES OPEN ON THE PARAGRAPH INDENT and run back to the rail
+# (108.0 over 72.0, measured on all 50 records). Their naming phrase ('for
+# the petitioner.') often falls on the SECOND or third line, so the entry
+# cannot be recognised from its opening line's words — the indent is what
+# opens it, once the court has printed its dates.
+_INDENT = 36.0
+_INDENT_TOL = 4.0
+
 _NOTICE_OPEN = re.compile(r"^NOTICE:", re.I)
 _TYPED_RULE = re.compile(r"^_{6,}$")
 # 'Case No. 2023-0637' / 'Case Nos. 2023-0637, 2023-0641'
@@ -136,8 +151,9 @@ def read_headmatter_nh(model, geom, **_):
         if not text:
             continue
         first = pieces[0]
-        centred = abs((first.x0 + max(l.x1 for l in pieces)) / 2
-                      - page1.width / 2) <= _AXIS_TOL
+        _x1 = max(l.x1 for l in pieces)
+        centred = (abs((first.x0 + _x1) / 2 - page1.width / 2) <= _AXIS_TOL
+                   and (_x1 - first.x0) <= page1.width * _CENTRED_WIDTH_MAX)
 
         # THE NOTICE is everything above the masthead.
         if idx < mast:
@@ -173,7 +189,12 @@ def read_headmatter_nh(model, geom, **_):
             continue
         # THE APPEARANCES name themselves, and once opened the band runs to
         # the byline: an entry's second and third lines say nothing about
-        # representation on their own.
+        # representation on their own. A fresh entry is opened by the INDENT
+        # once the dates are in, which is what catches the first line of the
+        # first entry — its naming phrase is two lines further down.
+        if band != "counsel" and ctx.crit.get("decision_date") \
+                and abs(first.x0 - (body_x0 + _INDENT)) <= _INDENT_TOL:
+            band = "counsel"
         if _COUNSEL.search(text) or _ORALLY.search(text) or band == "counsel":
             band = "counsel"
             ctx.emit(pieces, "counsel", centre=False)

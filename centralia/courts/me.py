@@ -198,11 +198,34 @@ def _split_ladder(pieces: list) -> tuple:
     return first, " ".join(_norm(p.plain) for p in rest)
 
 
+def _is_ladder_label(pm, line) -> bool:
+    """A word from the court's OWN LABEL VOCABULARY, in ladder type, at the
+    label rail of page 1 — the ladder, never furniture.
+
+    core's corner-stamp rule fires on a short sub-body-size line pinned in
+    the left third of the top 19% of a page, which is where this ladder's
+    label column stands; it already spares a label that carries its colon
+    ('Docket:'). But Maine splits ONE label across TWO rows and the first
+    half has no colon: MEASURED in me/amelia_johnson_v._michael_osseyran,
+    'Submitted' stands alone at x0 72.0, 11.04pt, above 'On Briefs:
+    October 29, 2025'. Its top sat at 0.1914 of the page — a hair outside
+    the 0.19 band — until pdfio stopped reading a lying /Descent, which put
+    the whole ladder back on its true baselines at 0.161 and handed the row
+    to the stamp rule. Eight of the 50 records print it."""
+    if pm.number != 1 or line.x0 > _LABEL_MAX_X0:
+        return False
+    if not line.size or line.size > _LADDER_SIZE_MAX:
+        return False
+    return _norm(line.plain).rstrip(":").lower() in _LABELS
+
+
 def _rows(pm, finder) -> list[list]:
     groups: dict = {}
     order: list = []
     for line in sorted(pm.lines, key=lambda l: (l.top, l.x0)):
-        if not line.plain.strip() or finder.kind(pm, line):
+        if not line.plain.strip():
+            continue
+        if finder.kind(pm, line) and not _is_ladder_label(pm, line):
             continue
         key = round(line.top, 1)
         if key not in groups:

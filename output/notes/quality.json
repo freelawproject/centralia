@@ -771,11 +771,11 @@
 "sign": 0.05
 },
 "me": {
-"ab": 0.86,
+"ab": 0.94,
 "g": "B",
 "n": 50,
-"s": 1.28,
-"sign": 0.98
+"s": 0.86,
+"sign": 0.96
 },
 "med": {
 "ab": 1.0,
@@ -1016,10 +1016,10 @@
 "sign": 0.89
 },
 "nh": {
-"ab": 1.0,
-"g": "A",
+"ab": 0.42,
+"g": "B",
 "n": 50,
-"s": 0.02,
+"s": 1.76,
 "sign": 1.0
 },
 "nhd": {
@@ -29167,13 +29167,9 @@
 "s": 0.0
 },
 "me/adult_guardianship_and_conservatorship_of_r.": {
-"f": [
-"hyph\u00d72",
-"folio-leak\u00d72",
-"split-label\u00d71"
-],
-"g": "C",
-"s": 4.0
+"f": [],
+"g": "A",
+"s": 0.0
 },
 "me/alexis_harriman_v._dillon_lamothe": {
 "f": [],
@@ -29182,25 +29178,24 @@
 },
 "me/amarylis_fisher_v._town_of_hampden": {
 "f": [
-"folio-leak\u00d71"
-],
-"g": "B",
-"s": 1.0
-},
-"me/amelia_johnson_v._michael_osseyran": {
-"f": [
 "split-label\u00d71"
 ],
 "g": "B",
 "s": 1.0
 },
+"me/amelia_johnson_v._michael_osseyran": {
+"f": [],
+"g": "A",
+"s": 0.0
+},
 "me/carissa_daniels_v._patrick_r._obrien": {
 "f": [
 "joins\u00d71",
-"hyph\u00d71"
+"hyph\u00d71",
+"split-label\u00d71"
 ],
 "g": "B",
-"s": 1.0
+"s": 2.0
 },
 "me/catherine_dudley_v._hudson_specialty_insurance_company": {
 "f": [],
@@ -29209,10 +29204,10 @@
 },
 "me/dr._doe_v._board_of_dental_practice": {
 "f": [
-"folio-leak\u00d73"
+"split-label\u00d71"
 ],
-"g": "C",
-"s": 3.0
+"g": "B",
+"s": 1.0
 },
 "me/ellsworth_me_solar_llc_v._public_utilities_comission": {
 "f": [],
@@ -29221,10 +29216,10 @@
 },
 "me/estate_of_john_m._carter_v._ann_c._martin": {
 "f": [
-"folio-leak\u00d71"
+"split-label\u00d72"
 ],
 "g": "B",
-"s": 1.0
+"s": 2.0
 },
 "me/h.a.t._llc_v._greenleaf_apartmetns_llc": {
 "f": [],
@@ -29232,25 +29227,23 @@
 "s": 0.0
 },
 "me/in_re_ballot_challenge_in_election_of_town_of_clifton_select_board_member": {
+"f": [
+"split-label\u00d71"
+],
+"g": "B",
+"s": 1.0
+},
+"me/in_re_catherine_r._connors": {
 "f": [],
 "g": "A",
 "s": 0.0
 },
-"me/in_re_catherine_r._connors": {
-"f": [
-"folio-leak\u00d72",
-"split-label\u00d74"
-],
-"g": "C",
-"s": 6.0
-},
 "me/in_re_child_of_cassie_s.": {
 "f": [
-"folio-leak\u00d71",
-"split-label\u00d71"
+"no-attorneys"
 ],
-"g": "B",
-"s": 2.0
+"g": "C",
+"s": 3.0
 },
 "me/in_re_child_of_danielle_h.": {
 "f": [],
@@ -29258,40 +29251,33 @@
 "s": 0.0
 },
 "me/in_re_children_of_jennifer_b.": {
-"f": [
-"split-label\u00d71"
-],
-"g": "B",
-"s": 1.0
+"f": [],
+"g": "A",
+"s": 0.0
 },
 "me/janet_drew_v._town_of_york": {
-"f": [
-"split-label\u00d71"
-],
-"g": "B",
-"s": 1.0
+"f": [],
+"g": "A",
+"s": 0.0
 },
 "me/mick_land_development_inc._v._town_of_south_berwick": {
 "f": [
-"folio-leak\u00d72"
+"split-label\u00d72"
 ],
 "g": "B",
 "s": 2.0
 },
 "me/mitchell_d._brown_v._diahanne_l._morse": {
 "f": [
-"folio-leak\u00d71"
+"split-label\u00d71"
 ],
 "g": "B",
 "s": 1.0
 },
 "me/oak_hill_condominiums_v._diane_marchetti": {
-"f": [
-"folio-leak\u00d71",
-"split-label\u00d71"
-],
-"g": "B",
-"s": 2.0
+"f": [],
+"g": "A",
+"s": 0.0
 },
 "me/opinion_of_the_justices_ranked-choice_voting": {
 "f": [],
@@ -29300,26 +29286,28 @@
 },
 "me/patricia_m._minerich_v._boothbay-boothbay_harbor_community_school_district": {
 "f": [
-"folio-leak\u00d71"
+"split-label\u00d71"
 ],
 "g": "B",
 "s": 1.0
 },
 "me/richard_lytle_v._douglas_e._lind": {
-"f": [],
-"g": "A",
-"s": 0.0
-},
-"me/robert_j._hutchinson_v._rosanna_paola_cordoba_gomez": {
 "f": [
-"folio-leak\u00d71"
+"split-label\u00d71"
 ],
 "g": "B",
 "s": 1.0
 },
+"me/robert_j._hutchinson_v._rosanna_paola_cordoba_gomez": {
+"f": [
+"split-label\u00d72"
+],
+"g": "B",
+"s": 2.0
+},
 "me/roberto_valmont-oliver_v._envirovantage_inc.": {
 "f": [
-"folio-leak\u00d71"
+"split-label\u00d71"
 ],
 "g": "B",
 "s": 1.0
@@ -29346,31 +29334,29 @@
 },
 "me/state_of_maine_v._austin_w._davis": {
 "f": [
-"folio-leak\u00d72"
-],
-"g": "B",
-"s": 2.0
-},
-"me/state_of_maine_v._austin_w._davis_1": {
-"f": [
-"folio-leak\u00d72"
-],
-"g": "B",
-"s": 2.0
-},
-"me/state_of_maine_v._brandon_oakley_mccoy": {
-"f": [
-"folio-leak\u00d71"
+"split-label\u00d71"
 ],
 "g": "B",
 "s": 1.0
 },
+"me/state_of_maine_v._austin_w._davis_1": {
+"f": [
+"split-label\u00d71"
+],
+"g": "B",
+"s": 1.0
+},
+"me/state_of_maine_v._brandon_oakley_mccoy": {
+"f": [],
+"g": "A",
+"s": 0.0
+},
 "me/state_of_maine_v._jacob_miller": {
 "f": [
-"folio-leak\u00d73"
+"split-label\u00d71"
 ],
-"g": "C",
-"s": 3.0
+"g": "B",
+"s": 1.0
 },
 "me/state_of_maine_v._jason_j._follette": {
 "f": [
@@ -29381,23 +29367,23 @@
 },
 "me/state_of_maine_v._jesse_r._pelletier": {
 "f": [
-"folio-leak\u00d71",
+"split-label\u00d73",
+"hm-unread\u00d718"
+],
+"g": "C",
+"s": 6.0
+},
+"me/state_of_maine_v._jody_b._flynn": {
+"f": [
 "split-label\u00d71"
 ],
 "g": "B",
-"s": 2.0
+"s": 1.0
 },
-"me/state_of_maine_v._jody_b._flynn": {
+"me/state_of_maine_v._joshua_martin": {
 "f": [],
 "g": "A",
 "s": 0.0
-},
-"me/state_of_maine_v._joshua_martin": {
-"f": [
-"folio-leak\u00d73"
-],
-"g": "C",
-"s": 3.0
 },
 "me/state_of_maine_v._kailie_brackett": {
 "f": [],
@@ -29405,11 +29391,9 @@
 "s": 0.0
 },
 "me/state_of_maine_v._keith_merchant": {
-"f": [
-"folio-leak\u00d71"
-],
-"g": "B",
-"s": 1.0
+"f": [],
+"g": "A",
+"s": 0.0
 },
 "me/state_of_maine_v._kenneth_rhoades": {
 "f": [],
@@ -29417,70 +29401,64 @@
 "s": 0.0
 },
 "me/state_of_maine_v._sean_eori": {
+"f": [],
+"g": "A",
+"s": 0.0
+},
+"me/state_of_maine_v._thomas_g._coffill_iii": {
+"f": [],
+"g": "A",
+"s": 0.0
+},
+"me/state_of_maine_v._trevor_averill": {
 "f": [
 "split-label\u00d71"
 ],
 "g": "B",
 "s": 1.0
-},
-"me/state_of_maine_v._thomas_g._coffill_iii": {
-"f": [
-"folio-leak\u00d71"
-],
-"g": "B",
-"s": 1.0
-},
-"me/state_of_maine_v._trevor_averill": {
-"f": [],
-"g": "A",
-"s": 0.0
 },
 "me/state_tax_assessor_v._fifth_generation_inc.": {
 "f": [
-"folio-leak\u00d71",
-"split-label\u00d74"
+"split-label\u00d71"
 ],
-"g": "C",
-"s": 5.0
+"g": "B",
+"s": 1.0
 },
 "me/tabarek_t.h._aldarraji_v._tareq_i._alolwan": {
-"f": [],
-"g": "A",
-"s": 0.0
+"f": [
+"split-label\u00d71"
+],
+"g": "B",
+"s": 1.0
 },
 "me/tidewater_loft_condominium_association_v._judith_l._moskal-kanz": {
-"f": [
-"split-label\u00d71"
-],
-"g": "B",
-"s": 1.0
-},
-"me/tina_m._adams_v._michael_a._delong": {
-"f": [
-"split-label\u00d71"
-],
-"g": "B",
-"s": 1.0
-},
-"me/towd_point_mortgage_trust_2019-4_v._leslie_bodwell": {
 "f": [],
 "g": "A",
 "s": 0.0
 },
-"me/waldo_community_action_partners_v._department_of_administrative_and": {
+"me/tina_m._adams_v._michael_a._delong": {
+"f": [],
+"g": "A",
+"s": 0.0
+},
+"me/towd_point_mortgage_trust_2019-4_v._leslie_bodwell": {
 "f": [
-"joins\u00d72",
-"folio-leak\u00d71"
+"split-label\u00d72"
 ],
 "g": "B",
 "s": 2.0
 },
-"me/wilmington_savings_fund_society_fsb_as_trustee_for_brougham_fund_i_trust": {
+"me/waldo_community_action_partners_v._department_of_administrative_and": {
 "f": [
-"split-label\u00d71"
+"joins\u00d72"
 ],
 "g": "B",
 "s": 1.0
+},
+"me/wilmington_savings_fund_society_fsb_as_trustee_for_brougham_fund_i_trust": {
+"f": [],
+"g": "A",
+"s": 0.0
 },
 "med/gov.uscourts.med.64607.95.0": {
 "f": [],
@@ -36269,19 +36247,25 @@
 "s": 0.0
 },
 "nh/appeal_of_pittsfield_sch._dist.": {
-"f": [],
-"g": "A",
-"s": 0.0
+"f": [
+"no-attorneys"
+],
+"g": "C",
+"s": 3.0
 },
 "nh/appeal_of_port_city_air_leasing_inc.": {
-"f": [],
-"g": "A",
-"s": 0.0
+"f": [
+"no-attorneys"
+],
+"g": "C",
+"s": 3.0
 },
 "nh/appeal_of_state_of_n.h._adjutant_general": {
-"f": [],
-"g": "A",
-"s": 0.0
+"f": [
+"no-attorneys"
+],
+"g": "C",
+"s": 3.0
 },
 "nh/appeal_of_tower_hill_tavern_llc": {
 "f": [],
@@ -36289,39 +36273,53 @@
 "s": 0.0
 },
 "nh/appeal_of_town_of_barnstead": {
-"f": [],
-"g": "A",
-"s": 0.0
+"f": [
+"no-attorneys"
+],
+"g": "C",
+"s": 3.0
 },
 "nh/atl._anesthesia_p.a._v._lehrer": {
-"f": [],
-"g": "A",
-"s": 0.0
+"f": [
+"no-attorneys"
+],
+"g": "C",
+"s": 3.0
 },
 "nh/attorney_general_v._hood": {
-"f": [],
-"g": "A",
-"s": 0.0
+"f": [
+"no-attorneys"
+],
+"g": "C",
+"s": 3.0
 },
 "nh/ball_v._roman_catholic_bishop_of_manchester": {
-"f": [],
-"g": "A",
-"s": 0.0
+"f": [
+"no-attorneys"
+],
+"g": "C",
+"s": 3.0
 },
 "nh/brown_v._grafton_cnty._dept_of_corr.": {
-"f": [],
-"g": "A",
-"s": 0.0
+"f": [
+"no-attorneys"
+],
+"g": "C",
+"s": 3.0
 },
 "nh/brown_v._grafton_cnty._dept_of_corr._1": {
-"f": [],
-"g": "A",
-"s": 0.0
+"f": [
+"no-attorneys"
+],
+"g": "C",
+"s": 3.0
 },
 "nh/contoocook_valley_sch._dist._v._state": {
-"f": [],
-"g": "A",
-"s": 0.0
+"f": [
+"no-attorneys"
+],
+"g": "C",
+"s": 3.0
 },
 "nh/dobens_v._fagnant": {
 "f": [],
@@ -36329,14 +36327,18 @@
 "s": 0.0
 },
 "nh/felts_v._city_of_rochester": {
-"f": [],
-"g": "A",
-"s": 0.0
+"f": [
+"no-attorneys"
+],
+"g": "C",
+"s": 3.0
 },
 "nh/in_re_estate_of_pelton": {
-"f": [],
-"g": "A",
-"s": 0.0
+"f": [
+"no-attorneys"
+],
+"g": "C",
+"s": 3.0
 },
 "nh/in_re_guardianship_of_k.c.": {
 "f": [],
@@ -36364,51 +36366,68 @@
 "s": 0.0
 },
 "nh/in_the_matter_of_legault__legault": {
-"f": [],
-"g": "A",
-"s": 0.0
+"f": [
+"no-attorneys"
+],
+"g": "C",
+"s": 3.0
 },
 "nh/in_the_matter_of_nadeau__nadeau": {
-"f": [],
-"g": "A",
-"s": 0.0
+"f": [
+"no-attorneys"
+],
+"g": "C",
+"s": 3.0
 },
 "nh/in_the_matter_of_penichet_and_corroon": {
-"f": [],
-"g": "A",
-"s": 0.0
+"f": [
+"no-attorneys"
+],
+"g": "C",
+"s": 3.0
 },
 "nh/keene_publg_corp._v._fall_mountain_regl_sch._dist.": {
 "f": [
+"no-attorneys",
 "folio-leak\u00d71"
 ],
-"g": "B",
-"s": 1.0
+"g": "C",
+"s": 4.0
 },
 "nh/morris_v._commr_n.h._dept_of_revenue_admin.": {
-"f": [],
-"g": "A",
-"s": 0.0
+"f": [
+"no-attorneys"
+],
+"g": "C",
+"s": 3.0
 },
 "nh/ortolano_v._city_of_nashua": {
-"f": [],
-"g": "A",
-"s": 0.0
+"f": [
+"no-attorneys"
+],
+"g": "C",
+"s": 3.0
 },
 "nh/petition_of_dean": {
-"f": [],
-"g": "A",
-"s": 0.0
+"f": [
+"no-attorneys"
+],
+"g": "C",
+"s": 3.0
 },
 "nh/rand_v._state": {
-"f": [],
-"g": "A",
-"s": 0.0
+"f": [
+"no-attorneys"
+],
+"g": "C",
+"s": 3.0
 },
 "nh/state_of_new_hampshire_v._joshua_l._shaw": {
-"f": [],
-"g": "A",
-"s": 0.0
+"f": [
+"hm-unread\u00d712"
+],
+"g": "C",
+"s": 3.0
 },
 "nh/state_v._allore": {
 "f": [],
@@ -36416,9 +36435,11 @@
 "s": 0.0
 },
 "nh/state_v._bradley": {
-"f": [],
-"g": "A",
-"s": 0.0
+"f": [
+"no-attorneys"
+],
+"g": "C",
+"s": 3.0
 },
 "nh/state_v._brooks": {
 "f": [],
@@ -36426,14 +36447,18 @@
 "s": 0.0
 },
 "nh/state_v._cummings": {
-"f": [],
-"g": "A",
-"s": 0.0
+"f": [
+"no-attorneys"
+],
+"g": "C",
+"s": 3.0
 },
 "nh/state_v._dunbar": {
-"f": [],
-"g": "A",
-"s": 0.0
+"f": [
+"no-attorneys"
+],
+"g": "C",
+"s": 3.0
 },
 "nh/state_v._harris": {
 "f": [],
@@ -36446,9 +36471,11 @@
 "s": 0.0
 },
 "nh/state_v._miller": {
-"f": [],
-"g": "A",
-"s": 0.0
+"f": [
+"no-attorneys"
+],
+"g": "C",
+"s": 3.0
 },
 "nh/state_v._moses": {
 "f": [],
@@ -36461,19 +36488,25 @@
 "s": 0.0
 },
 "nh/state_v._raymond": {
-"f": [],
-"g": "A",
-"s": 0.0
+"f": [
+"no-attorneys"
+],
+"g": "C",
+"s": 3.0
 },
 "nh/state_v._reed": {
-"f": [],
-"g": "A",
-"s": 0.0
+"f": [
+"no-attorneys"
+],
+"g": "C",
+"s": 3.0
 },
 "nh/state_v._rodriguez": {
-"f": [],
-"g": "A",
-"s": 0.0
+"f": [
+"no-attorneys"
+],
+"g": "C",
+"s": 3.0
 },
 "nh/state_v._roy": {
 "f": [],
@@ -36491,9 +36524,11 @@
 "s": 0.0
 },
 "nh/state_v._zarella": {
-"f": [],
-"g": "A",
-"s": 0.0
+"f": [
+"no-attorneys"
+],
+"g": "C",
+"s": 3.0
 },
 "nh/taylor_community_v._city_of_laconia": {
 "f": [],

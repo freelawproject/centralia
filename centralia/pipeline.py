@@ -307,6 +307,22 @@ def _extract_model(model, court_id: str, pdf_path) -> ExtractionResult:
         return _img_key[(round(_i.x0), round(_i.top), round(_i.x1 - _i.x0),
                          round(_i.bottom - _i.top))] >= _STATIONERY_PAGES
 
+    # A PAGE UNDER A FULL-BLEED RASTER IS A SCAN, and nothing on it is a
+    # FIGURE. tenn's `mark_gray_v._tyson_foods_inc.` carries two images per
+    # page: the whole sheet at 0,0 612x792, which the stationery rule above
+    # catches, and the scan's own content area at ~77,70 472x575 — 57% of the
+    # page, clear of both margins, and at coordinates that shift a point or
+    # two per page, so it is not stationery and it passed the figure test on
+    # all 9 pages. An opinion does not print a figure over the entire sheet it
+    # is printed on; where one image covers the page, every other image on
+    # that page is part of the same scan.
+    _FULL_BLEED = 0.9
+    _scan_pages = {
+        _pm.number for _pm in model.pages
+        for _i in _pm.images
+        if ((_i.x1 - _i.x0) * (_i.bottom - _i.top))
+        >= _pm.width * _pm.height * _FULL_BLEED}
+
     from .resolve.headmatter import looks_like_docket as _slug_ld
     for pm in model.pages:
         keep = []
@@ -374,6 +390,7 @@ def _extract_model(model, court_id: str, pdf_path) -> ExtractionResult:
                 _w >= 60 and _h >= 40
                 and not _is_masthead
                 and not _is_stationery(_im)
+                and pm.number not in _scan_pages
                 and _im.top > pm.height * 0.08
                 and _im.bottom < pm.height * 0.92
                 and not (pm.number == model.n_pages
@@ -410,6 +427,7 @@ def _extract_model(model, court_id: str, pdf_path) -> ExtractionResult:
                 _figures.append(_im)
             elif _w >= 20 and _h >= 20:
                 _what = ("watermark/stationery" if _is_stationery(_im)
+                         else "scanned page" if pm.number in _scan_pages
                          else "seal/logo/stamp")
                 doc.dropped.append(m.Dropped(
                     text=f"graphic {_w:.0f}×{_h:.0f}pt ({_what})",

@@ -20,6 +20,46 @@ open http://127.0.0.1:8765
 
 On GitHub Pages there is nothing to run — it is already served over HTTPS.
 
+## Deploying to GitHub Pages
+
+The page is static and self-contained — no Actions, no build step at request
+time. Verified working when served under a subpath (`/<repo>/`), which is how
+Pages serves a project site.
+
+`docs/` is already taken by the design notes, so the `main`+`/docs` option is
+out. Publish `pages/` as the root of a `gh-pages` branch instead:
+
+```sh
+git remote add origin git@github.com:<you>/<repo>.git
+git push -u origin master
+git subtree push --prefix pages origin gh-pages
+```
+
+Then **Settings → Pages → Source: Deploy from a branch → `gh-pages` / (root)**.
+Re-deploy after any change:
+
+```sh
+./pages/build.sh                      # rebuild the wheel first!
+git commit -am "demo: rebuild wheel"
+git subtree push --prefix pages origin gh-pages
+```
+
+### Two things that will bite
+
+- **Private repos need a paid plan.** GitHub Pages on a private repo requires
+  Pro/Team. Making this repo public to get free Pages would publish all of
+  centralia, not just the demo.
+- **If you want the demo public but the source private**, push the subtree to a
+  separate public repo instead — only `pages/` ever leaves:
+
+  ```sh
+  git remote add demo git@github.com:<you>/centralia-demo.git
+  git subtree push --prefix pages demo main
+  ```
+
+`.nojekyll` is committed so Pages skips Jekyll entirely — without it Jekyll can
+drop or rewrite files it does not recognise.
+
 ## Rebuild after changing centralia/
 
 The page fetches a committed wheel, so it does not track the source
