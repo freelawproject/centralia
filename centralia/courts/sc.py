@@ -93,16 +93,51 @@ court-assigned — 28291 through 28339 over these 50 records — it is the only
 neutral identifier this court prints, so it is recorded as `citation` rather
 than parked on `case-info`.
 
-THE ORDER COVER IS A DIFFERENT PAPER AND IS DELIBERATELY UNCLAIMED. One
-record (state_v._john_joseph_erb) opens on a rehearing order whose masthead
-is a single 22pt row, 'The Supreme Court of South Carolina', and whose
-ladder holds an 'ORDER' band, body prose, five 's/' signature lines and a
-place-and-date — then starts the whole contract again on page 2 with the
-substituted opinion. This reader dispatches on the two-row masthead
-('THE STATE OF SOUTH CAROLINA' over 'In The Supreme Court') and on an
-'Opinion No.' band, so that record returns NOTHING and core keeps the
-reading it already had. Claiming page 1 and stopping at the order's prose
-would have left page 2's second headmatter inside the order's writing.
+ONE RECORD PRINTS TWO PAPERS, SO THE WALK IS PER-BLOCK. A cover BLOCK
+opens on a masthead and closes on the first row at the body rail;
+state_v._john_joseph_erb carries two of them, and everything between is a
+writing this reader must not touch:
+
+    p1  'The Supreme Court of South Carolina'   a ONE-ROW 22pt masthead
+        The State, Respondent, / v. / John Joseph Erb, Petitioner.
+        Appellate Case No. 2024-001518
+                     ─────────────
+                        ORDER                   the paper NAMES itself
+                     ─────────────
+        'The petition for rehearing is granted…'   <- the order's WRITING
+        s/ John W. Kittredge                C.J.  <- its five conformed
+        s/ John Cannon Few                    J.      signatures, each a
+        …                                             two-column row
+        Columbia, South Carolina / November 26, 2025
+    p2  'THE STATE OF SOUTH CAROLINA' / 'In The Supreme Court'
+        …the substituted opinion, this contract exactly, down to its
+        counsel on page 3 and the byline that ends the claim.
+
+Both covers are claimed, in page order, because they are two DIFFERENT
+papers' covers and not one cover printed twice: p1 names itself 'ORDER' and
+prints no posture, origin, opinion number, disposition or counsel, while p2
+prints all five. Only four rows overlap — the three caption rows and the
+appellate case number — and those are the mich/la 'reprinted cover' case in
+miniature: they RENDER on both covers, because that is what the page does,
+but `caption`, `parties`, `case_name`, `docket_number` and `other_dockets`
+suppress the duplicate, or a two-party appeal reports four parties and a
+companion appeal of itself.
+
+WHAT THE PER-BLOCK WALK BUYS. One run from the first masthead to the first
+body-rail row would stop at the order's first sentence and strand the
+opinion's whole cover inside the order's writing. One run to the LAST
+body-rail row would swallow the order into the headmatter — which is what
+core did unaided: the order's three sentences and its ten signature
+half-rows rendered as headmatter rows, p2's counsel interleaved between the
+two masthead rows, and the record had ONE writing where the paper has two.
+Read per-block it has two: an `order` (its prose, signatures and
+place-and-date) and the `majority`.
+
+'ORDER' TAKES `title`, NOT `case-info`: it is what that paper calls ITSELF.
+It is not written to `criteria.title` when the record holds more than one
+paper, because naming the whole document 'ORDER' when its substantive
+writing is a substituted opinion would be worse than leaving the criterion
+to core.
 
 THE CLAIM IS TOTAL OR IT IS NOTHING. Every row between the masthead and the
 first body-rail row must land in a band this contract names; a row that does
@@ -449,13 +484,17 @@ def _identity(ctx, rows, idxs, texts, mast, caption,
             # the separator is a conjunction, not always a comma.
             parts = [p.strip() for p in
                      re.split(r",|\band\b", docket.group(1)) if p.strip()]
-            if ctx.crit.get("docket_number"):
-                ctx.crit.setdefault("other_dockets", [])
-                ctx.crit["other_dockets"].extend(parts)
-            else:
-                ctx.crit["docket_number"] = parts[0]
-                if parts[1:]:
-                    ctx.crit["other_dockets"] = parts[1:]
+            # …AND A RECORD THAT PRINTS TWO COVERS PRINTS THE SAME NUMBER
+            # TWICE. erb's order cover and its substituted opinion both
+            # carry 'Appellate Case No. 2024-001518'; added blindly the
+            # second became a companion appeal of itself.
+            for part in parts:
+                if not ctx.crit.get("docket_number"):
+                    ctx.crit["docket_number"] = part
+                elif part != ctx.crit["docket_number"] \
+                        and part not in ctx.crit.setdefault(
+                            "other_dockets", []):
+                    ctx.crit["other_dockets"].append(part)
             ctx.emit(group, "docket", width, centre=False)
             continue
         # THE SAME CAPTION IS PRINTED ON EVERY COVER THE RECORD CARRIES.

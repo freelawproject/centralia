@@ -256,6 +256,10 @@ def _is_announcement(text: str) -> bool:
     return any(f" {v} " in low for v in _DELIVERS)
 
 
+def _announced(text: str) -> str:
+    return text
+
+
 def _is_disposition(text: str) -> bool:
     low = _norm(text).lower()
     return any(cue in low for cue in _DISPOSITION_CUES)
@@ -347,16 +351,23 @@ def read_headmatter_tenn(model, geom, **_):
                 continue
             if finder.kind(pm, line):
                 continue
+            # THE CLERK'S STAMP, struck into the right margin — taken here
+            # and not in the walk, because on the scanned slips it stands
+            # ABOVE the banner and would otherwise be read as one. THE RAIL
+            # IS ASKED FIRST, BEFORE THE NOTE STEP: the OCR of mark_gray's
+            # struck FILED block breaks into three 9.7pt fragments ('Clerk
+            # of th' x0=460.7, 'urts' x0=548.4, 'By' x0=482.6 — 0.75, 0.90
+            # and 0.79 of a 612pt sheet) against a 12.7pt body, so the note
+            # step took them first and they reached neither the rows nor the
+            # stamp record. Unclaimed, core put all three in the BODY and
+            # opened a writing on them.
+            if line.page == 1 and line.x0 >= page_w * _STAMP_RAIL:
+                stamped.append(line)
+                continue
             # THE NOTES ARE A STEP SMALLER and they are core's, wherever
             # they fall: a caption footnote ('… Session Heard at Martin¹')
             # prints at the FOOT of the page the reader is walking.
             if (line.size or 0) < geom.body_size - _NOTE_STEP:
-                continue
-            # THE CLERK'S STAMP, struck into the right margin — taken here
-            # and not in the walk, because on the scanned slips it stands
-            # ABOVE the banner and would otherwise be read as one.
-            if line.page == 1 and line.x0 >= page_w * _STAMP_RAIL:
-                stamped.append(line)
                 continue
             rows.append(line)
     rows.sort(key=lambda l: (l.page, l.top, l.x0))
@@ -545,6 +556,7 @@ def _read(model, geom, rows, stamped, band):
     skip_to = None
     signed = False                        # the walk has passed the byline
     announced = False                     # …or its unparsed twin
+    delivered = None                      # what the announcement announced
 
     for page, top, kind, payload in stream:
         if kind == 0:
@@ -618,11 +630,30 @@ def _read(model, geom, rows, stamped, band):
             break                         # the writing starts here
         if byline_at is not None and (line.page, line.top) == (
                 byline_at.page, byline_at.top):
-            # THE BYLINE STAYS IN THE STREAM: core builds the author from
-            # it, and a claim would leave the writing unsigned. Its own
-            # block (the joined-roster tail) goes with it.
+            # THE ANNOUNCEMENT IS CLAIMED WHOLE, WRAP AND ALL, and the name
+            # it announces is handed to core as ``announced_author`` — the
+            # same contract va uses for a court that ANNOUNCES its author
+            # instead of signing. Stepping over the block instead left core
+            # to pick the byline out of the body stream, and core can only
+            # join rows INSIDE one segment and stops at the first sentence
+            # terminal, so a row of the announcement came back unclaimed on
+            # four records and the shared walk appended it to the headmatter
+            # with no role at all:
+            #   the WRAP, where the scan's uneven leading split the two rows
+            #   into different segments (lauren_taylor 560.4 -> 578.6 = 18.2pt
+            #   and mark_gray 552.2 -> 568.6 = 16.4pt against a 12.4pt body)
+            #   — 'and W. MARK WARD, SR. J., joined.';
+            #   the SECOND SENTENCE, where the block announces a separate
+            #   writing too (heather_smith, ambreia_washington_1) — core cuts
+            #   at the '.' after 'joined' and leaves 'DWIGHT E. TARWATER, J.,
+            #   filed a separate concurring opinion.' behind.
+            # Claiming the whole block leaves core no cut to make and no
+            # crumbs to drop.
             idx = index[id(line)]
-            end = block_at.get(idx, (idx + 1, ""))[0]
+            end, whole = block_at.get(idx, (idx + 1, text))
+            for k in range(idx, end):
+                ctx.row(vrows[k], "author")
+            delivered = _announced(whole)
             signed = True
             if end >= len(vrows):
                 break
@@ -690,7 +721,10 @@ def _read(model, geom, rows, stamped, band):
         ctx.crit["attorneys"] = " ".join(counsel)[:2000]
     if byline_at is not None:
         ctx.crit["panel_line"] = _norm(byline_at.plain)
-    return ctx.result(anchor_ids)
+    out = ctx.result(anchor_ids)
+    if delivered:
+        out["announced_author"] = delivered
+    return out
 
 
 def _is_writing_banner(row: list, geom) -> bool:

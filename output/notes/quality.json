@@ -1219,10 +1219,10 @@
 "sign": 0.96
 },
 "or": {
-"ab": 0.98,
+"ab": 1.0,
 "g": "A",
 "n": 50,
-"s": 0.4,
+"s": 0.2,
 "sign": 1.0
 },
 "orctapp": {
@@ -40773,12 +40773,9 @@
 "s": 0.5
 },
 "or/kulongoski__paden_v._rayfield": {
-"f": [
-"no-opinions",
-"warn:no opinion start found"
-],
-"g": "D",
-"s": 10.0
+"f": [],
+"g": "A",
+"s": 0.0
 },
 "or/mcewen_v._thrasher": {
 "f": [],
