@@ -1877,6 +1877,26 @@ def _extract_model(model, court_id: str, pdf_path) -> ExtractionResult:
                 and not doc.opinions[0].author_name):
             doc.opinions[0].type = "majority"
 
+    # THE PAPER'S OWN NAME TYPES ITS WRITING. A separately published
+    # concurrence or dissent NAMES itself ('CONCURRING STATEMENT',
+    # 'DISSENTING OPINION') and then signs itself with a bare byline carrying
+    # no kind clause ('JUSTICE WECHT'), so `normalize_opinion_type(None)`
+    # returned 'majority' and the writing rendered as the court's opinion:
+    # pa/wentz_m._v._wentz_d._1 is a concurring statement that came out a
+    # majority. Where the court names the paper a concurrence or a dissent and
+    # the writing carries no kind of its own, the title is the better
+    # evidence.
+    #
+    # Only on a paper with ONE writing. A sandwich record titles itself
+    # 'OPINION' and types each writing off its own byline, which is right;
+    # this is for the slip that IS the separate writing.
+    _paper = (doc.criteria.title or "").strip().lower()
+    if (_paper and len(doc.opinions) == 1
+            and doc.opinions[0].type in ("majority", "order")
+            and ("concur" in _paper or "dissent" in _paper)):
+        from .resolve.bylines import normalize_opinion_type as _not
+        doc.opinions[0].type = _not(_paper)
+
     # A court that ANNOUNCES its author in the caption instead of SIGNING the
     # writing ('OPINION BY' over 'JUSTICE JUNIUS P. FULTON, III' in va's
     # caption right column) leaves core no byline to build from: core's
