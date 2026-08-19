@@ -629,3 +629,5 @@ from . import sd                                             # noqa: E402,F401
 from . import ri                                             # noqa: E402,F401
 from . import wyo                                            # noqa: E402,F401
 from . import vt                                             # noqa: E402,F401
+from . import wis                                            # noqa: E402,F401
+from . import utah                                           # noqa: E402,F401
