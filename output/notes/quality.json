@@ -813,10 +813,10 @@
 "sign": 1.0
 },
 "minn": {
-"ab": 0.94,
+"ab": 0.98,
 "g": "A",
 "n": 50,
-"s": 0.35,
+"s": 0.27,
 "sign": 0.98
 },
 "minnag": {
@@ -30468,20 +30468,18 @@
 "minn/in_the_matter_of_the_sirs_appeal_by_best_care_llc": {
 "f": [
 "scanned-source",
-"joins\u00d73",
-"folio-leak\u00d72"
+"joins\u00d73"
 ],
-"g": "C",
-"s": 3.5
+"g": "B",
+"s": 1.5
 },
 "minn/in_the_matter_of_the_sirs_appeal_by_best_care_llc_1": {
 "f": [
 "scanned-source",
-"joins\u00d73",
-"folio-leak\u00d72"
+"joins\u00d73"
 ],
-"g": "C",
-"s": 3.5
+"g": "B",
+"s": 1.5
 },
 "minn/in_the_matter_of_the_welfare_of_the_children_of_l.k._parent": {
 "f": [],

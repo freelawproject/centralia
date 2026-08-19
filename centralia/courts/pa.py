@@ -82,10 +82,26 @@ THREE TRAPS THIS PAPER SETS, all of them found in the geometry:
    one in the LEFT column. Only glyphs in the rail's own column (±3pt of the
    modal x) are rail, which is ca6's test, not a character test.
 
-NO RAIL, NO CLAIM. `koger_t._aplt._v._pa_housing_finance_agency` sets the
-same two columns with a WHITESPACE gutter — its modal ':' column holds one
-glyph — and `in_re_nom._of_griffith_apl._of_peake_1` is scanned (no text at
-all). Both return NOTHING rather than being forced through this contract.
+THE SECOND DIVIDER: A WHITESPACE GUTTER. One record of the 50 —
+`koger_t._aplt._v._pa_housing_finance_agency`, a pro-se order — sets the same
+two columns with no rail at all (its modal ':' column holds one glyph). The
+geometry is still there and is still measured, the same way the rail is: as a
+COLUMN. The right cells' left edges stack at 350.2/350.6/350.6/351.1, the
+left column's ink ends by x1=321.1, and NOTHING stands in the 29.1pt between
+them, so the divider is that band's midpoint (335.6). See `_gutter`.
+
+The gutter path is a FALLBACK, tried only where the rail is absent, and it
+claims nothing on trust: the same glyph-by-glyph split runs on it, and the
+read is accepted only if it puts the court's own docket form in the right
+column. On koger that is the ONE glued row again — 'ELLIOT-TODD PARKER KOGER
+AND TODD No. 29 WAP 2025' comes back as a single line spanning 78.5–445.9
+because pdfio saw no break, but its own chars leave a 21.5pt hole at
+329.6–351.1, so the divider falls inside that hole and the row tears where
+the court set it. Nothing is torn by x0, and no wording is consulted.
+
+Corpus split over the 50 records: 48 colon-rail, 1 whitespace-gutter, 1
+NOTHING — `in_re_nom._of_griffith_apl._of_peake_1`, which is scanned and
+carries no text layer at all.
 
 WHAT THE RIGHT COLUMN CARRIES, measured over the 48 railed records, is three
 things and nothing else: the court's own docket as a complete row ('No. 10
@@ -98,7 +114,10 @@ catch-all.
 
 THE BYLINE IS LEFT TO CORE. The reader claims the 'DECIDED:' piece of the
 byline row (its own line, right of the axis) and stops without claiming the
-byline itself, so the writing still opens where the court signs it.
+byline itself, so the writing still opens where the court signs it. This
+holds on both contracts: koger prints 'PER CURIAM' at x0=73.0 and 'DECIDED:
+APRIL 30, 2026' at x0=384.5 on one row, and reads as author 'PER CURIAM' with
+the date in the headmatter.
 """
 
 from __future__ import annotations
@@ -129,6 +148,19 @@ _RAIL_WINDOW = 3.0
 # caption holds 1.
 _RAIL_FLOOR = 4
 _AXIS_TOL = 14.0
+
+# THE WHITESPACE GUTTER — the fallback divider, for the record that sets the
+# same two columns with no rail at all. It is measured the SAME way as the
+# rail: as a COLUMN. The right cells' own left EDGES stack at one x
+# (koger: 350.2, 350.6, 350.6, 351.1), so the stack is gathered in a window
+# and the gutter is the empty band between the left column's furthest ink and
+# that edge (321.1 → 350.2 on koger: 29.1pt).
+_EDGE_WINDOW = 3.0
+# Three cells make a column; two are a coincidence. koger's right column
+# prints four rows (the docket and a three-row origin recital).
+_EDGE_FLOOR = 3
+# A gutter narrower than an em of body type is word spacing, not a divider.
+_GUTTER_MIN = 12.0
 
 # THE TITLE — what the paper calls ITSELF, a closed vocabulary of the six
 # forms measured over the corpus plus the two-word variants the court builds
@@ -222,15 +254,31 @@ def read_headmatter_pa(model, geom, **_):
     if mast is None:
         return NOTHING
 
-    rail_x = _rail(page1)
-    if rail_x is None:
-        return NOTHING              # no drawn divider: not this contract
+    # THE HEADER BLOCK, by its own landmarks: the masthead, the district row
+    # under it, and the roster where the case was argued. What follows is the
+    # box, and finding it this way is what lets the gutter path bound the box
+    # without a rail to anchor on.
+    head_end = mast + 1
+    while head_end < len(rows):
+        _t = _norm(" ".join(l.plain for l in rows[head_end]))
+        if _DISTRICT.match(_t) or _ROSTER.search(_t):
+            head_end += 1
+            continue
+        break
 
-    # THE BAND IS THE BOX. It opens on the rail's first row and closes at the
-    # TITLE, the next thing the paper prints — never at the rail's own last
-    # glyph, which the left column outruns (trap 2 in the docstring).
-    box_top = min((l.top for g in rows for l in g if _rail_chars(l, rail_x)),
-                  default=None)
+    rail_x = _rail(page1)
+    if rail_x is not None:
+        # THE BAND IS THE BOX. It opens on the rail's first row and closes at
+        # the TITLE, the next thing the paper prints — never at the rail's own
+        # last glyph, which the left column outruns (trap 2 above).
+        box_top = min((l.top for g in rows for l in g
+                       if _rail_chars(l, rail_x)), default=None)
+        style_id = "colon-rail"
+    else:
+        # NO RAIL: the box opens directly under the header block, and the
+        # divider is measured from the band's own ink (see `_gutter`).
+        box_top = rows[head_end][0].top if head_end < len(rows) else None
+        style_id = "whitespace-gutter"
     if box_top is None:
         return NOTHING
     title_at = next((i for i, g in enumerate(rows)
@@ -249,6 +297,21 @@ def read_headmatter_pa(model, geom, **_):
         _over = _rows(model.pages[1], finder)
         if _over:
             rows = rows + [_over[0]]
+
+    # THE DIVIDER. With a rail it is the rail's own x; without one it is the
+    # midpoint of the measured gutter, and the same glyph-by-glyph split then
+    # tears the glued row in the right place — no x0 test, no wording.
+    gutter = None
+    if rail_x is None:
+        band = [l for g in rows for l in g
+                if l.page == page1.number
+                and box_top <= l.top < box_bottom and l.plain.strip()]
+        gutter = _gutter(band, page1.width)
+        if gutter is None:
+            return NOTHING          # no divider of either kind: not this paper
+        mid = gutter[2]
+    else:
+        mid = rail_x
 
     ctx = _Ctx()
     box_at: int | None = None       # where the box belongs among the items
@@ -292,11 +355,11 @@ def read_headmatter_pa(model, geom, **_):
                 box_at = len(ctx.items)
             l_cells, r_cells = [], []
             for line in pieces:
-                shed = _shed_rail(line, rail_x)
+                shed = line if rail_x is None else _shed_rail(line, rail_x)
                 if shed is None:
                     continue        # the line WAS the rail
-                for side, bucket in ((_side(shed, rail_x, "L"), l_cells),
-                                     (_side(shed, rail_x, "R"), r_cells)):
+                for side, bucket in ((_side(shed, mid, "L"), l_cells),
+                                     (_side(shed, mid, "R"), r_cells)):
                     if side is not None:
                         bucket.append(side)
             left.append(_cell(l_cells, "caption", page1))
@@ -346,10 +409,14 @@ def read_headmatter_pa(model, geom, **_):
         right_plain.pop()
     if not left:
         return NOTHING
+    fp = {"rail": _RAIL_GLYPH if rail_x is not None else None,
+          "mid_x": round(mid, 1)}
+    if gutter is not None:
+        fp["gutter"] = [round(gutter[0], 1), round(gutter[1], 1)]
     block = m.CaptionBlock(
-        left=left, right=right, rail=_RAIL_GLYPH, rail_rows=len(left),
-        style_id="colon-rail",
-        fp={"rail": _RAIL_GLYPH, "mid_x": round(rail_x, 1)},
+        left=left, right=right,
+        rail=_RAIL_GLYPH if rail_x is not None else None,
+        rail_rows=len(left), style_id=style_id, fp=fp,
         prov=m.Prov(page1.number, tuple(sorted(box_ids))))
     ctx.items.insert(box_at if box_at is not None else len(ctx.items), block)
     ctx.consumed.update(box_ids)
@@ -394,7 +461,7 @@ def read_headmatter_pa(model, geom, **_):
     if groups:
         ctx.crit.setdefault("parties", groups[:8])
         ctx.crit.setdefault("case_name", " v. ".join(groups))
-    ctx.crit["headmatter_style"] = "colon-rail"
+    ctx.crit["headmatter_style"] = style_id
     return ctx.result()
 
 
@@ -417,6 +484,46 @@ def _rail(pm) -> float | None:
     if stack < _RAIL_FLOOR:
         return None
     return float(x)
+
+
+def _gutter(lines: list, width: float):
+    """The caption's WHITESPACE divider as (lo, hi, mid), or None.
+
+    Measured from the band's own ink, never from a fixed fraction of the
+    measure, and by the same reasoning as the rail: a divider is a COLUMN.
+    The right cells' left edges stack at one x; the gutter is the empty band
+    between the left column's furthest ink and that edge; and every line in
+    the band must respect it — end before it, begin at or after it, or CROSS
+    IT WHOLE, which is the row pdfio could not split.
+
+    Measured on `koger_t._aplt._v._pa_housing_finance_agency`, the one record
+    of the 50 that draws no rail: right edges 350.2/350.6/350.6/351.1, left
+    ink ending by x1=321.1, nothing at all inside the 29.1pt between them,
+    and one crossing row ('ELLIOT-TODD PARKER KOGER AND TODD No. 29 WAP
+    2025', 78.5–445.9, whose own chars leave a 21.5pt hole at 329.6–351.1).
+    """
+    axis = width / 2
+    starts = Counter(round(l.x0, 1) for l in lines if l.x0 > axis)
+    if not starts:
+        return None
+    x, _n = starts.most_common(1)[0]
+    stack = [l for l in lines if abs(l.x0 - x) <= _EDGE_WINDOW]
+    if len(stack) < _EDGE_FLOOR:
+        return None
+    hi = min(l.x0 for l in stack)
+    inside = [l for l in lines if l.x1 <= hi]
+    if not inside:
+        return None
+    lo = max(l.x1 for l in inside)
+    if hi - lo < _GUTTER_MIN:
+        return None
+    for line in lines:
+        if line.x1 <= lo or line.x0 >= hi:
+            continue                # respects the gutter
+        if line.x0 < lo and line.x1 > hi:
+            continue                # crosses it whole: a glued row
+        return None                 # ink INSIDE the gutter: no gutter
+    return lo, hi, (lo + hi) / 2
 
 
 def _rail_chars(line, rail_x: float) -> list:

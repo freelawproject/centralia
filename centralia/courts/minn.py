@@ -74,6 +74,17 @@ _OPINION_HEAD = re.compile(r"^O\s*P\s*I\s*N\s*I\s*O\s*N$", re.I)
 # The right-hand column's three tenants, each by its own landmark.
 _FILED = re.compile(r"^(?:Filed|Refiled|Amended):", re.I)
 _CLERK = re.compile(r"^Office of Appellate Courts$", re.I)
+# THE FOURTH TENANT OF THE RIGHT COLUMN: the justice who did not sit. Measured
+# on 13 of the 50 records, at x0 406.1 beside the author and the filed date
+# ('Took no part, Hennesy, J.', 'Took no part, Gaïtas, J.', 'Took no part,
+# Hudson, C.J.'). Unclaimed it is not merely untagged — core opened a WRITING
+# on it, so alvin_glay_trustee_for_the_next_of_kin_of_unity_mcgill rendered a
+# one-block 'majority' whose whole body was that line, standing ahead of the
+# real opinion. It is `panel`: it names the bench, by saying who is absent
+# from it.
+_RECUSED = re.compile(
+    r"^(?:Took no part|Did not participate|Took no part in the consideration"
+    r"|Recused)\b", re.I)
 _AUTHOR = re.compile(
     r"^(?:Per Curiam|[A-Z][A-Za-z'’\-]+(?:,\s*(?:III|Jr\.|Sr\.|II))?"
     r",\s*(?:C\.\s*J\.|J\.))$")
@@ -191,6 +202,10 @@ def read_headmatter_minn(model, geom, **_):
                 continue
             if right and _CLERK.match(one):
                 ctx.emit([piece], "case-info", centre=False)
+                placed = True
+                continue
+            if right and _RECUSED.match(one):
+                ctx.emit([piece], "panel", centre=False)
                 placed = True
                 continue
             if right and _AUTHOR.match(one):

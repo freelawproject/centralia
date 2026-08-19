@@ -128,6 +128,12 @@ from ..resolve.furniture import FurnitureFinder
 # the court prints about itself are.
 _MAST_STATE = re.compile(r"^THE STATE OF SOUTH CAROLINA$")
 _MAST_COURT = re.compile(r"^In The Supreme Court$")
+# THE SECOND MASTHEAD FORM: one row, 22.0pt, x0=119.0 — the rehearing-order
+# cover (state_v._john_joseph_erb page 1). The court names itself once
+# instead of naming the sovereign and then itself, and it is set at the
+# largest type size on any sc page; the words are the landmark, and the size
+# only confirms it is a masthead and not a caption row.
+_MAST_SINGLE = re.compile(r"^The Supreme Court of South Carolina\.?$")
 
 # --- the closed labels ----------------------------------------------------
 # 'Appellate Case No. 2025-000943' — the last row at the rail in the
@@ -199,6 +205,13 @@ _STATUS = re.compile(
     r"|Respondent-Intervenors?|Intervenors?-Respondents?"
     r"|Appellant-Respondents?|Respondent-Appellants?)"
     r"\s*[,.;]", re.I)
+# WHAT A PAPER CALLS ITSELF, printed centred in its own fenced band where
+# the opinion cover prints its number instead. Only 'ORDER' is MEASURED (on
+# state_v._john_joseph_erb page 1, the sole record in this corpus that
+# fronts a second paper), so only 'ORDER' is accepted: a band this reader
+# cannot name aborts the claim, which is a measurable silence rather than a
+# guess dressed as a role.
+_PAPER_NAME = re.compile(r"^ORDER$")
 # The caption's pivot row, printed alone at the rail ('v.'), and the row
 # that joins consolidated captions ('And' / 'AND' / 'and').
 _PIVOT = re.compile(r"^v\.$", re.I)
@@ -237,15 +250,62 @@ def read_headmatter_sc(model, geom, **_):
     finder = FurnitureFinder(model, body_x0, body_size)
     width = model.pages[0].width
 
-    # THE WALK: rows and fences interleaved in page order, each row carrying
-    # the index of the band it fell in. A page's unspent fences are flushed
-    # at the page break, or richard_a._butts — whose disposition is the last
-    # thing on page 1 and whose closing fence is the last rule on it — reads
-    # its counsel as part of the disposition band.
+    blocks = _blocks(model, finder, body_x0, width)
+    if not blocks or blocks[0]["page"] != 1:
+        return NOTHING
+
+    ctx = _Ctx()
+    caption: list[str] = []
+    counsel: list[str] = []
+    # EITHER EVERY COVER IN THE RECORD IS READ OR NONE IS. A block is
+    # self-contained — masthead down to the body rail, no holes — so
+    # skipping one leaves core a clean region; but a claim that sits BELOW
+    # an unread cover sits below a writing core will open on it, and the
+    # bisection invariant would then pull the claim inside. All or nothing
+    # keeps that impossible.
+    for blk in blocks:
+        if not _read_block(ctx, blk, caption, counsel, width):
+            return NOTHING
+    if not ctx.crit.get("docket_number") or not caption:
+        return NOTHING
+    ctx.crit["caption"] = caption
+    parties = _parties(caption)
+    if parties:
+        ctx.crit["parties"] = parties
+        ctx.crit["case_name"] = _case_name(caption)
+    if counsel:
+        ctx.crit["attorneys"] = _norm(" ".join(counsel))[:4000]
+    if ctx.named and len(blocks) == 1:
+        ctx.crit.setdefault("title", ctx.named[0])
+    ctx.crit["headmatter_style"] = ("sc drawn fenced ladder"
+                                   if len(blocks) == 1 else
+                                   "sc drawn fenced ladder, two papers")
+    return ctx.result()
+
+
+def _blocks(model, finder, body_x0: float, width: float) -> list[dict]:
+    """The record's cover BLOCKS, in page order.
+
+    A block OPENS on a masthead and CLOSES on the first row at the body
+    rail — the writing that follows it. Rows between blocks belong to core.
+
+    ONE RECORD PRINTS TWO PAPERS. state_v._john_joseph_erb is a rehearing
+    order (a single 22pt masthead, a caption, the appellate case number and
+    an 'ORDER' band) followed by its own prose and five conformed 's/'
+    signatures, and THEN the substituted opinion, which prints this
+    contract again from its own masthead on page 2. The order's prose and
+    signatures are a WRITING and are deliberately left unclaimed, which is
+    the whole reason the walk is per-block rather than one run: a single run
+    from the first masthead to the first body-rail row would stop at the
+    order's first sentence and strand the opinion's cover inside the order's
+    writing, and one run to the LAST body-rail row would swallow the order
+    itself into the headmatter (which is what core did — the five signature
+    rows and the order's three sentences rendered as headmatter and the
+    record had no order writing at all).
+    """
+    blocks: list[dict] = []
+    cur: dict | None = None
     band = 0
-    rows: list[tuple[int, list]] = []          # (band index, row pieces)
-    fences: list[tuple[int, int]] = []         # (band index closed, page)
-    stopped = False
     for pm in model.pages[:_MAX_PAGES]:
         pending = sorted(_fence_tops(pm, width))
         for group in _rows(pm, finder):
@@ -253,32 +313,49 @@ def read_headmatter_sc(model, geom, **_):
             while pending and pending[0] < top:
                 pending.pop(0)
                 band += 1
-                fences.append((band, pm.number))
+                if cur is not None:
+                    cur["fences"].append((band, pm.number))
+            if cur is None:
+                text = _norm(_text(group))
+                if not (_MAST_STATE.match(text) or _MAST_SINGLE.match(text)):
+                    continue
+                band = 0
+                cur = {"rows": [], "fences": [], "page": pm.number,
+                       "closed": False}
+                blocks.append(cur)
             if min(l.x0 for l in group) <= body_x0 + _BODY_TOL:
-                stopped = True                 # the writing begins
-                break
-            rows.append((band, group))
-        if stopped:
-            break
-        for _ in pending:                      # flush this page's fences
-            band += 1
-            fences.append((band, pm.number))
-    if not stopped:
-        return NOTHING
+                cur["closed"] = True     # the writing begins
+                cur = None
+                continue
+            cur["rows"].append((band, group))
+        if cur is not None:
+            for _ in pending:            # flush this page's fences
+                band += 1
+                cur["fences"].append((band, pm.number))
+    return [b for b in blocks if b["closed"] and b["rows"]]
 
-    # THE DISPATCH: the two-row masthead at the head of the identity band.
-    # Never an ordinal — it is the landmark every other role is anchored to.
-    head = [i for i, (b, g) in enumerate(rows[:4])
-            if b == 0 and _MAST_STATE.match(_norm(_text(g)))]
-    if not head:
-        return NOTHING
-    mast_at = head[0]
-    mast = [mast_at]
-    if mast_at + 1 < len(rows) and rows[mast_at + 1][0] == 0 \
-            and _MAST_COURT.match(_norm(_text(rows[mast_at + 1][1]))):
-        mast.append(mast_at + 1)
-    if len(mast) != 2:
-        return NOTHING
+
+def _read_block(ctx, blk, caption, counsel, width) -> bool:  # noqa: C901
+    """Classify one cover block band by band, or fail the whole claim."""
+    rows = blk["rows"]
+    fences = blk["fences"]
+
+    # THE DISPATCH: the masthead at the head of the identity band. Never an
+    # ordinal — it is the landmark every other role is anchored to. Two
+    # forms are printed: two rows on the opinions, one 22pt row on the
+    # rehearing-order cover.
+    first = _norm(_text(rows[0][1]))
+    if _MAST_STATE.match(first):
+        mast = [0]
+        if len(rows) > 1 and rows[1][0] == 0 \
+                and _MAST_COURT.match(_norm(_text(rows[1][1]))):
+            mast.append(1)
+        if len(mast) != 2:
+            return False
+    elif _MAST_SINGLE.match(first):
+        mast = [0]
+    else:
+        return False
 
     by_band: dict[int, list[int]] = {}
     for i, (b, _g) in enumerate(rows):
@@ -286,8 +363,8 @@ def read_headmatter_sc(model, geom, **_):
 
     # THE SECOND LANDMARK: the band holding 'Opinion No. …'. Everything
     # before it is identity, posture and origin; everything after it is
-    # disposition and counsel. A record with no such band is not this
-    # contract (the rehearing-order cover) and is left to core.
+    # disposition and counsel. A block with no such band is not an opinion
+    # cover — it is a paper that names itself instead (see `_named`).
     num_band = None
     for b in sorted(by_band):
         if b == 0:
@@ -296,31 +373,28 @@ def read_headmatter_sc(model, geom, **_):
                for i in by_band[b]):
             num_band = b
             break
-    if num_band is None:
-        return NOTHING
-
-    ctx = _Ctx()
-    caption: list[str] = []
-    counsel: list[str] = []
 
     for b in sorted(by_band):
         idxs = by_band[b]
         texts = [_norm(_text(rows[i][1])) for i in idxs]
         if b == 0:
             if not _identity(ctx, rows, idxs, texts, mast, caption, width):
-                return NOTHING
+                return False
+        elif num_band is None:
+            if not _named(ctx, rows, idxs, texts, width):
+                return False
         elif b < num_band:
             # POSTURE (all capitals) or ORIGIN (names a judge, so at least
             # one mixed-case row). See the module docstring.
             if all(_is_caps(t) for t in texts):
                 for i, t in zip(idxs, texts):
                     ctx.emit(rows[i][1], "case-info", width)
-                ctx.crit.setdefault("history", " ".join(texts))
+                _history(ctx, " ".join(texts))
             elif not _origin(ctx, rows, idxs, texts, width):
-                return NOTHING
+                return False
         elif b == num_band:
             if not _paper(ctx, rows, idxs, texts, width):
-                return NOTHING
+                return False
         else:
             # After the opinion number the ladder holds exactly two kinds of
             # band, and each is told by POSITION: the disposition is centred
@@ -335,7 +409,7 @@ def read_headmatter_sc(model, geom, **_):
                     ctx.emit(rows[i][1], "disposition", width)
                 ctx.crit.setdefault("disposition", " ".join(texts))
             else:
-                return NOTHING
+                return False
         # A READER THAT CLAIMS THE BLOCK RE-EMITS ITS FENCES — core draws
         # them only on rows a reader left behind. The fence that OPENS the
         # next band is the one that closes this one, and the last band's
@@ -343,17 +417,7 @@ def read_headmatter_sc(model, geom, **_):
         for _b, page in fences:
             if _b == b + 1:
                 ctx.rule(page)
-    if not ctx.crit.get("docket_number") or not caption:
-        return NOTHING
-    ctx.crit["caption"] = caption
-    parties = _parties(caption)
-    if parties:
-        ctx.crit["parties"] = parties
-        ctx.crit["case_name"] = _case_name(caption)
-    if counsel:
-        ctx.crit["attorneys"] = _norm(" ".join(counsel))[:4000]
-    ctx.crit["headmatter_style"] = "sc drawn fenced ladder"
-    return ctx.result()
+    return True
 
 
 # --------------------------------------------------------------------------
@@ -394,10 +458,48 @@ def _identity(ctx, rows, idxs, texts, mast, caption,
                     ctx.crit["other_dockets"] = parts[1:]
             ctx.emit(group, "docket", width, centre=False)
             continue
-        caption.append(text)
+        # THE SAME CAPTION IS PRINTED ON EVERY COVER THE RECORD CARRIES.
+        # Both of erb's papers print 'The State, Respondent,' / 'v.' /
+        # 'John Joseph Erb, Petitioner.' verbatim, and both rows RENDER —
+        # that is what the paper does — but `caption`, `parties` and
+        # `case_name` are facts about the CASE, and a duplicate there would
+        # report four parties in a two-party appeal.
+        if text not in caption:
+            caption.append(text)
         ctx.emit(group, "caption", width, centre=False)
     ctx.crit.setdefault("court", " ".join(said[i] for i in mast))
     return True
+
+
+def _named(ctx, rows, idxs, texts, width) -> bool:
+    """A block with no opinion number names ITSELF instead — one centred row
+    in its own fenced band ('ORDER').
+
+    `title` is right and `case-info` would not be: this is what the paper
+    calls itself, not apparatus the caption carries. It is emitted as a row
+    but NOT written to `criteria.title` when the record holds more than one
+    paper — naming the whole document 'ORDER' when its substantive writing
+    is a substituted opinion would be worse than leaving the criterion to
+    core.
+    """
+    if len(texts) != 1 or not _PAPER_NAME.match(texts[0]):
+        return False
+    ctx.emit(rows[idxs[0]][1], "title", width)
+    ctx.named.append(texts[0])
+    return True
+
+
+def _history(ctx, text: str) -> None:
+    """The paper's procedural history ACCUMULATES: erb's substituted opinion
+    prints both how the case arrived ('ON WRIT OF CERTIORARI TO THE CIRCUIT
+    COURT') and what happened to the earlier paper ('Withdrawn,
+    Substituted, and Refiled November 26, 2025'). Under `setdefault` the
+    first silently discarded the second."""
+    have = ctx.crit.get("history")
+    if not have:
+        ctx.crit["history"] = text
+    elif text not in have:
+        ctx.crit["history"] = f"{have}; {text}"
 
 
 def _origin(ctx, rows, idxs, texts, width) -> bool:
@@ -436,7 +538,7 @@ def _paper(ctx, rows, idxs, texts, width) -> bool:
             continue
         refiled = _REFILED.match(text)
         if refiled:
-            ctx.crit.setdefault("history", text)
+            _history(ctx, text)
             ctx.emit(group, "date", width)
             continue
         return False
@@ -563,6 +665,7 @@ class _Ctx:
         self.dropped: list = []
         self.consumed: set[int] = set()
         self.crit: dict = {}
+        self.named: list = []          # what each block called itself
 
     def emit(self, group: list, role: str, width: float,
              centre: bool | None = None) -> None:
