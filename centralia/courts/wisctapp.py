@@ -175,16 +175,27 @@ CITATION IS NOT THE DOCKET, and this court prints both — the trap that cost
 
 `citation` IS ALSO THE ONLY PUBLICATION SIGNAL THIS READER TRUSTS, and it is
 read from the HEADMATTER ROW ONLY. Item 24 of the core queue is exactly the
-error in the other direction, and this corpus is full of the bait: 27 of the
-30 records cite an OLDER 'WI App' volume in their body text, and 4 records
-(including two PUBLISHED ones) cite 'RULE 809.23(3)' in a footnote or an
-argument. Read from anywhere but the headmatter, `publication_status` comes
-back wrong on more than half the corpus. So: `published` where the cover or
-the headmatter citation row says so (4 records), `unpublished` where the
-809.23(3) notice is printed in the tail (1 record), and UNSET on the other
-25 — which is the honest reading, because their own masthead notice says the
-question is still open ('If published, the official version will appear in
-the bound volume of the Official Reports').
+error in the other direction, and this corpus is full of the bait:
+
+  * 27 of the 30 records cite an OLDER 'WI App' volume in their BODY text,
+    so a citation scan reports the wrong volume on 27 records;
+  * 4 records — two of them PUBLISHED — cite 'RULE 809.23(3)' in a footnote
+    or an argument, so a text search for the notice reports the wrong status
+    on those two;
+  * and the RULE 809.23(3) notice that IS printed in the headmatter is a
+    standing citability caution on the per curiam FORM, not this paper's
+    status: state_v._gustin_j._king prints it above the writing and
+    'Recommended for publication in the official reports.' below it.
+
+So `published` is written on the 4 records whose HEADMATTER prints a
+'20xx WI App n' cite or a 'PUBLISHED OPINION' cover, and `publication_status`
+is left UNSET on the other 26 — which is what their own masthead notice
+says ('If published, the official version will appear in the bound volume of
+the Official Reports'). The 27 'Recommended for publication in the official
+reports.' rows this court prints at the FOOT of its writing are the real
+answer for the rest, and no headmatter reader can reach them: they are
+inside an assembled writing and there is no `endmatter.read` seam (queue
+item 39). Reported, not guessed at.
 
 AUTHORLESS IS NOT A DEFECT (the user's ruling, 2026-08-19). state_v._gustin_
 j._king opens '¶1 PER CURIAM.' and no author is invented for it.
@@ -756,8 +767,15 @@ def _read_tail(ctx, pm, model, finder, foot: float, body_size: float) -> bool:
         if all(r.size < body_size and r.bold for r in note):
             for row in note:
                 ctx.row(row, "publication")
-            if not ctx.crit.get("publication_status"):
-                ctx.crit["publication_status"] = "unpublished"
+            # …AND NOTHING IS WRITTEN TO `publication_status` FROM IT. The
+            # row is a standing CITABILITY caution attached to the per
+            # curiam FORM ('Per curiam opinions may not be cited …'), not a
+            # statement about this paper: state_v._gustin_j._king prints it
+            # in the headmatter AND 'Recommended for publication in the
+            # official reports.' at the foot of its writing. Read as a
+            # status it types a recommended-for-publication slip
+            # `unpublished`, which is item 24's error in the other
+            # direction.
     return True
 
 

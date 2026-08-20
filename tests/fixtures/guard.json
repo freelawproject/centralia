@@ -11489,6 +11489,214 @@
   "summary": 0,
   "syllabus": 0
  },
+ "wisctapp/benjean_f._lara_v._city_of_milwaukee": {
+  "attorneys": 0,
+  "criteria": [
+   "decision_date",
+   "disposition",
+   "docket_number",
+   "judges",
+   "lower_court",
+   "parties",
+   "publication_status",
+   "submitted"
+  ],
+  "hm": 53,
+  "hm_roles": {
+   "caption": 13,
+   "case-info": 3,
+   "citation": 2,
+   "counsel": 9,
+   "court": 4,
+   "date": 5,
+   "docket": 3,
+   "lower-court": 2,
+   "panel": 4,
+   "publication": 1,
+   "title": 1
+  },
+  "lead_bylined": true,
+  "op_blocks": [
+   68
+  ],
+  "ops": [
+   "majority"
+  ],
+  "residual": 0,
+  "status": "valid",
+  "summary": 0,
+  "syllabus": 0
+ },
+ "wisctapp/burt_j._steffes_v._fond_du_lac_regional_clinic_s.c.": {
+  "attorneys": 0,
+  "criteria": [
+   "decision_date",
+   "disposition",
+   "docket_number",
+   "judges",
+   "lower_court",
+   "parties",
+   "publication_status"
+  ],
+  "hm": 24,
+  "hm_roles": {
+   "caption": 7,
+   "case-info": 2,
+   "citation": 1,
+   "court": 4,
+   "date": 2,
+   "docket": 2,
+   "lower-court": 2,
+   "panel": 1,
+   "title": 1
+  },
+  "lead_bylined": true,
+  "op_blocks": [
+   46
+  ],
+  "ops": [
+   "majority"
+  ],
+  "residual": 0,
+  "status": "valid",
+  "summary": 0,
+  "syllabus": 0
+ },
+ "wisctapp/county_of_trempealeau_v._layne_perry_stenberg": {
+  "attorneys": 0,
+  "criteria": [
+   "decision_date",
+   "disposition",
+   "docket_number",
+   "judges",
+   "lower_court",
+   "parties"
+  ],
+  "hm": 22,
+  "hm_roles": {
+   "caption": 5,
+   "case-info": 3,
+   "court": 4,
+   "date": 2,
+   "docket": 2,
+   "lower-court": 2,
+   "panel": 1,
+   "title": 1
+  },
+  "lead_bylined": true,
+  "op_blocks": [
+   57
+  ],
+  "ops": [
+   "majority"
+  ],
+  "residual": 0,
+  "status": "valid",
+  "summary": 0,
+  "syllabus": 0
+ },
+ "wisctapp/david_m._fredrich_v._farmers_group_property_casualty_ins._co.": {
+  "attorneys": 0,
+  "criteria": [
+   "decision_date",
+   "disposition",
+   "docket_number",
+   "judges",
+   "lower_court",
+   "parties"
+  ],
+  "hm": 26,
+  "hm_roles": {
+   "caption": 9,
+   "case-info": 2,
+   "court": 4,
+   "date": 2,
+   "docket": 2,
+   "lower-court": 3,
+   "panel": 1,
+   "title": 1
+  },
+  "lead_bylined": true,
+  "op_blocks": [
+   52
+  ],
+  "ops": [
+   "majority"
+  ],
+  "residual": 0,
+  "status": "valid",
+  "summary": 0,
+  "syllabus": 0
+ },
+ "wisctapp/lowell_management_services_inc._v._matthew_d_ruecker_and_dawn_m_ruecker": {
+  "attorneys": 0,
+  "criteria": [
+   "decision_date",
+   "disposition",
+   "docket_number",
+   "judges",
+   "lower_court",
+   "parties"
+  ],
+  "hm": 23,
+  "hm_roles": {
+   "caption": 7,
+   "case-info": 2,
+   "court": 4,
+   "date": 2,
+   "docket": 2,
+   "lower-court": 2,
+   "panel": 1,
+   "title": 1
+  },
+  "lead_bylined": true,
+  "op_blocks": [
+   142,
+   41
+  ],
+  "ops": [
+   "majority",
+   "concurrence"
+  ],
+  "residual": 0,
+  "status": "valid",
+  "summary": 0,
+  "syllabus": 0
+ },
+ "wisctapp/state_v._gustin_j._king": {
+  "attorneys": 0,
+  "criteria": [
+   "decision_date",
+   "disposition",
+   "docket_number",
+   "judges",
+   "lower_court",
+   "parties"
+  ],
+  "hm": 23,
+  "hm_roles": {
+   "caption": 5,
+   "case-info": 2,
+   "court": 4,
+   "date": 2,
+   "docket": 2,
+   "lower-court": 2,
+   "panel": 1,
+   "publication": 2,
+   "title": 1
+  },
+  "lead_bylined": true,
+  "op_blocks": [
+   23
+  ],
+  "ops": [
+   "per-curiam"
+  ],
+  "residual": 0,
+  "status": "valid",
+  "summary": 0,
+  "syllabus": 0
+ },
  "wva/andrea_dale_daye_v._farmers__mechanics_mutual_insurance_company_of_west": {
   "attorneys": 0,
   "criteria": [

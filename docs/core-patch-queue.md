@@ -1805,3 +1805,111 @@ no-second-column branch (`iowactapp`/`nmctapp`/`nmcca`) and none is invented.
 Item 41 confirmed for the EIGHTH time and closed locally. Items 20/26, 54, 52,
 49, 6 and 48 measured as NOT manifesting here — recorded so nobody re-derives
 them per court.
+
+## 60. A claimed headmatter's positional sort REVERSES a two-column printed line — `pipeline.py:1929-1957`
+
+From the wisctapp port, 2026-08-20. **30 of 30 records**, and the blast radius
+is every court whose reader claims a two-column band — which now includes ri,
+va, ohioctcl, ncbizct, ohioctapp and more.
+
+`Appeal No.  2024AP2064-CRNM` (x0 103.6, top 249.21) and
+`Cir. Ct. No.  2022CF277` (x0 442.8, top 248.47) are ONE printed line in two
+columns. The right column sits **0.62-0.79pt higher on all 30** because it is
+smaller type, so `_row_at`'s `min(top)` key reads it FIRST and prints the
+circuit court's number above the appeal number it stands beside. The reader
+emits them left-then-right — proved by reading the decider's own `items`.
+
+    if _court_hm:
+    -   _ordpos = {l.id: (pm.number, l.top)
+    +   # A TWO-COLUMN PRINTED LINE IS ONE LINE. Two columns never share a
+    +   # baseline exactly — wisctapp sets its right column 0.62-0.79pt
+    +   # higher than its left because it is smaller type — so a key of
+    +   # (page, top) reads the right column first.
+    +   _LINE_BAND = 4.0
+    +   _ordpos = {l.id: (pm.number, round(l.top / _LINE_BAND), l.x0)
+                   for pm in model.pages for l in pm.lines}
+
+Measured for the band: largest cross-column straddle **0.79pt**, smallest
+same-column step **9.12pt** — so a 4.0pt band separates them with room either
+side. Wants a full guard run.
+
+**Every wisctapp pin currently records the reversed order** (`Cir. Ct. No.`
+one line above `Appeal No.`). That is this defect, not the reading — re-bless
+those six when it lands.
+
+## 61. A separate writing's own docket label is read as a section heading inside it — `resolve/assemble.py`
+
+From wisctapp. 5 rows across 4 records, pre-existing (identical with the
+decider popped).
+
+wisctapp reprints the appeal number with a part tag at the head of each
+separate writing's FIRST page at **body size 13.0, bold, at the body rail**
+(top 87.90) — `No.   2024AP4(C)`, `No.   2025AP414 (CD)` — and it renders as
+`<h3 class="bhead">No.   2024AP4(C)</h3>`: a docket presented as a heading.
+From the NEXT page on, the identical label repeats at top 37.1 in 9pt and
+core's `FurnitureFinder` drops it correctly as a `stamp`.
+
+**This is NOT item 6** — nothing escaped the repeat floor (0 leaked pages,
+measured). The head is simply set at body size on its first appearance.
+Proposed rule: a top-band row whose text is the document's own docket in
+`looks_like_docket` form, and which repeats lower in the document at a smaller
+size under a proven furniture key, is the same running head set larger. Note
+the OLD engine's wisctapp profile flagged exactly this
+(`running_header_docket = True`); the new `CourtProfile` has no equivalent.
+
+## Item 24 needs one more clause — a citability RULE is not a status
+
+From wisctapp. `state_v._gustin_j._king` prints a `RULE 809.23(3)` citability
+notice in its headmatter AND `Recommended for publication in the official
+reports.` at the foot of its writing. **Any status rule keyed to that rule
+number types a recommended-for-publication slip `unpublished`.** The notice is
+a standing caution on the per-curiam FORM, not a decision about this paper.
+The reader writes nothing to `publication_status` from it — blessed as correct.
+
+Quantified bait for whoever lands item 24: 27 of 30 wisctapp records cite an
+OLDER `WI App` volume in body text, and 4 (two of them published) cite
+`RULE 809.23(3)` in a footnote or argument.
+
+## Item 39 — second manifestation, and here it costs a criterion outright
+
+27 of wisctapp's 30 records print their real publication decision as **the last
+row of the writing** (`Recommended for publication in the official reports.`,
+x0 180, 13pt, immediately under `By the Court.—…`). It is inside an assembled
+writing, so nothing may lift it, and there is no `endmatter.read` seam — so
+**`publication_status` is unset on 26 records that state their status out
+loud.** The agent calls this the cheapest available win for that seam, and on
+this evidence it is right.
+
+## wisctapp's shape — both branches in ONE document
+
+Worth recording because it is the first court to need two answers at once:
+- **Vertical rules corpus-wide: 0**, counted on every page of all 30 records.
+  The only rules drawn are the slip fence pair (443.00/443.72pt), the cover
+  fence (468.07pt) and the footnote separator (144.02pt) — measure alone
+  separates all three.
+- **The caption is ONE column** and none is invented: parties stand at a single
+  rail (x0 = 103.6 or 108.9 exactly, every party row of every record) and
+  statuses are INDENTED from it, not set beside it.
+- **The masthead is TWO columns with nothing drawn between them** — the
+  va/calctapp shape. Gutter measured: left column's rightmost ink 302.9, right
+  column's leftmost 311.7, an 8.8pt band no glyph crosses; by row x0 the split
+  has 120.7pt of clearance.
+
+And `wis`'s roman/italic caption test does **not** transfer — this court sets
+the whole caption bold. The indent off the rail is exact and admits no other
+value in 30 records: 0.0 party, 26.4 or 72.0 status, 13.2 or 36.0 pivot —
+**exactly half the status indent.** Element break: 14.9-15.0pt inside an
+element, 29.9-30.0 between, and the anchor is the band's LARGEST step because a
+caption with no wrapped name prints no 15pt one at all. The **disposition is
+the italic run** at the end of the origin statement, which is why no vocabulary
+of dispositions could take
+`Orders affirmed; order reversed and cause remanded for further proceedings`.
+
+Unlike `wis`, wisctapp prints **no images at all** (0 across the corpus), so
+`criteria.court` IS set — verbatim and unjoined, `STATE OF WISCONSIN` and
+`DISTRICT IV` left as the separate printed rows they are.
+
+Item 41 confirmed a NINTH time and closed locally. Also noted:
+`render/html.py` TRUNCATES `criteria.attorneys` mid-word, which is what made
+the word-multiset audit look like counsel loss. Items 22, 23, 21 and 6 measured
+as not reachable here.
