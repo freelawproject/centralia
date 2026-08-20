@@ -1146,3 +1146,26 @@ Over-accounting rather than loss, and the cure is three lines at the seam:
         doc.dropped = [d for d in doc.dropped
                        if not (d.prov.line_ids
                                and set(d.prov.line_ids) <= _claimed)]
+
+## Items 36 and 37 — RESOLVED 2026-08-20, and item 37 was MISDIAGNOSED
+
+Item 36 (illappct's profile needs `strip_para_marker=True` and
+`also_abbrev=True`) is APPLIED. illappct stays at 1005/1005 rows, 42/42 valid,
+and `guard illappct ill` is 11/11.
+
+**Item 37 was not an assembly defect at all.** It reported that
+`people_v._reyes` printed `PRESIDING JUSTICE NAVARRO, dissenting:`, which
+`BylineParser` parsed, yet assembly returned one writing — and concluded the
+loss was in `resolve/assemble.py`. It was the same missing profile flags. All
+three records recovered together:
+
+    people_v._salinas  [('majority','SCHOSTOK'), ('concurring-in-part-and-dissenting-in-part','BIRKETT')]
+    in_re_a.b.         [('majority','MIKVA'),    ('dissent','Ellis')]
+    people_v._reyes    [('majority','OCASIO'),   ('dissent','NAVARRO')]
+
+**Item 37 is CLOSED — do not go looking for an assemble.py bug.** The lesson:
+a byline that parses in isolation can still be invisible to assembly because
+the COURT'S OWN GRAMMAR never offered it, and that reads exactly like an
+assembly defect from the outside. Check the profile before the pipeline.
+
+The three stems are now pinned, since their readings are correct.

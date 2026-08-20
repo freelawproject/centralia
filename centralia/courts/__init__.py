@@ -220,7 +220,13 @@ register(CourtProfile(
 # rev_titles, without which all 10 separate writings in the corpus are lost.
 register(CourtProfile(
     "illappct", "Illinois Appellate Court",
+    # illappct NUMBERS its separate-writing bylines with a hanging pilcrow
+    # ('\u00b6 59 JUSTICE BIRKETT, concurring in part and dissenting in part:')
+    # and signs some of them abbreviated ('\u00b6 57 Ellis, J., dissenting.').
+    # Without both flags every announced separate writing in the corpus is
+    # LOST and the document assembles as one majority.
     byline=BylineGrammar(style="reversed", allow_titlecase_name=True,
+                         strip_para_marker=True, also_abbrev=True,
                          rev_titles=("JUSTICE", "PRESIDING JUSTICE",
                                      "Justice", "Presiding Justice"))))
 register(CourtProfile(
