@@ -85,9 +85,39 @@ _CLERK = re.compile(r"^Office of Appellate Courts$", re.I)
 _RECUSED = re.compile(
     r"^(?:Took no part|Did not participate|Took no part in the consideration"
     r"|Recused)\b", re.I)
+# A JUSTICE'S NAME MAY CARRY A DIACRITIC. 'Gaïtas, J.' is the author row on
+# 5 records and the plain-ASCII class rejected every one of them, so those
+# records reported no author at all and the row fell through unclaimed.
+_NAME = r"[A-Z][A-Za-zÀ-ÖØ-öø-ÿ'’\-]+"
 _AUTHOR = re.compile(
-    r"^(?:Per Curiam|[A-Z][A-Za-z'’\-]+(?:,\s*(?:III|Jr\.|Sr\.|II))?"
+    rf"^(?:Per Curiam|{_NAME}(?:,\s*(?:III|Jr\.|Sr\.|II))?"
     r",\s*(?:C\.\s*J\.|J\.))$")
+# WHO WROTE SEPARATELY, AND WHO STOOD OUT. The right-hand column carries a
+# fourth thing besides the author, the release and the clerk: the court's
+# statement of participation. Measured over the 50 records, 17 rows —
+#
+#   'Concurring, Thissen, J.'                'Concurring, Hudson, C.J.'
+#   'Dissenting, McKeig, Hennesy, JJ.'       'Concurring, McKeig, J.'
+#   'Dissenting, Procaccini, Thissen, Gaïtas, JJ.'
+#   'Concurring in part, dissenting in part,'   …which WRAPS, to
+#   'Thissen, Moore, III, JJ.'
+#   'Withdrew from participation, Hennesy, J.'
+#
+# Matching none of the three, each one fell through unclaimed — and core
+# reunited the run into a phantom writing of its own, three blocks of
+# headmatter rendering as a majority opinion above the real one (the user,
+# 2026-08-20, on dennis_walsh_v._city_of_orono: 'it is taking part of the
+# headmatter and making it in a opinion majority').
+_PARTICIPATION = re.compile(
+    r"^(?:Concurring|Dissenting|Withdrew from participation|Took no part"
+    r"|Did not participate|Recused)\b", re.I)
+# THE STATEMENT WRAPS ON A ROSTER, and only on a roster: 'Concurring in
+# part, dissenting in part,' ends on its comma and the bench it names stands
+# on the row below. Read as a shape (names, then the bench's own title), never
+# against a list of justices — the bench changes.
+_BENCH_ROSTER = re.compile(
+    rf"^(?:{_NAME}(?:,\s*(?:III|Jr\.|Sr\.|II))?,\s*)*"
+    rf"{_NAME}(?:,\s*(?:III|Jr\.|Sr\.|II))?,\s*(?:C\.\s*J\.|JJ?\.)$")
 # The left column beside them.
 _ORIGIN = re.compile(
     r"^(?:.*\bCounty\b.*|Original Jurisdiction|Court of Appeals"
@@ -147,6 +177,7 @@ def read_headmatter_minn(model, geom, **_):
 
     ctx = _Ctx()
     band = "caption"          # caption | counsel | syllabus
+    bench_open = False        # a participation statement wrapped
     caption: list[str] = []
     for group in rows:
         pieces = sorted(group, key=lambda l: l.x0)
@@ -158,6 +189,20 @@ def read_headmatter_minn(model, geom, **_):
                       - page1.width / 2) <= _AXIS_TOL
 
         if _TYPED_RULE.match(text):
+            # THE RULE IS THE BAND EDGE, and this court draws it. Below the
+            # first one stand the appearances, whatever the row says: only
+            # 106 of the 301 rows there name the party they appeared for
+            # ('…, for appellant.'), because the roster WRAPS — 'Nicholas J.
+            # Nelson, Douglas P. Seaton, James V.F. Dickey, Austin M. Lysy,
+            # Upper' is a first row with nothing in it to recognise, and
+            # tested row by row it was read as another party of the caption
+            # (the user, 2026-08-20: 'putting this in caption even though
+            # there is a clear line separating caption and counsel'). 46 of
+            # the 50 records draw two rules, 3 draw one and 1 draws none;
+            # the syllabus below still opens on its own letterspaced head,
+            # so no rule is ever counted.
+            if band == "caption":
+                band = "counsel"
             ctx.rule(first.page, tuple(p.id for p in pieces), typed=True)
             continue
         if text.lower() == _MASTHEAD or _COURT_ROW.match(text):
@@ -204,8 +249,16 @@ def read_headmatter_minn(model, geom, **_):
                 ctx.emit([piece], "case-info", centre=False)
                 placed = True
                 continue
-            if right and _RECUSED.match(one):
+            if right and _PARTICIPATION.match(one):
                 ctx.emit([piece], "panel", centre=False)
+                # …and if it ended on a comma, the bench it names is on the
+                # next row.
+                bench_open = one.rstrip().endswith(",")
+                placed = True
+                continue
+            if right and bench_open and _BENCH_ROSTER.match(one):
+                ctx.emit([piece], "panel", centre=False)
+                bench_open = False
                 placed = True
                 continue
             if right and _AUTHOR.match(one):

@@ -12152,6 +12152,44 @@
   "summary": 0,
   "syllabus": 0
  },
+ "minn/dennis_walsh_v._city_of_orono_minnesota": {
+  "attorneys": 0,
+  "criteria": [
+   "decision_date",
+   "docket_number",
+   "lower_court",
+   "parties"
+  ],
+  "hm": 34,
+  "hm_roles": {
+   "author": 1,
+   "caption": 5,
+   "case-info": 1,
+   "counsel": 4,
+   "court": 2,
+   "date": 1,
+   "docket": 1,
+   "lower-court": 1,
+   "panel": 3,
+   "syllabus": 12,
+   "title": 1
+  },
+  "lead_bylined": true,
+  "op_blocks": [
+   58,
+   35,
+   2
+  ],
+  "ops": [
+   "majority",
+   "concurring-in-part-and-dissenting-in-part",
+   "concurring-in-part-and-dissenting-in-part"
+  ],
+  "residual": 0,
+  "status": "valid",
+  "summary": 0,
+  "syllabus": 0
+ },
  "mo/in_re_todd_n._agron": {
   "attorneys": 0,
   "criteria": [
@@ -16164,7 +16202,7 @@
   },
   "lead_bylined": true,
   "op_blocks": [
-   79
+   60
   ],
   "ops": [
    "majority"
@@ -16196,7 +16234,7 @@
   },
   "lead_bylined": true,
   "op_blocks": [
-   53
+   38
   ],
   "ops": [
    "majority"
@@ -16228,7 +16266,7 @@
   },
   "lead_bylined": true,
   "op_blocks": [
-   124
+   95
   ],
   "ops": [
    "majority"
@@ -16260,7 +16298,7 @@
   },
   "lead_bylined": true,
   "op_blocks": [
-   59
+   43
   ],
   "ops": [
    "majority"
@@ -16292,7 +16330,7 @@
   },
   "lead_bylined": true,
   "op_blocks": [
-   69
+   52
   ],
   "ops": [
    "majority"
@@ -16324,8 +16362,8 @@
   },
   "lead_bylined": true,
   "op_blocks": [
-   61,
-   135
+   47,
+   94
   ],
   "ops": [
    "majority",
@@ -16835,15 +16873,24 @@
    "submitted"
   ],
   "hm": 17,
+  "hm_roles": {
+   "caption": 12,
+   "counsel": 7,
+   "court": 1,
+   "date": 2,
+   "docket": 2,
+   "lower-court": 4,
+   "panel": 2
+  },
   "lead_bylined": true,
   "op_blocks": [
-   74
+   59
   ],
   "ops": [
    "majority"
   ],
   "residual": 0,
-  "status": "scanned",
+  "status": "valid",
   "summary": 0,
   "syllabus": 0
  },
