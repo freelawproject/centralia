@@ -1,16 +1,17 @@
 # Overnight worklist — remaining state courts
 
-Generated 2026-08-20. **Tick a court off by deleting its line** once its
-reader is committed. This file is the source of truth for the overnight
-batches; the cron job reads it, not the conversation.
+REGENERATED FROM THE FILESYSTEM. A court leaves this list the moment
+`centralia/courts/<court>.py` exists, so re-running the generator in
+`docs/session-state-2026-08-20.md` is how you refresh it — never hand-edit.
 
-Batch protocol is in `docs/session-state-2026-08-20.md`. Non-negotiables:
-one court file per agent, own scratch dir, no core edits (report with an
-exact patch), never `guard --add`/`--bless`, never the `quality`
-subcommand, and **commit the module WITH its `courts/__init__.py` import
-line** — staging that file alone broke HEAD once today.
+Protocol per agent, non-negotiable: one court file, own scratch dir, no
+core edits (report an exact patch instead), never `guard --add`/`--bless`,
+never the `quality` subcommand, never `v1diff` via `main()`, and **commit
+the module WITH its `courts/__init__.py` import line** — staging that file
+alone broke HEAD once today. Check a v1 baseline exists before believing
+`v1diff`: with none it returns 0 diffs vacuously.
 
-41 courts remaining, 1363 pdfs.
+**38 courts remaining, 1282 pdfs.**
 
 
 ## sibling COMPLETE — safest inheritance
@@ -21,10 +22,7 @@ line** — staging that file alone broke HEAD once today.
 | `ncbizct` | 42 | `nc.py` |
 | `nmariana` | 32 | `nm.py` |
 | `nmcca` | 32 | `nm.py` |
-| `idahoctapp` | 30 | `idaho.py` |
-| `iowactapp` | 30 | `iowa.py` |
 | `ohioctcl` | 30 | `ohio.py` |
-| `nmctapp` | 21 | `nm.py` |
 
 ## sibling has a reader, not yet marked
 
