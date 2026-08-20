@@ -660,3 +660,5 @@ from . import ohioctcl                                       # noqa: E402,F401
 from . import ncbizct                                    # noqa: E402,F401
 
 from . import nmcca                                        # noqa: E402,F401
+
+from . import scctapp                                    # noqa: E402,F401

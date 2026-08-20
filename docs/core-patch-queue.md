@@ -1510,3 +1510,67 @@ furniture.** Fires on 9 rows corpus-wide, every one genuinely a running head,
 and never where core's pass already succeeded (so no double `Dropped`, item
 46). Worth lifting into item 6's proposed rule alongside wash's
 count-independent docket test.
+
+## 54. The court's own CITATION is dropped as a publication `status` stamp — `resolve/furniture.py`
+
+From the scctapp port, 2026-08-20. **Found only because the reader was popped
+to look** — any court reader that claims the row masks it, which is why it went
+unseen.
+
+With the decider popped, `furniture.py` classifies
+`Unpublished Opinion No. 2026-UP-388` as furniture kind `status` and files it in
+the removed box on **5 of the 7 unpublished records** (akpa, daisy_crump,
+blakeney, kelly, altamont). `altamont` additionally loses
+`Heard June 10, 2026 – Filed July 22, 2026` — its whole date band.
+
+The publication WORD in the row is being read as a publication STAMP, but the
+row is the court's own citation. Fix: require a stamp row to be the flag
+**alone** — refuse any candidate whose text carries a citation or docket form,
+concretely `r"\bNo\.\s*\S"` after the publication word.
+
+**Check `sc` when this lands** — same publisher, same numbering, and its
+reader may be masking the same drop.
+
+## 55. A counsel block below a page break becomes a writing — `resolve/assemble.py`
+
+From scctapp. On `in_the_matter_of_the_estate_of_paul_brandon_barringer_ii_3`
+core opens an `order` writing on the page-2 counsel rows (`Desa Ballard, of
+Ballard & Watson …`), giving the record two writings where the paper has one.
+
+Those rows stand at the CAPTION rail (144.0), 72pt inside the body rail, and
+are separated from the real byline by a drawn fence. Proposed rule: an unsigned
+writing whose every block stands at or right of `caption_rail`, and which is
+closed by a drawn rule before the first body-rail row, is not a writing — fold
+it back into the headmatter span.
+
+Same symptom family as item 49 (phantom writings) but a different cause: 49 is
+a signature below an attestation, this is counsel below a page break.
+
+## scctapp's shape — a new branch of the divider taxonomy
+
+Worth recording, because six ports have now each had to name their shape and
+this one is genuinely new: **the DRAWN-MARK family but HORIZONTAL, with no
+second column.** Measured over all 28 records x 6 pages, the only rules these
+pages draw are a 97.2pt band fence on the page axis (140 of them), the
+footnote separator (74, and 162pt off axis), and ONE 216.2pt underline whose
+ends coincide with the heading 11pt above it. **Vertical rules corpus-wide: 0**
+(counted). So the page draws its structure horizontally and there is no caption
+column at all — no `CaptionBlock` is emitted. The fence gate tests the AXIS
+first and the measure second, which is what excludes that single underline.
+
+## v1 loses 34 rows where we do not — scctapp/barringer
+
+Recorded as evidence for the "v1 is a reference, not a standard" rule. On
+`barringer`, v1 TRUNCATED the cover at page 1's eighth caption row and lost the
+second consolidated caption, the docket, the origin, the citation, both dates,
+the disposition and both counsel entries — 34 rows. We read them. Three other
+records differ only because we re-emit drawn fences v1 omitted.
+
+**Do NOT pin barringer yet.** Its rows, roles, fences and cross-page order are
+all correct, but `case_name` and `parties[0]` fold its style row into the first
+party: `"In the Matter of the Estate of Paul Brandon Barringer, II Hampton
+Barringer Luzak"`. Inherited from `sc.py`'s `_trim`/`_case_name`. The structural
+cue that would fix it — a caption row with no terminal punctuation followed by
+another caption row — appears on exactly one record, so the agent correctly
+declined to encode it from a single witness. Pin once that style-row rule is
+settled; it is the only consolidated caption AND the only two-row disposition.
