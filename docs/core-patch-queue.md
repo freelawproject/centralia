@@ -2375,3 +2375,48 @@ filed (the caption's right column carries no date, unlike `wash`'s
 `Filed: <date>` cell), v1 records no date at all, and the row is attested in
 `Dropped` so nothing is hidden. 22 of 42 records get one; the 20 Division One
 records print no stamp and correctly get none.
+
+## A claimed headmatter SPLITS an unsigned writing in two — `resolve/assemble.py:1105`
+
+Found porting `delch` (2026-08-20). One record of 42: **`delch/yanan_sun_v._wei_mig_chang`**
+comes back as TWO writings — `[('order', 3 blocks), ('order', 67 blocks)]` — both
+credited to the same officer, split at the page 1/2 boundary in the middle of a
+sentence ('…Chang further argues that Song's' | 'law and the Corporation's
+governing documents.').
+
+Its cause is the rule at `assemble.py:1105`. With a court claim in place the
+stream is body-only, so the rule PREPENDS the first body segment as a writing
+start — correctly, because this letter ruling opens at its salutation on page 1
+— but it KEEPS the start core had already found deeper in the document:
+
+    if starts and starts[0] > _body0 and not _fm0:
+        starts = [_body0] + [x for x in starts if x > _body0]
+
+On an unsigned document the deeper start is not a second writing. Measured both
+ways on this record:
+
+    with the delch reader     [('order', 3), ('order', 67)]
+    reader neutralised        [('order', 67)]   <- and page 1's body is LOST,
+                                                   it stays behind as headmatter
+
+So core is wrong either way and the claim is the better of the two readings: no
+content is lost, the writing is merely cut in half. **The patch is to drop a
+deeper start that no BYLINE vouched for when `_body0` is prepended** — a start
+found by the prose/conformed-signature path is a continuation of the writing
+`_body0` opens, not a new one. A byline-anchored deeper start must still stand
+(that is a real separate writing).
+
+`delch/yanan_sun_v._wei_mig_chang` is deliberately **NOT pinned** — pinning it
+would lock the split in and make guard pass on the bug (the 08-19 alaska
+mistake). Pin it when this lands.
+
+## Cosmetic: a court-claimed row is ALSO reported as removed — `pipeline.py:1306`
+
+Also from delch. The letter rulings' letterhead names the officer who wrote
+them ('LOREN MITCHELL' / 'MAGISTRATE IN CHANCERY'), and `delch.py` claims those
+two rows as `author`. Core's line-level stamp/notice peel runs over `hm_pages`
+independently of the claim, so the same two rows ALSO appear in the document's
+`removed` box as `kind="stamp"` — the render shows them twice, once read and
+once discarded. Filtering that peel by the court's `consumed` ids fixes it.
+Display only: no content is lost either way, and it is why delch's letters show
+5-6 'removed' rows that are all also present in the headmatter.

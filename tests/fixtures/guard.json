@@ -5608,6 +5608,232 @@
   "summary": 0,
   "syllabus": 0
  },
+ "delch/advent_international_l.p._v._servicios_funerarios_gg_s.a._de_c.v.": {
+  "attorneys": 0,
+  "criteria": [
+   "decision_date",
+   "docket_number",
+   "parties",
+   "submitted"
+  ],
+  "hm": 18,
+  "hm_roles": {
+   "caption": 127,
+   "counsel": 13,
+   "court": 1,
+   "date": 2,
+   "docket": 1,
+   "title": 1
+  },
+  "lead_bylined": true,
+  "op_blocks": [
+   70
+  ],
+  "ops": [
+   "majority"
+  ],
+  "residual": 0,
+  "status": "valid",
+  "summary": 0,
+  "syllabus": 0
+ },
+ "delch/calm_v._taylor": {
+  "attorneys": 0,
+  "criteria": [
+   "decision_date",
+   "docket_number",
+   "parties",
+   "submitted"
+  ],
+  "hm": 14,
+  "hm_roles": {
+   "caption": 23,
+   "counsel": 9,
+   "court": 1,
+   "date": 2,
+   "docket": 1,
+   "title": 1
+  },
+  "lead_bylined": true,
+  "op_blocks": [
+   368
+  ],
+  "ops": [
+   "majority"
+  ],
+  "residual": 0,
+  "status": "valid",
+  "summary": 0,
+  "syllabus": 0
+ },
+ "delch/centene_corporation_v._centurion_equity_inc__centurion_equity_v._centene": {
+  "attorneys": 0,
+  "criteria": [
+   "decision_date",
+   "docket_number",
+   "judges"
+  ],
+  "hm": 10,
+  "hm_roles": {
+   "author": 2,
+   "caption": 2,
+   "court": 3,
+   "date": 1,
+   "docket": 2
+  },
+  "lead_bylined": true,
+  "op_blocks": [
+   32
+  ],
+  "ops": [
+   "order"
+  ],
+  "residual": 0,
+  "status": "valid",
+  "summary": 0,
+  "syllabus": 0
+ },
+ "delch/in_re_cellular_telephone_coordinated_partnership_litigation": {
+  "attorneys": 0,
+  "criteria": [
+   "decision_date",
+   "docket_number",
+   "submitted"
+  ],
+  "hm": 18,
+  "hm_roles": {
+   "caption": 5,
+   "counsel": 11,
+   "court": 1,
+   "date": 2,
+   "docket": 2,
+   "title": 2
+  },
+  "lead_bylined": true,
+  "op_blocks": [
+   170
+  ],
+  "ops": [
+   "majority"
+  ],
+  "residual": 0,
+  "status": "valid",
+  "summary": 0,
+  "syllabus": 0
+ },
+ "delch/in_re_swervepay_acquisition_llc": {
+  "attorneys": 0,
+  "criteria": [
+   "decision_date",
+   "docket_number",
+   "submitted"
+  ],
+  "hm": 20,
+  "hm_roles": {
+   "caption": 2,
+   "counsel": 15,
+   "court": 1,
+   "date": 2,
+   "docket": 2,
+   "title": 1
+  },
+  "lead_bylined": true,
+  "op_blocks": [
+   308
+  ],
+  "ops": [
+   "majority"
+  ],
+  "residual": 0,
+  "status": "valid",
+  "summary": 0,
+  "syllabus": 0
+ },
+ "delch/intel_corp_v._nvidia_corp": {
+  "attorneys": 0,
+  "criteria": [
+   "decision_date",
+   "docket_number",
+   "judges"
+  ],
+  "hm": 27,
+  "hm_roles": {
+   "author": 2,
+   "caption": 1,
+   "counsel": 19,
+   "court": 3,
+   "date": 1,
+   "docket": 1
+  },
+  "lead_bylined": true,
+  "op_blocks": [
+   59
+  ],
+  "ops": [
+   "order"
+  ],
+  "residual": 0,
+  "status": "valid",
+  "summary": 0,
+  "syllabus": 0
+ },
+ "delch/shalomyah_bowers_v._black_lives_matter_global_network_foundation_inc.": {
+  "attorneys": 0,
+  "criteria": [
+   "decision_date",
+   "docket_number",
+   "parties",
+   "submitted"
+  ],
+  "hm": 13,
+  "hm_roles": {
+   "caption": 21,
+   "counsel": 8,
+   "court": 1,
+   "date": 2,
+   "docket": 1,
+   "title": 1
+  },
+  "lead_bylined": true,
+  "op_blocks": [
+   121
+  ],
+  "ops": [
+   "majority"
+  ],
+  "residual": 0,
+  "status": "valid",
+  "summary": 0,
+  "syllabus": 0
+ },
+ "delch/tonya_frazier_v._michael_frazier": {
+  "attorneys": 0,
+  "criteria": [
+   "decision_date",
+   "docket_number",
+   "judges"
+  ],
+  "hm": 11,
+  "hm_roles": {
+   "author": 2,
+   "caption": 1,
+   "counsel": 3,
+   "court": 3,
+   "date": 1,
+   "docket": 1
+  },
+  "lead_bylined": true,
+  "op_blocks": [
+   7
+  ],
+  "ops": [
+   "order"
+  ],
+  "residual": 0,
+  "status": "valid",
+  "summary": 0,
+  "syllabus": 0
+ },
  "fla/andrew_richard_lukehart_v._state_of_florida": {
   "attorneys": 9,
   "criteria": [

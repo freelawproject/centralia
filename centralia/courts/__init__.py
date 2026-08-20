@@ -204,6 +204,23 @@ register(CourtProfile(
     "del", "Supreme Court of the State of Delaware",
     byline=BylineGrammar(style="prose",
                          titles=("Chief Justice", "Justice"))))
+# THE TWO DELAWARE TRIAL COURTS SIGN IN CHANCERY'S OWN ABBREVIATIONS. Both
+# print the spelled form ('WILL, Vice Chancellor', 'ZURN, Vice Chancellor')
+# and the abbreviated one ('LASTER, V.C.', 'McCORMICK, C.', 'WRIGHT, M.',
+# 'Miller, J.'), so BOTH grammars are declared: 'C.' and 'M.' are not in the
+# shared table, and 'Cook, V.C.' / 'Miller, J.' are title case, which the
+# prose form admits only when it is told to.
+_CHANCERY_ABBREV = (("V.C.", "Vice Chancellor"), ("V. C.", "Vice Chancellor"),
+                    ("C.", "Chancellor"),
+                    ("M.", "Magistrate in Chancery")) + DEFAULT_ABBREV
+register(CourtProfile(
+    "delch", "Court of Chancery of the State of Delaware",
+    byline=BylineGrammar(
+        style="prose", also_abbrev=True, allow_titlecase_name=True,
+        abbrev_titles=_CHANCERY_ABBREV,
+        titles=("Chancellor", "Vice Chancellor", "Magistrate in Chancery",
+                "Master in Chancery", "Magistrate", "Master", "Judge",
+                "Justice"))))
 register(CourtProfile(
     "haw", "Supreme Court of the State of Hawaiʻi",
     byline=BylineGrammar(style="abbrev", opinion_by_headings=True)))
@@ -705,3 +722,5 @@ from . import hawapp                                     # noqa: E402,F401
 from . import washctapp                                  # noqa: E402,F401
 
 from . import vactapp                                    # noqa: E402,F401
+
+from . import delch                                      # noqa: E402,F401
