@@ -13891,9 +13891,8 @@
    "lower_court",
    "parties"
   ],
-  "hm": 18,
+  "hm": 16,
   "hm_roles": {
-   "author": 2,
    "caption": 5,
    "citation": 1,
    "date": 1,
@@ -13902,14 +13901,14 @@
   },
   "lead_bylined": true,
   "op_blocks": [
-   74
+   73
   ],
   "ops": [
    "majority"
   ],
   "residual": 0,
   "status": "valid",
-  "summary": 0,
+  "summary": 1,
   "syllabus": 0
  },
  "wis/office_of_lawyer_regulation_v._bryant_h._klos": {
@@ -14004,9 +14003,8 @@
    "lower_court",
    "parties"
   ],
-  "hm": 18,
+  "hm": 16,
   "hm_roles": {
-   "author": 2,
    "caption": 5,
    "citation": 1,
    "date": 1,
@@ -14015,14 +14013,14 @@
   },
   "lead_bylined": true,
   "op_blocks": [
-   55
+   54
   ],
   "ops": [
    "majority"
   ],
   "residual": 0,
   "status": "valid",
-  "summary": 0,
+  "summary": 1,
   "syllabus": 0
  },
  "wis/state_v._michael_joseph_gasper": {
@@ -14033,9 +14031,8 @@
    "lower_court",
    "parties"
   ],
-  "hm": 27,
+  "hm": 17,
   "hm_roles": {
-   "author": 10,
    "caption": 5,
    "citation": 1,
    "date": 1,
@@ -14044,7 +14041,7 @@
   },
   "lead_bylined": true,
   "op_blocks": [
-   82,
+   81,
    18,
    33,
    17,
@@ -14059,7 +14056,7 @@
   ],
   "residual": 0,
   "status": "valid",
-  "summary": 0,
+  "summary": 1,
   "syllabus": 0
  },
  "wisctapp/benjean_f._lara_v._city_of_milwaukee": {

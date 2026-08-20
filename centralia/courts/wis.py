@@ -115,9 +115,6 @@ STYLE = "fenced letterhead"
 
 # ---- wis's declared facts (measured over all 49 records, not tuned) ------
 
-# THE BLOCK IS PAGE ONE. The deepest fence in the corpus is at top=659.3
-# (state_v._michael_joseph_gasper) on a 792pt page; nothing spills over.
-_MAX_PAGES = 1
 # THE FENCE. 190 drawn rects over the corpus, every one 118.5–118.8pt wide
 # and centred on the page axis to within 0.4pt. The letterhead's head rule
 # is 391.5pt, so the measure alone separates them; the axis is tested too,
@@ -362,6 +359,7 @@ class _Ctx:
         self.consumed: set = set()
         self.dropped: list = []
         self.crit: dict = {}
+        self.summary: list = []
         self.announced: str | None = None
 
     def row(self, row: _Row, role: str, align: str = "C") -> None:
@@ -382,6 +380,7 @@ class _Ctx:
     def result(self) -> dict:
         out = {"criteria": self.crit, "items": self.items, "attorneys": [],
                "dropped": self.dropped, "consumed": self.consumed,
+               "summary": self.summary,
                "anchor_ids": [], "doc_type_final": None}
         if self.announced:
             out["announced_author"] = self.announced
@@ -393,6 +392,10 @@ def read_headmatter_wis(model, geom, **_):
     """Read wis's fenced letterhead, or NOTHING."""
     if not model.pages:
         return NOTHING
+    # THE BLOCK IS PAGE ONE, whole. The deepest fence in the corpus is at
+    # top=659.3 (state_v._michael_joseph_gasper) on a 792pt page and every
+    # record closes its block above the foot of the sheet, so the reader
+    # never looks at a second page.
     page1 = model.pages[0]
     body_x0 = geom.body_x0 if geom and geom.body_x0 else 108.0
     fences = _fences(page1)
@@ -557,15 +560,34 @@ def _read_origin(ctx: _Ctx, band: list) -> None:
 
 # ---- the announcement band ----------------------------------------------
 
+def _join(pieces: list) -> str:
+    """The band's rows as ONE paragraph. The court justifies the
+    announcement to the measure, so its rows are a wrap and not lines."""
+    text = ""
+    for piece in pieces:
+        text = (text.rstrip() + " " + piece.lstrip()) if text.strip() else piece
+    return text
+
+
+
 def _read_announcement(ctx: _Ctx, band: list) -> None:
     """The court announcing who wrote what — a justified paragraph at the
     body rail, kept whole, wrap and all. The roster inside it is recorded as
     PRINTED: parsing 'ANNETTE KINGSLAND ZIEGLER, REBECCA GRASSL BRADLEY,
     REBECCA FRANK DALLET, and JANET C. PROTASIEWICZ, JJ., joined' into names
     yields a justice called 'and', and the printed line is the fact."""
-    for row in band:
-        ctx.row(row, "author", "L")
     whole = _norm(" ".join(r.text for r in band))
+    # THE ANNOUNCEMENT IS A SECTION OF ITS OWN, not a row of the block. It is
+    # the court's own account of who wrote what and who joined -- prose, in
+    # sentences, and the only prose the letterhead prints. Emitted as
+    # headmatter rows it rendered as four ragged lines labelled 'author'
+    # inside the caption's furniture; handed over as `summary` it renders as
+    # the paragraph it is, below the block (the user, 2026-08-20: 'the
+    # headmatter has section author lets make it summary').
+    ctx.summary.append(m.Paragraph(
+        text=_join([r.markup() for r in band]),
+        prov=m.Prov(band[0].page, tuple(i for r in band for i in r.ids))))
+    ctx.consumed.update(i for r in band for i in r.ids)
     ctx.crit["panel_line"] = whole
     match = _ANNOUNCE.match(whole)
     if match:
@@ -575,3 +597,35 @@ def _read_announcement(ctx: _Ctx, band: list) -> None:
         # but a signature always outranks an announcement, and reporting it
         # costs nothing and covers an unsigned paper.
         ctx.announced = match.group("name")
+
+
+# --------------------------------------------------------------------------
+# image.role — this court's letterhead IS a picture
+# --------------------------------------------------------------------------
+# Measured over the corpus: every record prints its letterhead as two
+# graphics on page one and prints no other graphic anywhere —
+#
+#     364.1x33.7   the court's WORDMARK, set at x0 123.8 across the axis
+#      73.6x72.5   the court's SEAL, centred on the page axis beneath it
+#
+# — and both stand ABOVE THE FIRST FENCE, the same landmark this reader cuts
+# its own bands on (the shallowest fence measured opens at top 257.5; the
+# seal closes at 242.5). No page of this court prints a figure.
+#
+# Left to core's geometry the seal was neither above all the type — the
+# citation ('2025 WI 53') is set above the letterhead, not below it — nor
+# small enough to ignore, so it was read as a printed exhibit and carried
+# into the body as a data URI: the court's seal planted inside the order
+# (the user, 2026-08-20: 'lets pull the court seal on every one').
+@decider("image.role", court="wis")
+def image_role_wis(page=None, image=None, **_):
+    """Stationery, surfaced as a removal with the reason the page shows.
+    NOTHING for a graphic standing below the letterhead, where core's own
+    geometry is a better answer than this court's guess."""
+    if page is None or image is None or page.number != 1:
+        return NOTHING
+    fences = _fences(page)
+    if not fences or image.bottom > fences[0].top:
+        return NOTHING
+    wide = (image.x1 - image.x0) > 2.5 * (image.bottom - image.top)
+    return "the court's wordmark" if wide else "the court's seal"
