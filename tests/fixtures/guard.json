@@ -10498,6 +10498,200 @@
   "summary": 0,
   "syllabus": 0
  },
+ "utahctapp/christensen_v._christensen": {
+  "attorneys": 0,
+  "criteria": [
+   "decision_date",
+   "docket_number",
+   "lower_court",
+   "parties"
+  ],
+  "hm": 26,
+  "hm_roles": {
+   "caption": 5,
+   "citation": 1,
+   "counsel": 4,
+   "court": 1,
+   "date": 1,
+   "docket": 1,
+   "lower-court": 3,
+   "panel": 2,
+   "title": 1
+  },
+  "lead_bylined": true,
+  "op_blocks": [
+   79
+  ],
+  "ops": [
+   "majority"
+  ],
+  "residual": 0,
+  "status": "valid",
+  "summary": 0,
+  "syllabus": 0
+ },
+ "utahctapp/in_re_m.m.": {
+  "attorneys": 0,
+  "criteria": [
+   "decision_date",
+   "docket_number",
+   "lower_court",
+   "parties"
+  ],
+  "hm": 29,
+  "hm_roles": {
+   "caption": 7,
+   "citation": 1,
+   "counsel": 4,
+   "court": 1,
+   "date": 1,
+   "docket": 1,
+   "lower-court": 3,
+   "panel": 2,
+   "title": 1
+  },
+  "lead_bylined": true,
+  "op_blocks": [
+   53
+  ],
+  "ops": [
+   "majority"
+  ],
+  "residual": 0,
+  "status": "valid",
+  "summary": 0,
+  "syllabus": 0
+ },
+ "utahctapp/mountain_west_towing_v._west_jordan": {
+  "attorneys": 0,
+  "criteria": [
+   "decision_date",
+   "docket_number",
+   "lower_court",
+   "parties"
+  ],
+  "hm": 27,
+  "hm_roles": {
+   "caption": 5,
+   "citation": 1,
+   "counsel": 5,
+   "court": 1,
+   "date": 1,
+   "docket": 1,
+   "lower-court": 3,
+   "panel": 2,
+   "title": 1
+  },
+  "lead_bylined": true,
+  "op_blocks": [
+   124
+  ],
+  "ops": [
+   "majority"
+  ],
+  "residual": 0,
+  "status": "valid",
+  "summary": 0,
+  "syllabus": 0
+ },
+ "utahctapp/schmidt_v._schmidt": {
+  "attorneys": 0,
+  "criteria": [
+   "decision_date",
+   "docket_number",
+   "lower_court",
+   "parties"
+  ],
+  "hm": 26,
+  "hm_roles": {
+   "caption": 5,
+   "citation": 1,
+   "counsel": 3,
+   "court": 1,
+   "date": 1,
+   "docket": 1,
+   "lower-court": 4,
+   "panel": 2,
+   "title": 1
+  },
+  "lead_bylined": true,
+  "op_blocks": [
+   59
+  ],
+  "ops": [
+   "majority"
+  ],
+  "residual": 0,
+  "status": "valid",
+  "summary": 0,
+  "syllabus": 0
+ },
+ "utahctapp/state_v._anderson": {
+  "attorneys": 0,
+  "criteria": [
+   "decision_date",
+   "docket_number",
+   "lower_court",
+   "parties"
+  ],
+  "hm": 26,
+  "hm_roles": {
+   "caption": 5,
+   "citation": 1,
+   "counsel": 4,
+   "court": 1,
+   "date": 1,
+   "docket": 1,
+   "lower-court": 3,
+   "panel": 2,
+   "title": 1
+  },
+  "lead_bylined": true,
+  "op_blocks": [
+   69
+  ],
+  "ops": [
+   "majority"
+  ],
+  "residual": 0,
+  "status": "valid",
+  "summary": 0,
+  "syllabus": 0
+ },
+ "utahctapp/state_v._shay": {
+  "attorneys": 0,
+  "criteria": [
+   "decision_date",
+   "docket_number",
+   "lower_court",
+   "parties"
+  ],
+  "hm": 27,
+  "hm_roles": {
+   "caption": 5,
+   "citation": 1,
+   "counsel": 4,
+   "court": 1,
+   "date": 1,
+   "docket": 1,
+   "lower-court": 3,
+   "panel": 3,
+   "title": 1
+  },
+  "lead_bylined": true,
+  "op_blocks": [
+   61,
+   135
+  ],
+  "ops": [
+   "majority",
+   "concurrence-in-result"
+  ],
+  "residual": 0,
+  "status": "valid",
+  "summary": 0,
+  "syllabus": 0
+ },
  "va/blow_v._commonwealth": {
   "attorneys": 0,
   "criteria": [

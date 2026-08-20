@@ -172,8 +172,18 @@ register(CourtProfile(
 
 register(CourtProfile(
     "utahctapp", "Utah Court of Appeals",
-    byline=BylineGrammar(style="abbrev", also_reversed=True,
-                         rev_titles=("PRESIDING JUDGE", "JUDGE")),
+    # The court signs 'LUTHY, Judge:' / 'HARRIS, Judge (concurring in part
+    # and concurring in the result):' — name first, title after the comma,
+    # which is the `prose` style. Under the abbrev+also_reversed grammar the
+    # real byline did not parse on ANY of 30 records while the cover's
+    # authorship summary ('JUDGE … authored this Opinion, in which') DID, so
+    # core signed every majority with the summary row and left the true
+    # byline sitting in the prose as block 0 — and state_v._shay's
+    # concurrence, 137 paragraphs of it, was invisible inside the majority.
+    # `also_reversed` is off deliberately: it is what let the summary parse.
+    byline=BylineGrammar(style="prose",
+                         titles=("Judge", "Presiding Judge",
+                                 "Senior Judge", "Chief Judge")),
 ))
 
 register(CourtProfile(
@@ -662,3 +672,9 @@ from . import ncbizct                                    # noqa: E402,F401
 from . import nmcca                                        # noqa: E402,F401
 
 from . import scctapp                                    # noqa: E402,F401
+
+from . import mdctspecapp                                 # noqa: E402,F401
+
+from . import utahctapp                                  # noqa: E402,F401
+
+from . import wisctapp                                   # noqa: E402,F401

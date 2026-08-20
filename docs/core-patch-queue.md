@@ -1723,3 +1723,85 @@ and a court file may not add to it (`styles=(STYLE_FENCED,)` raised `KeyError`
 through the render). The contract's name travels in `criteria.headmatter_style`
 instead. If a real `DocStyle("nmcca-fenced-stack", …)` is wanted in
 `centralia/styles.py`, its matcher is one line: the first fence pair on page 1.
+
+## 58. APPLIED 2026-08-20 — utahctapp's profile named a grammar the court does not print (`courts/__init__.py:174`)
+
+From the utahctapp port. Registered as
+`BylineGrammar(style="abbrev", also_reversed=True, rev_titles=("PRESIDING
+JUDGE","JUDGE"))`. Measured under that grammar:
+
+- the REAL byline does not parse at all — `LUTHY, Judge:` -> `None` on **30 of
+  30 records**;
+- the cover's AUTHORSHIP SUMMARY does — `'JUDGE MICHELE M. CHRISTIANSEN
+  FORSTER authored this Opinion, in which'` -> `Byline(name='MICHELE M.
+  CHRISTIANSEN FORSTER', title='Judge')` — so core signed every majority with
+  the summary row and left the true byline sitting in the prose as block 0;
+- **`state_v._shay`'s `HARRIS, Judge (concurring in part and concurring in the
+  result):` was invisible: 137 PARAGRAPHS of a separate writing inside the
+  majority.**
+
+Now `style="prose"` with `titles=("Judge","Presiding Judge","Senior Judge",
+"Chief Judge")` and **`also_reversed` deliberately OFF** — it is what let the
+summary parse as a byline.
+
+Verified after applying: `state_v._shay` ->
+`[('majority','CHRISTIANSEN FORSTER'), ('concurrence-in-result','HARRIS')]`;
+utahctapp holds 581/581 rows, 30/30 valid; the agent's own pre-measurement had
+29 of 30 signatures unchanged with only shay moving, and `lead_bylined` staying
+True on all 30 because the real byline replaces the announced one. All six
+sentinels pinned, shay included — it is now correct.
+
+The reader was already forward-compatible: it declares this grammar locally for
+its own stop test and reports the summary through core's `announced_author`
+seam (`pipeline.py:1916`), which core consults ONLY where the writing prints no
+byline of its own — so the announcement was silently superseded the moment this
+landed.
+
+## 59. A mid-body FIGURE 1.5pt under the width floor is DELETED as a seal — `pipeline.py:391-431`
+
+From utahctapp, and found by looking rather than by any metric. `state_v._kent`
+page 6 sets two side-by-side exhibits: `Im0` at 67.9x50.8pt renders as a
+figure, while `Im1` at **58.5x58.3pt** fails `_is_figure`'s `_w >= 60` by
+**1.5pt**, falls through to the `elif _w >= 20 and _h >= 20` arm, and is
+REPLACED BY THE TEXT `graphic 58x58pt (seal/logo/stamp)`. The same exhibit
+pair, one kept and one destroyed.
+
+What makes a graphic a seal is WHERE it stands — above the type on page 1
+(`_is_masthead`) or below the signature on the last page (`_sig_imgs`) — and
+both are already tested. A graphic on an interior page, inside the text block,
+is a figure at any size:
+
+    _is_figure = (
+        (_w >= 60 and _h >= 40
+         # …OR AN INTERIOR GRAPHIC OF ANY SIZE. A seal is identified by
+         # WHERE it stands, and both those places are already tested above.
+         or (1 < pm.number < model.n_pages and _w >= 24 and _h >= 24))
+        and not _is_masthead
+        ...
+
+Not applied: it widens a content-bearing classifier, so it wants a full guard
+run and a corpus-wide count of what it newly admits.
+
+## utahctapp: what it does NOT share with its sibling
+
+Worth recording, because the brief assumed otherwise and the agent checked:
+**utahctapp prints no `Attorneys:` label at all** (utah prints it on all 50, in
+four variants including a private-use glyph). Its counsel band is read from the
+closed role phrase `Attorney(s) for <status>`, matched on the band's rows
+JOINED, because it splits across a line break on one record — 59 whole phrases
+plus 1 split = 60, exactly two per record.
+
+Its ornament discipline matches utah's but at **72.0pt, not 90**, and here the
+section fence is always DRAWN where utah sometimes types it. Three drawn
+populations, none overlapping: the 72.0pt section fence (183 of them, axis
+offset 0.0 on 180), the 324.0pt rule that OPENS the cover (one per record), and
+a 345.6pt footnote separator on 9 covers. **The separator is WIDER than the
+opener**, so measure alone takes both — the opener stands 10.8pt inside the
+rail and the separator exactly on it. Rail first, measure second.
+
+**Zero vertical rules over 30 records and 650 pages**, so this is the
+no-second-column branch (`iowactapp`/`nmctapp`/`nmcca`) and none is invented.
+
+Item 41 confirmed for the EIGHTH time and closed locally. Items 20/26, 54, 52,
+49, 6 and 48 measured as NOT manifesting here — recorded so nobody re-derives
+them per court.
