@@ -534,6 +534,10 @@ register(CourtProfile(
     byline=BylineGrammar(style="prose",
                          titles=("Justice", "Chief Justice",
                                  "District Judge"))))
+# GUAM signs 'TORRES, C.J.:', 'CARBULLIDO, P.J.:', 'MARAMAN, J.:' and once
+# 'PER CURIAM:' — the shared abbreviated table verbatim, including the
+# Presiding Justice its Justice-Pro-Tempore panels seat. Measured over all
+# 32 records when its reader was written (2026-08-20): no change needed.
 register(CourtProfile("guam", "Supreme Court of Guam",
                       byline=BylineGrammar(style="abbrev")))
 register(CourtProfile(
@@ -736,3 +740,5 @@ from . import vactapp                                    # noqa: E402,F401
 from . import delch                                      # noqa: E402,F401
 
 from . import delsuperct                                 # noqa: E402,F401
+
+from . import guam                                       # noqa: E402,F401

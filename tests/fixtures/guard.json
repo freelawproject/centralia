@@ -6418,6 +6418,325 @@
   "summary": 0,
   "syllabus": 0
  },
+ "guam/guam_waterworks_authority_v._civil_service_commission_and_joey_a._taitano": {
+  "attorneys": 0,
+  "criteria": [
+   "docket_number",
+   "lower_court",
+   "parties",
+   "submitted"
+  ],
+  "hm": 20,
+  "hm_roles": {
+   "caption": 8,
+   "citation": 1,
+   "counsel": 38,
+   "court": 2,
+   "date": 1,
+   "docket": 1,
+   "lower-court": 2,
+   "panel": 2,
+   "title": 1
+  },
+  "lead_bylined": true,
+  "op_blocks": [
+   71
+  ],
+  "ops": [
+   "majority"
+  ],
+  "residual": 0,
+  "status": "valid",
+  "summary": 0,
+  "syllabus": 0
+ },
+ "guam/in_re_application_of_the_people_of_guam": {
+  "attorneys": 0,
+  "criteria": [
+   "docket_number",
+   "lower_court",
+   "parties",
+   "submitted"
+  ],
+  "hm": 12,
+  "hm_roles": {
+   "caption": 1,
+   "citation": 1,
+   "court": 2,
+   "date": 1,
+   "docket": 1,
+   "lower-court": 2,
+   "panel": 2,
+   "title": 1
+  },
+  "lead_bylined": true,
+  "op_blocks": [
+   101
+  ],
+  "ops": [
+   "majority"
+  ],
+  "residual": 0,
+  "status": "valid",
+  "summary": 0,
+  "syllabus": 0
+ },
+ "guam/in_the_matter_of_the_estate_of_jose_aguon_pangelinan": {
+  "attorneys": 0,
+  "criteria": [
+   "docket_number",
+   "lower_court",
+   "parties",
+   "submitted"
+  ],
+  "hm": 15,
+  "hm_roles": {
+   "caption": 3,
+   "citation": 1,
+   "counsel": 12,
+   "court": 2,
+   "date": 1,
+   "docket": 1,
+   "lower-court": 2,
+   "panel": 2,
+   "title": 1
+  },
+  "lead_bylined": true,
+  "op_blocks": [
+   43
+  ],
+  "ops": [
+   "majority"
+  ],
+  "residual": 0,
+  "status": "valid",
+  "summary": 0,
+  "syllabus": 0
+ },
+ "guam/jesse_anderson_lujan_and_francis_gill_v._stephen_tebo_richard_jortberg": {
+  "attorneys": 0,
+  "criteria": [
+   "docket_number",
+   "lower_court",
+   "parties",
+   "submitted"
+  ],
+  "hm": 17,
+  "hm_roles": {
+   "caption": 5,
+   "citation": 1,
+   "counsel": 28,
+   "court": 2,
+   "date": 1,
+   "docket": 1,
+   "lower-court": 2,
+   "panel": 2,
+   "title": 1
+  },
+  "lead_bylined": true,
+  "op_blocks": [
+   50
+  ],
+  "ops": [
+   "per-curiam"
+  ],
+  "residual": 0,
+  "status": "valid",
+  "summary": 0,
+  "syllabus": 0
+ },
+ "guam/kamlesh_k._hemlani_individually_and_derivatively_in_the_name_of_and_on": {
+  "attorneys": 0,
+  "criteria": [
+   "docket_number",
+   "lower_court",
+   "parties",
+   "submitted"
+  ],
+  "hm": 25,
+  "hm_roles": {
+   "caption": 13,
+   "citation": 1,
+   "counsel": 40,
+   "court": 2,
+   "date": 1,
+   "docket": 1,
+   "lower-court": 2,
+   "panel": 2,
+   "title": 1
+  },
+  "lead_bylined": true,
+  "op_blocks": [
+   67
+  ],
+  "ops": [
+   "majority"
+  ],
+  "residual": 0,
+  "status": "valid",
+  "summary": 0,
+  "syllabus": 0
+ },
+ "guam/people_of_guam_v._aj_muna_toves": {
+  "attorneys": 0,
+  "criteria": [
+   "docket_number",
+   "lower_court",
+   "parties",
+   "submitted"
+  ],
+  "hm": 17,
+  "hm_roles": {
+   "caption": 5,
+   "citation": 1,
+   "counsel": 12,
+   "court": 2,
+   "date": 1,
+   "docket": 1,
+   "lower-court": 2,
+   "panel": 2,
+   "title": 1
+  },
+  "lead_bylined": true,
+  "op_blocks": [
+   28
+  ],
+  "ops": [
+   "majority"
+  ],
+  "residual": 0,
+  "status": "valid",
+  "summary": 0,
+  "syllabus": 0
+ },
+ "guam/people_of_guam_v._bruno_frankie_simmons": {
+  "attorneys": 0,
+  "criteria": [
+   "docket_number",
+   "lower_court",
+   "parties",
+   "submitted"
+  ],
+  "hm": 18,
+  "hm_roles": {
+   "caption": 5,
+   "citation": 1,
+   "counsel": 16,
+   "court": 2,
+   "date": 1,
+   "docket": 2,
+   "lower-court": 2,
+   "panel": 2,
+   "title": 1
+  },
+  "lead_bylined": true,
+  "op_blocks": [
+   26
+  ],
+  "ops": [
+   "majority"
+  ],
+  "residual": 0,
+  "status": "valid",
+  "summary": 0,
+  "syllabus": 0
+ },
+ "guam/people_of_guam_v._jared_john_santos": {
+  "attorneys": 0,
+  "criteria": [
+   "docket_number",
+   "lower_court",
+   "parties",
+   "submitted"
+  ],
+  "hm": 17,
+  "hm_roles": {
+   "caption": 5,
+   "citation": 1,
+   "counsel": 14,
+   "court": 2,
+   "date": 1,
+   "docket": 1,
+   "lower-court": 2,
+   "panel": 2,
+   "title": 1
+  },
+  "lead_bylined": true,
+  "op_blocks": [
+   52
+  ],
+  "ops": [
+   "majority"
+  ],
+  "residual": 0,
+  "status": "valid",
+  "summary": 0,
+  "syllabus": 0
+ },
+ "guam/people_of_guam_v._vincent_t._tedtaotao": {
+  "attorneys": 0,
+  "criteria": [
+   "docket_number",
+   "lower_court",
+   "parties",
+   "submitted"
+  ],
+  "hm": 18,
+  "hm_roles": {
+   "caption": 5,
+   "citation": 1,
+   "counsel": 16,
+   "court": 2,
+   "date": 1,
+   "docket": 1,
+   "lower-court": 3,
+   "panel": 2,
+   "title": 1
+  },
+  "lead_bylined": true,
+  "op_blocks": [
+   46
+  ],
+  "ops": [
+   "majority"
+  ],
+  "residual": 0,
+  "status": "valid",
+  "summary": 0,
+  "syllabus": 0
+ },
+ "guam/sh_enterprises_inc._v._territory_of_guam_general_services_agency": {
+  "attorneys": 0,
+  "criteria": [
+   "docket_number",
+   "lower_court",
+   "parties",
+   "submitted"
+  ],
+  "hm": 19,
+  "hm_roles": {
+   "caption": 7,
+   "citation": 1,
+   "counsel": 14,
+   "court": 2,
+   "date": 1,
+   "docket": 1,
+   "lower-court": 2,
+   "panel": 2,
+   "title": 1
+  },
+  "lead_bylined": true,
+  "op_blocks": [
+   38
+  ],
+  "ops": [
+   "majority"
+  ],
+  "residual": 0,
+  "status": "valid",
+  "summary": 0,
+  "syllabus": 0
+ },
  "haw/akau_v._villareal": {
   "attorneys": 0,
   "criteria": [
