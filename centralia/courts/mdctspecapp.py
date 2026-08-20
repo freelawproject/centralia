@@ -201,6 +201,8 @@ _STACK_MIN = 3
 # 2.0 is the shared tolerance every ruled court uses).
 _UNDERLINE_TOL = 2.0
 _UNDERLINE_DROP = 16.0
+# A ROW IS AT THE COLUMN'S RAIL when it starts on the fence's own x0.
+_RAIL_TOL = 2.5
 
 # ---- the closed vocabularies --------------------------------------------
 # THE COURT NAMING ITSELF, in the forms this press sets it in — two rows on
@@ -590,8 +592,13 @@ def _head_form(pm, group: list[Line]) -> str | None:
         return "panel"
     if _CONSOLIDATED.match(upper):
         return "case-info"
-    # A row the press UNDERLINED is masthead by construction — but only where
-    # nothing else claimed it, so a party name can never be taken for the
+    # A row the press UNDERLINED is masthead by construction — every one of
+    # the 90 short rects in this corpus underlines a masthead row and nothing
+    # else. Measured over all 30 records this branch NEVER FIRES, because the
+    # two vocabularies above already name every row the press underlines; it
+    # stands so that a masthead row this court has not yet printed lands in
+    # the masthead instead of turning its whole band into a caption. Last,
+    # and all-caps and short, so a party name can never be taken for the
     # court's own name on the strength of a rule.
     if _underlined(pm, group) and upper == text and len(text) <= 40:
         return "court"
@@ -662,7 +669,7 @@ def _read_cover(ctx: _Ctx, pm, fences: list[_Fence]) -> bool:
             # its byline band is at stack + 2 — read by index, the byline was
             # claimed as `case-info` and the writing lost its author and its
             # type (a reported opinion came back an 'order').
-            last = _read_below(ctx, band) or last
+            last = _read_below(ctx, band, col_x0) or last
     for extra in range(len(bands) - 1, len(fences)):
         ctx.fence(fences[extra], last)
     ctx.crit["headmatter_style"] = STYLE_COVER
@@ -769,28 +776,53 @@ def _read_caption(ctx: _Ctx, band, axis: float):
     return last
 
 
-def _units(band: list[list[Line]]) -> list[list[list[Line]]]:
-    """The band's rows grouped into the STATEMENTS they wrap into. Every
-    statement this press sets below the roster is a sentence, so a row that
-    does not end on a full stop is still mid-statement ('Joint Concurring
-    Opinion by Berger, Friedman,' / 'and Shaw, JJ.') — EXCEPT a labelled
-    date, which ends on its year and is complete ('Filed: May 1, 2026'
-    followed by '*Kehoe, Stephen J. did not participate in the' welded the
-    filing date onto the reporter's note on 6 records)."""
+def _units(band: list[list[Line]], col_x0: float) -> list[list[list[Line]]]:
+    """The band's rows grouped into the STATEMENTS they wrap into.
+
+    Three rules, in this order, and each of them is a measurement:
+
+      1. A BYLINE WRAPS. 'Joint Concurring Opinion by Berger, Friedman,' /
+         'and Shaw, JJ.' is one byline over two rows, and it must stay one so
+         that the whole of it is passed to the writing.
+      2. THE REPORTER'S NOTE IS A RUN AT THE COLUMN'S RAIL. Its rows are the
+         only ones below the roster the press sets flush on the fence's own
+         x0 (288.0 on all 6 records that print one, against 324 for the
+         filing date and 320-378 for the bylines), so the RAIL holds the run
+         together whatever punctuation a row ends on — 'pursuant to Md.' and
+         '* Leahy, Andrea, J. and Friedman, Daniel, J.' both end on an
+         abbreviation's full stop, and a sentence rule broke 2 of the 6
+         notes into two rows apiece.
+      3. OTHERWISE a row that does not end on a full stop is still
+         mid-statement — except a LABELLED DATE, which ends on its year and
+         is complete ('Filed: May 1, 2026' followed by '*Kehoe, Stephen J.
+         did not participate in the' welded the filing date onto the note).
+    """
     units: list[list[list[Line]]] = []
+    flags: list[tuple[bool, bool]] = []          # (at the rail, byline-shaped)
     for group in band:
+        text = _row_text(group)
+        rail = group[0].x0 <= col_x0 + _RAIL_TOL
+        byline = bool(_BYLINE.match(text))
         if units:
-            prior = _row_text(units[-1][-1]).rstrip()
-            closed = prior.endswith(".") or bool(_DATED.match(
-                _norm(" ".join(_row_text(g) for g in units[-1]))))
-            if not closed:
+            prev_rail, prev_byline = flags[-1]
+            prev_text = _norm(" ".join(_row_text(g) for g in units[-1]))
+            open_prev = not prev_text.rstrip().endswith(".")
+            if prev_byline and open_prev:
+                units[-1].append(group)
+                continue
+            if rail and prev_rail and not byline and not prev_byline:
+                units[-1].append(group)
+                continue
+            if (not prev_byline and open_prev
+                    and not _DATED.match(prev_text)):
                 units[-1].append(group)
                 continue
         units.append([group])
+        flags.append((rail, byline))
     return units
 
 
-def _read_below(ctx: _Ctx, band):
+def _read_below(ctx: _Ctx, band, col_x0: float):
     """A band below the roster: the bylines, the filing date, and — on 6
     records — the reporter's note that a judge took no part in the decision
     to report the opinion.
@@ -804,7 +836,7 @@ def _read_below(ctx: _Ctx, band):
     lower than every other record because it types two fences with nothing
     between them."""
     last = None
-    for unit in _units(band):
+    for unit in _units(band, col_x0):
         text = _norm(" ".join(_row_text(g) for g in unit))
         if _BYLINE.match(text):
             ctx.byline_seen = True

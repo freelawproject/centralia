@@ -1913,3 +1913,109 @@ Item 41 confirmed a NINTH time and closed locally. Also noted:
 `render/html.py` TRUNCATES `criteria.attorneys` mid-word, which is what made
 the word-multiset audit look like counsel loss. Items 22, 23, 21 and 6 measured
 as not reachable here.
+
+## 62. `classify_doc_type` reads the paper's type out of the REPORTER'S TOPICAL HEADNOTES — `classify.py`
+
+From the mdctspecapp port, 2026-08-20. **The most dangerous shape in this
+queue, because the wrong answer looks like success.**
+
+On this press the FRONT of the document is the reporter's headnote pages, and
+`_matches` suffix-matches `_SUFFIX_KEYS` against a flush-left bold subject
+line:
+
+    malvo_v._state -> (DocType.JUDGMENT, 'PLEA - REVIEWABLE AFTER FINAL JUDGMENT')
+
+`JUDGMENT` is in `NO_BODY_EXPECTED`, **so an empty body would have been
+"correct output" for a 43-page opinion.** 6 of 30 records were mistyped
+(`order`/`judgment`) before the reader declared `doc_type_final`.
+
+Same shape as item 54 (a citation row removed as a publication `status` stamp)
+and items 48/56: meaning read from WORDING in a region that is not the doctype
+heading. Fix either way — `_heading_candidates` should not draw from pages a
+court's front matter declares as headnotes/syllabus, or the suffix match should
+require the candidate to be the page's own CENTRED heading rather than a
+flush-left bold subject line at the body rail.
+
+## 63. The abbrev byline parser cannot read an INVERTED FULL-NAME byline — `resolve/bylines.py`
+
+From mdctspecapp. Distinct from item 52 (bare judicial title, 14-line lookback).
+
+    >>> parser.parse('Opinion by Leahy, J.')              Byline(name='Leahy', title='Justice')
+    >>> parser.parse('Opinion by Eyler, Deborah S., J.')  None
+
+Cost: `carroll_v._state`'s byline stays in the stream and becomes the writing's
+first paragraph, `author_name=''`, `lead_bylined: false`.
+
+**v1 read it.** The old `centralia/courts/md.py::_md_author` carried a dedicated
+branch, commented `# Reporter caption form with an inverted full name: 'Opinion
+by Eyler, Deborah S., J.'`. Port it: after the abbrev parse fails, if the text
+ends in `", <abbrev-title>"`, split the remainder on the first comma and accept
+when the head is a surname and every token of the tail is a capitalised
+alphabetic word or an initial. **Affects `md` too** — same press, same reporter.
+
+## 64. The same parser cannot read a JOINT or WRAPPED byline — `resolve/bylines.py` + `resolve/assemble.py`
+
+From mdctspecapp. `Joint Concurring Opinion by Berger, Friedman, and Shaw, JJ.`
+-> `None`; and `Concurring Opinion by Berger, J.,` / `Friedman, J., and Shaw, J.`
+is ONE byline over two rows where `_opinion_by` wants one line.
+
+**Cost: v1 finds 6 writings in `hicks_v._state`; we find 1.** Identical with
+and without the reader, so it is an assembly gap, not a claim.
+
+Compounding it: hicks repeats its WHOLE COVER (fences 214.5pt) before each
+separate writing at pp. 54/89/111/126, so each concurrence opens behind a cover
+core reads as prose. Same family as item 49 and as the wrapped-roster rule core
+already has for ca1.
+
+**Do not pin `mdctspecapp/hicks_v._state` (or `hicks_v._state_1`) or
+`carroll_v._state` until 63 and 64 land.**
+
+## 65. `criteria.judges` is unreachable for a court that fences a BARE roster — `resolve/headmatter.py:700-754`
+
+From mdctspecapp, and the exact sibling of item 41. The criterion is filled
+ONLY from a LABELLED roster (`Before:` / `Panel:` / `Present:` / a prior
+label). mdctspecapp prints its roster stack under a fence with **no label
+ever**, so `criteria.judges` was empty on all 30 records while the page printed
+the bench.
+
+Closed inside the court file (30/30 now carry the roster's own printed rows),
+the way nine courts have now closed item 41 — but the pattern is core's to fix.
+Note `panel_line` additionally carries the `IN BANC` band on hicks and `judges`
+deliberately does not.
+
+## mdctspecapp: THE FENCE BELONGS TO THE COLUMN, NOT THE PAGE
+
+The measurement worth keeping. Over 30 records / **1,144 pages**, `v_rules == 0`
+— no vertical divider anywhere. The dividers are full-measure HORIZONTAL band
+fences, but **off the page axis**: 411.5-414.8 on a 612pt page whose axis is
+306, spread only 3.3pt, because the whole caption is set in a right-half column.
+
+**And on the one record where the press shifted the page (`mayor_city`, axis
+433.3) the fence MOVES WITH THE COLUMN** — which is what proves the fence
+belongs to the column rather than the page. Nearest sibling is scctapp
+(drawn-but-horizontal, zero verticals), whose fences sit ON the axis.
+
+Both hands of one measure: typed underscores 246.9-247.1pt (122 fences on 29
+records) and drawn rects 252.0pt (4 on one record, which types 2 more). The
+three short rects on every cover (67.2 / 165.7 / 95.0) are UNDERLINES, not
+fences — their ends coincide with the row above to 0.1pt.
+
+One more inherited-furniture detail, from the ohioctcl rule: `mayor_city` prints
+the court below and `REPORTED` on ONE visual row, and the split must be by
+**x0, not x1** — `Circuit Court for Prince George's County` runs to x1 = 288.1,
+PAST the column's own left edge, so an x1 test files it in the caption column
+on 3 records while an x0 test never can.
+
+## md's signature-band epic is md's ALONE — hypothesis refused, correctly
+
+I briefed this port to expect md's `/s/` band (32 of md's 50 files lose judges
+and dates to it) and to be the second court ever to use the `Document.signature`
+seam. It checked instead of complying: **mdctspecapp prints zero `/s/` bands** —
+0 occurrences across all 30 records against 10 in md's first 12 alone, same
+detector. md's epic lives in its *per curiam attorney-grievance orders*;
+mdctspecapp's corpus is entirely reported opinions carrying `Opinion by <who>`
+on the cover. Nothing is returned under the `signature` key, and the agent's own
+words are the right standard: the reader "would be lying if it did".
+
+**So the signature seam still has exactly one user (haw).** md itself remains
+the place to prove the pattern.
