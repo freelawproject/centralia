@@ -80,6 +80,26 @@ body { margin:0; font:13px system-ui,sans-serif; color:var(--ink);
   color:#fff; background:rgba(0,0,0,.55); border-radius:8px; padding:1px 8px }
 #pdfpane .pg.cur .n { background:var(--accent) }
 .tier { position:relative }
+/* The writings count, ahead of the grade. Quiet at one, loud at none. */
+.op { display:inline-block; min-width:12px; text-align:center; font:600 9px
+      system-ui,sans-serif; color:#777; background:#242424; border-radius:3px;
+      padding:1px 3px; margin-right:3px; vertical-align:1px }
+.op.many { color:#0c0c0c; background:#c9a227 }
+.op.zero { color:#fff; background:#b3372f }
+/* THE NOTE ROW. Shown for anything not marked `yay`: a file that is right
+   needs no sentence, and one that is not needs the sentence more than it
+   needs the tier. */
+#noterow { display:none; gap:8px; align-items:flex-start; padding:4px 8px;
+           border-bottom:1px solid #2a2a2a; background:#161616 }
+#noterow.on { display:flex }
+#noterow label { font:600 11px system-ui,sans-serif; color:#888;
+                 text-transform:uppercase; letter-spacing:.06em; padding-top:5px }
+#note { flex:1; font:12px/1.4 ui-monospace,SFMono-Regular,Menlo,monospace;
+        color:#ddd; background:#101010; border:1px solid #333; border-radius:4px;
+        padding:4px 6px; resize:vertical; min-height:22px }
+#note:focus { outline:none; border-color:#6b8cba }
+#notestate { font:11px system-ui,sans-serif; color:#666; padding-top:6px;
+             min-width:52px; text-align:right }
 .stale { font-size:10px; margin-left:1px }
 .stale.ch { color:#c0392b } .stale.rr { color:#c08a1e } .stale.uk { color:#bbb }
 .mark { font-size:11px; color:#666; margin-left:4px }
@@ -91,20 +111,27 @@ body { margin:0; font:13px system-ui,sans-serif; color:var(--ink);
 <div id="main">
   <div id="bar">
     <b id="title">—</b>
-    <span id="help">↓/↑ file · →/← court · 1–5 mark · 0 clear · a old/new · p pdf · r re-run · R court</span>
+    <span id="help">↓/↑ file · →/← court · 1–5 mark · 0 clear · n note · a old/new · p pdf · r re-run · R court</span>
     <button data-t="nay">✗ nay</button><button data-t="some">◔ some</button>
     <button data-t="good">◑ good</button><button data-t="almost">~ almost</button>
     <button data-t="yay">✅ yay</button>
+    <button id="donebtn" title="Mark this whole court complete">✓ court done</button>
     <button id="ab">A/B: new</button>
     <button id="pdfbtn">PDF</button>
     <button id="syncbtn" class="on" title="PDF pane follows your scroll">sync</button>
     <button id="runfile" title="Re-run the engine on THIS pdf (r)">⟳ file</button>
     <button id="runcourt" title="Re-run the engine on this whole court (R)">⟳ court</button>
   </div>
+  <div id="noterow">
+    <label for="note" title="What is wrong with THIS rendering (n)">note</label>
+    <textarea id="note" rows="1" spellcheck="false"
+      placeholder="what is wrong with this one — saved as you type (n to focus, Esc to leave)"></textarea>
+    <span id="notestate"></span>
+  </div>
   <div id="panes"><iframe id="frame"></iframe><div id="pdfpane"></div></div>
 </div>
 <script>
-let MAN = {}, MARKS = {}, QUAL = {files:{}, courts:{}}, CMETA = {}, STALE = {},
+let MAN = {}, MARKS = {}, NOTES = {}, QUAL = {files:{}, courts:{}}, CMETA = {}, STALE = {},
     courts = [], ci = 0, fi = 0, old = false;
 const $ = s => document.querySelector(s);
 const key = () => courts.length ? courts[ci] + "/" + MAN[courts[ci]][fi] : null;
@@ -113,6 +140,7 @@ async function boot() {
   MAN = await (await fetch("/api/manifest")).json();
   MARKS = await (await fetch("/api/marks")).json();
   try { STALE = await (await fetch("/api/stale")).json(); } catch (e) { STALE = {}; }
+  try { NOTES = await (await fetch("/api/filenotes")).json(); } catch (e) { NOTES = {}; }
   try { QUAL = await (await fetch("/api/quality")).json(); } catch (e) {}
   if (!QUAL.files) QUAL = {files:{}, courts:{}};
   courts = Object.keys(MAN);
@@ -139,6 +167,22 @@ function restoreKey() {
   if (c < 0) return [0, 0];
   const f = MAN[courts[c]].indexOf(want.slice(cut + 1));
   return [c, Math.max(f, 0)];
+}
+// A file carrying a written note says so in the list, with the note itself
+// as its tooltip — otherwise the sentence is invisible until you land on it.
+function noteGlyph(k) {
+  const n = NOTES[k];
+  if (!n) return "";
+  return `<span class="tier" title="${n.replace(/"/g, "&quot;")}">📝</span>`;
+}
+// HOW MANY WRITINGS THIS FILE HAS. Zero means the document lost its opinion;
+// two or more is either a real separate writing or a phantom one made of a
+// headmatter row nobody claimed. One is the ordinary case and stays quiet.
+function opChip(q) {
+  if (!q || q.o === undefined) return "";
+  const n = q.o;
+  const cls = n === 0 ? "op zero" : n === 1 ? "op" : "op many";
+  return `<span class="${cls}" title="${n} writing${n === 1 ? "" : "s"}">${n}</span>`;
 }
 function tierGlyph(t) { return {nay:"✗",some:"◔",good:"◑",almost:"~",yay:"✅"}[t] || ""; }
 // A MARK IS A JUDGEMENT ABOUT A PARTICULAR RENDERING. Re-render the file and
@@ -215,8 +259,8 @@ function drawFiles() {
   const c = courts[ci] || "";
   $("#files").innerHTML = (MAN[c]||[]).map((s, i) =>
     `<div class="${i===fi?"on":""}" onclick="pick(${ci},${i})">` +
-    `${gradeChip((QUAL.files[c+"/"+s]||{}).g)}` +
-    `${tierGlyph(MARKS[c+"/"+s])}${staleGlyph(c+"/"+s)} ${s}</div>`).join("");
+    `${opChip(QUAL.files[c+"/"+s])}${gradeChip((QUAL.files[c+"/"+s]||{}).g)}` +
+    `${tierGlyph(MARKS[c+"/"+s])}${staleGlyph(c+"/"+s)}${noteGlyph(c+"/"+s)} ${s}</div>`).join("");
   const on = $("#files .on"); if (on) on.scrollIntoView({block:"nearest"});
 }
 function pick(c, f) {
@@ -326,6 +370,8 @@ function show() {
   const k = key(); if (!k) return;
   const q = QUAL.files[k];
   $("#title").textContent = k + (MARKS[k] ? "  [" + MARKS[k] + "]" : "")
+    + (q && q.o !== undefined
+       ? `  ·  ${q.o} writing${q.o === 1 ? "" : "s"}` : "")
     + (q ? `  ·  ${q.g}${q.f.length ? " (" + q.f.join(", ") + ")" : ""}` : "");
   $("#frame").src = (old ? "/old/" : "/out/") + k + ".html";
   $("#ab").textContent = "A/B: " + (old ? "old" : "new");
@@ -337,7 +383,65 @@ function show() {
   lastSynced = 0;
   document.querySelectorAll("#bar button[data-t]").forEach(b =>
     b.classList.toggle("on", MARKS[k] === b.dataset.t));
+  const done = (CMETA[courts[ci]] || {}).status === "complete";
+  $("#donebtn").classList.toggle("on", done);
+  $("#donebtn").textContent = done ? "✓ court done" : "mark court done";
+  drawNote(k);
 }
+
+// THE NOTE FOLLOWS THE FILE. Shown unless the file is marked `yay`, so
+// everything still short of done can carry a sentence saying what is wrong.
+function drawNote(k) {
+  const box = $("#note");
+  const wanted = MARKS[k] !== "yay";
+  $("#noterow").classList.toggle("on", wanted);
+  if (box.dataset.key !== k) {
+    if (box.dataset.key && box.dataset.dirty === "1") saveNote(box.dataset.key, box.value);
+    box.dataset.key = k;
+    box.dataset.dirty = "0";
+    box.value = NOTES[k] || "";
+    $("#notestate").textContent = "";
+    autoGrow(box);
+  }
+}
+function autoGrow(box) {
+  box.style.height = "auto";
+  box.style.height = Math.min(160, Math.max(22, box.scrollHeight)) + "px";
+}
+async function saveNote(k, text) {
+  text = (text || "").trim();
+  if ((NOTES[k] || "") === text) return;
+  if (text) NOTES[k] = text; else delete NOTES[k];
+  $("#notestate").textContent = "saving…";
+  try {
+    await fetch("/api/filenotes",
+                {method:"POST", body: JSON.stringify({key:k, text})});
+    $("#notestate").textContent = "saved";
+  } catch (e) { $("#notestate").textContent = "✗ unsaved"; }
+  drawFiles();
+}
+let noteTimer = null;
+$("#note").addEventListener("input", e => {
+  const box = e.target;
+  box.dataset.dirty = "1";
+  autoGrow(box);
+  $("#notestate").textContent = "…";
+  clearTimeout(noteTimer);
+  // Debounced, and saved on blur as well — a note typed and then abandoned
+  // by moving to the next file is the one most worth keeping.
+  noteTimer = setTimeout(() => {
+    box.dataset.dirty = "0";
+    saveNote(box.dataset.key, box.value);
+  }, 600);
+});
+$("#note").addEventListener("blur", e => {
+  clearTimeout(noteTimer);
+  e.target.dataset.dirty = "0";
+  saveNote(e.target.dataset.key, e.target.value);
+});
+$("#note").addEventListener("keydown", e => {
+  if (e.key === "Escape") { e.target.blur(); }
+});
 function togglePdf() {
   showPdf = !showPdf;
   localStorage.setItem("showPdf", showPdf ? "1" : "0");
@@ -352,6 +456,17 @@ async function mark(tier) {
 }
 document.querySelectorAll("#bar button[data-t]").forEach(b =>
   b.onclick = () => mark(b.dataset.t));
+// MARK THE WHOLE COURT. The sidebar has drawn a ✓ from court_status.json
+// since it existed; this is the button that writes it.
+async function toggleDone() {
+  const c = courts[ci]; if (!c) return;
+  const now = (CMETA[c] || {}).status === "complete" ? "" : "complete";
+  await fetch("/api/courtstatus",
+              {method:"POST", body: JSON.stringify({court:c, status:now})});
+  CMETA[c] = Object.assign({}, CMETA[c] || {}, {status: now});
+  drawCourts(); show();
+}
+$("#donebtn").onclick = toggleDone;
 $("#ab").onclick = () => { old = !old; show(); };
 $("#runfile").onclick = () => rerun(false);
 $("#runcourt").onclick = () => rerun(true);
@@ -363,6 +478,17 @@ $("#syncbtn").onclick = () => {
 };
 document.onkeydown = e => {
   if (e.target.tagName === "TEXTAREA") return;
+  // MODIFIERS BELONG TO THE BROWSER. Every shortcut below is a BARE key:
+  // read without this guard, ⌘C copied nothing and marked the court done
+  // instead (the user's call, 2026-08-20) — and ⌘A, ⌘P and ⌘R were being
+  // taken from select-all, print and reload the same way.
+  if (e.metaKey || e.ctrlKey || e.altKey) return;
+  if (e.key === "n") {
+    e.preventDefault();
+    $("#noterow").classList.add("on");
+    $("#note").focus();
+    return;
+  }
   const t = {"1":"nay","2":"some","3":"good","4":"almost","5":"yay"}[e.key];
   if (t) return mark(t);
   if (e.key === "0") return mark(null);

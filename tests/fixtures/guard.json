@@ -5556,12 +5556,24 @@
   "criteria": [
    "decision_date",
    "docket_number",
-   "parties"
+   "judges",
+   "parties",
+   "submitted"
   ],
   "hm": 13,
+  "hm_roles": {
+   "caption": 30,
+   "counsel": 6,
+   "court": 1,
+   "date": 2,
+   "disposition": 1,
+   "docket": 1,
+   "lower-court": 3,
+   "panel": 2
+  },
   "lead_bylined": true,
   "op_blocks": [
-   35
+   31
   ],
   "ops": [
    "majority"
@@ -5577,9 +5589,18 @@
    "decision_date",
    "docket_number",
    "judges",
-   "parties"
+   "parties",
+   "submitted"
   ],
   "hm": 6,
+  "hm_roles": {
+   "caption": 16,
+   "court": 1,
+   "date": 2,
+   "docket": 1,
+   "lower-court": 3,
+   "panel": 2
+  },
   "lead_bylined": true,
   "op_blocks": [
    16
@@ -5594,11 +5615,23 @@
  },
  "del/peoples_tristan_v._lauren_wallace": {
   "attorneys": 0,
-  "criteria": [],
-  "hm": 1,
+  "criteria": [
+   "decision_date",
+   "docket_number",
+   "parties",
+   "submitted"
+  ],
+  "hm": 4,
+  "hm_roles": {
+   "caption": 18,
+   "court": 1,
+   "date": 2,
+   "docket": 1,
+   "lower-court": 5
+  },
   "lead_bylined": true,
   "op_blocks": [
-   25
+   6
   ],
   "ops": [
    "order"
@@ -5756,11 +5789,11 @@
    "docket_number",
    "judges"
   ],
-  "hm": 27,
+  "hm": 9,
   "hm_roles": {
    "author": 2,
    "caption": 1,
-   "counsel": 19,
+   "counsel": 38,
    "court": 3,
    "date": 1,
    "docket": 1
@@ -5796,7 +5829,7 @@
   },
   "lead_bylined": true,
   "op_blocks": [
-   121
+   120
   ],
   "ops": [
    "majority"
@@ -5813,11 +5846,11 @@
    "docket_number",
    "judges"
   ],
-  "hm": 11,
+  "hm": 9,
   "hm_roles": {
    "author": 2,
    "caption": 1,
-   "counsel": 3,
+   "counsel": 6,
    "court": 3,
    "date": 1,
    "docket": 1
@@ -5998,11 +6031,11 @@
    "parties",
    "submitted"
   ],
-  "hm": 25,
+  "hm": 11,
   "hm_roles": {
    "author": 2,
    "caption": 2,
-   "counsel": 15,
+   "counsel": 30,
    "court": 3,
    "date": 2,
    "docket": 1
@@ -6027,11 +6060,11 @@
    "judges",
    "submitted"
   ],
-  "hm": 12,
+  "hm": 9,
   "hm_roles": {
    "author": 2,
    "caption": 1,
-   "counsel": 4,
+   "counsel": 8,
    "court": 3,
    "date": 2
   },
@@ -6384,9 +6417,15 @@
    "parties"
   ],
   "hm": 4,
+  "hm_roles": {
+   "caption": 1,
+   "court": 1,
+   "date": 1,
+   "docket": 1
+  },
   "lead_bylined": false,
   "op_blocks": [
-   5,
+   3,
    8
   ],
   "ops": [
@@ -6401,14 +6440,27 @@
  "guam/franklin_j._gutierrez_individually_and_as_co-administrator_of_the_estates": {
   "attorneys": 0,
   "criteria": [
+   "docket_number",
    "judges",
    "lower_court",
-   "parties"
+   "parties",
+   "submitted"
   ],
-  "hm": 28,
+  "hm": 18,
+  "hm_roles": {
+   "caption": 6,
+   "citation": 1,
+   "counsel": 12,
+   "court": 2,
+   "date": 1,
+   "docket": 1,
+   "lower-court": 2,
+   "panel": 2,
+   "title": 1
+  },
   "lead_bylined": true,
   "op_blocks": [
-   68
+   43
   ],
   "ops": [
    "majority"
@@ -6422,6 +6474,7 @@
   "attorneys": 0,
   "criteria": [
    "docket_number",
+   "judges",
    "lower_court",
    "parties",
    "submitted"
@@ -6454,6 +6507,7 @@
   "attorneys": 0,
   "criteria": [
    "docket_number",
+   "judges",
    "lower_court",
    "parties",
    "submitted"
@@ -6485,6 +6539,7 @@
   "attorneys": 0,
   "criteria": [
    "docket_number",
+   "judges",
    "lower_court",
    "parties",
    "submitted"
@@ -6517,6 +6572,7 @@
   "attorneys": 0,
   "criteria": [
    "docket_number",
+   "judges",
    "lower_court",
    "parties",
    "submitted"
@@ -6549,6 +6605,7 @@
   "attorneys": 0,
   "criteria": [
    "docket_number",
+   "judges",
    "lower_court",
    "parties",
    "submitted"
@@ -6581,6 +6638,7 @@
   "attorneys": 0,
   "criteria": [
    "docket_number",
+   "judges",
    "lower_court",
    "parties",
    "submitted"
@@ -6613,6 +6671,7 @@
   "attorneys": 0,
   "criteria": [
    "docket_number",
+   "judges",
    "lower_court",
    "parties",
    "submitted"
@@ -6645,6 +6704,7 @@
   "attorneys": 0,
   "criteria": [
    "docket_number",
+   "judges",
    "lower_court",
    "parties",
    "submitted"
@@ -6677,6 +6737,7 @@
   "attorneys": 0,
   "criteria": [
    "docket_number",
+   "judges",
    "lower_court",
    "parties",
    "submitted"
@@ -6709,6 +6770,7 @@
   "attorneys": 0,
   "criteria": [
    "docket_number",
+   "judges",
    "lower_court",
    "parties",
    "submitted"
@@ -13311,20 +13373,29 @@
    "parties",
    "submitted"
   ],
-  "hm": 28,
+  "hm": 23,
+  "hm_roles": {
+   "author": 1,
+   "caption": 6,
+   "counsel": 10,
+   "court": 2,
+   "date": 2,
+   "disposition": 1,
+   "docket": 1,
+   "lower-court": 3,
+   "panel": 2
+  },
   "lead_bylined": true,
   "op_blocks": [
-   12,
-   59
+   57
   ],
   "ops": [
-   "majority",
    "majority"
   ],
   "residual": 0,
   "status": "valid",
   "summary": 0,
-  "syllabus": 0
+  "syllabus": 8
  },
  "wva/arthur_c._v._jonathan_frame_superintendent_mt._olive_correctional_complex": {
   "attorneys": 0,
@@ -13336,20 +13407,28 @@
    "parties",
    "submitted"
   ],
-  "hm": 28,
+  "hm": 21,
+  "hm_roles": {
+   "author": 1,
+   "caption": 6,
+   "counsel": 12,
+   "court": 2,
+   "date": 2,
+   "disposition": 1,
+   "docket": 1,
+   "lower-court": 3
+  },
   "lead_bylined": true,
   "op_blocks": [
-   9,
    78
   ],
   "ops": [
-   "majority",
    "majority"
   ],
   "residual": 0,
   "status": "valid",
   "summary": 0,
-  "syllabus": 0
+  "syllabus": 6
  },
  "wva/city_of_weirton_and_city_of_weirton_board_of_zoning_appeals_v._swn": {
   "attorneys": 0,
@@ -13361,20 +13440,29 @@
    "parties",
    "submitted"
   ],
-  "hm": 48,
+  "hm": 42,
+  "hm_roles": {
+   "author": 1,
+   "caption": 12,
+   "counsel": 12,
+   "court": 2,
+   "date": 2,
+   "disposition": 2,
+   "docket": 3,
+   "lower-court": 8,
+   "panel": 3
+  },
   "lead_bylined": true,
   "op_blocks": [
-   8,
    59
   ],
   "ops": [
-   "majority",
    "majority"
   ],
   "residual": 0,
   "status": "valid",
   "summary": 0,
-  "syllabus": 0
+  "syllabus": 5
  },
  "wva/in_re_p.f._and_m.f.-1": {
   "attorneys": 0,
@@ -13386,20 +13474,28 @@
    "parties",
    "submitted"
   ],
-  "hm": 30,
+  "hm": 15,
+  "hm_roles": {
+   "author": 1,
+   "caption": 1,
+   "counsel": 22,
+   "court": 2,
+   "date": 2,
+   "disposition": 1,
+   "docket": 1,
+   "lower-court": 3
+  },
   "lead_bylined": true,
   "op_blocks": [
-   11,
    38
   ],
   "ops": [
-   "majority",
    "majority"
   ],
   "residual": 0,
   "status": "valid",
   "summary": 0,
-  "syllabus": 0
+  "syllabus": 7
  },
  "wva/raze_international_inc._v._wheeling_hospital_inc._city_of_wheeling_and": {
   "attorneys": 0,
@@ -13409,6 +13505,12 @@
    "parties"
   ],
   "hm": 10,
+  "hm_roles": {
+   "caption": 6,
+   "court": 1,
+   "docket": 1,
+   "summary": 2
+  },
   "lead_bylined": false,
   "op_blocks": [
    14
@@ -13431,20 +13533,28 @@
    "parties",
    "submitted"
   ],
-  "hm": 30,
+  "hm": 20,
+  "hm_roles": {
+   "author": 1,
+   "caption": 5,
+   "counsel": 14,
+   "court": 2,
+   "date": 2,
+   "disposition": 1,
+   "docket": 1,
+   "lower-court": 3
+  },
   "lead_bylined": true,
   "op_blocks": [
-   9,
    52
   ],
   "ops": [
-   "majority",
    "majority"
   ],
   "residual": 0,
   "status": "valid",
   "summary": 0,
-  "syllabus": 0
+  "syllabus": 6
  },
  "wva/state_of_west_virginia_v._brendan_w": {
   "attorneys": 0,
@@ -13454,6 +13564,9 @@
    "parties"
   ],
   "hm": 1,
+  "hm_roles": {
+   "caption": 1
+  },
   "lead_bylined": false,
   "op_blocks": [
    17
@@ -13476,19 +13589,28 @@
    "parties",
    "submitted"
   ],
-  "hm": 30,
+  "hm": 23,
+  "hm_roles": {
+   "author": 1,
+   "caption": 5,
+   "counsel": 14,
+   "court": 2,
+   "date": 2,
+   "disposition": 2,
+   "docket": 1,
+   "lower-court": 3,
+   "panel": 2
+  },
   "lead_bylined": true,
   "op_blocks": [
-   12,
-   73
+   77
   ],
   "ops": [
-   "majority",
    "majority"
   ],
   "residual": 0,
   "status": "valid",
   "summary": 0,
-  "syllabus": 0
+  "syllabus": 8
  }
 }

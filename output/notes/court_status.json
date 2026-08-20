@@ -5,6 +5,7 @@
  "alaska": "complete",
  "alaskactapp": "complete",
  "ariz": "complete",
+ "arizctapp": "complete",
  "ark": "complete",
  "arkctapp": "complete",
  "bap1": "complete",
@@ -26,9 +27,14 @@
  "cadc": "complete",
  "cafc": "complete",
  "cal": "complete",
+ "conn": "complete",
+ "connappct": "complete",
+ "delch": "complete",
  "fla": "complete",
  "fladistctapp": "complete",
+ "ga": "complete",
  "idaho": "complete",
+ "idahoctapp": "complete",
  "ill": "complete",
  "ind": "started",
  "iowa": "complete",
@@ -46,5 +52,6 @@
  "pa": "complete",
  "scotus": "complete",
  "sd": "complete",
- "tennctapp": "complete"
+ "tennctapp": "complete",
+ "wva": "complete"
 }

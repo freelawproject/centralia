@@ -151,10 +151,11 @@ _DATE_CRIT = {"decided": "decision_date", "submitted": "submitted",
 # A ROW THAT IS A DISPOSITION AND NOTHING ELSE — the ruling at the foot of
 # the court's centred stack. Two words at most, so 'Plaintiff's Motion for
 # Summary Judgment is DENIED' (a sentence of the body) is not one.
-_DISPO_ONLY = re.compile(
-    r"^(?:GRANTED|DENIED|AFFIRMED|REVERSED|VACATED|REMANDED|DISMISSED"
-    r"|MODIFIED|SUSTAINED|OVERRULED)"
-    r"(?:\s+(?:IN\s+PART|AND\s+REMANDED))?[.,]?$", re.I)
+_DISPO_WORDS = frozenset(
+    ("granted", "denied", "affirmed", "reversed", "vacated", "remanded",
+     "dismissed", "modified", "sustained", "overruled", "quashed", "stayed",
+     "withdrawn", "deferred"))
+_DISPO_FILLER = frozenset(("in", "part", "and", "but", "&", "as", "moot"))
 # The stack's other rows: what was moved for, or where the case came from.
 _UPON = re.compile(
     r"^(?:Upon|On|Re:?\s|Motion|Cross[- ]Motion|Defendants?|Plaintiffs?"
@@ -189,7 +190,10 @@ _BYLINE = re.compile(
     r"(?:,\s*(?:Jr\.|Sr\.|II|III|IV|V))?"
     r",\s*"
     r"(?:J\.|R\.\s?J\.|P\.\s?J\.|C\.|Resident\s+Judge"
-    r"|President\s+Judge|Judge|Commissioner|Justice)\s*[.:]?$")
+    r"|President\s+Judge|Judge|Commissioner|Justice)"
+    # A byline may carry a FOOTNOTE MARK ('WINSTON, J.1' — sitting by
+    # designation), which is part of the row and not part of the title.
+    r"\s*\d{0,2}\s*[.:]?$")
 
 # ---- the letter ruling ----------------------------------------------------
 
@@ -564,7 +568,7 @@ def _read_captioned(model, geom, finder) -> dict:
         # is that ruling — read as the paper's name it takes the row the
         # court set aside for its holding, and 'MEMORANDUM OPINION AND
         # ORDER' then has nowhere to go.
-        if _DISPO_ONLY.match(text):
+        if _is_dispo_only(text):
             ctx.crit.setdefault("disposition", text.rstrip("."))
             ctx.emit(pieces, "disposition", centre=centred)
             tail_head = False
@@ -681,6 +685,22 @@ def _read_captioned(model, geom, finder) -> dict:
         ctx.crit.setdefault("parties", list(sides))
         ctx.crit.setdefault("case_name", " v. ".join(sides))
     return ctx.result()
+
+
+def _is_dispo_only(text: str) -> bool:
+    """A row that is a disposition and NOTHING else — the ruling at the foot
+    of the court's centred stack. Tested by TOKEN, not by alternation: this
+    court rules on two things at once ('GRANTED in part, DENIED in part.')
+    and an alternation spelling out every pairing would still miss the next
+    one. The filler list stops at 'in part' and the conjunctions on purpose —
+    admit 'motion' and 'the Motion is DENIED', a sentence of the writing,
+    becomes a disposition."""
+    toks = [x.strip(",.;:()").lower() for x in _norm(text).split()]
+    toks = [x for x in toks if x]
+    if not toks or len(toks) > 10:
+        return False
+    return (any(x in _DISPO_WORDS for x in toks)
+            and all(x in _DISPO_WORDS or x in _DISPO_FILLER for x in toks))
 
 
 def _paragraph(stream: list, i: int, body_size: float) -> tuple[int, int]:
@@ -815,6 +835,7 @@ def _read_letter(model, geom, finder) -> dict:
     names: list[str] = []
     dockets: list[str] = []
     re_last = "name"
+    appear: list = []
 
     for group in rows:
         pieces = sorted(group, key=lambda l: l.x0)
@@ -849,6 +870,9 @@ def _read_letter(model, geom, finder) -> dict:
 
         hit = _RE_LINE.match(text)
         if hit:
+            if appear:
+                ctx.items.append(_addressees(appear))
+                appear = []
             band = "re"
             names.append("")
             _dk, _rest = _re_row(ctx, _norm(hit.group(1)), names, dockets)
@@ -871,13 +895,20 @@ def _read_letter(model, geom, finder) -> dict:
                      centre=False)
             continue
         if band == "addressees":
-            ctx.emit(pieces, "counsel", centre=False)
+            # THE ADDRESSEES ARE TWO COLUMNS, and joining them fuses two
+            # firms into one row ('Richard I. G. Jones, Jr. Sarah R.
+            # Martin'). They are collected and published as a block over an
+            # undrawn gutter instead — see `_addressees`.
+            appear.append(_split(pieces, pm.width / 2))
+            ctx.consumed.update(l.id for l in pieces)
             continue
 
         if band == "letterhead" and pieces[0].top > head_bottom + 1.0:
-            # Below the stationery: the addressees, whom the letter is to.
+            # Below the stationery: the addressees, whom the letter is to,
+            # in two columns over an undrawn gutter.
             band = "addressees"
-            ctx.emit(pieces, "counsel", centre=False)
+            appear.append(_split(pieces, pm.width / 2))
+            ctx.consumed.update(l.id for l in pieces)
             continue
 
         # THE LETTERHEAD IS THREE COLUMNS ON SHARED ROWS, so its parts are
@@ -899,6 +930,8 @@ def _read_letter(model, geom, finder) -> dict:
                 # accounted for (the vt.py precedent).
                 ctx.drop([line], "letterhead")
 
+    if appear:
+        ctx.items.append(_addressees(appear))
     if not saw_salutation:
         # WITHOUT THE SALUTATION THE BLOCK HAS NO END, and a claim whose end
         # is a guess would take the letter's first paragraphs with it.
@@ -936,6 +969,41 @@ def _re_row(ctx, text: str, names: list[str],
             else:
                 ctx.crit.setdefault("other_dockets", []).append(value)
     return bool(hit), bool(rest)
+
+
+def _split(pieces: list, mid: float) -> tuple:
+    """One printed row of the addressee block, as its two columns."""
+    left, right = [], []
+    for line in pieces:
+        for want, bucket in (("L", left), ("R", right)):
+            part = _side(line, mid, want)
+            if part is not None:
+                bucket.append(part)
+    return (pieces[0].page, left, right)
+
+
+def _addressees(rows: list) -> m.CaptionBlock:
+    """The two addressee columns as the page sets them: side by side over a
+    gutter nothing is drawn in (`rail=None` — what the model means by a
+    whitespace gutter). Joined into single rows instead, the two firms the
+    letter is addressed to were fused word by word: 'Richard I. G. Jones,
+    Jr. Sarah R. Martin' / 'BERGER MCDERMOTT LLP Bryan T. Reed'. The split
+    is CHAR BY CHAR at the page axis, which the columns clear on every
+    record (left x0 63.8-90.9, right x0 302.4-362.0)."""
+    left, right = [], []
+    ids: set[int] = set()
+    page = rows[0][0]
+    for pg, l_parts, r_parts in rows:
+        left.append(_cell(l_parts, "counsel", pg))
+        right.append(_cell(r_parts, "counsel", pg))
+        ids.update(p.id for p in l_parts + r_parts)
+    while left and not _text_of(left[-1]) and not _text_of(right[-1]):
+        left.pop()
+        right.pop()
+    return m.CaptionBlock(
+        left=left, right=right, rail=None, rail_rows=len(left),
+        style_id="open-gutter", fp={"rail": None},
+        prov=m.Prov(page, tuple(sorted(ids))))
 
 
 def _officer(pm, rows: list) -> tuple[list[str], int | None, int | None]:

@@ -167,6 +167,28 @@ _WRAP_GAP_FACTOR = 1.6
 # that never finds one withdraws its claim whole.
 _MEASURE_SLACK = 3.0
 
+# THE COVER'S AUTHOR BAND. The term slip closes with the court's own account
+# of who wrote and who joined, and every row of it opens on a TITLE and a
+# NAME — measured over the corpus, 36 delivering rows and 30 more that state
+# a position ('JUSTICE X, deeming himself disqualified, did not participate
+# in the decision of this case.', 'JUDGE Y, sitting by temporary
+# assignment.', 'JUSTICES X AND Y concur, in part, and dissent, in part, and
+# reserve the right to file dissenting opinions.'). There is no other form.
+#
+# IT IS THE COVER, NOT THE WRITING. The declared grammar parses the
+# delivering row as a byline, so the reader used to stop above it and core
+# opened a WRITING there — and that writing then swallowed the syllabus
+# pages behind it. 33 of the 50 records came back with two 'majority'
+# writings, one of them the announcement plus the whole syllabus, and
+# `doc.syllabus` was empty on all 50. The band is claimed here instead, and
+# the writing opens where the court SIGNS it ('TITUS, Justice:').
+_ANNOUNCE = re.compile(
+    r"^(?:CHIEF\s+)?(?:JUSTICE|JUDGE)S?\s+[A-Z]", re.I)
+_ANNOUNCE_VERB = re.compile(
+    r"\b(?:delivered|announced|concurs?|concurring|dissents?|dissenting"
+    r"|reserves?|deeming|did not participate|sitting by|joined|recused"
+    r"|disqualified)\b", re.I)
+
 # THE COURT'S OWN DOCKET, in the three forms it prints: alone inside the
 # sandwich, leading a separate slip's caption row, trailing one.
 _DOCKET_ANY = re.compile(r"\bNos?\.\s*(\d{2}-\d{1,5})\b", re.I)
@@ -462,6 +484,75 @@ class _Ctx:
             bold=bool(line.all_bold), rel=rel, role=role))
         self.consumed.add(line.id)
 
+    def mark(self, line) -> None:
+        """Claimed, but not placed as a row of its own — the caller is
+        building a block out of it."""
+        self.consumed.add(line.id)
+
+    def columns(self, lines: list, role: str, at: int | None = None) -> None:
+        """Two columns over an undrawn gutter, paired by the row the page
+        printed them on. `rail=None` is what the model means by a whitespace
+        gutter, so the renderer sets them side by side and the casebody
+        reads down one column and then the other."""
+        # THE GUTTER IS MEASURED, NOT ASSUMED. It is not the document's axis:
+        # the appearances' right column opens at x0 288.1 on andrea_dale_daye
+        # against an axis of 306.0, so an axis split files the whole roster
+        # in the left column. The columns are found from their own x0s — the
+        # widest gap between them — and a roster set in ONE column has no
+        # such gap and is emitted as rows, unchanged.
+        xs = sorted({round(l.x0, 1) for l in lines})
+        gap, mid = 0.0, None
+        for a, b in zip(xs, xs[1:]):
+            if b - a > gap:
+                gap, mid = b - a, (a + b) / 2
+        if mid is None or gap < 40.0:
+            for line in lines:
+                self.emit(line, role)
+            return
+        rows: dict = {}
+        order: list = []
+        for line in lines:
+            key = (line.page, round(line.top, 1))
+            if key not in rows:
+                rows[key] = []
+                order.append(key)
+            rows[key].append(line)
+        left, right = [], []
+        for key in order:
+            page = key[0]
+            l_side = [x for x in rows[key] if x.x0 < mid]
+            r_side = [x for x in rows[key] if x.x0 >= mid]
+            left.append(self._cell(l_side, role, page))
+            right.append(self._cell(r_side, role, page))
+        while left and not _cell_text(left[-1]) and not _cell_text(right[-1]):
+            left.pop()
+            right.pop()
+        if not left:
+            return
+        block = m.CaptionBlock(
+            left=left, right=right, rail=None, rail_rows=len(left),
+            style_id="open-gutter", fp={"rail": None},
+            prov=m.Prov(order[0][0], tuple(l.id for l in lines)))
+        if at is None or at > len(self.items):
+            self.items.append(block)
+        else:
+            self.items.insert(at, block)
+
+    def _cell(self, parts: list, role: str, page: int):
+        parts = sorted(parts, key=lambda l: l.x0)
+        if not parts:
+            return m.HmLine(text="", prov=m.Prov(page), align=m.Align.LEFT,
+                            role=role)
+        text = ""
+        for part in parts:
+            piece = line_markup(part)
+            text = (text.rstrip() + " " + piece.lstrip()) if text.strip() \
+                else piece
+        return m.HmLine(
+            text=text, prov=m.Prov(parts[0].page, tuple(p.id for p in parts)),
+            align=m.Align.LEFT, x0=parts[0].x0, size=parts[0].size or 0.0,
+            bold=all(bool(p.all_bold) for p in parts), role=role)
+
     def rule(self, page: int, line=None) -> None:
         """The fence renders where the page sets it.
 
@@ -485,6 +576,10 @@ class _Ctx:
         return {"criteria": self.crit, "items": self.items, "attorneys": [],
                 "dropped": self.dropped, "consumed": self.consumed,
                 "anchor_ids": list(anchor_ids), "doc_type_final": None}
+
+
+def _cell_text(row) -> str:
+    return re.sub(r"<[^>]+>", "", getattr(row, "text", "") or "").strip()
 
 
 def _rows(model, stamp: _Stamp, finder: FurnitureFinder, pages: int) -> list:
@@ -545,6 +640,18 @@ def read_headmatter_wva(model, geom, **_):
 # the term slip: the typed sandwich
 # --------------------------------------------------------------------------
 
+_DELIVERS = re.compile(r"\bdelivered\b", re.I)
+
+
+def _is_announcement(text: str) -> bool:
+    """A row of the cover's author band: a TITLE, a NAME, and one of the
+    verbs the court states a position with. Both halves are required — the
+    caption of a mandamus names 'JUDGE' too ('State ex rel. … v. Honorable
+    James Rowe, Judge'), and it carries no verb of this band."""
+    return bool(_ANNOUNCE.match(text) and _ANNOUNCE_VERB.search(text))
+
+
+
 def _read_sandwich(model, geom, axis, stamp, finder, parser):
     ctx = _Ctx(model, geom, STYLE_SANDWICH)
     content = _rows(model, stamp, finder, _MAX_PAGES)
@@ -575,6 +682,9 @@ def _read_sandwich(model, geom, axis, stamp, finder, parser):
     counsel: list[str] = []
     submitted: list[str] = []
     banner_rows: list[str] = []
+    appearances: list = []
+    appear_at = 0
+    announced: list[str] = []
     state = "masthead"
     last_origin_top: float | None = None
     prev_lower_docket = False
@@ -592,9 +702,24 @@ def _read_sandwich(model, geom, axis, stamp, finder, parser):
         text = _plain(line.plain)
         if not text:
             continue
+        # THE AUTHOR BAND IS THE COVER'S LAST WORD, and it is claimed — see
+        # `_ANNOUNCE`. Tested before the byline, because the delivering row
+        # parses as one.
+        if _is_announcement(text):
+            state = "author"
+            ctx.emit(line, "author" if _DELIVERS.search(text) else "panel")
+            announced.append(text)
+            continue
         # A BYLINE ENDS THE READER, always and everywhere.
         if parser.parse(text) is not None:
             signed = True
+            break
+        if state == "author":
+            # Below the band nothing else belongs to the cover: a wrap of
+            # its own last row is taken, anything else ends the read.
+            if not text[:1].isupper() or text[:1].islower():
+                ctx.emit(line, "panel")
+                continue
             break
         if state == "masthead":
             # The masthead is the court's nameplate and the term it sat in.
@@ -675,13 +800,30 @@ def _read_sandwich(model, geom, axis, stamp, finder, parser):
             ctx.emit(line, "docket")
             state = "docket"
             continue
-        # THE APPEARANCES, set in two columns.
+        # THE APPEARANCES, set in two columns — and published AS two
+        # columns. Emitted row by row they come out staggered, one printed
+        # row making two rendered ones, left cell then right cell down the
+        # page (the user's call, 2026-08-20): the page sets 'Jason T. Gain,
+        # Esq.' and 'John B. McCuskey, Esq.' side by side, and the render
+        # has to say so. Collected here, built into a block below.
         if geom and line.x1 >= geom.right_x1 - _MEASURE_SLACK:
             break
         counsel.append(text)
-        ctx.emit(line, "counsel")
+        if not appearances:
+            appear_at = len(ctx.items)
+        appearances.append(line)
+        ctx.mark(line)
 
-    if not dockets or not signed:
+    if appearances:
+        ctx.columns(appearances, "counsel", at=appear_at)
+
+    # THE COVER MUST END SOMEWHERE THE COURT MARKED. A byline is one such
+    # place; the author band is the other, and on the term slip it is the
+    # ordinary one — the walk reaches the band, claims it, and never sees a
+    # byline at all (the writing signs itself pages later, behind the
+    # syllabus). Either closes the read; neither, and the claim is withdrawn
+    # whole, exactly as before.
+    if not dockets or not (signed or announced):
         return NOTHING
     if not caption and not origin:
         return NOTHING
@@ -765,6 +907,22 @@ def _is_slip_caption(line, geom) -> bool:
             and _DOCKET_ANY.search(_plain(line.plain)) is not None)
 
 
+def _is_wrap(page, top, line, prev, ctx) -> bool:
+    """Is this row the caption's own second line?
+
+    A WRAP follows at the type's own leading and stays inside the measure; it
+    may hang indented (the_honorable sets its second row 69pt in) or return
+    to the rail (butler). Anything set further down the page is the writing,
+    not the caption.
+    """
+    if not prev or page != prev[0]:
+        return False
+    if top - prev[1] > (line.size or ctx.body_size) * _WRAP_GAP_FACTOR:
+        return False
+    return ctx.body_x0 - 6 <= line.x0 <= ctx.body_x0 + 108
+
+
+
 def _read_slip(model, geom, rows, stamp, parser):
     """A concurrence or dissent released on its own: the clerk's stamp, the
     writing's own caption — the docket and the case, in at most two rows —
@@ -783,6 +941,22 @@ def _read_slip(model, geom, rows, stamp, parser):
     prev: tuple = ()
     for page, top, line in rows[:4]:
         text = _plain(line.plain)
+        # THE WRAP IS DECIDED BY THE PAGE, NOT BY THE WORDS. A caption whose
+        # case name runs on can wrap onto a row that READS like a byline —
+        # '…v. The Honorable' / 'Barki, Judge, Circuit Court of Ohio County,
+        # and Shawn Pethtel' — and once this court's title-case signatures
+        # are admitted, the byline test claims that row first and leaves the
+        # writing to open on the caption's own second line (a phantom
+        # writing of 0 blocks, typed from the row's tail:
+        # 'circuit-court-of-ohio-county,-and-shawn-pethtel'). The wrap test
+        # below is pure geometry — the type's own leading, inside the
+        # measure — so it is asked FIRST whenever a caption row is already
+        # open.
+        if caption and _is_wrap(page, top, line, prev, ctx):
+            caption.append(text)
+            ctx.emit(line, "caption")
+            prev = (page, top)
+            continue
         if parser.parse(text) is not None:
             signed = True
             break                          # the writing starts here
@@ -797,14 +971,7 @@ def _read_slip(model, geom, rows, stamp, parser):
             if abs(line.x0 - ctx.body_x0) > 6:
                 return NOTHING
         else:
-            # A WRAP follows at the type's own leading and stays inside the
-            # measure; it may hang indented (the_honorable sets its second
-            # row 69pt in) or return to the rail (butler). Anything set
-            # further down the page is the writing, not the caption.
-            if page != prev[0] or top - prev[1] > \
-                    (line.size or ctx.body_size) * _WRAP_GAP_FACTOR:
-                break
-            if not (ctx.body_x0 - 6 <= line.x0 <= ctx.body_x0 + 108):
+            if not _is_wrap(page, top, line, prev, ctx):
                 break
         caption.append(text)
         ctx.emit(line, "caption")
@@ -896,3 +1063,100 @@ def _read_handdown(model, geom, rows, stamp):
     _name(ctx, [re.sub(r"\).*$", "", r) if _is_pivot(re.sub(r"\).*$", "", r))
                 else r for r in caption])
     return ctx.result()
+
+
+# --------------------------------------------------------------------------
+# the syllabus
+# --------------------------------------------------------------------------
+
+# 'SYLLABUS BY THE COURT' — the court's own heading, and the only form it
+# prints. Core's shared test asks for the bare word 'SYLLABUS', so nothing
+# here matched it and 30 of the 50 records rendered their syllabus as opinion
+# body: on 17 of them the writing OPENED on it (summerfield's majority is 72
+# blocks beginning 'SYLLABUS BY THE COURT'), and on the other 13 it fell into
+# a phantom writing between the announcement and the signature.
+_SYLLABUS_HEAD = re.compile(r"^SYLLABUS(?:\s+(?:BY|OF)\s+THE\s+COURT)?$", re.I)
+# THE FOLIO NAMES THE FRONT MATTER. This court paginates the syllabus in
+# lower-case ROMAN numerals ('i', 'ii') and the opinion in arabic from 1, so
+# the syllabus's extent is printed on the page and needs no inference: it
+# runs from the heading to the last page whose folio is roman. Measured over
+# the 30 records that print one — every syllabus page carries one, and no
+# opinion page does.
+_ROMAN_FOLIO = re.compile(r"^[ivxl]{1,6}$")
+_ARABIC_FOLIO = re.compile(r"^\d{1,3}$")
+# The row the writing opens on, in every form this court signs with.
+_SIGNS = re.compile(
+    r"^(?:[A-Z][A-Za-z’'\-]+,\s*(?:Chief\s+)?(?:Justice|Judge|J\.|C\.J\.)"
+    r"|(?:CHIEF\s+)?(?:JUSTICE|JUDGE)\s+[A-Z][A-Za-z’'\-]+,)")
+
+
+def _folio(pm) -> str:
+    """The page's own number, as printed at its foot."""
+    inked = sorted((l for l in pm.lines if l.plain.strip()),
+                   key=lambda l: l.top)
+    return " ".join(inked[-1].plain.split()) if inked else ""
+
+
+@decider("syllabus.pages", court="wva")
+def syllabus_pages_wva(model, geom, **_):
+    """The pages of the court's own syllabus, or NOTHING.
+
+    Opens on the page whose FIRST inked row is the court's heading and closes
+    where the roman folio does. A separate slip — a concurrence or dissent
+    released alone — prints no syllabus at all and gets NOTHING, which is the
+    right answer and not a failure to find one.
+    """
+    if not model.pages:
+        return NOTHING
+    start = None
+    for pm in model.pages:
+        inked = sorted((l for l in pm.lines if l.plain.strip()),
+                       key=lambda l: l.top)
+        if inked and _SYLLABUS_HEAD.match(" ".join(inked[0].plain.split())):
+            start = pm.number
+            break
+    if start is None:
+        return NOTHING
+    # …AND CLOSES WHERE THE ARABIC ONE BEGINS. Reading forward while the
+    # folio is roman truncated corotoman: syllabus point 5 runs onto a page
+    # the court foliates NOT AT ALL (five rows and no number), so the run
+    # closed a page early and that page came back as a 1-block 'order'
+    # writing of its own. The opinion restarts the count at 1, so the first
+    # ARABIC folio is the boundary, and a page with no folio at all is still
+    # front matter.
+    pages = {start}
+    for pm in model.pages[start:]:          # the pages after the heading's
+        folio = _folio(pm).lower()
+        if _ARABIC_FOLIO.match(folio):
+            break
+        inked = sorted((l for l in pm.lines if l.plain.strip()),
+                       key=lambda l: l.top)
+        if inked and _SIGNS.match(" ".join(inked[0].plain.split())):
+            break                           # the writing signs itself here
+        pages.add(pm.number)
+        if len(pages) > 8:                   # the longest syllabus is three
+            break
+    return pages
+
+# --------------------------------------------------------------------------
+# syllabus.trim — the front matter's own page numbers
+# --------------------------------------------------------------------------
+
+@decider("syllabus.trim", court="wva")
+def syllabus_trim_wva(segs, syl_pages, **_):
+    """The roman FOLIOS, dropped: 'i' and 'ii' are the page numbers this
+    court gives its front matter, and they are the reason the folio can be
+    used to find the syllabus at all (see `syllabus_pages_wva`). Left in the
+    flow they render as syllabus content — a one-character paragraph after
+    every fourth point, and on one record typed as a HEADING, which is how
+    the user found them.
+
+    Core's furniture pass does not reach them: it is looking for the arabic
+    folio the opinion carries.
+    """
+    if not syl_pages:
+        return NOTHING
+    drop = {id(seg) for seg in segs
+            if seg.page in syl_pages and len(seg.lines) == 1
+            and _ROMAN_FOLIO.match(_norm(seg.lines[0].plain).lower())}
+    return drop or NOTHING

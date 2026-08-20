@@ -10,7 +10,7 @@ Signals (all from the emitted markup, so they track exactly what the
 reviewer sees):
   warn        pipeline warning chips
   resid       residual CONTENT lines (unaccounted input — the worst signal)
-  no_op       zero rendered opinions
+  no_op       zero rendered opinions (and `o` carries the count itself)
   joins       missing-space word joins in visible text (defendantsDennis)
   hyph        hyphen-join artifacts (pro- posed)
   cid         literal (cid:NN) glyphs
@@ -251,7 +251,12 @@ def score_file(path: Path) -> dict:
                         pr.group(1)):
         score += 2
         flags.append("parties-noise")
-    return {"s": round(score, 1), "g": _grade(score), "f": flags}
+    # HOW MANY WRITINGS THE FILE HAS, carried beside the grade because it is
+    # the first thing a reviewer wants to know about a rendering and the
+    # grade cannot say it: 0 is a document whose opinion was lost, and 2+ is
+    # either a real separate writing or a phantom one made of a headmatter
+    # row nobody claimed. Cheap — `ops` is already counted for `no-opinions`.
+    return {"s": round(score, 1), "g": _grade(score), "f": flags, "o": ops}
 
 
 def _grade(score: float) -> str:

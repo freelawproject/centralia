@@ -185,6 +185,11 @@ _COUNSEL = re.compile(
     r"\b(?:Esquire|Esq\.|LLP|PLLC|P\.A\.|LLC|Attorneys?\s+for"
     r"|Counsel\s+for|Appearing\s+for|Attorney\s+for)\b")
 _PIVOT = re.compile(r"^v\.?$|^vs\.?$", re.I)
+# The stack's opening row: what was moved for. Bounded by the measure, since
+# an order's own first sentence opens the same way and runs to the margin.
+_UPON = re.compile(
+    r"^(?:Upon|On|Motion|Cross[- ]Motion|Defendants?|Plaintiffs?|Petition"
+    r"|Application|Respondents?)\b")
 _STATUS = re.compile(
     r"^(?:Plaintiffs?|Defendants?|Petitioners?|Respondents?|Appellants?"
     r"|Appellees?|Counterclaim[- ]\w+|Nominal\s+\w+|Intervenors?)"
@@ -201,7 +206,12 @@ _BYLINE = re.compile(
     r",\s*"
     r"(?:V\.\s?C\.|C\.|M\.|J\.|Vice\s+Chancellor|Chancellor"
     r"|Magistrate(?:\s+in\s+Chancery)?|Master(?:\s+in\s+Chancery)?"
-    r"|Judge|Justice)\s*[.:]?$")
+    r"|Judge|Justice)"
+    # A BYLINE MAY CARRY A FOOTNOTE MARK. 'WINSTON, J.1' notes that the judge
+    # sits by designation — and read without the digit it was not a byline at
+    # all, so the roster below it never closed and the walk ran on into the
+    # next page's prose, filing a paragraph of the writing under `counsel`.
+    r"\s*\d{0,2}\s*[.:]?$")
 
 # ---- the letter ruling ----------------------------------------------------
 
@@ -479,6 +489,7 @@ def _read_captioned(model, geom, finder) -> dict:
         return NOTHING              # no divider: not a caption this court set
     body_x0 = geom.body_x0 if geom and geom.body_x0 else 72.0
     body_size = geom.body_size if geom and geom.body_size else 12.0
+    right_x1 = geom.right_x1 if geom and geom.right_x1 else page1.width - 72.0
 
     ctx = _Ctx()
     left: list = []
@@ -584,6 +595,22 @@ def _read_captioned(model, geom, finder) -> dict:
             ctx.emit(pieces, "date", centre=centred)
             tail_head = False
             continue
+        # WHAT WAS DECIDED IS A STACK, AND ITS RULING IS BOLD — the same
+        # form the Superior Court prints: 'Upon Defendant Sprint's Motion to
+        # Dismiss,' / 'GRANTED in part, DENIED in part.' Read by the title
+        # test the ruling took the row the court set aside for the paper's
+        # NAME, and the motion above it was tinted `counsel`.
+        if _is_dispo_only(text):
+            ctx.crit.setdefault("disposition", text.rstrip("."))
+            ctx.emit(pieces, "disposition", centre=centred)
+            tail_head = False
+            continue
+        if (_UPON.match(text) and len(text) < 170 and centred
+                and max(l.x1 for l in pieces) < right_x1 - 12.0):
+            ctx.crit.setdefault("motion", text)
+            ctx.emit(pieces, "disposition", centre=centred)
+            tail_head = False
+            continue
         if pieces[0].all_bold and centred and len(text) < 90:
             ctx.crit.setdefault("title", text)
             ctx.emit(pieces, "title")
@@ -613,8 +640,14 @@ def _read_captioned(model, geom, finder) -> dict:
         # taken when the paragraph names an appearance and stands
         # unindented at the measure (an order's body indents its first
         # line, and says 'pro se' as readily as any roster does).
+        # …AND ONLY ON THE PAGE THAT CARRIED THE BOX. With no byline to stop
+        # at, a landmark as ordinary as 'LLC' matches the writing's own prose,
+        # and on feeney a paragraph of page 2 came back tinted `counsel`. An
+        # order that signs at its foot prints its appearances on page 1 with
+        # its caption; nothing this court sets on a later page is a roster
+        # that no byline follows.
         para = _paragraph(stream, i, body_size)
-        if _is_appearance(stream, para, body_x0):
+        if pm.number == box_page and _is_appearance(stream, para, body_x0):
             for j in range(para[0], para[1] + 1):
                 ctx.emit(stream[j][2], "counsel", centre=False)
             consumed_to = para[1]
@@ -657,6 +690,29 @@ def _read_captioned(model, geom, finder) -> dict:
         ctx.crit.setdefault("parties", list(sides))
         ctx.crit.setdefault("case_name", " v. ".join(sides))
     return ctx.result()
+
+
+# A ROW THAT IS A DISPOSITION AND NOTHING ELSE — the ruling at the foot of
+# the court's centred stack. Tested by TOKEN, not by alternation, because the
+# court rules on two things at once: 'GRANTED in part, DENIED in part.' is as
+# much a bare disposition as 'DENIED.' is, and an alternation that spelled
+# out every pairing would still miss the next one. The filler list is kept to
+# 'in part' and the conjunctions on purpose — admit 'motion' and 'the Motion
+# is DENIED' (a sentence of the writing) becomes a disposition.
+_DISPO_WORDS = frozenset(
+    ("granted", "denied", "affirmed", "reversed", "vacated", "remanded",
+     "dismissed", "modified", "sustained", "overruled", "quashed", "stayed",
+     "withdrawn", "deferred"))
+_DISPO_FILLER = frozenset(("in", "part", "and", "but", "&", "as", "moot"))
+
+
+def _is_dispo_only(text: str) -> bool:
+    toks = [t.strip(",.;:()").lower() for t in _norm(text).split()]
+    toks = [t for t in toks if t]
+    if not toks or len(toks) > 10:
+        return False
+    return (any(t in _DISPO_WORDS for t in toks)
+            and all(t in _DISPO_WORDS or t in _DISPO_FILLER for t in toks))
 
 
 def _paragraph(stream: list, i: int, body_size: float) -> tuple[int, int]:
@@ -772,6 +828,7 @@ def _read_letter(model, geom, finder) -> dict:
     names: list[str] = []
     dockets: list[str] = []
     re_last = "name"
+    appear: list = []
 
     for group in rows:
         pieces = sorted(group, key=lambda l: l.x0)
@@ -806,6 +863,9 @@ def _read_letter(model, geom, finder) -> dict:
 
         hit = _RE_LINE.match(text)
         if hit:
+            if appear:
+                ctx.items.append(_addressees(appear))
+                appear = []
             band = "re"
             names.append("")
             _dk, _rest = _re_row(ctx, _norm(hit.group(1)), names, dockets)
@@ -828,7 +888,12 @@ def _read_letter(model, geom, finder) -> dict:
                      centre=False)
             continue
         if band == "addressees":
-            ctx.emit(pieces, "counsel", centre=False)
+            # THE ADDRESSEES ARE TWO COLUMNS, and joining them fuses two
+            # firms into one row ('Richard I. G. Jones, Jr. Sarah R.
+            # Martin'). They are collected and published as a block over an
+            # undrawn gutter instead — see `_addressees`.
+            appear.append(_split(pieces, pm.width / 2))
+            ctx.consumed.update(l.id for l in pieces)
             continue
 
         # THE LETTERHEAD IS THREE COLUMNS ON SHARED ROWS, so its parts are
@@ -850,6 +915,8 @@ def _read_letter(model, geom, finder) -> dict:
                 # accounted for (the vt.py precedent).
                 ctx.drop([line], "letterhead")
 
+    if appear:
+        ctx.items.append(_addressees(appear))
     if not saw_salutation:
         # WITHOUT THE SALUTATION THE BLOCK HAS NO END, and a claim whose end
         # is a guess would take the letter's first paragraphs with it.
@@ -887,6 +954,41 @@ def _re_row(ctx, text: str, names: list[str],
             else:
                 ctx.crit.setdefault("other_dockets", []).append(value)
     return bool(hit), bool(rest)
+
+
+def _split(pieces: list, mid: float) -> tuple:
+    """One printed row of the addressee block, as its two columns."""
+    left, right = [], []
+    for line in pieces:
+        for want, bucket in (("L", left), ("R", right)):
+            part = _side(line, mid, want)
+            if part is not None:
+                bucket.append(part)
+    return (pieces[0].page, left, right)
+
+
+def _addressees(rows: list) -> m.CaptionBlock:
+    """The two addressee columns as the page sets them: side by side over a
+    gutter nothing is drawn in (`rail=None` — what the model means by a
+    whitespace gutter). Joined into single rows instead, the two firms the
+    letter is addressed to were fused word by word: 'Richard I. G. Jones,
+    Jr. Sarah R. Martin' / 'BERGER MCDERMOTT LLP Bryan T. Reed'. The split
+    is CHAR BY CHAR at the page axis, which the columns clear on every
+    record (left x0 63.8-90.9, right x0 302.4-362.0)."""
+    left, right = [], []
+    ids: set[int] = set()
+    page = rows[0][0]
+    for pg, l_parts, r_parts in rows:
+        left.append(_cell(l_parts, "counsel", pg))
+        right.append(_cell(r_parts, "counsel", pg))
+        ids.update(p.id for p in l_parts + r_parts)
+    while left and not _text_of(left[-1]) and not _text_of(right[-1]):
+        left.pop()
+        right.pop()
+    return m.CaptionBlock(
+        left=left, right=right, rail=None, rail_rows=len(left),
+        style_id="open-gutter", fp={"rail": None},
+        prov=m.Prov(page, tuple(sorted(ids))))
 
 
 def _officer(pm, rows: list) -> tuple[list[str], int | None, int | None]:

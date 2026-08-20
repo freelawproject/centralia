@@ -36,6 +36,8 @@ _PAGE_COUNTS: dict[str, int] = {}
 
 
 _RASTER_LOCK = threading.Lock()
+_NOTES_LOCK = threading.Lock()
+_STATUS_LOCK = threading.Lock()
 
 
 def _page_image(court: str, stem: str, page: int) -> Path | None:
@@ -110,6 +112,13 @@ def _manifest() -> dict:
 
 
 MARKS_BAK = MARKS_DIR / "marks.json.bak"
+# PER-FILE NOTES: what is wrong with THIS rendering, in the reviewer's own
+# words, written while the file is on screen. The mark says how bad; the note
+# says what — and a note outlives the mark, because the next person to work
+# the file needs the sentence, not the tier.
+NOTES = MARKS_DIR / "filenotes.json"
+NOTES_BAK = MARKS_DIR / "filenotes.json.bak"
+NOTES_LOG = MARKS_DIR / "filenotes.log"
 MARKS_LOG = MARKS_DIR / "marks.log"
 MARKS_SNAPS = MARKS_DIR / "marks-backups"
 _MARKS_LOCK = threading.Lock()
@@ -243,6 +252,83 @@ def _save_marks(marks: dict) -> None:
     os.replace(tmp, MARKS)
 
 
+_STATUSES = ("complete", "active", "started", "")
+
+
+def _save_status(court: str, status: str) -> None:
+    """The per-court porting status the sidebar draws its ✓ from. Read since
+    the sidebar existed and never writable: the file was edited by hand,
+    which means the one judgement the reviewer is actually qualified to make
+    — 'this court is done' — was the one thing the viewer could not record.
+    Written atomically, previous copy kept, like the marks."""
+    with _STATUS_LOCK:
+        try:
+            cur = json.loads(_STATUS.read_text()) if _STATUS.exists() else {}
+        except Exception:
+            cur = {}
+        if status:
+            cur[court] = status
+        else:
+            cur.pop(court, None)
+        MARKS_DIR.mkdir(parents=True, exist_ok=True)
+        if _STATUS.exists():
+            try:
+                shutil.copy2(_STATUS, _STATUS.with_suffix(".json.bak"))
+            except Exception:
+                pass
+        tmp = _STATUS.with_suffix(".json.tmp")
+        with open(tmp, "w") as f:
+            json.dump(cur, f, indent=1, sort_keys=True)
+            f.flush()
+            os.fsync(f.fileno())
+        os.replace(tmp, _STATUS)
+
+
+def _load_notes() -> dict:
+    """The notes are HAND LABOUR, like the marks — read the live file and
+    fall back to the previous good copy rather than returning {} and letting
+    the next save overwrite everything with it."""
+    for path in (NOTES, NOTES_BAK):
+        try:
+            if path.exists():
+                with open(path) as f:
+                    return json.load(f)
+        except Exception:
+            print(f"[notes] {path} unreadable, falling back", file=sys.stderr)
+    return {}
+
+
+def _save_notes(notes: dict) -> None:
+    """Never truncate the only copy: previous version to .bak, new one
+    fsynced to a temp file and swapped in with os.replace."""
+    MARKS_DIR.mkdir(parents=True, exist_ok=True)
+    if NOTES.exists():
+        try:
+            shutil.copy2(NOTES, NOTES_BAK)
+        except Exception:
+            pass
+    tmp = NOTES.with_suffix(".json.tmp")
+    with open(tmp, "w") as f:
+        json.dump(notes, f, indent=0, sort_keys=True)
+        f.flush()
+        os.fsync(f.fileno())
+    os.replace(tmp, NOTES)
+
+
+def _log_note(key: str, text: str) -> None:
+    """An APPEND-ONLY journal of every note ever written, including the ones
+    later edited away — the sentence someone wrote about a file is evidence
+    even after the file changes."""
+    try:
+        MARKS_DIR.mkdir(parents=True, exist_ok=True)
+        with open(NOTES_LOG, "a") as f:
+            f.write(json.dumps({"t": time.time(), "key": key, "text": text,
+                                "sha": _render_digest(key)}) + "\n")
+            f.flush()
+    except Exception:
+        pass
+
+
 def _stale_marks() -> dict:
     """Keys whose FILE WAS RE-RENDERED AFTER the mark was set.
 
@@ -351,6 +437,8 @@ class Handler(SimpleHTTPRequestHandler):
             return self._send(200, json.dumps(_manifest()).encode())
         if self.path == "/api/marks":
             return self._send(200, json.dumps(_load_marks()).encode())
+        if self.path == "/api/filenotes":
+            return self._send(200, json.dumps(_load_notes()).encode())
         if self.path == "/api/stale":
             return self._send(200, json.dumps(_stale_marks()).encode())
         if self.path == "/api/quality":
@@ -405,6 +493,31 @@ class Handler(SimpleHTTPRequestHandler):
                     marks[key] = tier
                 _log_mark(key, tier)
                 _save_marks(marks)
+            return self._send(200, b'{"ok":true}')
+        if self.path == "/api/filenotes":
+            key = data.get("key")
+            text = (data.get("text") or "").strip()
+            if not key or "/" not in key:
+                return self._send(400, b'{"error":"bad note"}')
+            # ONE WRITER AT A TIME, for the same reason the marks take a
+            # lock: this is read-modify-write on a shared file.
+            with _NOTES_LOCK:
+                notes = _load_notes()
+                if text:
+                    notes[key] = text
+                else:
+                    notes.pop(key, None)
+                _log_note(key, text)
+                _save_notes(notes)
+            return self._send(200, b'{"ok":true}')
+        if self.path == "/api/courtstatus":
+            court = (data.get("court") or "").strip()
+            status = (data.get("status") or "").strip()
+            if not court.replace("_", "").replace("-", "").isalnum():
+                return self._send(400, b'{"error":"bad court"}')
+            if status not in _STATUSES:
+                return self._send(400, b'{"error":"bad status"}')
+            _save_status(court, status)
             return self._send(200, b'{"ok":true}')
         if self.path == "/api/render":
             # Re-run the engine on demand: one file, or a whole court. The

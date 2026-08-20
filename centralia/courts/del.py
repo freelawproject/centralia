@@ -63,6 +63,8 @@ and as `lower-court` otherwise; the origin is still recovered into
 from __future__ import annotations
 
 import re
+from collections import Counter
+from dataclasses import replace as _replace
 
 from .. import model as m
 from ..resolve.evidence import NOTHING, decider
@@ -73,10 +75,20 @@ _MASTHEAD = re.compile(
     r"^IN THE SUPREME COURT OF THE STATE OF DELAWARE$", re.I)
 _RAIL_GLYPH = "§"
 _AXIS_TOL = 14.0
+_RAIL_WINDOW = 6.0          # a glyph this close to the rail's x IS the rail
+_RAIL_GAP_MAX = 60.0        # …and the next row of the same rail is this near
 _MAX_PAGES = 2
 
-# The right column's tenants.
-_DOCKET = re.compile(r"^Nos?\.\s*(\d+\s*,\s*\d{4}.*)$", re.I)
+# The right column's tenants. THE DOCKET'S LABEL VARIES and its number is
+# not always one number: 'No. 302, 2019' is the ordinary form, but the court
+# also writes 'Nos. 284 and 372, 2025' for a consolidated appeal
+# (pachis_zander) and 'C.A. No. 509, 2025' for a certified one
+# (new_castle_county). Read as `\d+,\s*\d{4}` alone, both records returned
+# NOTHING — no docket read means the box was not read — and the user marked
+# them failing. The number is now anything that opens on a digit and carries
+# the four-digit year this court's docket always ends in.
+_DOCKET = re.compile(
+    r"^(?:C\.\s?A\.\s*)?Nos?\.\s*(\d[^,]*,\s*\d{4}\b.*)$", re.I)
 # 'Court Below:  Superior Court' and 'Court Below—Superior Court' — the
 # court punctuates it both ways, so the label is matched without its
 # punctuation.
@@ -152,19 +164,23 @@ def read_headmatter_del(model, geom, **_):
     # NOTHING. So the rail is located from the bare glyphs and the row is
     # then split at that x, with the glyph stripped off whichever side it
     # came attached to.
-    rail_x = [l.x0 for g in rows for l in g
-              if _norm(l.plain) == _RAIL_GLYPH]
-    if not rail_x:
+    rail = _rail(page1)
+    if rail is None:
         return NOTHING
-    mid = sum(rail_x) / len(rail_x)
+    mid = rail["x"]
     # THE BOX ENDS AT THE LAST RAIL. A row of the left column and the '§'
     # beside it do not always share a top — pdfio returns them as separate
     # rows — so a row carrying no glyph does NOT mean the box has closed.
     # Treating it that way shut the box on the party's first line and the
     # docket, printed two rows further down, was never collected: 15 of 50
-    # records read as NOTHING. The box is the band the rail spans.
-    box_bottom = max(l.top for g in rows for l in g
-                     if _RAIL_GLYPH in (l.plain or ""))
+    # records read as NOTHING. The box is the band the rail spans — the band
+    # the RAIL'S OWN COLUMN spans, and no further. Taken as the last line
+    # anywhere on the page holding a '§', a footnote's statutory citation
+    # closed the box at the foot of the sheet: aim_ventura cites 'Del. Const.
+    # art. IV, § 12' at top 695.2, and the box swallowed the dates, the
+    # panel, the 'ORDER' heading and the first four paragraphs of the
+    # writing, all tinted `caption`.
+    box_bottom = rail["bottom"]
 
     ctx = _Ctx()
     left: list = []
@@ -199,10 +215,23 @@ def read_headmatter_del(model, geom, **_):
             # when one of them is blank, or the columns drift apart. The
             # split is at the RAIL's x, so a line that opens with the glyph
             # belongs to the right column whatever else it carries.
-            l_parts = [l for l in pieces
-                       if l.x0 < mid - 1.5 and _norm(l.plain) != _RAIL_GLYPH]
-            r_parts = [l for l in pieces
-                       if l.x0 >= mid - 1.5 and _norm(l.plain) != _RAIL_GLYPH]
+            # …AND THE SPLIT IS CHAR BY CHAR. Whether pdfio broke a row at
+            # its column gap is an accident of how wide the gap happened to
+            # be: 'OF THE BAR OF THE SUPREME §  No. 177, 2026' arrives as
+            # ONE run beginning at the left margin, and by the row's own x0
+            # the docket was filed in the PARTY column — so the right column
+            # held nothing, and the record read as NOTHING (the ca6 lesson,
+            # which this reader had for the rail's own glyph but not for the
+            # cells either side of it).
+            l_parts, r_parts = [], []
+            for line in pieces:
+                bare = _shed(line, rail)
+                if bare is None:
+                    continue
+                for want, bucket in (("L", l_parts), ("R", r_parts)):
+                    part = _side(bare, mid, want)
+                    if part is not None:
+                        bucket.append(part)
             left.append(_row(l_parts, "caption"))
             right.append(_row(r_parts, _right_role(r_parts)))
             box_ids.update(l.id for l in pieces)
@@ -226,6 +255,18 @@ def read_headmatter_del(model, geom, **_):
             continue
         if _PANEL.search(text):
             ctx.crit.setdefault("panel_line", text)
+            # THE ROSTER IS ALSO THE ANSWER TO 'WHO SAT'. Core reads `judges`
+            # off this row itself; claimed by this reader it no longer can,
+            # and a court reader that improves the block must not cost the
+            # document a criterion it already had (boulden_v._state lost its
+            # judges exactly that way). `panel_line` is the row as printed,
+            # `judges` the bench without its 'Before' label and its closing
+            # clause.
+            bench = re.sub(r"^Before\s+", "", text, flags=re.I)
+            bench = re.sub(r",?\s*constituting the Court.*$", "", bench,
+                           flags=re.I).rstrip(" ,.")
+            if bench:
+                ctx.crit.setdefault("judges", bench)
             ctx.emit(pieces, "panel", centre=False)
             continue
         if _ORIGIN.match(text):
@@ -273,6 +314,58 @@ def read_headmatter_del(model, geom, **_):
     if _hist:
         ctx.crit.setdefault("history", " ".join(_hist)[:2000])
     return ctx.result()
+
+
+def _rail(pm) -> dict | None:
+    """The caption's rail on ``pm``: {'x', 'top', 'bottom'}, or None.
+
+    A rail is a COLUMN of '§' — glyphs stacked at one x — grown outward one
+    contiguous step at a time, so a section sign standing somewhere else on
+    the page (a footnote's 'art. IV, § 12') is barred by the gap bound
+    however close its x happens to fall."""
+    chars = [c for line in pm.lines for c in line.chars
+             if (c.get("text") or "") == _RAIL_GLYPH]
+    if not chars:
+        return None
+    x, _n = Counter(round(c["x0"]) for c in chars).most_common(1)[0]
+    column = sorted((c for c in chars if abs(c["x0"] - x) <= 3.0),
+                    key=lambda c: c["top"])
+    if not column:
+        return None
+    run = [column[0]]
+    for ch in column[1:]:
+        if ch["top"] - run[-1]["top"] > _RAIL_GAP_MAX:
+            break
+        run.append(ch)
+    return {"x": float(x), "top": min(c["top"] for c in run),
+            "bottom": max(c["top"] for c in run)}
+
+
+def _shed(line, rail):
+    """``line`` without the rail's own glyphs, or None when the line WAS the
+    rail. Identified by COLUMN, never by character."""
+    lo, hi = rail["x"] - _RAIL_WINDOW, rail["x"] + _RAIL_WINDOW
+    kept = [c for c in line.chars
+            if not ((c.get("text") or "") == _RAIL_GLYPH
+                    and lo <= c["x0"] <= hi)]
+    if len(kept) == len(line.chars):
+        return line
+    if not any((c.get("text") or "").strip() for c in kept):
+        return None
+    return _replace(line, chars=kept, x0=min(c["x0"] for c in kept),
+                    x1=max(c.get("x1", c["x0"]) for c in kept))
+
+
+def _side(line, mid: float, want: str):
+    """The part of ``line`` lying on one side of the rail, or None."""
+    keep = [c for c in line.chars
+            if ((c["x0"] + c.get("x1", c["x0"])) / 2 < mid) == (want == "L")]
+    if not any((c.get("text") or "").strip() for c in keep):
+        return None
+    if len(keep) == len(line.chars):
+        return line
+    return _replace(line, chars=keep, x0=min(c["x0"] for c in keep),
+                    x1=max(c.get("x1", c["x0"]) for c in keep))
 
 
 def _strip_rail(text: str) -> str:

@@ -4,6 +4,7 @@
     python harness/cli.py truth [<court>]            truth-set statistics
     python harness/cli.py identity <court>           old-vs-old compare (must be clean)
     python harness/cli.py lines <court/stem> [-p N] [--rules]   the PDF lens
+    python harness/cli.py notes [<court>...] [--json] [--open]   per-file notes
 
 Added in later phases: extract / render / check / census / compare / trace / serve.
 """
@@ -442,12 +443,77 @@ def cmd_coverage(args: list[str]) -> int:
     return coverage.main(args)
 
 
+def cmd_notes(args: list[str]) -> int:
+    """THE REVIEWER'S OWN WORDS, per file — the work list a mark cannot carry.
+
+    Usage: notes [court...] [--json] [--open]
+
+    A note says WHAT is wrong with a rendering; the mark says how bad. EVERY
+    note is listed by default, each with its file's current mark: a note is
+    hand labour, and hiding it because the mark has since gone to `yay` is
+    how the sentence gets lost — a `yay` beside a note is exactly how you
+    tell one that was ACTED ON from one that never was. `--open` narrows to
+    the files still short of `yay`, which is the work list.
+    """
+    import json as _json
+    sys.path.insert(0, str(Path(__file__).resolve().parent))
+    import viewer  # noqa: PLC0415
+
+    notes = viewer._load_notes()
+    marks = viewer._load_marks()
+    stale = viewer._stale_marks()
+    qual = {}
+    qpath = viewer.OUTPUT_DIR / "notes" / "quality.json"
+    if qpath.exists():
+        try:
+            qual = _json.loads(qpath.read_text()).get("files", {})
+        except Exception:  # noqa: BLE001
+            qual = {}
+
+    courts = [a for a in args if not a.startswith("-")]
+    keys = sorted(k for k in notes
+                  if (not courts or k.split("/")[0] in courts)
+                  and ("--open" not in args or marks.get(k) != "yay"))
+    if "--json" in args:
+        print(_json.dumps([{"key": k, "note": notes[k],
+                            "mark": marks.get(k),
+                            "grade": (qual.get(k) or {}).get("g"),
+                            "flags": (qual.get(k) or {}).get("f") or [],
+                            "stale": stale.get(k)}
+                           for k in keys], indent=1))
+        return 0
+    if not keys:
+        print("no notes" + (" still open (drop --open to see all)"
+                            if notes else ""))
+        return 0
+    court = None
+    for k in keys:
+        c = k.split("/")[0]
+        if c != court:
+            court = c
+            n_all = sum(1 for x in notes if x.startswith(c + "/"))
+            print(f"\n== {court}  ({n_all} noted)")
+        q = qual.get(k) or {}
+        bits = [f"[{marks.get(k) or '—'}]"]
+        if q.get("g"):
+            bits.append(q["g"] + (f" ({', '.join(q['f'])})" if q.get("f") else ""))
+        if stale.get(k):
+            bits.append(f"stale:{stale[k]}")
+        print(f"  {k.split('/', 1)[1]}")
+        print(f"      {' · '.join(bits)}")
+        for line in notes[k].splitlines():
+            print(f"      | {line}")
+    print(f"\n{len(keys)} noted file(s)")
+    return 0
+
+
 COMMANDS = {"freeze": cmd_freeze, "truth": cmd_truth, "identity": cmd_identity,
             "lines": cmd_lines, "serve": cmd_serve, "footnotes": cmd_footnotes,
             "compare": cmd_compare, "extract": cmd_extract,
             "render": cmd_render, "fngaps": cmd_fngaps, "audit": cmd_audit,
             "quality": cmd_quality, "coverage": cmd_coverage,
-            "guard": cmd_guard, "v1diff": cmd_v1diff}
+            "guard": cmd_guard, "v1diff": cmd_v1diff,
+            "notes": cmd_notes}
 
 
 def main() -> int:

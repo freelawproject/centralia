@@ -691,8 +691,18 @@ def assemble(model, geom: DocGeometry | None, segments_by_page: dict,
     # CONCUR:'; that row is what closes the writing above. This catches the
     # 23 nm records where the signature is at the rail and the position test
     # cannot see it.
-    _ATTEST = re.compile(r"^(?:WE|I)\s+(?:CONCUR|CONCURRED|DISSENT)\b"
-                         r"|^CONCUR(?:RED)?\s*:", re.I)
+    # THE ATTESTATION IS A LABEL, NOT A SENTENCE, and the row must be the
+    # whole of it. Unanchored, 'I concur in the majority's conclusion that
+    # Reyes has failed to show the district court erred…' — the first line of
+    # a specially concurring opinion's own body — read as an attestation, so
+    # the byline above it was demoted to a signature and the writing was
+    # never opened (idahoctapp/state_v._reyes; the user's call, 2026-08-20).
+    # Measured over nm, nmctapp, idaho and idahoctapp: the attestation is the
+    # 10-character 'WE CONCUR:' on all 71 occurrences, and that sentence is
+    # the only other row the unanchored pattern matched.
+    _ATTEST = re.compile(
+        r"^(?:WE|I)\s+(?:CONCUR|CONCURRED|DISSENT|DISSENTED)\s*[:.]?$"
+        r"|^CONCUR(?:RED)?\s*:\s*$", re.I)
 
     def _signs_off(i: int) -> bool:
         """Is the byline at `i` followed by an attestation?

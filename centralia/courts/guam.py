@@ -297,6 +297,13 @@ def read_headmatter_guam(model, geom, **_):
                     f"{ctx.crit['panel_line']} {text}")
             else:
                 ctx.crit["panel_line"] = text
+            # THE ROSTER IS ALSO THE ANSWER TO 'WHO SAT'. Core used to read
+            # `judges` off this row itself; claimed by this reader it no
+            # longer can, and a court reader that improves the block must not
+            # cost the document a criterion it already had. `panel_line` is
+            # the row as printed, `judges` the bench without its label.
+            ctx.crit["judges"] = re.sub(r"^BEFORE\s*:?\s*", "",
+                                        ctx.crit["panel_line"], flags=re.I)
             ctx.emit(pieces, "panel", centre=False)
             continue
 

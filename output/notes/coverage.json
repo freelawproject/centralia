@@ -25665,22 +25665,11 @@
 "top": []
 },
 "delch/alexis_stombaugh_v._ashburn_homes_inc._and_sobrook_llc": {
-"miss": 1831,
-"ratio": 0.7691,
+"miss": 1,
+"ratio": 0.9999,
 "src": 7930,
 "top": [
-"the\u00d7139",
-"see\u00d7103",
-"trial\u00d754",
-"and\u00d732",
-"that\u00d729",
-"not\u00d723",
-"agreement\u00d723",
-"for\u00d722",
-"del\u00d722",
-"dkt\u00d719",
-"stombaugh\u00d718",
-"defs\u00d718"
+"relatedto"
 ]
 },
 "delch/angela_okafor_carlisle_v._rone_everett": {
@@ -25753,23 +25742,10 @@
 "top": []
 },
 "delch/gwendolyn_colston_v._the_greens_at_wyoming_homeowner_association_sean": {
-"miss": 914,
-"ratio": 0.7773,
+"miss": 0,
+"ratio": 1.0,
 "src": 4105,
-"top": [
-"the\u00d771",
-"dkt\u00d746",
-"compl\u00d737",
-"see\u00d734",
-"and\u00d720",
-"salame\u00d717",
-"del\u00d714",
-"association\u00d710",
-"albert\u00d710",
-"are\u00d79",
-"exs\u00d79",
-"not\u00d78"
-]
+"top": []
 },
 "delch/h.i.g._capital_llc_v._kristen_allred": {
 "miss": 0,
@@ -25798,23 +25774,10 @@
 "top": []
 },
 "delch/in_re_swervepay_acquisition_llc": {
-"miss": 3988,
-"ratio": 0.7782,
+"miss": 0,
+"ratio": 1.0,
 "src": 17981,
-"top": [
-"the\u00d7202",
-"trial\u00d7148",
-"see\u00d7104",
-"and\u00d786",
-"that\u00d774",
-"opening\u00d774",
-"adams\u00d765",
-"sellers\u00d762",
-"buyers\u00d756",
-"post\u00d749",
-"beach\u00d748",
-"del\u00d746"
-]
+"top": []
 },
 "delch/in_re_the_beauty_health_company_consolidated_stockholder_litigation": {
 "miss": 0,
@@ -25852,13 +25815,10 @@
 "top": []
 },
 "delch/neem_international_cv_v._vadim_shulman": {
-"miss": 2,
-"ratio": 0.9987,
+"miss": 0,
+"ratio": 1.0,
 "src": 1570,
-"top": [
-"the",
-"state"
-]
+"top": []
 },
 "delch/neil_luthra_v._hir_holdings_lp": {
 "miss": 0,
@@ -25879,12 +25839,10 @@
 "top": []
 },
 "delch/postbit_inc._v._look_dynamics_inc.": {
-"miss": 1,
-"ratio": 0.9992,
+"miss": 0,
+"ratio": 1.0,
 "src": 1186,
-"top": [
-"state"
-]
+"top": []
 },
 "delch/robert_gladstone_v._ebc_holdings_inc.": {
 "miss": 1,
@@ -25895,22 +25853,11 @@
 ]
 },
 "delch/shalomyah_bowers_v._black_lives_matter_global_network_foundation_inc.": {
-"miss": 874,
-"ratio": 0.8648,
+"miss": 1,
+"ratio": 0.9998,
 "src": 6466,
 "top": [
-"the\u00d746",
-"see\u00d730",
-"aff\u00d728",
-"cree\u00d719",
-"bowers\u00d718",
-"and\u00d717",
-"compl\u00d717",
-"for\u00d714",
-"not\u00d710",
-"with\u00d710",
-"that\u00d79",
-"pob\u00d79"
+"topatrisse"
 ]
 },
 "delch/spg_greensboro_equities_llc_v._ivy_greensboro_i_llc": {
@@ -25929,13 +25876,10 @@
 ]
 },
 "delch/tonya_frazier_v._michael_frazier": {
-"miss": 2,
-"ratio": 0.9921,
+"miss": 0,
+"ratio": 1.0,
 "src": 254,
-"top": [
-"the",
-"state"
-]
+"top": []
 },
 "delch/trellis_software_inc._v._clearlist_holdings_llc": {
 "miss": 0,
@@ -25944,32 +25888,16 @@
 "top": []
 },
 "delch/u.s._bank_trust_national_association_as_trustee_for_treehouse_series_v._trust_v._patsy_barwick_and_rocky_slaughter": {
-"miss": 2,
-"ratio": 0.9989,
+"miss": 0,
+"ratio": 1.0,
 "src": 1801,
-"top": [
-"state",
-"delaware"
-]
+"top": []
 },
 "delch/usab_ny_inc._v._glic_health_llc": {
-"miss": 1141,
-"ratio": 0.6638,
+"miss": 0,
+"ratio": 1.0,
 "src": 3394,
-"top": [
-"the\u00d786",
-"and\u00d727",
-"see\u00d725",
-"for\u00d721",
-"that\u00d720",
-"del\u00d719",
-"defend\u00d716",
-"law\u00d715",
-"agreement\u00d711",
-"indemnify\u00d710",
-"not\u00d710",
-"dictionary\u00d710"
-]
+"top": []
 },
 "delch/verisk_analytics_inc._and_lenny_merger_sub_inc._v._exactlogix_inc._dba": {
 "miss": 0,
@@ -26093,23 +26021,10 @@
 "top": []
 },
 "delsuperct/johnson_v._bayhealth_medical_center": {
-"miss": 409,
-"ratio": 0.7136,
+"miss": 0,
+"ratio": 1.0,
 "src": 1428,
-"top": [
-"the\u00d736",
-"del\u00d724",
-"affidavit\u00d712",
-"super\u00d712",
-"plaintiff\u00d77",
-"inc\u00d77",
-"defendant\u00d77",
-"not\u00d77",
-"merit\u00d76",
-"see\u00d76",
-"that\u00d75",
-"original\u00d75"
-]
+"top": []
 },
 "delsuperct/johnson_v._christiana_school_district": {
 "miss": 0,
@@ -26154,23 +26069,10 @@
 "top": []
 },
 "delsuperct/powell_v._cannon": {
-"miss": 100,
-"ratio": 0.865,
+"miss": 0,
+"ratio": 1.0,
 "src": 741,
-"top": [
-"del\u00d714",
-"super\u00d78",
-"quoting\u00d74",
-"the\u00d73",
-"mar\u00d73",
-"citing\u00d73",
-"johnson\u00d73",
-"state\u00d72",
-"complaint\u00d72",
-"fatir\u00d72",
-"oct\u00d72",
-"dec\u00d72"
-]
+"top": []
 },
 "delsuperct/silva_v._delaware_department_of_labor": {
 "miss": 0,
@@ -28825,10 +28727,12 @@
 ]
 },
 "guam/sh_enterprises_inc._v._territory_of_guam_general_services_agency": {
-"miss": 0,
-"ratio": 1.0,
+"miss": 1,
+"ratio": 0.9998,
 "src": 5375,
-"top": []
+"top": [
+"hag"
+]
 },
 "haw/akau_v._villareal": {
 "miss": 0,

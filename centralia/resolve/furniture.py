@@ -179,6 +179,26 @@ def repeated_top_keys(model: PdfModel,
     return _band_keys(model, "top", body_size)
 
 
+def top_band_key_counts(model: PdfModel) -> dict[str, int]:
+    """How many pages print each top-band key. The keys OVER the floor are
+    the running head; the ones under it are how a STAPLED document's head
+    gets lost — see `kind`'s head-second-row rule."""
+    counts: dict[str, int] = {}
+    for pm in model.pages:
+        seen: set[str] = set()
+        for line in pm.lines:
+            if line.top / pm.height > 0.22:
+                continue
+            text = line.plain.strip()
+            if not text or is_folio_text(text):
+                continue
+            key = furniture_key(text)
+            if key and key not in seen:
+                seen.add(key)
+                counts[key] = counts.get(key, 0) + 1
+    return counts
+
+
 def top_band_key_sizes(model: PdfModel) -> dict[str, float]:
     """The SMALLEST size each top-band key prints at.
 
@@ -275,11 +295,13 @@ class FurnitureFinder:
     body_size: float = 12.0
     bottom_keys: set[str] = field(default_factory=set)
     top_keys: set[str] = field(default_factory=set)
+    top_counts: dict = field(default_factory=dict)
     top_sizes: dict = field(default_factory=dict)
 
     def __post_init__(self):
         self.bottom_keys = repeated_bottom_keys(self.model)
         self.top_keys = repeated_top_keys(self.model, self.body_size)
+        self.top_counts = top_band_key_counts(self.model)
         self.head_rows = head_band_rows(self.model, self.body_size)
         self.top_sizes = top_band_key_sizes(self.model)
         # DOCUMENT-level gutter rail: when several pages prove a
@@ -441,6 +463,38 @@ class FurnitureFinder:
                 and (pm.number > 1
                      or (line.size and line.size <= self.body_size - 1.5))):
             return "running-head"
+        # A HEAD'S SECOND ROW, when the head is SPLIT BETWEEN WRITINGS. The
+        # 40%-of-pages floor above is calibrated for one head per document.
+        # A stapled document has one per writing: cervantes_v._state runs
+        # 'CERVANTES v. STATE' over 'Opinion of the Court' on the majority's
+        # 10 pages, over 'Jacobs, J., Dissenting' on the dissent's 19, and
+        # over 'Howe, C.J., Specially Concurring' on the concurrence's 2 —
+        # of a 32-page document, so only the case name and the longest
+        # writing's line clear the floor. The other two rendered INSIDE the
+        # prose, mid-sentence ('Opinion of the Court retained.', 'Opinion of
+        # the Court disclosure of Dr. Ramirez' Records').
+        #
+        # The evidence is the row ABOVE: a line is the head's second row
+        # when a CONFIRMED head row prints directly over it, within a
+        # leading and a half, and its own words repeat at the page top on
+        # more than one page. A court does not print the same short line
+        # under its running head twice by accident.
+        # …with the SAME SIZE GUARD the keyed rule above keeps: cal sets the
+        # writing's own title block at body size on its first page ('Opinion
+        # of the Court by Guerrero, C. J.') and repeats those words as an
+        # 11pt head on every page after it, so the body-size instance — the
+        # only row the writing can open on — must survive. Without
+        # `_oversize` here it did not, and cal's trailing counsel roster came
+        # back as `attorneys` while its writings lost 30-50 blocks each.
+        if frac <= 0.22 and key and not _oversize \
+                and self.top_counts.get(key, 0) >= 2 \
+                and (line.x1 - line.x0) <= 0.55 * pm.width:
+            _lead = 1.5 * (self.body_size or 12.0)
+            if any(o is not line and o.plain.strip()
+                   and 0 < line.top - o.top <= _lead
+                   and furniture_key(o.plain.strip()) in self.top_keys
+                   for o in pm.lines):
+                return "running-head"
         # The positional test: a sub-body line printed exactly on the
         # document's learned head band is the head, whatever it says (a
         # stapled document's one-page 'Per Curiam' head never repeats as

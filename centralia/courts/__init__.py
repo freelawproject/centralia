@@ -249,7 +249,18 @@ register(CourtProfile(
                                  "J."))))
 register(CourtProfile(
     "idahoctapp", "Idaho Court of Appeals",
-    byline=BylineGrammar(style="prose",
+    # TWO SIGNING FORMS, and the second is TITLE-LED: the majority signs
+    # 'TRIBE, Chief Judge' and a separate writing signs 'Judge LORELLO,
+    # DISSENTING.' Declared prose-only, that dissent was not a byline at all
+    # — state_of_idaho_v._tiffany_johnell_heyden came back as ONE writing
+    # whose majority ran on into 'Because I disagree with the majority's
+    # interpretation … I respectfully dissent' (the user's call,
+    # 2026-08-20). The reversed titles are the bench's own, in the case the
+    # court prints them.
+    byline=BylineGrammar(style="prose", also_reversed=True,
+                         rev_titles=("Judge", "Chief Judge",
+                                     "Judge Pro Tempore", "Judge Pro Tem",
+                                     "JUDGE", "CHIEF JUDGE"),
                          titles=("Judge", "Chief Judge", "Judge Pro Tempore",
                                  "Judge Pro Tem", "J."))))
 # ill: profile lives in `courts/ill.py` beside its reader — it declares
@@ -507,11 +518,22 @@ register(CourtProfile(
     ), titles=("Judge", "Chief Judge"))))
 register(CourtProfile(
     "wva", "Supreme Court of Appeals of West Virginia",
-    # THREE signing forms: 'JUSTICE WOOTON delivered the Opinion of the
-    # Court.', 'TRUMP, Justice:' and 'Justice Wooton, dissenting:'. The
-    # third is admitted only with a kind clause — see titlecase_kind_only.
+    # FOUR signing forms: 'JUSTICE WOOTON delivered the Opinion of the
+    # Court.', 'TRUMP, Justice:', 'Titus, Justice:' and the abbreviated
+    # 'TITUS, J.:' (state_of_west_virginia_v._carl_ray_summerfield).
+    #
+    # `titlecase_kind_only` IS GONE, and the reason it existed is gone with
+    # it: the title-case form was barred because 'Ewing, Justice:' — the row
+    # the court signs its opinion with, printed AFTER the syllabus — arrived
+    # on a record whose page-1 ANNOUNCEMENT had already opened a writing, so
+    # admitting it split one opinion in two. wva.py now claims that
+    # announcement as the cover matter it is (see `_ANNOUNCE`), and the
+    # signature is the only thing that opens a writing. Measured over all 50
+    # records with the band claimed: barring it left 3 records' opinions
+    # unauthored and typed `order`; admitting it authors all three and moves
+    # nothing else.
     byline=BylineGrammar(style="prose", also_reversed=True,
-                         titlecase_kind_only=True,
+                         also_abbrev=True, allow_titlecase_name=True,
                          titles=("Justice", "Chief Justice", "Judge",
                                  "Chief Judge"),
                          rev_titles=("CHIEF JUSTICE", "JUSTICE",
