@@ -649,3 +649,8 @@ from . import ncctapp                                     # noqa: E402,F401
 from . import pacommwct                                      # noqa: E402,F401
 
 from . import nebctapp                                       # noqa: E402,F401
+
+from . import idahoctapp                                     # noqa: E402,F401
+from . import iowactapp                                     # noqa: E402,F401
+
+from . import nmctapp                                    # noqa: E402,F401

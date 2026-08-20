@@ -1205,3 +1205,64 @@ which is queue item 44. A stale pin whose stored state is the old bug produces
 noise rather than signal, and re-blessing it would lock the wrong op typing —
 so it is unpinned, like `bath_v._rudisill` and `in_re_mccowen`. **Re-pin all
 three after items 40, 42 and 44 land.**
+
+## 47. A ONE-GLYPH row is accepted as a displaced substitute-font run — `pdfio/quirks.py:snap_displaced_fragments`
+
+From the idahoctapp port, 2026-08-20. **A strict REGRESSION against v1, which
+reads the line correctly.**
+
+`quirks.py:260` tests `if not (1 <= len(frag) <= 40): continue` — so a
+one-glyph row qualifies as displaced. A typed caption rail is exactly that: a
+stack of one-glyph rows at one x, in the face the caption is set in, and every
+one of them looks displaced against the roman prose below.
+
+On `idahoctapp/in_the_interest_of_john_doe` the raw page has 14 bold `)` at
+x0=302.21 on a 13.8pt grid, tops 128.97 -> 295.08. The last one is alone on its
+row, bold where the row 28pt below is roman, and 4pt wide — exactly the
+whitespace between `of` and `the` — so it snaps down and the origin prints
+**`Appeal from the Magistrate Division of) t he District Court`**. The rail
+also loses its bottom glyph.
+
+The principled test: **a glyph standing in a COLUMN is structure, not
+displacement**, and the rail's own same-x siblings are the evidence. Insert
+after the `f_fonts`/`fx0`/`fx1` measurement (~line 263), before the `near`
+block:
+
+    # A GLYPH THAT STANDS IN A COLUMN IS STRUCTURE, NOT DISPLACEMENT.
+    if len(frag) <= 2 and any(
+            (c.get("text") or "") == (fc.get("text") or "")
+            and abs(c["x0"] - fc["x0"]) <= 1.0
+            and 4.0 < abs(c["top"] - top) <= 60.0
+            for fc in frag for c in printable if c is not fc):
+        continue
+
+Validated in-process (monkeypatched, no core file edited): the line reads
+correctly, no other idahoctapp record moves, and **68 guard sentinels across
+the nine courts the quirk was written for — arizctapp, me, ca5, cadc, ariz,
+mont, ca9, conn, idaho — are byte-identical before and after.** Note the
+SECOND pass of the same function already requires `len(frag) >= 4`; the first
+pass having no floor at all is the asymmetry. Run the full 410-sentinel guard
+before landing.
+
+**Do not pin `idahoctapp/in_the_interest_of_john_doe` until this lands** — its
+`lower_court` currently carries `of) t he`.
+
+## Item 46 — a SECOND manifestation, from idahoctapp
+
+Item 46 (a line a court reader claims can still carry a `Dropped`) also occurs
+in the opposite direction: idahoctapp's page foot is dropped as `folio` by
+core's own furniture pass AND was being recorded again by the reader, so on the
+one record whose page 1 the reader owns end to end the same line appeared
+twice. Worked around in the court file by leaving the foot unclaimed. The
+reconciliation in item 46 fixes both directions.
+
+## nmctapp note — `Opinion Number: __________` is a BLANK PLACEHOLDER
+
+Observed while checking nmctapp's citation coverage: **20 of its 21 records are
+UNPUBLISHED** ("not selected for publication in the New Mexico Appellate
+Reports. Refer to Rule 12-405 NMRA"), so they print the citation FIELD with no
+value — `Opinion Number: __________`, and one bare `Opinion Number:`. The row
+is correctly tagged `citation` and `Criteria.citation` is correctly EMPTY; only
+`apache_corp._v._n.m._tax__rev._dept` carries a real cite (`2024-NMCA-080`).
+Not a defect. Whether a blank placeholder row is worth rendering at all is a
+judgement call for review, not a bug.
