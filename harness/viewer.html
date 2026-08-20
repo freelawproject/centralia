@@ -35,12 +35,23 @@ body { margin:0; font:13px system-ui,sans-serif; color:var(--ink);
 #courts .crow.on .cn, #courts .crow.on .q { color:#e6dcf5 }
 #courts .cname { overflow:hidden; text-overflow:ellipsis }
 #courts .cn { font-size:11px; color:#8a8783; font-variant-numeric:tabular-nums }
-#courts .bar { grid-column:1/-1; height:3px; border-radius:2px;
+#courts .bar { grid-column:1/-1; display:flex; height:3px; border-radius:2px;
   background:#e2dfda; margin-top:3px; overflow:hidden }
 #courts .crow.on .bar { background:rgba(255,255,255,.28) }
-#courts .bar i { display:block; height:100%; background:#b9b4ac }
-#courts .bar i.done { background:#2c8a4b }
-#courts .crow.on .bar i { background:#d9cdf0 }
+/* THE BAR IS THE VERDICT, not just the count. A court can be fully marked
+   and fully WRONG, and a bar that only measured how many files had been
+   looked at went green on exactly that. The five tiers are laid worst-first,
+   left to right — nay, some, good, almost, yay — so a court that is finished
+   AND right is the only one that reads as a solid green line, and one that
+   is finished and broken reads as a solid red one. The unmarked remainder
+   keeps the old grey. */
+#courts .bar i { height:100%; background:#b9b4ac }
+#courts .bar i.t1 { background:#c0392b }   /* nay    */
+#courts .bar i.t2 { background:#d97b28 }   /* some   */
+#courts .bar i.t3 { background:#d4b106 }   /* good   */
+#courts .bar i.t4 { background:#7cab3a }   /* almost */
+#courts .bar i.t5 { background:#2c8a4b }   /* yay    */
+#courts .crow.on .bar i.t0 { background:#d9cdf0 }
 
 /* A PORTED court is done: reader in, sentinels pinned, marked. An ACTIVE
    one is being ported right now. Everything else reads as ordinary. */
@@ -205,11 +216,34 @@ function toggleGroup(g) {
   drawCourts();
 }
 // How far THIS court has been reviewed by hand: marks set, of files present.
+const TIER_ORDER = ["nay", "some", "good", "almost", "yay"];
 function reviewed(c) {
   const files = MAN[c] || [];
   let n = 0;
-  for (const f of files) if (MARKS[c + "/" + f]) n++;
-  return {n, total: files.length, pct: files.length ? n / files.length : 0};
+  const tiers = [0, 0, 0, 0, 0];
+  for (const f of files) {
+    const t = MARKS[c + "/" + f];
+    if (!t) continue;
+    n++;
+    const k = TIER_ORDER.indexOf(t);
+    if (k >= 0) tiers[k]++;
+  }
+  return {n, total: files.length, tiers,
+          pct: files.length ? n / files.length : 0};
+}
+// The stack itself: one segment per tier, worst first, then whatever is
+// still unmarked. Widths are of the whole corpus, so the grey tail IS the
+// work left.
+function tierBar(r) {
+  if (!r.total) return "";
+  const w = (k) => (100 * k / r.total).toFixed(2);
+  let out = "";
+  r.tiers.forEach((v, k) => {
+    if (v) out += `<i class="t${k + 1}" style="width:${w(v)}%"></i>`;
+  });
+  const rest = r.total - r.n;
+  if (rest) out += `<i class="t0" style="width:${w(rest)}%"></i>`;
+  return out;
 }
 function drawCourts() {
   const rows = [];
@@ -245,11 +279,12 @@ function drawCourts() {
                 : (noRdr || ready);
     buf.push({c, html:
       `<div class="crow ${i === ci ? "on" : ""}" data-st="${st}" ` +
-      `onclick="pick(${i},0)" title="${c} — ${r.n}/${r.total} reviewed">` +
+      `onclick="pick(${i},0)" title="${c} — ${r.n}/${r.total} reviewed` +
+      `${r.n ? " (" + TIER_ORDER.map((t, k) => r.tiers[k] ? r.tiers[k] + " " + t : "")
+                        .filter(Boolean).join(", ") + ")" : ""}">` +
       `<span class="cname">${gradeChip((QUAL.courts[c]||{}).g)} ${c}${glyph}</span>` +
       `<span class="cn">${r.n ? r.n + "/" : ""}${r.total}</span>` +
-      `<span class="bar"><i class="${r.n === r.total ? "done" : ""}" ` +
-      `style="width:${(r.pct * 100).toFixed(1)}%"></i></span></div>`});
+      `<span class="bar">${tierBar(r)}</span></div>`});
   });
   flush();
   $("#courts").innerHTML = rows.join("");

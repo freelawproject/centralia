@@ -141,6 +141,37 @@ def _is_outline_label(line, segmenter) -> bool:
     return abs(cx - segmenter.page_width / 2) < 25
 
 
+# A HANGING INDENT. A court that numbers what it ORDERS sets the marker in
+# its own column and the item's text out beside it, and the item's RUNOVERS
+# come back to the body rail underneath both:
+#
+#     1.  Kelly's motion for new trial and for recusal of the undersigned
+#     District Judge (doc. 5) is DENIED;                 <- the runover
+#
+# The marker is not flow: it never wraps, nothing returns to it, and counting
+# it as a left edge moves the measured rail out to the marker's column — at
+# which point every runover reads as a fresh paragraph and every item head
+# reads as a quotation. Measured on almd, where the last page of a decretal
+# order came back as five paragraphs broken mid-sentence.
+def _is_list_marker(line, lines, i: int, left: float | None = None) -> bool:
+    """Is ``line`` a lone list marker with its item's text beside it?
+
+    A MARKER STANDS AT THE LEFT OF THE MEASURE. Without that bound the test
+    matches a page FOLIO sitting beside its running head — utahctapp sets the
+    page number at x 303 next to '2026 UT App 83' on every page, 47 of them
+    in one opinion — and letting those vote (or rather, stopping them from
+    voting) moved the measured rail and merged real paragraphs: five of six
+    pinned records lost a ¶ each, and state_v._shay lost four."""
+    text = " ".join((line.plain or "").split())
+    if not _OUTLINE.match(text):
+        return False
+    if left is not None and line.x0 > left + 60:
+        return False
+    nxt = lines[i + 1] if i + 1 < len(lines) else None
+    return (nxt is not None and abs(nxt.top - line.top) < 2
+            and nxt.page == line.page and nxt.x0 > line.x1)
+
+
 def _mode_x0(lines) -> float | None:
     """The x0 the flow RETURNS to: the most common left edge, ties toward the
     left. One measurement, used by the paragraph walk and by the quotation
@@ -148,7 +179,10 @@ def _mode_x0(lines) -> float | None:
     there is nothing to measure — never 0.0, which a caller would read as an
     edge (index 0 is falsy, and that trap has cost this project a day)."""
     xs: dict[float, int] = {}
-    for l in lines:
+    _left = min((l.x0 for l in lines), default=None)
+    for i, l in enumerate(lines):
+        if _is_list_marker(l, lines, i, _left):
+            continue                       # a marker is not flow
         k = round(l.x0, 1)
         xs[k] = xs.get(k, 0) + 1
     if not xs:
@@ -201,6 +235,8 @@ def _paragraph_blocks(seg: Segment, segmenter: Segmenter,
             continue
         opens = bool(paras) and not same_row and (
             _is_para_mark(line)
+            or _is_list_marker(line, seg.lines, i,
+                               min((l.x0 for l in seg.lines), default=None))
             or (abs(line.x0 - rail) >= step
                 and (line.x0 < fence or returns)))
         # A label OPENS what follows it. Without this the next line joins

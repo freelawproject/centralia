@@ -23,6 +23,15 @@ from .pdfio.model import PdfModel
 SCAN_PAGE_FRAC = 0.8
 # A page is image-covered when images paint most of it.
 SCAN_IMAGE_AREA = 0.85
+# …AND how little text a page must carry before its image means anything. A
+# full-page image is not proof of a scan: a CM/ECF sheet can be printed over
+# a page-sized background and still carry a perfect born-digital text layer
+# (ared 153173: image_area 1.00 on every page, 919 clean characters, zero CID
+# glyphs). Triaged as a scan on the image alone, the document is handed back
+# unparsed — no headmatter, no caption, no reader — and the flag reads
+# 'scanned-source' as though the paper were unreadable. The same floor
+# pipeline.py already uses to call a page image-only.
+SCAN_INK_FLOOR = 120
 # CID glyphs as a fraction of ink beyond which the text layer is unreadable.
 CID_MAX_FRAC = 0.2
 
@@ -31,7 +40,9 @@ def triage(model: PdfModel) -> str | None:
     """'scan' | 'unreadable' | None (proceed)."""
     if not model.pages:
         return "unreadable"
-    img_pages = sum(1 for p in model.pages if p.image_area > SCAN_IMAGE_AREA)
+    img_pages = sum(1 for p in model.pages
+                    if p.image_area > SCAN_IMAGE_AREA
+                    and p.ink_chars < SCAN_INK_FLOOR)
     if img_pages / model.n_pages >= SCAN_PAGE_FRAC:
         return "scan"
     ink = sum(p.ink_chars for p in model.pages)

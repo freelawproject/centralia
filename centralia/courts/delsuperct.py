@@ -160,11 +160,30 @@ _DISPO_FILLER = frozenset(("in", "part", "and", "but", "&", "as", "moot"))
 _UPON = re.compile(
     r"^(?:Upon|On|Re:?\s|Motion|Cross[- ]Motion|Defendants?|Plaintiffs?"
     r"|Appellants?|Appellees?|Petition|Application)\b")
-_ORIGIN = re.compile(r"^(?:Upon\s+[Aa]ppeal|On\s+[Aa]ppeal|Upon\s+"
-                     r"[Rr]eview|Upon\s+[Cc]ertification)\b")
+# WHERE THE CASE CAME FROM is an APPEAL or a certified question — that is
+# what `history` means. 'Upon Review' was on this list and is not one of
+# them: what this court reviews is a paper filed in the case in front of it,
+# and both records that print the row say so ('Upon Review of the Affidavit
+# of Merit' — johnson_v._bayhealth_medical_center, and boyington…, whose row
+# carries its own ruling, 'Upon Review of the Affidavit of Merit –
+# REJECTED'). Read as an origin, each recorded an affidavit as the court
+# below. The three genuine ones all name the appeal: 'Upon Appeal of Chief
+# Deputy Attorney General', 'On Appeal from the Industrial Accident Board,',
+# 'Upon appeal of Industrial Accident Board Decision – Affirmed'.
+_ORIGIN = re.compile(r"^(?:Upon\s+[Aa]ppeal|On\s+[Aa]ppeal"
+                     r"|Upon\s+[Cc]ertification)\b")
 _DISPO = re.compile(
     r"\b(GRANTED|DENIED|AFFIRMED|REVERSED|VACATED|REMANDED|DISMISSED"
     r"|MODIFIED|SUSTAINED|OVERRULED)\b")
+# THE RULING AT THE END OF THE STATEMENT — 'Judgment, GRANTED.', 'Motion to
+# Dismiss: DENIED.', 'GRANTED in part, DENIED in part.' Anchored on the end
+# so a ruling word INSIDE a sentence that runs on past it ('the Motion is
+# DENIED as to Count II because …') is not one. Same vocabulary as
+# `_DISPO_WORDS`, spelled out because this one has to match in order.
+_RULING_TAIL = re.compile(
+    r"\b(?:GRANTED|DENIED|AFFIRMED|REVERSED|VACATED|REMANDED|DISMISSED"
+    r"|MODIFIED|SUSTAINED|OVERRULED|QUASHED|STAYED|WITHDRAWN|DEFERRED)"
+    r"(?:\s+(?:in|and|but|as)\s+(?:part|moot))*\s*[.;]?\s*$")
 # The appearances name themselves. A runover row need not, so the block is
 # closed by its LAST landmark and the sentence it leaves unfinished.
 # THE APPEARANCES NAME THEMSELVES — a firm, an 'Esquire', or who counsel
@@ -609,7 +628,73 @@ def _read_captioned(model, geom, finder) -> dict:
                 and max(l.x1 for l in pieces) < right_x1 - 18.0):
             ctx.emit(pieces, "disposition", centre=True)
             continue
-        if pieces[0].all_bold and centred and len(text) < 90:
+        # WHAT WAS DECIDED, FOUND BY ITS RULING. The two tests above name
+        # the block by how it OPENS — 'Upon', 'On', 'Motion' — and by
+        # standing short of the measure, and this court writes it two ways
+        # that answer to neither:
+        #
+        #   starbuck_v._google_llc   'Google LLC's Motion to Dismiss:'
+        #                            '**DENIED.**'
+        #   stansbury_v._helm-…      '*Upon Consideration of Defendant
+        #                             Universal Protection Service, LLC
+        #                             d/b/a Allied Universal Security
+        #                             Services Motion for Summary
+        #                             Judgment*, **GRANTED.**'
+        #
+        # The first opens on the movant's NAME, so no opener list reaches
+        # it. The second is a sentence set to the full measure (x1 534.6
+        # against a 540.1 rail) in two runs of italic, closing on its bold
+        # ruling — the measure guard that keeps an order's own first
+        # sentence out is exactly what rejects it. Both were read as
+        # APPEARANCES, which is what stands next in the paper (the user,
+        # 2026-08-20: 'upon consideration is not counsel... its a summary';
+        # 'google llc motion to dismiss should be part of DENIED and marked
+        # as disposition').
+        #
+        # So this test does not look at how the block opens. It reads the
+        # PARAGRAPH the court set and asks whether it CLOSES ON A RULING —
+        # a row that is a disposition and nothing else, or a sentence whose
+        # last word is one. That is the block's own definition, and it is
+        # why the two tests above stay: where a row names an ORIGIN it is
+        # `history`, and only what nothing else has claimed reaches here.
+        decided = _decided_para(stream, i, body_size)
+        if decided is not None:
+            start, end = decided
+            joined = _norm(" ".join(
+                l.plain for j in range(start, end + 1)
+                for l in stream[j][2]))
+            ruling = _norm(" ".join(l.plain for l in stream[end][2]))
+            for j in range(start, end + 1):
+                ctx.emit(stream[j][2], "disposition",
+                         centre=_is_centred(stream[j], 20.0))
+            # THE MOTION IS THE STATEMENT WITHOUT ITS RULING. Kept whole,
+            # `motion` reads '… Motion for Summary Judgment, GRANTED.' and
+            # says the same thing twice.
+            ctx.crit.setdefault(
+                "motion", _RULING_TAIL.sub("", joined).strip(" ,.;:"))
+            _tail = _RULING_TAIL.search(ruling)
+            ctx.crit.setdefault(
+                "disposition",
+                ruling.rstrip(".") if _is_dispo_only(ruling)
+                else _tail.group(0).strip(" .;"))
+            consumed_to = end
+            in_stack = False
+            tail_head = False
+            continue
+        # THE PAPER'S NAME NEVER REACHES THE MEASURE. It is a centred word
+        # or two ('ORDER', 'MEMORANDUM OPINION AND ORDER'), and this test
+        # asked only that the row be bold, centred and short — which a
+        # NUMBERED BODY PARAGRAPH also is, because pdfio splits its marker
+        # off at the column gap and the marker is bold: johnson_v._bayhealth
+        # _medical_center opened '**1.**  This matter involves a medical
+        # negligence suit filed by Dawn Johnson', 71 characters, its centre
+        # 18pt off the axis — and the first line of the order's first
+        # paragraph became the paper's title, leaving the paragraph to open
+        # on '("Plaintiff") against Bayhealth' (the user, 2026-08-20: 'this
+        # one takest he first line and puts it in teh ehedmatter'). A
+        # paragraph spans the measure; the name stops well short of it.
+        if pieces[0].all_bold and centred and len(text) < 90 \
+                and max(l.x1 for l in pieces) < right_x1 - 18.0:
             ctx.crit.setdefault("title", text)
             ctx.emit(pieces, "title")
             in_stack = False
@@ -650,6 +735,25 @@ def _read_captioned(model, geom, finder) -> dict:
             ctx.crit.setdefault("disposition", text)
             ctx.emit(pieces, "disposition", centre=centred)
             continue
+        # THE BLOCK ENDS WHERE THE WRITING BEGINS, and on an order that
+        # signs at its foot there is no byline up here to end it. Every part
+        # of this block stands short of the measure — masthead, caption
+        # cells, dates, the decided stack, the paper's name — and the two
+        # things that span it are the appearances, tested above, and the
+        # writing. So a row that reaches the measure and is neither is the
+        # order talking, and the walk is over.
+        #
+        # Left running, it read three more pages of prose against every
+        # landmark it has: state_v._brown took its `disposition` from page
+        # 3 ('of an illegal sentence must and hereby is DENIED. Defendant's
+        # request') and its `motion` from the sentence after it, and
+        # state_v._destafney took a bold 'DENIED.' off its last page — real
+        # rulings, read from the body, in a block that never stated one.
+        # (Where a byline DOES stand up here the appearances branch above
+        # claims every row to it, so this is unreachable — which is why it
+        # cannot leave a recognised roster unclaimed.)
+        if max(l.x1 for l in pieces) >= right_x1 - 18.0:
+            break
         # A ROW AT NO POSITION THIS PAPER USES is left to core rather than
         # tinted with a role that would be a guess.
         continue
@@ -701,6 +805,49 @@ def _is_dispo_only(text: str) -> bool:
         return False
     return (any(x in _DISPO_WORDS for x in toks)
             and all(x in _DISPO_WORDS or x in _DISPO_FILLER for x in toks))
+
+
+def _is_centred(row: tuple, tol: float) -> bool:
+    """Is this stream row set on its page's axis?"""
+    pm, _rail, pieces = row
+    return abs((pieces[0].x0 + max(l.x1 for l in pieces)) / 2
+               - pm.width / 2) <= tol
+
+
+def _decided_para(stream: list, i: int,
+                  body_size: float) -> tuple[int, int] | None:
+    """The paragraph at ``stream[i]``, if it is a statement of WHAT WAS
+    DECIDED — that is, if it CLOSES ON A RULING.
+
+    The court states each thing it decides as one printed paragraph and puts
+    the ruling last, so the ruling is the landmark and the opening word is
+    not. Two forms, measured: a centred stack whose last row is the ruling
+    alone ('Google LLC's Motion to Dismiss:' / 'DENIED.'), and a sentence
+    run to the measure whose last words are it ('… Motion for Summary
+    Judgment, GRANTED.').
+
+    THREE THINGS KEEP THIS OFF THE WRITING, which also rules on motions and
+    also says GRANTED:
+      * it is a PARAGRAPH by this court's own leading, at most four rows —
+        the docstring's count of the stack;
+      * the ruling must be the paragraph's LAST WORDS, not a word inside a
+        sentence that runs on past it;
+      * and only rows nothing else has claimed reach here, which is after
+        the dates and before the appearances.
+    An order's own first sentence ('On this 22nd day of July, 2026, upon
+    consideration of … it appears to the Court that') is a four-row
+    paragraph in exactly this position and is refused by the second test:
+    it does not end on a ruling."""
+    start, end = _paragraph(stream, i, body_size)
+    # A statement of what was decided names the motion AND rules on it, so
+    # it is never one row. (A one-row form — 'Upon appeal of Industrial
+    # Accident Board Decision – Affirmed' — opens on a word the tests above
+    # already know, and is claimed there.)
+    if end == start or end - start > 3:
+        return None
+    last = _norm(" ".join(l.plain for l in stream[end][2]))
+    return (start, end) if (_is_dispo_only(last)
+                            or _RULING_TAIL.search(last)) else None
 
 
 def _paragraph(stream: list, i: int, body_size: float) -> tuple[int, int]:

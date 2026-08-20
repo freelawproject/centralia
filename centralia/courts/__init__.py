@@ -122,11 +122,6 @@ for _cid, _label in (
     register(CourtProfile(_cid, _label, byline=_CIRCUIT_GRAMMAR))
 
 register(CourtProfile(
-    "akd", "United States District Court for the District of Alaska",
-    byline=BylineGrammar(style="none"),   # unsigned orders; /s/ signature
-))
-
-register(CourtProfile(
     "conn", "Supreme Court of Connecticut",
     byline=BylineGrammar(style="abbrev"),
     footnotes=FootnoteConfig(reject_underlines=False),
@@ -352,8 +347,31 @@ register(CourtProfile(
                                  "Justice pro tempore",
                                  "C.J.", "C. J.", "J."),
                          allow_titlecase_name=True)))
-register(CourtProfile("lactapp", "Louisiana Court of Appeal",
-                      byline=_JUDGE_PROSE))
+register(CourtProfile(
+    "lactapp", "Louisiana Court of Appeal",
+    # THIS COURT SIGNS IN THE ABBREV FORM, and declared `prose` it signed in
+    # none: 'SURNAME, J.' at the rail of the writing's first page, which is
+    # exactly what `abbrev` is for. The prose grammar matched the two tidiest
+    # spellings and missed every other one the court uses — measured over the
+    # 30 typeset records, 9 majorities and one concurrence were authorless:
+    #
+    #   'STEPHENS, J.,'  a trailing comma        (3 records)
+    #   'PITMAN, C. J.'  the title spaced        (4 records)
+    #   'MARCOTTE, J'    no period at all        (1 record)
+    #   'STEPHENS, J., concurring,'              (del_pumphrey's concurrence)
+    #
+    # `abbrev` reads all four, and `DEFAULT_ABBREV` is overridden only to
+    # correct the bench word: this is a Court of APPEAL and its members are
+    # JUDGES, so 'J.' expanded to 'Justice' would put a title on 30 authors
+    # that no page of this court prints. ('J' with no period is admitted for
+    # the one record that drops it — the abbrev matcher still requires the
+    # title to close the byline, so a middle initial cannot reach it.)
+    byline=BylineGrammar(
+        style="abbrev",
+        abbrev_titles=(("C.J.", "Chief Judge"), ("C. J.", "Chief Judge"),
+                       ("P.J.", "Presiding Judge"),
+                       ("P. J.", "Presiding Judge"),
+                       ("J.", "Judge"), ("J", "Judge")))))
 # mass: profile lives in `courts/mass.py` beside its reader.
 register(CourtProfile("massappct", "Massachusetts Appeals Court",
                       byline=BylineGrammar(style="abbrev")))
@@ -720,6 +738,18 @@ for _kw in ("del", "or"):
 from . import dc                                             # noqa: E402,F401
 from . import nev                                            # noqa: E402,F401
 from . import la                                             # noqa: E402,F401
+from . import lactapp                                        # noqa: E402,F401
+from . import mesuperct                             # noqa: E402,F401
+from . import nevapp                                # noqa: E402,F401
+from . import delctcompl                            # noqa: E402,F401
+from . import missctapp                             # noqa: E402,F401
+from . import ortc                                  # noqa: E402,F401
+from . import texapp                                # noqa: E402,F401
+from . import texbizct                              # noqa: E402,F401
+from . import njtaxct                               # noqa: E402,F401
+from . import minnctapp                             # noqa: E402,F401
+from . import tenncrimapp                           # noqa: E402,F401
+from . import vtsuperct                             # noqa: E402,F401
 from . import neb                                            # noqa: E402,F401
 from . import nm                                             # noqa: E402,F401
 from . import pa                                             # noqa: E402,F401
@@ -773,11 +803,106 @@ from . import delsuperct                                 # noqa: E402,F401
 
 from . import guam                                       # noqa: E402,F401
 
+from . import almd                                       # noqa: E402,F401
+
 from . import indctapp                                   # noqa: E402,F401
+
+from . import kyctapp                                    # noqa: E402,F401
+
+# ---- the federal district lane: one flat file per court, all on the
+# ---- shared ECF paper at centralia/districts/. See docs/district-rollout.md.
+
+from . import akd                            # noqa: E402,F401
+from . import alnd                          # noqa: E402,F401
+from . import alsd                          # noqa: E402,F401
+from . import ared                          # noqa: E402,F401
+from . import arwd                          # noqa: E402,F401
+from . import azd                            # noqa: E402,F401
+from . import cacd                          # noqa: E402,F401
+from . import caed                          # noqa: E402,F401
+from . import cand                          # noqa: E402,F401
+from . import casd                          # noqa: E402,F401
+from . import cod                            # noqa: E402,F401
+from . import dcd                          # noqa: E402,F401
+from . import ctd                            # noqa: E402,F401
+from . import ded                            # noqa: E402,F401
+from . import flmd                          # noqa: E402,F401
+from . import flnd                          # noqa: E402,F401
+from . import flsd                          # noqa: E402,F401
+from . import gamd                          # noqa: E402,F401
+from . import gand                          # noqa: E402,F401
+from . import gasd                          # noqa: E402,F401
+from . import hid                            # noqa: E402,F401
+from . import iand                          # noqa: E402,F401
+from . import iasd                          # noqa: E402,F401
+from . import idd                            # noqa: E402,F401
+from . import ilcd                          # noqa: E402,F401
+from . import ilnd                          # noqa: E402,F401
+from . import ilsd                          # noqa: E402,F401
+from . import innd                          # noqa: E402,F401
+from . import insd                          # noqa: E402,F401
+from . import ksd                            # noqa: E402,F401
+from . import kywd                          # noqa: E402,F401
+from . import laed                          # noqa: E402,F401
+from . import lamd                          # noqa: E402,F401
+from . import lawd                          # noqa: E402,F401
+from . import mad                            # noqa: E402,F401
+from . import mdd                            # noqa: E402,F401
+from . import med                            # noqa: E402,F401
+from . import mied                          # noqa: E402,F401
+from . import miwd                          # noqa: E402,F401
+from . import mnd                            # noqa: E402,F401
+from . import moed                          # noqa: E402,F401
+from . import mowd                          # noqa: E402,F401
+from . import msnd                          # noqa: E402,F401
+from . import mssd                          # noqa: E402,F401
+from . import mtd                            # noqa: E402,F401
+from . import nced                          # noqa: E402,F401
+from . import ncmd                          # noqa: E402,F401
+from . import ncwd                          # noqa: E402,F401
+from . import ndd                            # noqa: E402,F401
+from . import ned                            # noqa: E402,F401
+from . import nhd                            # noqa: E402,F401
+from . import njd                            # noqa: E402,F401
+from . import nmd                            # noqa: E402,F401
+from . import nvd                            # noqa: E402,F401
+from . import nyed                          # noqa: E402,F401
+from . import nynd                          # noqa: E402,F401
+from . import nysd                          # noqa: E402,F401
+from . import nywd                          # noqa: E402,F401
+from . import ohnd                          # noqa: E402,F401
+from . import ohsd                          # noqa: E402,F401
+from . import oked                          # noqa: E402,F401
+from . import oknd                          # noqa: E402,F401
+from . import okwd                          # noqa: E402,F401
+from . import ord                            # noqa: E402,F401
+from . import paed                          # noqa: E402,F401
+from . import pamd                          # noqa: E402,F401
+from . import pawd                          # noqa: E402,F401
+from . import rid                            # noqa: E402,F401
+from . import scd                            # noqa: E402,F401
+from . import sdd                            # noqa: E402,F401
+from . import tned                          # noqa: E402,F401
+from . import tnmd                          # noqa: E402,F401
+from . import tnwd                          # noqa: E402,F401
+from . import txed                          # noqa: E402,F401
+from . import txnd                          # noqa: E402,F401
+from . import txsd                          # noqa: E402,F401
+from . import txwd                          # noqa: E402,F401
+from . import utd                            # noqa: E402,F401
+from . import vaed                          # noqa: E402,F401
+from . import vawd                          # noqa: E402,F401
+from . import vtd                            # noqa: E402,F401
+from . import waed                          # noqa: E402,F401
+from . import wawd                          # noqa: E402,F401
+from . import wied                          # noqa: E402,F401
+from . import wiwd                          # noqa: E402,F401
+from . import wvnd                          # noqa: E402,F401
+from . import wvsd                          # noqa: E402,F401
+from . import wyd                            # noqa: E402,F401
+
 from . import indtc                                      # noqa: E402,F401
 
-from . import kyctapp                               # noqa: E402,F401
+from . import orctapp                                    # noqa: E402,F401
 
-from . import orctapp                               # noqa: E402,F401
-
-from . import wvactapp                              # noqa: E402,F401
+from . import wvactapp                                   # noqa: E402,F401

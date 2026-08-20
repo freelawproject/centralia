@@ -49,5 +49,14 @@ class CourtProfile:
     # paragraph of a scotus concurrence that merely CITED 'Brief for
     # Respondent 26.'
     counsel_after_writings: bool = False
+    # ONE PAPER, ONE WRITING. A federal district court is a single judge
+    # ruling: there is no panel, so there is nothing to concur in or dissent
+    # from, and a district record that comes back with two writings has been
+    # SPLIT, not read. Measured on gamd, where 10 of 31 records came back as
+    # two writings by the same judge, broken at the court's own 'ANALYSIS'
+    # heading. Default False and the default is load-bearing — every
+    # appellate court in this corpus genuinely prints several writings, and
+    # folding theirs together would destroy the separate opinions.
+    single_writing: bool = False
     # Rollout state: pending | migrated | blocked (the census reports it).
     rollout: str = "pending"

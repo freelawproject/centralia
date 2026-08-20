@@ -103,6 +103,7 @@ on the panel, in_re_meta prints its panel on page 2.
     │                  O R D E R                          the TITLE     │
     │              (FILED – July 23, 2026)                the date      │
     │     On consideration of the certified copy of …     the writing   │
+    │                 PER CURIAM                          the SIGN-OFF  │
     └──────────────────────────────────────────────────────────────────┘
 
 ON THE BAR ORDER THE PAPER NAMES ITSELF. `O R D E R` — letter-spaced, on
@@ -115,6 +116,19 @@ this court's docket, its date or a party name. Inside the band a row
 opening with one of those printed LABELS starts a new element; anything
 else at the rail continues the recital above it (in_re_mcneal wraps the
 recital past the DDN row, so the run cannot be counted).
+
+AND IT SIGNS ITSELF AT THE FOOT. Every one of the five orders closes on
+`PER CURIAM`, centred and bold, as the last row of text on its last page —
+and that row is a SIGNATURE, not a byline: the writing it names stands
+ABOVE it, and this paper has no byline anywhere. Read as a byline it opened
+a SECOND, EMPTY writing on three of the five (in_re_correa, in_re_kester,
+in_re_tucker_jr.; on the other two the body was long enough that core's own
+terminal-signature demotion fired and folded it back). It is claimed here —
+the claim is subtractive, which is what already stops a roster from reading
+as a byline — and handed to `Document.signature`, the one section
+`sections.py` renders AFTER the writings, set centred as the page sets it.
+The court that signed goes to `criteria.judges`, beside the `panel` the
+`BEFORE:` roster names, as haw records its conformed signers.
 
 WHAT IS LEFT UNCLAIMED, deliberately: the page-1 footnote zone under the
 144pt drawn rule at the rail (alston, bloomberg, jones), which is core's
@@ -196,6 +210,11 @@ _BYLINE = re.compile(
     r"(?:Chief|Senior|Associate)\s+Judges?|PER CURIAM):\s+\S")
 # 'O R D E R' — the bar order's own name for itself, letter-spaced.
 _TITLE = re.compile(r"^(?:[A-Z]\s){2,}[A-Z]$")
+# THE ORDER'S SIGN-OFF: 'PER CURIAM', centred and bold, the LAST live row of
+# the last page on all five bar orders (x0 260.6, mid 306.0 on the 612pt
+# sheet, one row below the closing paragraph). It is a SIGNATURE — the
+# writing it names stands ABOVE it, and the paper has no byline anywhere.
+_SIGN_OFF = re.compile(r"^PER CURIAM\.?$")
 # The respondent's status row on a bar order, and the matter's identifiers.
 _RESPONDENT = re.compile(r"^(?:Respondent|Petitioner|Applicant)\.?$", re.I)
 _IN_RE = re.compile(r"^IN RE\b")
@@ -302,6 +321,8 @@ def read_headmatter_dc(model, geom, **_):
 
     reader = _read_order if style == "rail bar order" else _read_slip
     reader(rows, texts, dock, ctx, body_x0)
+    if style == "rail bar order":
+        _read_sign_off(ctx, model, finder, body_x0)
     # THE HEAD-MARGIN STAMP is furniture of the same class as a running
     # head, on every page the paper reaches. Recorded, never silently cut.
     for stamp in _margin_stamps(model, finder, body_x0):
@@ -500,6 +521,45 @@ def _read_order(rows, texts, dock, ctx, body_x0) -> None:
         ctx.crit["case_name"] = _party(caption)
 
 
+def _read_sign_off(ctx, model, finder, body_x0: float) -> None:
+    """THE BAR ORDER SIGNS ITSELF AT THE FOOT, and a signature is not a
+    byline.
+
+    All five orders close on the same row — 'PER CURIAM', centred on the
+    page axis and bold, the last row of text the paper prints. The writing
+    it names is the order ABOVE it; the paper opens on 'O R D E R' and has
+    no byline anywhere. Left in the stream that row is byline-shaped with
+    nothing under it, so core opened a SECOND, EMPTY writing on it and the
+    document reported two (in_re_correa, in_re_kester, in_re_tucker_jr.).
+    The claim is subtractive, which is what stops a roster from reading as a
+    byline in the block above; the same claim stops a sign-off from reading
+    as one here.
+
+    It goes to `Document.signature`, which `sections.py` renders AFTER the
+    writings (order 60) — where the page prints it — as ONE centred row,
+    which is how core itself rendered it on the two orders whose bodies were
+    long enough for its own terminal-signature demotion to fire. The bench
+    that signed is recorded in `criteria.judges`, beside the `panel` the
+    'BEFORE:' roster names, as haw records its conformed signers.
+    """
+    pm = model.pages[-1]
+    rows = _rows(pm, finder, body_x0)
+    if not rows:
+        return
+    group = rows[-1]
+    if not _SIGN_OFF.match(_row_text(group)) or not _centred(pm, group):
+        return
+    for line in sorted(group, key=lambda l: l.x0):
+        # A CENTRED ROW SET AS PRINTED: `m.Heading` is the one flow block the
+        # renderer centres, and it is exactly what core's own signature lift
+        # produced for the same row on in_re_alpert — so whichever hand ends
+        # up carrying the sign-off, the page reads the same.
+        ctx.signature.append(m.Heading(
+            text=line_markup(line), prov=m.Prov(line.page, (line.id,))))
+        ctx.consumed.add(line.id)
+    ctx.crit["judges"] = "PER CURIAM"
+
+
 def _emit_apparatus(ctx, groups: list, body_x0: float) -> None:
     """THE APPARATUS BAND IS TWO COLUMNS, and column membership is an x0
     question, never a wording one. On all five orders the left column stands
@@ -625,6 +685,7 @@ class _Ctx:
         self.dropped: list = []
         self.consumed: set[int] = set()
         self.anchor: list[int] = []
+        self.signature: list = []
         self.crit: dict = {}
 
     def emit(self, groups: list, role: str, centre: bool = True) -> None:
@@ -665,4 +726,5 @@ class _Ctx:
     def result(self) -> dict:
         return {"criteria": self.crit, "items": self.items, "attorneys": [],
                 "dropped": self.dropped, "consumed": self.consumed,
+                "signature": self.signature,
                 "anchor_ids": self.anchor, "doc_type_final": None}

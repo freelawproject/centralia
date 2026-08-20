@@ -198,6 +198,35 @@ _DATE_ROW_OPENERS = ("decided", "filed", "(filed", "dated", "opinion filed",
                      "opinion issued", "issued")
 
 
+def roster_names(roster: str) -> list[str]:
+    """The judges a roster line names, one per entry.
+
+    The roster is one printed string and the panel is a list, and both are
+    facts: 'STANFILL, C.J., and MEAD, CONNORS, LAWRENCE, DOUGLAS, LIPEZ, and
+    TAUB, JJ.' is seven judges. Splits on commas and 'and', drops the titles
+    ('C.J.', 'JJ.', 'A.R.J.'), and keeps a generational suffix WITH the name
+    it belongs to — split naively, 'HORTON, A.R.J.' is fine but 'RUSSELL,
+    JR.' becomes a judge called 'Jr.'
+
+    A COURT THAT READS ITS OWN ROSTER USES THIS. Lifted out of
+    `read_headmatter` (where it was inline) so a court reader fills
+    `criteria.panel` by the same rule core does instead of by a second one:
+    me printed a 'Panel:' row on 48 of its 50 records, tinted it correctly,
+    and left `panel` and `judges` empty on every one of them."""
+    names = [n.removeprefix("and ").strip(" .")
+             for n in (p.strip() for p in re.split(r",\s*|\s+and\s+", roster))
+             if n and n.removeprefix("and ").strip()
+             and not _ROSTER_TITLE.fullmatch(
+                 n.removeprefix("and ").strip().rstrip("., "))]
+    out: list[str] = []
+    for n in names:
+        if n.rstrip(".").upper() in ("JR", "SR", "II", "III", "IV") and out:
+            out[-1] += ", " + n
+        else:
+            out.append(n)
+    return out
+
+
 def date_row_value(text: str) -> str | None:
     """The decision date from a dated row. Anchored on the row's opener or a
     bare MONTH-NAME date line ('June 12, 2026' under the caption). 'Submitted'
@@ -736,21 +765,7 @@ def read_headmatter(pages: list[tuple[PageModel, list[Line]]],
                                 _roster_buf.clear()
                 if roster:
                     crit.judges = roster.strip()
-                    _names = [
-                        n.removeprefix("and ").strip(" .")
-                        for n in (p.strip() for p in
-                                  re.split(r",\s*|\s+and\s+", roster))
-                        if n and n.removeprefix("and ").strip()
-                        and not _ROSTER_TITLE.fullmatch(
-                            n.removeprefix("and ").strip().rstrip("., "))]
-                    crit.panel = []
-                    for n in _names:
-                        if (n.rstrip(".").upper() in
-                                ("JR", "SR", "II", "III", "IV")
-                                and crit.panel):
-                            crit.panel[-1] += ", " + n
-                        else:
-                            crit.panel.append(n)
+                    crit.panel = roster_names(roster)
                     trace.event("criteria.judges", f"p{pm.number}")
             if crit.lower_court is None and _is_origin_row(text) \
                     and 10 < len(text) < 220:

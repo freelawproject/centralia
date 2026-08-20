@@ -685,4 +685,41 @@ MANIFEST = {
         # Mero Motu') — the one row on this paper that leaves the rail.
         "olaf_lieb_tina_lieb_jennifer_m._holton_36081_rentals_llc_and_eeztec",
     ],
+    # ----------------------------------------------------------------
+    # minnctapp — STYLE 'bold-band axis'. One paper on all 30 records: no
+    # typed rules and no right-hand column (which is what tells it from its
+    # sibling minn), every band on the PAGE AXIS, and BOLD marking the
+    # masthead, the docket, the release and the section headings.
+    "minnctapp": [
+        # THE ORDINARY SLIP: masthead pair, one docket, a two-party caption,
+        # the bold release trio (Filed / disposition / author), county origin
+        # + File No., counsel at the rail, an indented roster that WRAPS, the
+        # court's own SYLLABUS, and 'OPINION' closing the block.
+        "state_of_minnesota_v._alexander_steven_jonas",
+        # TWO DOCKETS on two rows (consolidated appeals), so the docket band
+        # is a list and the second number is `other_dockets`.
+        "in_the_marriage_of_sarah_nicole_smith_v._jonathan_george_smith",
+        # A SEPARATE WRITING ANNOUNCED IN THE BLOCK: a FOURTH release row
+        # ('Concurring specially, Wheelock, Judge'), which is an author row
+        # and not the disposition.
+        "state_of_minnesota_v._todd_jeremy_thompson",
+        # THE BLOCK SPANS PAGES: a six-party caption pushes the roster, the
+        # syllabus and 'OPINION' onto page 2, and the roster names a judge
+        # the court prints with her given name ('Smith, Tracy M.').
+        "texa_tonka_shopping_center_llc_v._jk_4_al_llc_llc_katherine_prantner_and_john_",
+        # NO COURT BELOW and NO FILE NUMBER: the origin is an agency
+        # ('Campaign Finance and Public Disclosure Board') standing alone.
+        "in_the_matter_of_the_complaint_of_troy_scheffler_regarding_the_committee",
+        # THE PAPER NAMES ITSELF SOMETHING ELSE ('SPECIAL TERM OPINION'), a
+        # two-row disposition's sibling case, and 'File Nos.' listing four
+        # numbers from the court below.
+        "in_re_washington_county_state_of_minnesota_v._erik_lawrence_bader",
+        # A DISPOSITION THAT RUNS OVER TWO ROWS ('Reversed and remanded;
+        # motion to supplement denied' / 'and motion to dismiss granted in
+        # part') — the disposition is a RUN, not a row.
+        "wilmington_trust_national_association_gregg_williams_v._700_hennepin",
+        # A NUMBERED SYLLABUS whose '1.' pdfio splits from its point at the
+        # column gap — the row is read whole.
+        "minnesota_nurses_association_v._mcleod_county_relator_public_employment",
+    ],
 }

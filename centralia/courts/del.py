@@ -180,7 +180,7 @@ def read_headmatter_del(model, geom, **_):
     # art. IV, § 12' at top 695.2, and the box swallowed the dates, the
     # panel, the 'ORDER' heading and the first four paragraphs of the
     # writing, all tinted `caption`.
-    box_bottom = rail["bottom"]
+    box_bottom = _box_close(rows, rail)
 
     ctx = _Ctx()
     left: list = []
@@ -285,8 +285,31 @@ def read_headmatter_del(model, geom, **_):
         # tinted with a role that would be a guess.
         continue
 
+    # THE APPEARANCES MAY CROSS ONTO PAGE 2, and that is the only thing this
+    # reader ever looks at a second page for. in_re_the_aes_corporation sets
+    # its appearances over two pages — page 1 runs out inside them, on
+    # 'Marjorie P. Duffy, Esquire (argued), …', and the last two entries
+    # stand at the head of page 2. Left there they were the first unclaimed
+    # prose in the document, so core opened a WRITING on them and the record
+    # reported two writings, the first being the tail of the counsel block.
+    # THE TEST IS THAT THE PAGE RAN OUT MID-BLOCK: page 1's last row is
+    # itself an appearance. Measured over all 50 records that is true of this
+    # record and no other — on every other one the foot of page 1 is body
+    # prose, a caption row or a footnote. The continuation runs to the
+    # byline, which is where the paper begins, exactly as it does on page 1.
+    tail = _norm(" ".join(l.plain for l in sorted(rows[-1],
+                                                  key=lambda l: l.x0)))
+    if band == "counsel" and _COUNSEL.search(tail) \
+            and len(model.pages) >= _MAX_PAGES:
+        for group in _rows(model.pages[_MAX_PAGES - 1], finder):
+            pieces = sorted(group, key=lambda l: l.x0)
+            text = _norm(" ".join(l.plain for l in pieces))
+            if not text or _BYLINE.match(text):
+                break
+            ctx.emit(pieces, "counsel", centre=False)
+
     # THE BOX, placed where the page prints it — ahead of everything the
-    # court sets beneath it.
+    # court sets beneath it."""
     if left:
         # The rail runs a few rows past the last words; ca6 trims the empty
         # tail pairs and so does this.
@@ -314,6 +337,46 @@ def read_headmatter_del(model, geom, **_):
     if _hist:
         ctx.crit.setdefault("history", " ".join(_hist)[:2000])
     return ctx.result()
+
+
+def _box_close(rows: list, rail: dict) -> float:
+    """THE BOX'S LAST ROW IS NOT ALWAYS ITS LAST '§'.
+
+    The rail is drawn BESIDE the party stack, and the court may set the stack's
+    closing status row past the end of it: suncor_energy prints 'Appellee.' one
+    pitch below the last glyph, at the party indent, with no rail beside it.
+    Closed at the glyph, that row fell out of the box into the tail band, named
+    none of the things this court prints below the box, and so became the first
+    line of BODY PROSE — which is where the writing then anchored, so core's
+    never-bisect invariant pulled the dates, the roster and the 'ORDER' heading
+    out of the headmatter and into the writing, and the order came out as two
+    writings with its own caption inside them.
+
+    Measured over all 50 records, in the box's OWN PITCH (the smallest gap
+    between the rail's rows, 16.0-17.1pt): the row below the last glyph stands
+    ONE pitch down on suncor_energy and TWO OR MORE on the other 49, where it
+    is the 'Submitted:' date the court sets under the box. So a row belongs to
+    the box when it follows within one pitch AND stands wholly left of the
+    rail's column — the same two questions the split inside the box asks, and
+    no wording either time.
+    """
+    tops = sorted({round(g[0].top, 1) for g in rows
+                   if rail["top"] - 1.0 <= g[0].top <= rail["bottom"] + 1.0})
+    gaps = [b - a for a, b in zip(tops, tops[1:]) if b - a > 1.0]
+    if not gaps:
+        return rail["bottom"]
+    pitch = min(gaps)
+    bottom = rail["bottom"]
+    for group in rows:
+        top = group[0].top
+        if top <= bottom + 1.0:
+            continue
+        if top - bottom > pitch * 1.5:
+            break
+        if max(l.x1 for l in group) >= rail["x"]:
+            break               # it reaches the rail's column: not the stack
+        bottom = top
+    return bottom
 
 
 def _rail(pm) -> dict | None:

@@ -5136,23 +5136,10 @@
 "top": []
 },
 "almd/gov.uscourts.almd.89437.15.0": {
-"miss": 28,
-"ratio": 0.9786,
+"miss": 0,
+"ratio": 1.0,
 "src": 1308,
-"top": [
-"doc\u00d73",
-"the\u00d72",
-"not\u00d72",
-"proper\u00d72",
-"legal\u00d72",
-"entity\u00d72",
-"defendant",
-"and",
-"compl",
-"removal",
-"that",
-"names"
-]
+"top": []
 },
 "almd/gov.uscourts.almd.89448.9.0": {
 "miss": 0,
@@ -23719,11 +23706,10 @@
 "top": []
 },
 "coloctapp/people_in_interest_of_h.l.b.": {
-"miss": 2,
-"ratio": 0.9994,
+"miss": 1,
+"ratio": 0.9997,
 "src": 3462,
 "top": [
-"that",
 "determination"
 ]
 },
@@ -23758,11 +23744,13 @@
 "top": []
 },
 "coloctapp/people_v._casper": {
-"miss": 1,
-"ratio": 0.9998,
+"miss": 3,
+"ratio": 0.9994,
 "src": 4892,
 "top": [
-"asapplied"
+"asapplied",
+"stand",
+"alone"
 ]
 },
 "coloctapp/people_v._chronis": {
@@ -28847,20 +28835,16 @@
 "top": []
 },
 "haw/jk_v._hk": {
-"miss": 1,
-"ratio": 0.9997,
+"miss": 0,
+"ratio": 1.0,
 "src": 3686,
-"top": [
-"filed"
-]
+"top": []
 },
 "haw/jk_v._hk_1": {
-"miss": 1,
-"ratio": 0.9997,
+"miss": 0,
+"ratio": 1.0,
 "src": 3686,
-"top": [
-"filed"
-]
+"top": []
 },
 "haw/kenny_v._lange": {
 "miss": 0,
@@ -32270,16 +32254,14 @@
 ]
 },
 "indctapp/akeenen_hunt_v._state_of_indiana": {
-"miss": 34,
-"ratio": 0.9939,
+"miss": 5,
+"ratio": 0.9991,
 "src": 5588,
 "top": [
-"page\u00d728",
 "filed",
 "aug",
 "clerk",
 "supreme",
-"and",
 "tax"
 ]
 },
@@ -32296,53 +32278,46 @@
 ]
 },
 "indctapp/amanda_m_wilson_v._matthew_v_mann": {
-"miss": 19,
-"ratio": 0.9956,
+"miss": 6,
+"ratio": 0.9986,
 "src": 4361,
 "top": [
-"page\u00d712",
 "filed",
 "aug",
 "clerk",
 "supreme",
-"and",
 "tax",
 "todate"
 ]
 },
 "indctapp/betty_a._leon_v._state_of_indiana": {
-"miss": 19,
-"ratio": 0.9927,
+"miss": 4,
+"ratio": 0.9985,
 "src": 2614,
 "top": [
-"page\u00d714",
 "filed",
 "clerk",
 "supreme",
-"and",
 "tax"
 ]
 },
 "indctapp/brian_g_vamos_v._state_of_indiana": {
-"miss": 17,
-"ratio": 0.9921,
+"miss": 5,
+"ratio": 0.9977,
 "src": 2147,
 "top": [
-"page\u00d711",
 "filed",
 "jul",
 "clerk",
 "supreme",
-"and",
 "tax"
 ]
 },
 "indctapp/brittney_keisler_individually_and_as_natural_parent_and_next_friend_of": {
-"miss": 23,
-"ratio": 0.9941,
+"miss": 4,
+"ratio": 0.999,
 "src": 3889,
 "top": [
-"page\u00d719",
 "filed",
 "clerk",
 "supreme",
@@ -32350,25 +32325,22 @@
 ]
 },
 "indctapp/carey_lee_fleener_jr._v._state_of_indiana": {
-"miss": 16,
-"ratio": 0.9935,
+"miss": 5,
+"ratio": 0.998,
 "src": 2469,
 "top": [
-"page\u00d710",
 "filed",
 "jul",
 "clerk",
 "supreme",
-"and",
 "tax"
 ]
 },
 "indctapp/chins_d_c_v._indiana_department_of_child_services": {
-"miss": 24,
-"ratio": 0.9941,
+"miss": 4,
+"ratio": 0.999,
 "src": 4088,
 "top": [
-"page\u00d720",
 "filed",
 "supreme",
 "tax",
@@ -32376,12 +32348,10 @@
 ]
 },
 "indctapp/chins_s_h_v._indiana_department_of_child_services": {
-"miss": 12,
-"ratio": 0.9947,
+"miss": 5,
+"ratio": 0.9978,
 "src": 2250,
 "top": [
-"page\u00d76",
-"and",
 "filed",
 "aug",
 "supreme",
@@ -32390,111 +32360,95 @@
 ]
 },
 "indctapp/christain_z._wall_v._state_of_indiana": {
-"miss": 22,
-"ratio": 0.9938,
+"miss": 5,
+"ratio": 0.9986,
 "src": 3574,
 "top": [
-"page\u00d716",
 "filed",
 "jul",
 "clerk",
 "supreme",
-"and",
 "tax"
 ]
 },
 "indctapp/coltin_drew_herzog_v._state_of_indiana": {
-"miss": 19,
-"ratio": 0.9938,
+"miss": 5,
+"ratio": 0.9984,
 "src": 3062,
 "top": [
-"page\u00d713",
 "filed",
 "aug",
 "clerk",
 "supreme",
-"and",
 "tax"
 ]
 },
 "indctapp/david_edmonson_v._state_of_indiana": {
-"miss": 14,
-"ratio": 0.9914,
+"miss": 5,
+"ratio": 0.9969,
 "src": 1627,
 "top": [
-"page\u00d78",
 "filed",
 "jul",
 "clerk",
 "supreme",
-"and",
 "tax"
 ]
 },
 "indctapp/demontre_lamont_boyd_v._state_of_indiana": {
-"miss": 30,
-"ratio": 0.9935,
+"miss": 6,
+"ratio": 0.9987,
 "src": 4623,
 "top": [
-"page\u00d722",
-"court",
 "filed",
 "aug",
 "clerk",
 "supreme",
-"and",
 "tax",
 "onlead"
 ]
 },
 "indctapp/deonta_nelson_v._state_of_indiana": {
-"miss": 16,
-"ratio": 0.992,
+"miss": 5,
+"ratio": 0.9975,
 "src": 2004,
 "top": [
-"page\u00d710",
 "filed",
 "jul",
 "supreme",
-"and",
 "tax",
 "clerk"
 ]
 },
 "indctapp/dewitt_hemphill_sr._v._state_of_indiana": {
-"miss": 8,
-"ratio": 0.996,
+"miss": 5,
+"ratio": 0.9975,
 "src": 2016,
 "top": [
-"page\u00d72",
 "filed",
 "aug",
 "clerk",
 "supreme",
-"and",
 "tax"
 ]
 },
 "indctapp/earl_e_myers_jr._v._state_of_indiana": {
-"miss": 14,
-"ratio": 0.9949,
+"miss": 5,
+"ratio": 0.9982,
 "src": 2723,
 "top": [
-"page\u00d78",
 "filed",
 "aug",
 "clerk",
 "supreme",
-"and",
 "tax"
 ]
 },
 "indctapp/erie_insurance_exchange_v._christine_cosme": {
-"miss": 35,
-"ratio": 0.9949,
+"miss": 5,
+"ratio": 0.9993,
 "src": 6927,
 "top": [
-"page\u00d730",
 "filed",
 "clerk",
 "supreme",
@@ -32503,24 +32457,21 @@
 ]
 },
 "indctapp/evan_j_schaffer_v._state_of_indiana": {
-"miss": 19,
-"ratio": 0.9934,
+"miss": 4,
+"ratio": 0.9986,
 "src": 2879,
 "top": [
-"page\u00d714",
 "filed",
 "clerk",
 "supreme",
-"and",
 "tax"
 ]
 },
 "indctapp/garvin_street_warehouse_llc_v._ascot_specialty_insurance_company": {
-"miss": 28,
-"ratio": 0.9938,
+"miss": 5,
+"ratio": 0.9989,
 "src": 4523,
 "top": [
-"page\u00d723",
 "filed",
 "jul",
 "clerk",
@@ -32529,27 +32480,24 @@
 ]
 },
 "indctapp/gregory_brandon_v._caregan_transport_inc.": {
-"miss": 36,
-"ratio": 0.9941,
+"miss": 7,
+"ratio": 0.9988,
 "src": 6085,
 "top": [
-"page\u00d728",
 "filed",
 "jul",
 "clerk",
 "supreme",
-"and",
 "tax",
 "outof",
 "efiling"
 ]
 },
 "indctapp/hannah_janowiak_v._kenneth_sandage": {
-"miss": 31,
-"ratio": 0.9943,
+"miss": 5,
+"ratio": 0.9991,
 "src": 5408,
 "top": [
-"page\u00d726",
 "filed",
 "jul",
 "clerk",
@@ -32558,41 +32506,35 @@
 ]
 },
 "indctapp/jasmin_mccue_v._catucky_derby_inc.": {
-"miss": 23,
-"ratio": 0.9903,
+"miss": 7,
+"ratio": 0.997,
 "src": 2371,
 "top": [
-"page\u00d715",
 "coworkers\u00d72",
 "filed",
 "aug",
 "clerk",
 "supreme",
-"and",
 "tax"
 ]
 },
 "indctapp/jennifer_lynn_goetz_v._james_lawrence_franklin_goetz": {
-"miss": 21,
-"ratio": 0.9957,
+"miss": 5,
+"ratio": 0.999,
 "src": 4930,
 "top": [
-"page\u00d714",
 "filed",
 "clerk",
 "supreme",
-"and",
 "tax",
-"claim",
 "refile"
 ]
 },
 "indctapp/john_o._study_v._boone_county_sheriffs_office": {
-"miss": 10,
-"ratio": 0.9914,
+"miss": 5,
+"ratio": 0.9957,
 "src": 1167,
 "top": [
-"page\u00d75",
 "filed",
 "jul",
 "clerk",
@@ -32601,25 +32543,22 @@
 ]
 },
 "indctapp/latrell_darnell_vaughn_v._state_of_indiana": {
-"miss": 13,
-"ratio": 0.9898,
+"miss": 5,
+"ratio": 0.9961,
 "src": 1280,
 "top": [
-"page\u00d77",
 "filed",
 "jul",
 "clerk",
 "supreme",
-"and",
 "tax"
 ]
 },
 "indctapp/michael_gregory_v._state_of_indiana": {
-"miss": 15,
-"ratio": 0.9926,
+"miss": 5,
+"ratio": 0.9975,
 "src": 2017,
 "top": [
-"page\u00d710",
 "filed",
 "jul",
 "clerk",
@@ -32628,53 +32567,46 @@
 ]
 },
 "indctapp/michael_rodgers_v._state_of_indiana": {
-"miss": 15,
-"ratio": 0.9916,
+"miss": 5,
+"ratio": 0.9972,
 "src": 1795,
 "top": [
-"page\u00d79",
 "filed",
 "jul",
 "clerk",
 "supreme",
-"and",
 "tax"
 ]
 },
 "indctapp/nathan_august_floring_v._state_of_indiana": {
-"miss": 11,
-"ratio": 0.9928,
+"miss": 5,
+"ratio": 0.9967,
 "src": 1532,
 "top": [
-"page\u00d75",
 "filed",
 "aug",
 "clerk",
 "supreme",
-"and",
 "tax"
 ]
 },
 "indctapp/nicholas_yrjo_nifadeff_v._indiana_landmarks": {
-"miss": 22,
-"ratio": 0.9936,
+"miss": 5,
+"ratio": 0.9986,
 "src": 3452,
 "top": [
-"page\u00d716",
 "filed",
 "jul",
 "clerk",
 "supreme",
-"and",
 "tax"
 ]
 },
 "indctapp/north_river_insurance_company_v._landisgyr_technology_inc.": {
-"miss": 22,
-"ratio": 0.9933,
+"miss": 5,
+"ratio": 0.9985,
 "src": 3308,
 "top": [
-"page\u00d717",
 "filed",
 "supreme",
 "tax",
@@ -32683,26 +32615,23 @@
 ]
 },
 "indctapp/ojl_qrp_llc_v._in_123_rentals_llc": {
-"miss": 23,
-"ratio": 0.9929,
+"miss": 6,
+"ratio": 0.9981,
 "src": 3233,
 "top": [
-"page\u00d716",
 "filed",
 "jul",
 "clerk",
 "supreme",
-"and",
 "tax",
 "bycase"
 ]
 },
 "indctapp/randy_perkins_v._christopher_burns": {
-"miss": 14,
-"ratio": 0.9943,
+"miss": 5,
+"ratio": 0.998,
 "src": 2448,
 "top": [
-"page\u00d79",
 "filed",
 "jul",
 "clerk",
@@ -32711,68 +32640,59 @@
 ]
 },
 "indctapp/rebecca_a_elshoff_v._donald_d_elshoff": {
-"miss": 13,
-"ratio": 0.9945,
+"miss": 4,
+"ratio": 0.9983,
 "src": 2383,
 "top": [
-"page\u00d78",
 "filed",
 "clerk",
 "supreme",
-"and",
 "tax"
 ]
 },
 "indctapp/shirley_e._melton_v._vanderburgh_county_commissioners": {
-"miss": 21,
-"ratio": 0.9945,
+"miss": 5,
+"ratio": 0.9987,
 "src": 3828,
 "top": [
-"page\u00d715",
 "filed",
 "jul",
 "clerk",
 "supreme",
-"and",
 "tax"
 ]
 },
 "indctapp/stanley_klos_iii_v._kristen_l_gentry_klos": {
-"miss": 22,
-"ratio": 0.9929,
+"miss": 6,
+"ratio": 0.9981,
 "src": 3108,
 "top": [
-"page\u00d715",
 "filed",
 "jul",
 "clerk",
 "supreme",
-"and",
 "tax",
 "faceto"
 ]
 },
 "indctapp/steven_allen_watters_v._state_of_indiana": {
-"miss": 20,
-"ratio": 0.993,
+"miss": 6,
+"ratio": 0.9979,
 "src": 2859,
 "top": [
-"page\u00d713",
 "filed",
 "jul",
 "clerk",
 "supreme",
-"and",
 "tax",
 "acr"
 ]
 },
 "indctapp/susan_s._mcdermott_v._sue_finkam": {
-"miss": 12,
-"ratio": 0.9941,
+"miss": 5,
+"ratio": 0.9975,
 "src": 2026,
 "top": [
-"page\u00d77",
 "filed",
 "jul",
 "clerk",
@@ -32781,25 +32701,22 @@
 ]
 },
 "indctapp/timothy_stabosz_v._shaw_friedman": {
-"miss": 16,
-"ratio": 0.9927,
+"miss": 5,
+"ratio": 0.9977,
 "src": 2193,
 "top": [
-"page\u00d710",
 "filed",
 "jul",
 "clerk",
 "supreme",
-"and",
 "tax"
 ]
 },
 "indctapp/todd_rokita_indiana_attorney_general_v._berry_global_group_inc.": {
-"miss": 11,
-"ratio": 0.9943,
+"miss": 5,
+"ratio": 0.9974,
 "src": 1945,
 "top": [
-"page\u00d76",
 "filed",
 "jul",
 "clerk",
@@ -32808,51 +32725,44 @@
 ]
 },
 "indctapp/town_of_macy_indiana_v._nyona_south_mud_lake_conservancy_district": {
-"miss": 9,
-"ratio": 0.9915,
+"miss": 4,
+"ratio": 0.9962,
 "src": 1060,
 "top": [
-"page\u00d74",
 "filed",
 "clerk",
 "supreme",
-"and",
 "tax"
 ]
 },
 "indctapp/vocare_inc._v._ags_capital_llc": {
-"miss": 18,
-"ratio": 0.9926,
+"miss": 5,
+"ratio": 0.9979,
 "src": 2427,
 "top": [
-"page\u00d712",
 "filed",
 "jul",
 "clerk",
 "supreme",
-"and",
 "tax"
 ]
 },
 "indctapp/zachary_a.r._pontius_v._state_of_indiana": {
-"miss": 16,
-"ratio": 0.9927,
+"miss": 4,
+"ratio": 0.9982,
 "src": 2188,
 "top": [
-"page\u00d711",
 "filed",
 "clerk",
 "supreme",
-"and",
 "tax"
 ]
 },
 "indtc/alice_luebke_v._indiana_department_of_local_government_finance": {
-"miss": 6,
-"ratio": 0.9984,
+"miss": 5,
+"ratio": 0.9987,
 "src": 3773,
 "top": [
-"court",
 "filed",
 "sep",
 "clerk",
@@ -32861,11 +32771,10 @@
 ]
 },
 "indtc/andy_l._young_v._department_of_local_government_finance": {
-"miss": 8,
-"ratio": 0.9988,
+"miss": 7,
+"ratio": 0.999,
 "src": 6796,
 "top": [
-"court",
 "filed",
 "jun",
 "clerk",
@@ -32876,59 +32785,47 @@
 ]
 },
 "indtc/andy_young_v._department_of_local_government_finance": {
-"miss": 253,
-"ratio": 0.8954,
+"miss": 5,
+"ratio": 0.9979,
 "src": 2419,
 "top": [
-"the\u00d79",
-"land\u00d78",
-"and\u00d77",
-"ind\u00d77",
-"fiscal\u00d77",
-"public\u00d76",
-"code\u00d76",
-"notice\u00d75",
-"hearing\u00d75",
-"tax\u00d74",
-"house\u00d74",
-"for\u00d73"
+"filed",
+"jun",
+"clerk",
+"supreme",
+"appeals"
 ]
 },
 "indtc/chris_bougie_v._kosciusko_county_assessor": {
-"miss": 7,
-"ratio": 0.9976,
+"miss": 5,
+"ratio": 0.9983,
 "src": 2908,
 "top": [
-"court",
 "filed",
 "sep",
 "clerk",
 "supreme",
-"appeals",
-"and"
+"appeals"
 ]
 },
 "indtc/chris_m_bolte_v._dubois_county_assessor": {
-"miss": 8,
-"ratio": 0.9982,
+"miss": 6,
+"ratio": 0.9987,
 "src": 4454,
 "top": [
 "filed",
 "aug",
 "clerk",
 "supreme",
-"court",
 "appeals",
-"and",
 "inuse"
 ]
 },
 "indtc/chryshawna_a_webb_v._sullivan_county_assessor": {
-"miss": 8,
-"ratio": 0.9923,
+"miss": 6,
+"ratio": 0.9942,
 "src": 1040,
 "top": [
-"court\u00d72",
 "filed",
 "jul",
 "clerk",
@@ -32938,74 +32835,64 @@
 ]
 },
 "indtc/city_of_carmel_v._department_of_local_government_finance": {
-"miss": 7,
-"ratio": 0.9952,
+"miss": 5,
+"ratio": 0.9966,
 "src": 1455,
 "top": [
-"court",
 "filed",
 "oct",
 "clerk",
 "supreme",
-"appeals",
-"and"
+"appeals"
 ]
 },
 "indtc/city_of_carmel_v._department_of_local_government_finance_1": {
-"miss": 7,
-"ratio": 0.9952,
+"miss": 5,
+"ratio": 0.9966,
 "src": 1455,
 "top": [
-"court",
 "filed",
 "oct",
 "clerk",
 "supreme",
-"appeals",
-"and"
+"appeals"
 ]
 },
 "indtc/clark_county_assessor_v._dillard_department_stores_inc.": {
-"miss": 8,
-"ratio": 0.997,
+"miss": 6,
+"ratio": 0.9978,
 "src": 2702,
 "top": [
 "filed",
 "jun",
 "clerk",
 "supreme",
-"court",
 "appeals",
-"and",
 "toretail"
 ]
 },
 "indtc/clark_county_assessor_v._dillard_department_stores_inc._1": {
-"miss": 8,
-"ratio": 0.997,
+"miss": 6,
+"ratio": 0.9978,
 "src": 2706,
 "top": [
 "filed",
 "jun",
 "clerk",
 "supreme",
-"court",
 "appeals",
-"and",
 "toretail"
 ]
 },
 "indtc/convention_headquarters_hotels_llc_v._marion_county_assessor": {
-"miss": 8,
-"ratio": 0.9989,
+"miss": 5,
+"ratio": 0.9993,
 "src": 7505,
 "top": [
-"court\u00d72",
 "filed",
 "clerk",
 "supreme",
 "appeals",
-"and",
 "perimeterto"
 ]
 },
@@ -33022,11 +32909,10 @@
 ]
 },
 "indtc/david_a_gertz_v._porter_county_assessor_1": {
-"miss": 6,
-"ratio": 0.9991,
+"miss": 5,
+"ratio": 0.9993,
 "src": 6745,
 "top": [
-"court",
 "filed",
 "feb",
 "clerk",
@@ -33035,155 +32921,132 @@
 ]
 },
 "indtc/david_a_gertz_v._porter_county_assessor_1222": {
-"miss": 6,
-"ratio": 0.9991,
+"miss": 5,
+"ratio": 0.9993,
 "src": 6742,
 "top": [
 "filed",
 "dec",
 "clerk",
 "supreme",
-"court",
 "appeals"
 ]
 },
 "indtc/gabrielle_snyder_v._dearborn_county_assessor": {
-"miss": 7,
-"ratio": 0.9961,
+"miss": 5,
+"ratio": 0.9972,
 "src": 1813,
 "top": [
-"court",
 "filed",
 "dec",
 "clerk",
 "supreme",
-"appeals",
-"and"
+"appeals"
 ]
 },
 "indtc/gary_ii_llc_v._lake_county_assessor": {
-"miss": 7,
-"ratio": 0.9982,
+"miss": 5,
+"ratio": 0.9987,
 "src": 3966,
 "top": [
-"court",
 "filed",
 "mar",
 "clerk",
 "supreme",
-"appeals",
-"and"
+"appeals"
 ]
 },
 "indtc/ibew_local_305_inc._v._allen_county_assessor": {
-"miss": 7,
-"ratio": 0.998,
+"miss": 5,
+"ratio": 0.9986,
 "src": 3513,
 "top": [
-"court",
 "filed",
 "mar",
-"and",
 "clerk",
 "supreme",
 "appeals"
 ]
 },
 "indtc/iron_workers_local_147_apprentice_fund_v._allen_county_assessor": {
-"miss": 6,
-"ratio": 0.9792,
+"miss": 5,
+"ratio": 0.9827,
 "src": 289,
 "top": [
 "filed",
 "mar",
 "clerk",
 "supreme",
-"court",
 "appeals"
 ]
 },
 "indtc/john_e._sparre_v._st._joseph_county_assessor": {
-"miss": 226,
-"ratio": 0.9082,
+"miss": 5,
+"ratio": 0.998,
 "src": 2461,
 "top": [
-"the\u00d719",
-"ind\u00d77",
-"indiana\u00d76",
-"not\u00d75",
-"tax\u00d74",
-"court\u00d74",
-"that\u00d74",
-"see\u00d74",
-"assessed\u00d74",
-"constitution\u00d74",
-"and\u00d73",
-"property\u00d73"
+"filed",
+"aug",
+"clerk",
+"supreme",
+"appeals"
 ]
 },
 "indtc/lake_county_assessor_v._oday_holdings_llc": {
-"miss": 7,
-"ratio": 0.9983,
+"miss": 5,
+"ratio": 0.9988,
 "src": 4145,
 "top": [
-"court",
 "filed",
 "dec",
 "clerk",
 "supreme",
-"appeals",
-"and"
+"appeals"
 ]
 },
 "indtc/linda_d_donovan_v._clark_county_assessor": {
-"miss": 8,
-"ratio": 0.9981,
+"miss": 7,
+"ratio": 0.9984,
 "src": 4250,
 "top": [
 "filed",
 "dec",
 "clerk",
 "supreme",
-"court",
 "appeals",
 "valuein",
 "slength"
 ]
 },
 "indtc/madison_county_assessor_v._kohls_indiana_lp": {
-"miss": 7,
-"ratio": 0.9986,
+"miss": 5,
+"ratio": 0.999,
 "src": 4944,
 "top": [
-"court",
 "filed",
 "nov",
 "clerk",
 "supreme",
-"appeals",
-"and"
+"appeals"
 ]
 },
 "indtc/majestic_properties_llc_v._tippecanoe_county_assessor": {
-"miss": 7,
-"ratio": 0.9948,
+"miss": 5,
+"ratio": 0.9963,
 "src": 1358,
 "top": [
 "filed",
 "aug",
-"court",
 "clerk",
 "supreme",
-"appeals",
-"and"
+"appeals"
 ]
 },
 "indtc/muir_woods_section_one_assn._inc._v._marion_county_assessosr": {
-"miss": 7,
-"ratio": 0.9982,
+"miss": 5,
+"ratio": 0.9987,
 "src": 3860,
 "top": [
-"court\u00d72",
 "filed",
 "feb",
 "clerk",
@@ -33192,11 +33055,10 @@
 ]
 },
 "indtc/new_cingular_wireless_pcs_llc_v._department_of_state_revenue": {
-"miss": 7,
-"ratio": 0.9989,
+"miss": 5,
+"ratio": 0.9992,
 "src": 6108,
 "top": [
-"court\u00d72",
 "filed",
 "mar",
 "clerk",
@@ -33205,243 +33067,206 @@
 ]
 },
 "indtc/ovidiu_ciceu_v._knox_county_assessor": {
-"miss": 7,
-"ratio": 0.9977,
+"miss": 5,
+"ratio": 0.9983,
 "src": 3027,
 "top": [
 "filed",
 "oct",
-"court",
-"and",
 "appeals",
 "clerk",
 "supreme"
 ]
 },
 "indtc/steve_osborn_v._la_porte_county_indiana_assessor": {
-"miss": 7,
-"ratio": 0.9955,
+"miss": 5,
+"ratio": 0.9968,
 "src": 1551,
 "top": [
-"court",
 "filed",
 "jun",
 "clerk",
 "supreme",
-"appeals",
-"and"
+"appeals"
 ]
 },
 "indtc/thomas__nancy_crandall_v._bartholomew_county_assessor": {
-"miss": 447,
-"ratio": 0.8652,
+"miss": 5,
+"ratio": 0.9985,
 "src": 3315,
 "top": [
-"the\u00d760",
-"that\u00d717",
-"burden\u00d711",
-"not\u00d710",
-"and\u00d79",
-"appeals\u00d77",
-"assessor\u00d77",
-"proof\u00d77",
-"assessment\u00d76",
-"from\u00d75",
-"this\u00d75",
-"repeal\u00d75"
+"filed",
+"sep",
+"clerk",
+"supreme",
+"appeals"
 ]
 },
 "indtc/thomas_nancy_crandall_v._bartholomew_county_assessor": {
-"miss": 447,
-"ratio": 0.8652,
+"miss": 5,
+"ratio": 0.9985,
 "src": 3315,
 "top": [
-"the\u00d760",
-"that\u00d717",
-"burden\u00d711",
-"not\u00d710",
-"and\u00d79",
-"appeals\u00d77",
-"assessor\u00d77",
-"proof\u00d77",
-"assessment\u00d76",
-"from\u00d75",
-"this\u00d75",
-"repeal\u00d75"
+"filed",
+"sep",
+"clerk",
+"supreme",
+"appeals"
 ]
 },
 "indtc/tippecanoe_county_assessor_v._craig_goergen": {
-"miss": 8,
-"ratio": 0.9959,
+"miss": 6,
+"ratio": 0.9969,
 "src": 1945,
 "top": [
 "filed",
 "oct",
 "clerk",
 "supreme",
-"court",
 "appeals",
-"and",
 "see"
 ]
 },
 "indtc/tippecanoe_county_assessor_v._craig_goergen_1": {
-"miss": 8,
-"ratio": 0.9959,
+"miss": 6,
+"ratio": 0.9969,
 "src": 1945,
 "top": [
 "filed",
 "oct",
 "clerk",
 "supreme",
-"court",
 "appeals",
-"and",
 "see"
 ]
 },
 "indtc/tippecanoe_county_assessor_v._d_and_j_black_second_limited_partnership": {
-"miss": 7,
-"ratio": 0.9964,
+"miss": 6,
+"ratio": 0.9969,
 "src": 1954,
 "top": [
 "filed",
 "oct",
 "clerk",
 "supreme",
-"court",
 "appeals",
 "see"
 ]
 },
 "indtc/tippecanoe_county_assessor_v._d_and_j_black_second_limited_partnership_1": {
-"miss": 7,
-"ratio": 0.9964,
+"miss": 6,
+"ratio": 0.9969,
 "src": 1954,
 "top": [
 "filed",
 "oct",
 "clerk",
 "supreme",
-"court",
 "appeals",
 "see"
 ]
 },
 "indtc/tippecanoe_county_assessor_v._d_and_j_black_second_limited_partnership_2": {
-"miss": 7,
-"ratio": 0.9964,
+"miss": 6,
+"ratio": 0.9969,
 "src": 1954,
 "top": [
 "filed",
 "oct",
 "clerk",
 "supreme",
-"court",
 "appeals",
 "see"
 ]
 },
 "indtc/tippecanoe_county_assessor_v._dennis_d_abbott": {
-"miss": 7,
-"ratio": 0.9964,
+"miss": 6,
+"ratio": 0.9969,
 "src": 1950,
 "top": [
 "filed",
 "oct",
 "clerk",
 "supreme",
-"court",
 "appeals",
 "see"
 ]
 },
 "indtc/tippecanoe_county_assessor_v._frederick_a_may": {
-"miss": 8,
-"ratio": 0.9959,
+"miss": 6,
+"ratio": 0.9969,
 "src": 1948,
 "top": [
 "filed",
 "oct",
 "clerk",
 "supreme",
-"court",
 "appeals",
-"and",
 "see"
 ]
 },
 "indtc/tippecanoe_county_assessor_v._lawrence_l_mock": {
-"miss": 8,
-"ratio": 0.9959,
+"miss": 6,
+"ratio": 0.9969,
 "src": 1947,
 "top": [
 "filed",
 "oct",
 "clerk",
 "supreme",
-"court",
 "appeals",
-"and",
 "see"
 ]
 },
 "indtc/tippecanoe_county_assessor_v._olav_lund-mikkelsen": {
-"miss": 8,
-"ratio": 0.9959,
+"miss": 6,
+"ratio": 0.9969,
 "src": 1953,
 "top": [
 "filed",
 "oct",
 "clerk",
 "supreme",
-"court",
 "appeals",
-"and",
 "see"
 ]
 },
 "indtc/tippecanoe_county_assessor_v._terry_s__jane_c_stewart_ttees": {
-"miss": 8,
-"ratio": 0.9959,
+"miss": 6,
+"ratio": 0.9969,
 "src": 1951,
 "top": [
-"court",
 "filed",
 "oct",
 "clerk",
 "supreme",
 "appeals",
-"and",
 "see"
 ]
 },
 "indtc/tulsi_sawlani_m.d._v._lake_county_assessor": {
-"miss": 7,
-"ratio": 0.999,
+"miss": 6,
+"ratio": 0.9992,
 "src": 7213,
 "top": [
 "filed",
 "jul",
 "clerk",
 "supreme",
-"court",
 "appeals",
 "zdrafting"
 ]
 },
 "indtc/united_parcel_service_inc._v._indiana_department_of_state_revenue": {
-"miss": 9,
-"ratio": 0.9978,
+"miss": 6,
+"ratio": 0.9986,
 "src": 4169,
 "top": [
-"court\u00d72",
 "filed",
 "apr",
 "clerk",
 "supreme",
 "appeals",
-"and",
 "onhighway"
 ]
 },

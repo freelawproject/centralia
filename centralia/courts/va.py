@@ -95,6 +95,7 @@ prints no byline of its own.
 from __future__ import annotations
 
 import re
+from dataclasses import replace as _replace
 
 from .. import model as m
 from ..geometry import line_alignment
@@ -172,6 +173,15 @@ _LOWER_NO = re.compile(
     r"(?:Court\s+of\s+Appeals|Circuit\s+Court)\s+Nos?\.\s*(.+)$",
     re.IGNORECASE)
 _PIVOT = re.compile(r"^(v\.?|vs\.?|against)$", re.IGNORECASE)
+# THE PIVOT HEADING THE DOCKET CELL. 'v.  Record No. 240736' is ONE printed
+# row saying two things — the caption's hinge and this court's own docket —
+# and the row is set as one run of characters with a space between the cells
+# (the two spaces are real characters at 81.1 and 84.0; there is no
+# positional gap to find, and no rule is drawn). 47 of the 50 records print
+# it; the convening order prints the same two cells but pdfio returns them
+# as separate rows already ('against' at 75.1, its number 69pt right).
+_PIVOT_LEAD = re.compile(r"^\s*(v\.|vs\.|against)(\s+)(?=\S)",
+                         re.IGNORECASE)
 _DATE = re.compile(
     r"^(JANUARY|FEBRUARY|MARCH|APRIL|MAY|JUNE|JULY|AUGUST|SEPTEMBER|"
     r"OCTOBER|NOVEMBER|DECEMBER)\s+\d{1,2},\s+\d{4}\.?$", re.IGNORECASE)
@@ -384,6 +394,41 @@ def _names_a_court(text: str) -> bool:
             or "CERTIFIED BY" in up)
 
 
+def _carve(line, start: int, stop: int | None = None):
+    """The characters of ``line`` from ``start`` to ``stop``, as a line of
+    its own — or None when that span holds no ink.
+
+    A printed row is a run of characters, and a court that sets two cells in
+    one run divides them with white space. So the cells are carved out of
+    the line itself and each keeps the x the page gave it; del splits its
+    rail rows the same way, by position and never by counting words."""
+    kept = line.chars[start:stop]
+    if not any((c.get("text") or "").strip() for c in kept):
+        return None
+    return _replace(line, chars=kept, x0=min(c["x0"] for c in kept),
+                    x1=max(c.get("x1", c["x0"]) for c in kept))
+
+
+def _pivot_cut(line):
+    """(pivot, docket cell) where one row carries both, else None.
+
+    A ROW CARRIES ONE ROLE, so a row that says two things has to become two.
+    Read whole, 'v.  Record No. 240736' matched the docket pattern and the
+    entire row was tinted `docket` — the caption's own pivot reported as
+    part of a docket number, and the caption stack missing its hinge (the
+    user's call, 2026-08-20). Cut, the pivot stays `caption` at the party
+    rail and the number goes out as the `docket` cell it is, at the indent
+    the court set it on."""
+    head = _PIVOT_LEAD.match(line.plain or "")
+    if head is None or not _DOCKET.match(_norm(line.plain[head.end():])):
+        return None
+    pivot = _carve(line, 0, head.end(1))
+    cell = _carve(line, head.end())
+    if pivot is None or cell is None:
+        return None
+    return pivot, cell
+
+
 def _is_pivot_row(text: str) -> bool:
     """The caption's pivot: 'v.' or 'against', alone or heading the docket
     cell the court sets on the same row ('v.  Record No. 250365')."""
@@ -508,6 +553,16 @@ def _read_announced(model, geom, pm, rows, body_x0, body_size, width):
     for line in l_rows:
         text = _norm(line.plain)
         x0 = _ink_x0(line)
+        # TWO CELLS IN ONE ROW go out as two, each with its own role.
+        cut = _pivot_cut(line)
+        if cut is not None:
+            pivot, cell = cut
+            left_cells.append(ctx.cell(pivot, "caption", "L"))
+            left_cells.append(ctx.cell(cell, "docket", "L",
+                                       rel=_ink_x0(cell) - own_x0))
+            left.append(("caption", _norm(pivot.plain)))
+            left.append(("docket", _norm(cell.plain)))
+            continue
         off_rail = x0 >= own_x0 + _DOCKET_CELL
         role = "docket" if (_DOCKET.search(text) or off_rail) else "caption"
         left_cells.append(ctx.cell(line, role, "L",

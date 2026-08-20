@@ -729,3 +729,90 @@ class _Ctx:
         return {"criteria": self.crit, "items": self.items, "attorneys": [],
                 "dropped": self.dropped, "consumed": self.consumed,
                 "anchor_ids": [], "doc_type_final": None}
+
+
+# --------------------------------------------------------------------------
+# writing.covers — the announcement, over TWO rows
+# --------------------------------------------------------------------------
+# THE DOCSTRING ABOVE LEFT THE BYLINE TO CORE, on the reasoning that "the
+# paper's name and the judge's name stand on two rows here, which is what
+# the profile's `opinion_by_headings` grammar is for." That was measured
+# wrong. A grammar parses a ROW, and no row of this pair is a byline on its
+# own: 'MEMORANDUM OPINION BY' names no judge and 'JUDGE COVEY' names no
+# paper. Counted over all 42 records, 12 of the 13 announcements did not
+# parse at all — only giant_eagle's, which happens to fit on one row
+# ('OPINION BY JUDGE WOJCIK').
+#
+# WHAT THAT COST, both directions:
+#   * city_of_lancaster_v._i._grivas — the unparsed 'MEMORANDUM OPINION BY'
+#     stood unclaimed above the writing and opened a PHANTOM: a 3-block
+#     'majority' holding the announcement and one paragraph, with the real
+#     opinion following it as an 83-block 'order'.
+#   * g._abdulhay_v._upper_macungie_twp._zhb prints a CONCURRING OPINION and
+#     came back with ONE writing — the concurrence swallowed into a 151-block
+#     majority.
+#   * passhe_v._plrb prints a CONCURRING AND DISSENTING OPINION and came back
+#     with ONE writing, typed `order`, 135 blocks, authored 'MATTHEW S. WOLF,
+#     Judge' — the SEPARATE judge's name on the whole paper.
+# (the user, 2026-08-20, on records with two or more writings: 'those with 2
+# or more are all wrong creating second opinions incorrectly'. The count was
+# the symptom; the cause runs both ways, and merging is the commoner half.)
+#
+# THE FORM, measured over every announcement in the corpus — a row PAIR at
+# the body rail, never anywhere else:
+#
+#      OPINION                     BY JUDGE McCULLOUGH          7
+#      OPINION                     BY JUDGE FIZZANO CANNON      7
+#      MEMORANDUM OPINION          BY JUDGE WALLACE             6
+#      OPINION BY                  JUDGE COVEY                  4
+#      OPINION BY                  PRESIDENT JUDGE COHN JUBELIRER
+#      OPINION                     BY SENIOR JUDGE LEAVITT
+#      OPINION1                    BY JUDGE FIZZANO CANNON      (a footnote
+#      OPINION                     PER CURIAM                    mark on the
+#      DISSENTING OPINION          BY JUDGE FIZZANO CANNON       paper's name)
+#      CONCURRING OPINION BY       PRESIDENT JUDGE COHN JUBELIRER
+#      CONCURRING AND DISSENTING OPINION BY   JUDGE WOLF
+#
+# The first row states the KIND and may carry the 'BY'; the second names the
+# judge and may carry it instead. The lead announcement stands on page 1 and
+# every separate writing on page 2 or later, but position is not the test —
+# the printed words are.
+_ANN_HEAD = re.compile(
+    r"^(?P<kind>(?:[A-Z][A-Z ]*\s)?OPINION)\d*(?:\s+BY)?$")
+_ANN_NAME = re.compile(
+    r"^(?:BY\s+)?(?:PRESIDENT\s+|SENIOR\s+|ACTING\s+)?"
+    r"(?:JUDGE|JUSTICE)\s+\S.*$|^PER\s+CURIAM$", re.I)
+# 'OPINION' alone is the court's opinion. Anything else the first row says
+# is the kind, and it goes through `normalize_opinion_type` like a byline's.
+_ANN_PLAIN = ("opinion", "memorandum opinion")
+_ANN_RAIL_TOL = 10.0
+
+
+@decider("writing.covers", court="pacommwct")
+def writing_covers_pacommwct(model=None, geom=None, **_):
+    """Where each writing opens, and the kind its announcement states."""
+    if model is None:
+        return NOTHING
+    rail = geom.body_x0 if geom and geom.body_x0 else 72.0
+    starts: dict[int, str] = {}
+    for pm in model.pages:
+        rows: dict = {}
+        for line in pm.lines:
+            if line.plain.strip():
+                rows.setdefault(round(line.top, 1), []).append(line)
+        tops = sorted(rows)
+        for i, top in enumerate(tops[:-1]):
+            pieces = sorted(rows[top], key=lambda l: l.x0)
+            head = " ".join(pieces[0].plain.split())
+            said = _ANN_HEAD.match(head)
+            if not said or pieces[0].x0 > rail + _ANN_RAIL_TOL:
+                continue
+            nxt = sorted(rows[tops[i + 1]], key=lambda l: l.x0)
+            if nxt[0].x0 > rail + _ANN_RAIL_TOL:
+                continue
+            if not _ANN_NAME.match(" ".join(nxt[0].plain.split())):
+                continue
+            kind = " ".join(said.group("kind").split()).lower()
+            starts[pieces[0].id] = ("majority" if kind in _ANN_PLAIN
+                                    else kind.replace(" opinion", ""))
+    return {"starts": starts, "drop": []} if starts else NOTHING

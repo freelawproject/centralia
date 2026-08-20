@@ -548,6 +548,38 @@ def _extract_model(model, court_id: str, pdf_path) -> ExtractionResult:
         # paper it is — and it knows before assembly, which is where the
         # type decides how writings anchor.
         _claimed = set(_court_hm.get("consumed") or ())
+        # A ROW THE COURT PLACED IS NOT A REMOVAL. The furniture pass runs
+        # at stage 5, long before any court reader, so a court that rescues
+        # its own apparatus from a furniture rule has to read that row off
+        # `pm.lines` — and the drop recorded upstream then stands beside the
+        # very row the reader placed. me's ladder sits exactly where the
+        # corner-stamp rule fires, and
+        # me/amelia_johnson_v._michael_osseyran listed 'Submitted' as
+        # removed and rendered it as headmatter at once; ca2's corner slug,
+        # calctapp's 'Filed 7/30/26', la's news-release number and kyed's
+        # ECF header are all reported twice the same way.
+        #
+        # PLACED, not merely CLAIMED. The claim is subtractive — a reader
+        # may consume a line to keep it out of the body without putting it
+        # anywhere — and withdrawing the drop for one of those would make
+        # the row vanish from the record entirely, which is the one outcome
+        # worse than reporting it twice. Only a drop whose every line came
+        # back out in a placed item is withdrawn.
+        def _placed_ids(_items) -> set[int]:
+            _ids: set[int] = set()
+            for _it in _items or ():
+                _pv = getattr(_it, "prov", None)
+                if _pv is not None:
+                    _ids.update(_pv.line_ids)
+                # a two-column caption carries its rows one level down
+                _ids |= _placed_ids(getattr(_it, "left", None))
+                _ids |= _placed_ids(getattr(_it, "right", None))
+            return _ids
+
+        _placed = _placed_ids(_court_hm.get("items"))
+        doc.dropped = [_d for _d in doc.dropped
+                       if not (_d.prov.line_ids
+                               and set(_d.prov.line_ids) <= _placed)]
         from .resolve.segments import Segment as _SegHM
         for _pg, _sgs in list(segments_by_page.items()):
             _out = []
@@ -645,6 +677,7 @@ def _extract_model(model, court_id: str, pdf_path) -> ExtractionResult:
                     if _keep_lines:
                         _kept.append(_SegCov(_sg.page, _keep_lines, _sg.kind))
                 segments_by_page[_pg] = _kept
+
     def _assemble_with(segs):
         return assemble(model, geom, segs, zones, zone_tops,
                         zone_lines_by_page, parser, vocab, trace,
@@ -705,6 +738,22 @@ def _extract_model(model, court_id: str, pdf_path) -> ExtractionResult:
             assembled = _retry
             _court_hm = None
     doc.opinions = assembled.opinions
+    # ONE PAPER, ONE WRITING, where the court declares it (see
+    # CourtProfile.single_writing). Only writings that AGREE about their
+    # author are folded: a genuine second author is left standing and
+    # visible, because a fold that swallowed one would be the same content
+    # loss the split is.
+    if profile is not None and getattr(profile, "single_writing", False) \
+            and len(doc.opinions) > 1:
+        _names = {(o.author or "").strip() for o in doc.opinions}
+        _names.discard("")
+        if len(_names) <= 1:
+            _lead = doc.opinions[0]
+            for _extra in doc.opinions[1:]:
+                _lead.blocks.extend(_extra.blocks)
+                if not _lead.author and _extra.author:
+                    _lead.author = _extra.author
+            doc.opinions = [_lead]
     doc.dropped.extend(assembled.dropped)
     doc.headmatter_footnotes = assembled.headmatter_footnotes
     doc.warnings.extend(
