@@ -332,6 +332,7 @@ def read_headmatter_or(model, geom, **_):
         return NOTHING
 
     ctx = _Ctx()
+    signed_at: tuple[int, float] | None = None
     # THE RUNNING HEADS, read across EVERY page and never claimed: they are
     # the only place the advance sheet prints Oregon's public-domain cite and
     # the case's short name, and they are furniture wherever they stand. The
@@ -416,6 +417,7 @@ def read_headmatter_or(model, geom, **_):
         # records, 0.0 on state_v._ayon-urbano). It is never on the axis, so
         # a caption row shaped like one cannot end the reader early.
         if idx > mast and not centred and _BYLINE.match(text):
+            signed_at = (pm.number, first.top)
             break
         # A ROW AT THE BODY INDENT has left the block.
         if not centred and dx > _LADDER_X_MAX:
@@ -529,6 +531,53 @@ def read_headmatter_or(model, geom, **_):
             ctx.crit.setdefault("lower_court", _lower[0])
     if counsel:
         ctx.crit.setdefault("attorneys", " ".join(counsel)[:2000])
+    # THE REPORTER'S DISPOSITION STATEMENT IS NOT THE OPINION. The byline
+    # stands over a short statement of what the court did — 'The decision of
+    # the Court of Appeals is reversed in part. The judgment of the circuit
+    # court is reversed, and the case is remanded …' — and, where there is
+    # one, a note that a separate writing was filed ('Bushong, J., concurred
+    # in part and dissented in part and filed an opinion.'). The page then
+    # ends, and the opinion PROPER opens on the next leaf, its author named
+    # again in every running head. Read as the writing's opening those rows
+    # made the opinion begin with its own outcome (the user, 2026-08-20: "we
+    # keep thinking the opinion starts with the summary … but that is
+    # followed by a long whitespace and a new page with the actual opinion").
+    #
+    # Measured over the 50 records: 47 sign (35 on page 1, 12 on page 2) and
+    # the rows below that signature on its own page are 3-8 on 42 of them —
+    # 37 opening on a disposition sentence, 20 on a separate-writing note,
+    # the rest their wraps. So the statement is what stands between the
+    # signature and the foot of the page it is signed on, and nothing below
+    # that page is touched.
+    #
+    # THE SIGNATURE ROW ITSELF IS LEFT WHERE IT IS. It is the anchor core
+    # opens the writing on and the only place this paper names the author, so
+    # a reader that claims it costs the document its byline.
+    # THE SUMMARY IS A FLOW SECTION, so it carries PARAGRAPHS and not rows —
+    # `sections.py` declares it "flow", and rows put there took the renderer
+    # down on 48 of the 50 records (`_render_blocks: HmLine`). The statement
+    # is prose and it wraps, so it is rebuilt into paragraphs on the
+    # reporter's own indent: an opener stands 15pt in from the rail, a wrap
+    # sits at the rail — the same ladder fact this reader already uses above.
+    if signed_at is not None:
+        _pg, _top = signed_at
+        _page = model.pages[_pg - 1]
+        _tail = [l for l in sorted(_page.lines, key=lambda l: (l.top, l.x0))
+                 if l.top > _top + 1.0 and l.plain.strip()
+                 and not (l.size and l.size < _BODY_SIZE_MIN)]
+        if _tail:
+            _rail = min(l.x0 for l in _tail)
+            _paras: list[list] = []
+            for _line in _tail:
+                if not _paras or _line.x0 > _rail + _INDENT / 2:
+                    _paras.append([_line])
+                else:
+                    _paras[-1].append(_line)
+            for _run in _paras:
+                ctx.summary.append(m.Paragraph(
+                    text=" ".join(_norm(l.plain) for l in _run),
+                    prov=m.Prov(_run[0].page, tuple(l.id for l in _run))))
+                ctx.consumed.update(l.id for l in _run)
     ctx.crit.setdefault("headmatter_style", "advance-sheet")
     return ctx.result()
 
@@ -649,6 +698,7 @@ class _Ctx:
     def __init__(self):
         self.items: list = []
         self.dropped: list = []
+        self.summary: list = []
         self.consumed: set[int] = set()
         self.crit: dict = {}
 
@@ -684,5 +734,6 @@ class _Ctx:
 
     def result(self) -> dict:
         return {"criteria": self.crit, "items": self.items, "attorneys": [],
+                "summary": self.summary,
                 "dropped": self.dropped, "consumed": self.consumed,
                 "anchor_ids": [], "doc_type_final": None}

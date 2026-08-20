@@ -28,7 +28,19 @@ def is_folio_text(text: str) -> bool:
             a, _, b = t.lower().partition(" of ")
             return a.strip().isdigit() and b.strip().isdigit()
     core = t.strip("-–—  ")
-    return core.isdigit() and len(core) <= 4
+    if core.isdigit() and len(core) <= 4:
+        return True
+    # A LETTER-SPACED FOLIO IS STILL A FOLIO. The Oregon Reports set one
+    # page's number with space between the digits and it extracts as '7 2',
+    # which `isdigit` rejects — so the folio was not furniture, survived into
+    # the stream, and became the opinion's own first block
+    # (or/state_v._de_witt_simons, and its duplicate). Every whitespace-
+    # separated piece must be a digit and the digits must still number four
+    # or fewer, which is the same bound as above: '7 2' passes, a date or a
+    # citation cannot.
+    pieces = core.split()
+    return (len(pieces) > 1 and all(p.isdigit() for p in pieces)
+            and sum(len(p) for p in pieces) <= 4)
 
 
 # A WORD-PROCESSOR PATH IS NOT PROSE. Some chambers templates print the
