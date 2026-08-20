@@ -2251,3 +2251,127 @@ present means OPINION, nothing drawn means NOTICE — never by front-matter
 wording). Item 41 closed locally; item 65's `criteria.judges` deliberately
 carries the LABELLED roster only, and NOT the announced author, or the bench
 and the author become indistinguishable.
+
+## 71. APPLIED 2026-08-20 — washctapp's profile gave a COURT OF APPEALS "Justice" (`courts/__init__.py:467`)
+
+From the washctapp port. Registered as a bare
+`BylineGrammar(style="abbrev")`, so under the inherited `DEFAULT_ABBREV` **all
+42 records recorded `author_title='Justice'` or `'Chief Justice'` for a bench
+that has neither.** Worse, the Divisions seat an **Acting Chief Judge** —
+`VELJACIC, A.C.J. — …`, `PRICE, A.C.J. — …` — which is in no default list, so
+those **2 of 42 came back AUTHORLESS with the whole opinion typed `order`.**
+
+Declared `abbrev_titles` for `A.C.J.`/`A. C. J.`, `C.J.`/`C. J.` and `J.`
+(both spellings, because the parser spreads tight punctuation) plus
+`titles=("Judge","Chief Judge")`.
+
+Verified after applying: lead author titles are now **Judge 28, Chief Judge 7,
+Acting Chief Judge 2** and no `Justice` anywhere; 982/982 rows hold, 42/42
+valid. The 5 leads still authorless are the stapled publication-order parts,
+which are unsigned by design.
+
+## 72. `geometry.measure` on a stapled part with no body prose reads its measure off the FILING STAMP — `geometry.py` / `pipeline.py:186-200`
+
+From washctapp. Related to item 14, distinct from it. `aiden`'s first part —
+the publication order, two pages, one of them nothing but its cover — measures
+`body_x0=497.0, right_x1=525.9`: a **28.9pt "measure"**, taken from the clerk's
+stamp because there is no prose to measure. Against 28.9pt every caption row
+is full-measure body prose.
+
+Closed locally with `_MIN_MEASURE = 0.5` (a measure narrower than half the page
+is not a measure). **The clean fix is upstream:** measure the geometry ONCE on
+the whole model in `pipeline.extract` and hand it to each `_extract_model`
+part, since the parts share one press.
+
+## 73. A conformed PANEL SIGNATURE at the foot of a writing becomes a zero-block writing — `resolve/assemble.py` / `resolve/bylines.py`
+
+From washctapp. **Third manifestation of the family in items 29 and 49**, and
+pre-existing — identical with the decider popped.
+
+`aiden` yields 4 writings, two with **zero blocks** (`MAXA, J.` at p2 t=232.9,
+the order's own sign-off; `PRICE, J.` at p21 t=682.3, the panel's); `spanjer`
+yields 2, the second `CHE, J.` at p16 t=465.6 with zero blocks. **This is what
+keeps washctapp's ownership probe at 19 blocks rather than 0.**
+
+The old engine gated it two ways worth reproducing: `_byline_at` required the
+inline em-dash (`'BIRK, J. — …'`), so a centred `MAXA, J.` sign-off could not
+open a writing; and `_harvest_panel_signature` lifted the
+`MAXA, J. / We concur: / VELJACIC, A.C.J. / PRICE, J.` run into
+`doc.signature`. Proposed rule, count-independent: **a byline with no blocks
+after it, standing inside the trailing signature run of the writing above, is
+a signature, not a writing** — demote it to `Opinion.signature`. 3 writings
+across 2 records here.
+
+## 74. A stapled part's `publication_status` overrides the paper's own — `pipeline.py:190-197`
+
+From washctapp. `aiden` and `pulte` come back
+`publication_status='unpublished'` although **page 1 is an `ORDER GRANTING
+MOTION TO PUBLISH`**: the merge loop copies the status from part 2's cover,
+which still calls the opinion UNPUBLISHED because the court never reset its own
+label. A part whose cover the order supersedes should not donate a status.
+
+Both records are held back from pinning for this reason.
+
+## washctapp: ONE court printing TWO branches, split by DIVISION
+
+The taxonomy finding, and it is not what any wording would predict — the split
+is by DIVISION, not by publication status and not by phrasing:
+
+    drawn vertical whose foot meets a horizontal rule (ohioctcl's branch)
+      37 records — Division ONE 20, Division II 17. Exactly one tall vertical
+      in x 292.3-316.7 (0.478-0.518 of a 612pt page); the fence starts within
+      5pt of the body rail and x1 - rail_x = 0.0 on 36 of 37.
+
+    typed ')' glyph-by-glyph (illappct/idahoctapp's branch)
+      5 records — Division THREE. 9-11 glyphs at x=312, NO rule anywhere on
+      the page, no fence at all; the band closes at the foot of the rail.
+
+No record draws both; none draws neither. So `wash`'s own drawn rail survives
+into the appellate court for two of three divisions and is replaced by a typed
+one in the third.
+
+**Three findings that were not in the brief, each worth carrying forward:**
+
+1. **A RAIL IS A COLUMN WITH A CONSTANT PITCH.** `teamsters`' first paragraph
+   prints `(County)`, whose `)` lands **0.3pt from the rail's x, 30pt under its
+   last glyph**. Taken as a rail glyph it drove the caption band **193pt into
+   the opinion and claimed six paragraphs of prose.** Fixed by reading the rail
+   as the longest run whose step holds the stack's own median (14.9pt) — the
+   prose paren misses by 2.0x. Any typed-rail court needs this.
+2. **THE MASTHEAD IS SEPARATED FROM THE CAPTION BY TYPE SIZE**, not by column
+   and not by gap. Division II centres `DIVISION II` on the page axis AT THE
+   CAPTION'S OWN FIRST BASELINE, so it straddles the rail — and one record sets
+   the party cell hard against it with **zero gap** (`FREDERICK BURNEY,
+   individually, DIVISION II` arrives as one run). The label is 14.0pt against
+   a 12.0pt caption on all 12 collision records, and an oversized run inside a
+   band is `DIVISION II` and nothing else in the whole corpus: 10 glyphs, 12
+   records, **0 false positives**. A dagger footnote mark is SMALLER (8.0pt)
+   and stays in its cell.
+3. **v1's whitespace fold mis-files a cell.** `shogren` prints
+   `WASHINGTON / STATE / BAR` as three runs of one row, and v1's
+   `mid = width/2 - 25` puts `BAR` (x0 281.4) in the RIGHT column and renders
+   it twice. Glyph-by-glyph against the drawn rail keeps it left.
+
+**The ownership probe, before and after:** 31 misfiled blocks across 4 files ->
+**19 across 2**. The 12 removed are the two reprinted covers that were body
+prose at the tail of the writing above; the 19 remaining are item 73, not this
+reader. And Form 2 of wash's defect (the writing's own centred docket head)
+**does not occur here** — over every page after the first, 344 rows carry a
+docket page 1 printed, core sweeps 339, and the 5 it leaves are the docket
+CELLS of second covers, 50-125pt right of the page axis. The agent wrote no
+scanner for a shape the court does not print, which is the right instinct.
+
+Items 6, 60, 41 and 65 measured as NOT manifesting here, each recorded with its
+evidence rather than assumed. Note for any docket-identity test in item 6: the
+`/N` page suffix (`No. 88253-8-I/2`) means it must compare the part before the
+`/`.
+
+## A judgement call, ACCEPTED: `decision_date` read off an attested-and-dropped stamp
+
+washctapp reads `decision_date` from the clerk's stamp — the same row it
+records as `Dropped(kind="stamp")`. The agent flagged this as new and offered to
+withdraw it. **Keep it.** It is the only place this paper states when it was
+filed (the caption's right column carries no date, unlike `wash`'s
+`Filed: <date>` cell), v1 records no date at all, and the row is attested in
+`Dropped` so nothing is hidden. 22 of 42 records get one; the 20 Division One
+records print no stamp and correctly get none.

@@ -65,9 +65,10 @@ straddles the rail — and burney sets the party cell hard against it, with no
 gap at all ('FREDERICK BURNEY, individually, DIVISION II' arrives as one
 run). What separates them is TYPE SIZE: the masthead is set one step larger
 than the caption (14pt against 12pt) on all 12 records that collide, and
-ball's row splits the same way into three sizes-runs — party, division,
-docket. A run that CROSSES the rail is never a caption cell; the caption
-does not cross its own divider.
+ball's row splits the same way into three — party, division, docket. So the
+size, not the column and not the gap, is what takes the label out; and the
+corroboration is that a caption never crosses its own divider, which every
+one of those labels does.
 
 Division ONE prints its label as an ordinary right-column cell instead, and
 it is read there, by the same closed vocabulary.
@@ -97,10 +98,34 @@ and none prints it three times.
 That second block belongs to the writing BELOW it, and left in the stream
 every one of its rows falls into the writing ABOVE — which is what put a
 whole reprinted caption at the foot of the publication order in burns and
-l.g. It is read with page 1's own measured rule (a divider in the page's top
-band, the banner as the last row above it, the fence closing the band, and
-no body prose anywhere in it) and the banner is compared against the row
-THIS document printed on page 1, never against a wording list.
+l.g. It is read with page 1's own measured rule — a divider in the page's
+top band, the banner ABOVE it with nothing but the division between the two,
+the fence closing the band, and nothing over the banner but the clerk's
+stamp in the page's top 18%. The banner is compared against the row THIS
+document printed on page 1, never against a wording list. A threshold on the
+block's own first row is the wrong test and was the wrong test: burns opens
+its second cover at 0.29 of the page.
+
+Two of the five never reach that test. CORE ALREADY CUTS THEM IN TWO:
+`pipeline._attached_documents` starts a new stapled document at a page
+carrying both the banner and a filing stamp, which is aiden's page 3 and
+pulte's page 2 (Division One stamps nothing, so burns, l.g. and salvo stay
+whole). Each part is then read on its own, and this reader reads each part's
+cover as that part's headmatter. Two consequences it has to survive:
+
+  * A STAPLED PART IS NUMBERED FROM ITS OWN FIRST PAGE. `pm.number` is
+    1..n within the part and every prov is shifted by the part's offset
+    afterwards, but `Line.page` still holds the number of the PDF it was
+    read from. Every page test here therefore reads the PAGE's number.
+    Read off the line, part 2 of aiden matched no row at all and the reader
+    declined it silently; and a prov built from it would be shifted twice.
+
+  * A PART MAY NOT BE ABLE TO STATE ITS OWN MEASURE. aiden's first part is
+    the order — two pages, one of them nothing but its cover — and
+    `geometry.measure` reads body_x0=497.0, right_x1=525.9 off the filing
+    stamp: a 28.9pt 'measure' against which every caption row is
+    full-measure body prose. The prose backstop is skipped rather than
+    trusted when the measure comes back narrower than half the page.
 
 OWNERSHIP: IT IS DROPPED, not moved. A writing's `caption` field is filled
 by assembly, which runs AFTER this reader, so a court file cannot hand rows
@@ -113,10 +138,10 @@ the page itself distinguishes: the clerk's stamp as `stamp`, exactly as page
 1's is, the reprinted block as `superfluous`.
 
 WHAT THIS COURT DOES NOT DO. It prints no per-writing docket head. Measured
-over every page after the first, in all 42 records: 372 rows carry a docket
-this document's page 1 printed, core's furniture pass sweeps 367 of them as
-running heads, and the 5 it leaves are the docket CELLS of the five
-reprinted blocks above — set 50 to 125pt right of the page axis, in a
+over every page after the first, in all 42 records: 344 rows carry a docket
+this document's page 1 printed, core's furniture pass sweeps 339 of them as
+running heads, and the 5 it leaves are the docket CELLS of the five second
+covers above — set 50 to 125pt right of the page axis, in a
 caption column, not centred over a byline. wash's second form does not occur
 here and nothing is written to look for it.
 """
@@ -199,18 +224,15 @@ _PROSE_INK = 0.85
 _MAX_PAGES = 3
 # A caption's CONTINUATION opens the next page's top band.
 _TOP_BAND = 0.25
-# …and the CLERK'S STAMP occupies the page's top 18% (35.6 to 143.2 of 792,
-# measured over the 22 records that print one).
+# …and the CLERK'S STAMP occupies the page's top 18% — 35.6 to 143.2 of
+# 792, measured over the 22 records that print one. 0.25 leaves a line of
+# margin on that, and it is only ever asked of a page that already carries a
+# divider under a repeat of this document's own banner.
 _STAMP_TOP_MAX = 0.25
 # THE PAGE'S OWN AXIS. The banner and the division label centre within
 # 0.2pt of it (305.85 and 306.0 against 306.0); the nearest stamp row
 # centres 146pt off it, and Division III's 176pt off.
 _AXIS_TOL = 40.0
-# A DOCKET CARRIES A NUMBER. Washington's is 'NNNNN-N-D'; five digits is a
-# floor a page number could never reach. The running head sets the page
-# after it ('No. 88253-8-I/2'), so the identity is the part before the '/'.
-_DOCKET_DIGITS = 5
-
 # THE PAPER'S OWN LABELS, set in the caption's right column. Closed
 # vocabularies, all of them: the court's own docket opener, the division it
 # sits in, and what the paper calls itself.
@@ -267,7 +289,15 @@ def _is_division(text: str) -> bool:
 
 def _is_typed_rule(text: str) -> bool:
     """A fence the court TYPED rather than drew: a run of underscores,
-    sometimes carrying the rail's own glyph at its right end."""
+    sometimes carrying the rail's own glyph at its right end.
+
+    Measured, washctapp never types its fence — it draws all 37 and leaves
+    Division III's 5 unfenced. The 16 underscore runs in the corpus are all
+    signature lines on a LAST page, and the nearest one to a fence
+    (boyce's 'JUDGE' rule, x 72.0-291.3 under a rail at 312.3) is still
+    10.7pt short of the reach test. Kept because the sibling court types the
+    same fence the same way, and a typed rule that DOES reach the rail is
+    the fence whatever drew it."""
     flat = _norm(text).rstrip(")")
     return len(flat) >= 8 and set(flat) <= set("_")
 
@@ -281,15 +311,6 @@ def _find_date(text: str) -> str | None:
     if mm is None or mm.group(1).lower() not in _MONTHS:
         return None
     return _norm(mm.group(0))
-
-
-def _docket_key(text: str) -> str:
-    """A docket's IDENTITY is its number, not its setting: '58957-5-II' and
-    'No.  58957-5-II' are the same docket, and the running head sets the
-    page after it ('No. 88253-8-I/2'). '' where the row states no number."""
-    head = _norm(text).split("/")[0]
-    key = re.sub(r"[^0-9-]", "", head).strip("-")
-    return key if sum(c.isdigit() for c in key) >= _DOCKET_DIGITS else ""
 
 
 def _measure(geom) -> tuple[float, float]:
@@ -739,9 +760,12 @@ def read_headmatter_washctapp(model, geom, **_):
         fs = _fences(pm, r["x"], rows, body_x0, pno_of)
         close = [t for t in fs if t >= r["bottom"] - _FENCE_DROP]
         bottom = close[0] if close else r["bottom"]
-        # …AND NEVER PAST THE COURT'S OWN PROSE. The fence and the rail are
-        # the caption's bounds; this is the backstop for a page that sets
-        # neither, and it is what a mis-read rail would otherwise cost.
+        # …AND NEVER PAST THE COURT'S OWN PROSE. Measured, this never
+        # fires: on all 42 records the fence or the rail closes the band
+        # above the first prose row. It is the backstop for a rail read
+        # wrong, and it is written down because a rail WAS read wrong —
+        # teamsters' '(County)' drove the band 193pt into the opinion until
+        # the rail's own pitch cut it.
         prose = [l.top for l in rows
                  if pno_of[l.id] == pm.number and r["top"] < l.top <= bottom
                  and _is_prose(l, geom)] if sane else []

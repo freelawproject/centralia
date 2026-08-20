@@ -464,8 +464,20 @@ register(CourtProfile(
         ("J.P.T.", "Justice Pro Tempore"),
         ("J. P. T.", "Justice Pro Tempore"),
     ) + DEFAULT_ABBREV)))
-register(CourtProfile("washctapp", "Washington Court of Appeals",
-                      byline=BylineGrammar(style="abbrev")))
+register(CourtProfile(
+    "washctapp", "Washington Court of Appeals",
+    # A COURT OF APPEALS HAS JUDGES. Under the inherited DEFAULT_ABBREV all
+    # 42 records recorded author_title='Justice' or 'Chief Justice' for a
+    # bench that has neither. And the Divisions seat an ACTING CHIEF JUDGE —
+    # 'VELJACIC, A.C.J. — The Washington State Department of Revenue…' — which
+    # is in no default list, so those two records came back AUTHORLESS with
+    # the whole opinion typed `order`. The parser spreads tight punctuation,
+    # so both spellings are declared.
+    byline=BylineGrammar(style="abbrev", abbrev_titles=(
+        ("A.C.J.", "Acting Chief Judge"), ("A. C. J.", "Acting Chief Judge"),
+        ("C.J.", "Chief Judge"), ("C. J.", "Chief Judge"),
+        ("J.", "Judge"),
+    ), titles=("Judge", "Chief Judge"))))
 register(CourtProfile(
     "wva", "Supreme Court of Appeals of West Virginia",
     # THREE signing forms: 'JUSTICE WOOTON delivered the Opinion of the

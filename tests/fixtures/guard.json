@@ -11877,6 +11877,166 @@
   "summary": 0,
   "syllabus": 0
  },
+ "washctapp/austin_stone_v_king_county_et_ano.": {
+  "attorneys": 0,
+  "criteria": [
+   "docket_number",
+   "parties",
+   "publication_status"
+  ],
+  "hm": 4,
+  "hm_roles": {
+   "caption": 13,
+   "court": 2,
+   "docket": 1,
+   "publication": 1
+  },
+  "lead_bylined": true,
+  "op_blocks": [
+   42
+  ],
+  "ops": [
+   "majority"
+  ],
+  "residual": 0,
+  "status": "valid",
+  "summary": 0,
+  "syllabus": 0
+ },
+ "washctapp/frederick_burney_v._snohomish_county": {
+  "attorneys": 0,
+  "criteria": [
+   "decision_date",
+   "docket_number",
+   "parties",
+   "publication_status"
+  ],
+  "hm": 4,
+  "hm_roles": {
+   "caption": 30,
+   "court": 2,
+   "docket": 1,
+   "publication": 1
+  },
+  "lead_bylined": true,
+  "op_blocks": [
+   67
+  ],
+  "ops": [
+   "majority"
+  ],
+  "residual": 0,
+  "status": "valid",
+  "summary": 0,
+  "syllabus": 0
+ },
+ "washctapp/in_re_the_estate_of_daphne_may_burns": {
+  "attorneys": 0,
+  "criteria": [
+   "docket_number",
+   "parties"
+  ],
+  "hm": 4,
+  "hm_roles": {
+   "caption": 8,
+   "court": 2,
+   "docket": 1,
+   "title": 2
+  },
+  "lead_bylined": false,
+  "op_blocks": [
+   6,
+   49
+  ],
+  "ops": [
+   "majority",
+   "majority"
+  ],
+  "residual": 0,
+  "status": "valid",
+  "summary": 0,
+  "syllabus": 0
+ },
+ "washctapp/rosalinda_herrera_heredia_v._quang_vuong": {
+  "attorneys": 0,
+  "criteria": [
+   "docket_number",
+   "parties",
+   "publication_status"
+  ],
+  "hm": 5,
+  "hm_roles": {
+   "caption": 73,
+   "court": 2,
+   "docket": 1,
+   "publication": 1
+  },
+  "lead_bylined": true,
+  "op_blocks": [
+   75
+  ],
+  "ops": [
+   "majority"
+  ],
+  "residual": 0,
+  "status": "valid",
+  "summary": 0,
+  "syllabus": 0
+ },
+ "washctapp/teamsters_local_839_v._benton_county": {
+  "attorneys": 0,
+  "criteria": [
+   "decision_date",
+   "docket_number",
+   "parties",
+   "publication_status"
+  ],
+  "hm": 3,
+  "hm_roles": {
+   "caption": 16,
+   "court": 2,
+   "docket": 1,
+   "publication": 1
+  },
+  "lead_bylined": true,
+  "op_blocks": [
+   67
+  ],
+  "ops": [
+   "majority"
+  ],
+  "residual": 0,
+  "status": "valid",
+  "summary": 0,
+  "syllabus": 0
+ },
+ "washctapp/virginia_p._shogren_v._washington_state_bar_assoc.": {
+  "attorneys": 0,
+  "criteria": [
+   "decision_date",
+   "docket_number",
+   "parties",
+   "publication_status"
+  ],
+  "hm": 4,
+  "hm_roles": {
+   "caption": 20,
+   "court": 2,
+   "docket": 1,
+   "publication": 1
+  },
+  "lead_bylined": true,
+  "op_blocks": [
+   66
+  ],
+  "ops": [
+   "majority"
+  ],
+  "residual": 0,
+  "status": "valid",
+  "summary": 0,
+  "syllabus": 0
+ },
  "wis/elizabeth_bothfeld_v._wisconsin_elections_commission": {
   "attorneys": 0,
   "criteria": [
