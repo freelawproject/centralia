@@ -2120,3 +2120,134 @@ Item 44's OPINION half is now used twice (calctapp, hawapp) — declaring
 `DocType.OPINION` retypes hawapp's three memorandum opinions from `order` to
 `majority`. **The ORDER half of that mirror is still missing**, and hawapp's 25
 orders rely on `assemble` for it.
+
+## Item 56 — CONFIRMED at its exact site by vactapp, patch verified in memory
+
+vactapp hit item 56 verbatim, at `resolve/assemble.py:1005`, the same site
+ncbizct found. `belaal_khan` page 2 wraps to
+`judgment of the circuit court is affirmed.1` — 42 chars, narrow, so `_wide`
+misses it — which `heading_doc_type` types `judgment`; the
+`headmatter_claimed` rule at `:1133` prepends `_body0` and keeps it, **splitting
+one 37-block majority into 2 + 36 at the page break.** The existing
+`_is_dispo_line` guard returns False: it is a MID-SENTENCE wrap and the
+trailing `1` is a footnote mark.
+
+**Item 56's own patch text, applied verbatim in memory, fixes it and changes
+nothing else in the corpus.** Two independent courts now want the same line.
+
+**Do not pin `vactapp/belaal_khan_v._cynthia_mcalister_…` until it lands.**
+
+## Item 48 addendum — `OPINION <participle> <date>` names WHEN, not WHAT
+
+From vactapp. Item 48 kills `OPINION BY <name>`; the same arm also takes:
+
+    heading_doc_type('Opinion Issued May 5, 2026')         -> opinion
+    heading_doc_type('Opinion rendered by Judge Athey on') -> opinion
+    heading_doc_type('Order Entered June 1, 2026')         -> order
+
+Without a reader, core anchored one writing on the DATE ROW's segment —
+accidentally right. Extend item 48's guard:
+
+    if re.match(rf"^{re.escape(key)}\s+(BY|ISSUED|RENDERED|FILED|ENTERED|"
+                rf"DELIVERED|ANNOUNCED)\s+\S", c):
+        return False
+
+## 68. A REPEATED PAGE-1 LADDER on a later page opens a second document — `pipeline.py::_attached_documents`
+
+From vactapp. `daniel_c._lavering` is a STAPLE of two papers and is not split:
+page 18 is a COMPLETE second ladder — banner, 3 fences, 2 shelves,
+`Opinion Issued May 5, 2026`, its own counsel, its own
+`PUBLISHED OPINION BY / JUDGE KEVIN M. DUFFAN` — the withdrawn original behind
+the opinion on rehearing. It renders as `<h3 class="bhead">`/`<blockquote>`
+inside the majority.
+
+`docs/lessons` already records this as "Rehearing staples… stapled-document
+splitter keys on Filed+banner; VA style differs". **The measurable landmark now
+exists:** a repeated page-1 ladder (banner + >=2 axis fences + 2 shelves +
+announcement) on a later page opens a second document. Note the vactapp profile
+fact applied today already resolves it halfway for free — two authored writings
+instead of one fused.
+
+**Do not pin `vactapp/daniel_c._lavering_…` until the splitter handles it.**
+
+## 69. APPLIED 2026-08-20 — vactapp's profile could not read the announcement it is handed (`courts/__init__.py:436`)
+
+`BylineParser(prose, titles=("Judge",…)).parse('JUDGE DAVID BERNHARD')` ->
+`None`, so `announced_author` died at `pipeline.py:1917` and **all 29
+majorities were unauthored.** The court ANNOUNCES rather than signs, and the
+announcement is REVERSED: `PUBLISHED OPINION BY` over `JUDGE DAVID BERNHARD`.
+
+Added `rev_titles=("SENIOR JUDGE","CHIEF JUDGE","JUDGE")` and
+`also_reversed=True`. Verified after applying: **29 of 30 lead writings now
+carry an author** (the 30th is the clerk's appeal list, which has none by
+design), 473/473 rows hold, 30/30 valid.
+
+The agent measured the near-misses too — it rejects `Present: Judges …`,
+`James P. Fisher, Judge` and `FROM THE CIRCUIT COURT …`. And it explicitly
+warned against the tempting alternative: **do NOT use
+`allow_titlecase_name=True`**, which reads `James P. Fisher, Judge` and
+`Cheryl V. Higgins, Judge` as bylines and mistitles them `Justice` — exactly
+what v1's own `vactapp.py` guarded against. The short dissent form
+(`Athey, J., dissenting.`, 4 records) waits on **item 40**'s
+`titlecase_bare_surname`, which rejects a 3-token trial-judge name.
+
+## 70. The render has no vocabulary for a one-third-measure centred fence — `render/html.py`
+
+From vactapp. `Rule.span` is `full|left|right|center`, and `center` is a 44px
+dinkus. vactapp's ladder has TWO invariant measures — a 201.6pt axis-centred
+caption fence and a 467.2pt full-measure shelf — and both render `span-full`,
+so the ladder's two measures are indistinguishable in the output. The reader
+emits `full` for both (what core and v1 already do, hence its zero row diff)
+rather than invent. A `span="third"` or a measure-carrying value would let the
+page be reproduced.
+
+## vactapp: the TENTH branch — the MEASURE names the section
+
+Zero vertical rules on page 1 of all 30 records, and zero across whole
+documents on 29 of 30 (the exception has 3, deep inside a table on a later
+page). No rail, no rail glyph, no typed fence — **and no second column**: every
+caption row is centred on the caption's own axis, and the only rows that leave
+it are not row-paired with anything.
+
+So this is NOT va's branch ("nothing drawn, so the x0 threshold is the
+divider"). It is **drawn horizontals only, in two invariant measures, one
+column** — the `ca5` rule that the MEASURE names the section, arrived at
+independently:
+
+    201.6pt  x 204.0-405.6, centre 304.8, invariant to 0.05pt   the CAPTION FENCE
+             3 per single record, 5 per consolidated; consecutive fences share
+             an edge, so n fences enclose n-1 cells, alternating docket/parties
+    467.2pt  full measure at the text margin, 72.0-540.0        the SHELVES
+             exactly 2, always below the last fence: #1 closes the roster zone,
+             #2 closes counsel and opens the announcement
+    135.8-226.3pt rect   NOT a measure at all — it is the NAME's UNDERLINE
+             (matches JUDGE DAVID BERNHARD 228.1-380.0 against a rect at
+             228.1-379.8, the ca5/ca1 test)
+
+Dispatch is the FENCE RUN, never the banner and never the wording — the
+masthead is 14pt on 28 records and the body's 12pt on two, so size is not the
+landmark either. A second format (1 of 30) is the clerk's list of opinions
+appealed on to the Supreme Court: it **draws nothing and sets nothing bold**,
+which are the two measurements that tell it from the court's own paper, and it
+is typed a NOTICE.
+
+**And v1's headmatter RAN AWAY over the entire opinion on four records** — 448,
+450, 590 and 156 rows — where ours are 16-20 and right. 25 of 30 are otherwise
+byte-identical to v1 row for row. Another entry for "v1 is a reference, not a
+standard".
+
+Two backlog items closed by this port: **"vactapp counsel pairs fused into one
+attorneys block"** is FIXED (an appearance's own wrap is 13.8pt, the next opens
+25.7-25.8pt down, with no value in between anywhere in the corpus), and
+**"vactapp literal fn marks in headings ('BACKGROUND2')"** was ALREADY fixed in
+this engine — the render emits a proper `<sup class="fnmark">`. The entry can be
+deleted. The agent did find and fix the CRITERIA twin: `strip_tags` keeps a
+`<footnotemark>`'s content, which had left `lower_court_judge = 'Daniel T.
+Lopez, Judge1'` and a party named `… UNIVERSITY OF VIRGINIA1`.
+
+Item 60 does NOT arise here (one column, so no printed line can be reversed by
+the sort) and item 62 does not either (doc_type is decided by geometry — fences
+present means OPINION, nothing drawn means NOTICE — never by front-matter
+wording). Item 41 closed locally; item 65's `criteria.judges` deliberately
+carries the LABELLED roster only, and NOT the announced author, or the bench
+and the author become indistinguishable.

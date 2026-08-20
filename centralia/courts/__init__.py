@@ -435,8 +435,18 @@ register(CourtProfile(
 # does not SIGN its majorities, it ANNOUNCES the author in the caption.
 register(CourtProfile(
     "vactapp", "Court of Appeals of Virginia",
+    # THE COURT ANNOUNCES, IT DOES NOT SIGN. 'PUBLISHED OPINION BY' over
+    # 'JUDGE DAVID BERNHARD' is the only place an author appears on the page,
+    # and it is REVERSED — so without rev_titles the prose parser returned
+    # None and `announced_author` died at pipeline.py:1917, leaving all 29
+    # majorities unauthored. Measured over the corpus: 29 of 29 gain their
+    # real author and title, 0 phantom writings, and every near-miss on the
+    # page is still rejected ('Present: Judges …', 'James P. Fisher, Judge',
+    # 'FROM THE CIRCUIT COURT …').
     byline=BylineGrammar(style="prose", opinion_by_headings=True,
-                         titles=("Judge", "Chief Judge", "Senior Judge"))))
+                         titles=("Judge", "Chief Judge", "Senior Judge"),
+                         rev_titles=("SENIOR JUDGE", "CHIEF JUDGE", "JUDGE"),
+                         also_reversed=True)))
 register(CourtProfile(
     "vt", "Supreme Court of Vermont",
     byline=BylineGrammar(style="abbrev", strip_para_marker=True)))
