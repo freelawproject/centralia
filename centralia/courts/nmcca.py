@@ -209,12 +209,17 @@ WHERE THE BLOCK ENDS, AND WHAT IT MUST NOT SWALLOW. The reader ends at the
 first byline, which on all 32 records stands on page 2 at the body rail. Two
 things inside the span are NOT the block and are left alone:
 
-  * the RUNNING HEAD on every continuation sheet, which the block runs
-    through on 12 records whose appearances or attribution spill onto page
-    2 — core's `FurnitureFinder` already identifies both its rows by
-    repetition, and this reader skips whatever it tags rather than matching
-    the head's wording (the old engine needed a court-specific 70pt head
-    band for exactly this);
+  * the RUNNING HEAD on every continuation sheet. The block runs through it
+    on 17 of the 32 records — every record whose block reaches page 2 at
+    all — and core cannot always see it, because core identifies furniture
+    by RECURRENCE and this head is set at BODY size: on a 2-page slip it
+    prints exactly once, below the >=2-sheet floor, and on williams the
+    second row changes wording at page 5 ('Modified Entry of Judgment') so
+    neither variant clears the floor either. Where core does tag it this
+    reader skips it; where core does not, the reader takes it by the
+    MEASURED BAND and records it as `Dropped` kind 'running-head' (31 rows
+    over the corpus). The old engine needed a court-specific 70pt head band
+    for exactly this;
   * the FOOTNOTE ZONE. Page 1 carries a footnote on 14 records — a credit
     for pretrial confinement hung off the trial recital — and the court
     draws its separator as a RECT 144.0pt wide at the page's left text

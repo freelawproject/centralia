@@ -1633,3 +1633,93 @@ Also from ncbizct, informational: core types 32 of these 42 papers `order` and
 stated by the reader rather than inferred. And `disposition` is set to a bare
 `DENIED.` from body prose on two records — core's, not the reader's; thin but
 not false.
+
+## 57. The byline grammar cannot read a NOBILIARY PARTICLE — `resolve/bylines.py`
+
+From the nmcca port, 2026-08-20. Two of that court's judges sign
+`de GROOT, Judge:`. **Three parts, and the measured table below shows part (b)
+alone is actively harmful** — land all three or none.
+
+**(a)** `_NAME` (in `BylineParser.__init__`) requires the first token to open
+on an uppercase letter, so `_prose` never matches. Admit the particle exactly
+as `Mc|Mac|St.` already are:
+
+    _PARTICLE = r"(?:(?:de|van|von|da|del|di|du|la|le|ten|ter|dos)\s+)?"
+    _NAME = (r"(?:(?:[^\W\da-z_]\.\s*){1,2})?" + _PARTICLE +
+             r"(?:Mc|Mac|S[Tt]\.\s?)?[^\W\da-z_][^\W\d_]+" ...)
+
+The same insertion is needed in `_prose_inline`'s inlined copy.
+
+**(b)** `is_caps_name` then rejects `de GROOT` at the
+`not allow_titlecase_name and not is_caps_name(name)` gate:
+
+    _PARTICLES = frozenset({"de","van","von","da","del","di","du",
+                            "la","le","ten","ter","dos"})
+    toks = [t for t in name.split()
+            if t not in ("and","y","&","e") and t.lower() not in _PARTICLES]
+
+(`de novo, Judge:` still does not parse — `novo` is not caps.)
+
+**(c) REQUIRED WITH (b).** `_prose` already rejects an unterminated short-title
+byline (line 517), but `_abbrev` — reached via `also_abbrev` — has no such
+guard, so the page-top writing-label head
+`de GROOT, J. (concurring in the judgment)` parses as a byline and opens **four
+phantom concurrences**. Mirror the `_prose` guard into `_abbrev`.
+
+Measured, each configuration run over the corpus:
+
+    config        fisk                              cardoso
+    today         order, authorless, 86 blocks      1 writing (concurrence swallowed)
+    (a) only      unchanged                         majority 73 + concurrence 23  OK
+    (b) only      unchanged                         1 + FOUR PHANTOMS  BAD
+    (a)+(b)+(c)   majority 'de GROOT', 85  OK       majority 73 + concurrence 23  OK
+
+Side effect to weigh: (c) moves one row into `wenzel`'s majority (49 -> 50
+blocks) — the page-13 head row, a consequence of that head being set at BODY
+size; pre-existing.
+
+**Do not pin `nmcca/united_states_v._fisk` or `nmcca/united_states_v._cardoso`
+until this lands** — both read their headmatter perfectly (30/30) but fisk is
+typed `order` with no author and cardoso's concurrence is swallowed.
+
+## nmcca: what the SERVICE-CCA family will need, and one trap
+
+nmcca is the first of acca / afcca / uscgcoca / armfor in this repo, so its
+findings are the family's starting point:
+
+- **THE TRAP.** The old engine's shared military base
+  (`centralia/courts/_military.py`) does `_fold_rail_caption(d["summary"], ")")`
+  on EVERY CCA. Measured on nmcca: **page 1 contains zero `)` glyphs standing
+  as a column.** That fold is acca/afcca *order* paper, not nmcca *opinion*
+  paper. Do not inherit it blind.
+- **The contract:** a single CENTRED stack with no divider at all (all seven
+  caption rows within 1.6pt of the axis, and the widest runs straight across
+  where a rail would stand), bracketed by a TYPED underscore fence on the axis
+  — 128 fences in the corpus, 127 of them 137.5pt wide, and **all 128 with
+  their midpoint within 0.1pt of 306.0**. The axis is the test; the measure is
+  payload.
+- **The fence COUNT varies** (29 records type 4, one 5, one 2), so the dispatch
+  can never be an ordinal. It is the first fence PAIR on page 1, plus
+  `Appellate Military Judges` above and a docket row below.
+- **Weight and slope read the caption** on all 32: bold = party and pivot and
+  docket, *italic* = party status, roman = rate and service.
+- **`NMCCA No. 202500258` is the DOCKET wearing the court's initials**, not a
+  neutral cite — the mirror image of ill's trap. `criteria.citation` is
+  correctly `None` on all 32; this court assigns no public-domain citation.
+- Nearest cousin already in the engine is **`bap1`** (centred ladder), not any
+  state court — but bap1 fences every zone, so its fences partition completely
+  while nmcca's do not.
+
+**Also worth retiring generally:** a court that sets its running head at BODY
+size is invisible to `repeated_top_keys`/`head_band_rows` on a short document.
+It cost the old engine a bespoke `head_band_max_top = 70.0` on this very court
+and it cost this reader a court-declared band. A shared measurement — "the head
+band is the rows above the page's own body top on a continuation sheet" — would
+retire both. Same family as item 6.
+
+**One thing the agent could not do, and correctly did not force:** it declared
+no `DocStyle`, because `CourtProfile.styles` names ids in core's style registry
+and a court file may not add to it (`styles=(STYLE_FENCED,)` raised `KeyError`
+through the render). The contract's name travels in `criteria.headmatter_style`
+instead. If a real `DocStyle("nmcca-fenced-stack", …)` is wanted in
+`centralia/styles.py`, its matcher is one line: the first fence pair on page 1.
