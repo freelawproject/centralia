@@ -187,6 +187,30 @@ _BYLINE = BylineGrammar(style="prose",
                         titles=("Judge", "Presiding Judge", "Chief Judge"))
 
 
+# THE SHEET'S TAIL, below the order. Two blocks, and the court prints both
+# in the same measure as the order, so nothing but their own words names
+# them.
+#
+#   LC NUMBERS:                 the numbers the court BELOW gave the case,
+#   2009CR01690                 one per row under a heading of its own
+#
+#   Court of Appeals of the State of Georgia          the clerk's
+#   Clerk's Office, Atlanta, August 11, 2026.         certificate: an
+#   I certify that the above is a true extract …      attestation that the
+#   Witness my signature and the seal of said …       sheet is a true
+#   , Clerk.                                          extract of the minutes
+#
+# Measured over the 42 records: the LC block on 10, the certificate on 11.
+_LC_HEAD = re.compile(r"^LC NUMBERS?\s*:?\s*$", re.I)
+_LC_NUMBER = re.compile(r"^[A-Z0-9][A-Z0-9\-.,;/ ]{3,60}$")
+# The certificate opens on the court's own name set NOT at the rail — it is
+# centred over the clerk's block — and every row of it is one type step down.
+_CERT_OPEN = re.compile(
+    r"^(?:Court of Appeals of the State of Georgia"
+    r"|Clerk'?s Office\b|I certify\b|Witness my signature\b)", re.I)
+_CERT_CLOSE = re.compile(r",\s*Clerk\.?$", re.I)
+
+
 def _norm(text: str) -> str:
     return " ".join(text.split())
 
@@ -204,12 +228,17 @@ class _Ctx:
         self.pages = pages
         self.body_size = body_size
         self.items: list = []
+        # THE ENDMATTER: what the sheet prints BELOW the writing. Handed to
+        # core under `attorneys`, which is the section spec named 'endmatter'
+        # — it renders after the opinions, where the page puts it.
+        self.end: list = []
         self.consumed: set[int] = set()
         self.dropped: list = []
         self.crit: dict = {}
 
     def emit(self, group: list, role: str, align: str | None = None,
-             text: str | None = None, extra: list | None = None) -> None:
+             text: str | None = None, extra: list | None = None,
+             into: list | None = None) -> None:
         """One headmatter row.
 
         ``text`` overrides what the row PRINTS (the dateline is one printed
@@ -231,7 +260,7 @@ class _Ctx:
                                    banner_center_min_size=self.body_size + 1.0)
         ids = tuple(p.id for p in parts) + tuple(
             l.id for l in (extra or []))
-        self.items.append(m.HmLine(
+        (self.items if into is None else into).append(m.HmLine(
             text=text, prov=m.Prov(first.page, ids),
             align=m.Align(align), x0=first.x0, size=first.size or 0.0,
             bold=all(bool(p.all_bold) for p in parts),
@@ -249,7 +278,8 @@ class _Ctx:
         self.consumed.update(ids)
 
     def result(self):
-        return {"criteria": self.crit, "items": self.items, "attorneys": [],
+        return {"criteria": self.crit, "items": self.items,
+                "attorneys": self.end,
                 "dropped": self.dropped, "consumed": self.consumed,
                 "anchor_ids": [], "doc_type_final": None}
 
@@ -419,6 +449,46 @@ def _read_order(ctx: _Ctx, rows: list):
         ctx.emit(group, "caption")
     if state != "caption" or not dockets:
         return NOTHING
+
+    # ---- THE TAIL, below the order ---------------------------------------
+    # The reader stops above the order and reads what stands BELOW it, which
+    # is not the order either. Left to core, the LC numbers were welded onto
+    # the end of the order's own sentence ('… it is hereby DENIED. LC
+    # NUMBERS: 2009CR01690') and the certificate's first row stayed inside
+    # the writing while its other rows dropped — the user, 2026-08-20: 'lets
+    # respect the whitespace at the end with the LC Numbers and honestly
+    # maybe thats endmatter and marked as lower court stuff. and we dont need
+    # the clerk signature here either.'
+    lc_docket: list[str] = []
+    band = None
+    for group in rows:
+        text = _text(group)
+        if _LC_HEAD.match(text):
+            band = "lc"
+            # ENDMATTER, one row per printed row: the block stands below the
+            # writing, so `attorneys` (the endmatter section, order 15) is
+            # where it renders in the page's own order — the ri reading.
+            ctx.emit(group, "lower-court", into=ctx.end)
+            continue
+        if band == "lc":
+            if _LC_NUMBER.match(text):
+                lc_docket.append(text.rstrip(".,;"))
+                ctx.emit(group, "lower-court", into=ctx.end)
+                continue
+            band = None
+        if band == "cert" or _CERT_OPEN.match(text):
+            # THE CLERK'S CERTIFICATE IS THE CLERK'S. It attests that the
+            # sheet is a true extract of the court's minutes; it is not the
+            # court's writing and not its headmatter. Recorded as dropped,
+            # never silently cut.
+            band = "cert"
+            ctx.drop(group, "attestation")
+            if _CERT_CLOSE.search(text):
+                band = None
+            continue
+    if lc_docket:
+        ctx.crit["lower_court_docket"] = lc_docket
+
     ctx.crit["headmatter_style"] = STYLE_ORDER
     _record(ctx, dockets, caption)
     return ctx.result()
@@ -539,3 +609,39 @@ def _name(ctx: _Ctx, caption: list) -> None:
     if whole:
         ctx.crit["parties"] = [whole]
         ctx.crit["case_name"] = whole
+
+
+# --------------------------------------------------------------------------
+# image.role — what this court prints as a PICTURE
+# --------------------------------------------------------------------------
+# Measured over all 42 records: every one carries TWO graphics, both on the
+# page that ends the paper and both inside the clerk's certificate band —
+#
+#     108.1x28.8 / 150.0x37.5   the clerk's SIGNATURE, on the ', Clerk.' row
+#      61.9x63.7 / 150.0x150.0  the court's SEAL, above it
+#
+# — and no record prints a figure anywhere. Neither is below all the text
+# (the certificate's own rows run past them), so the sibling ga.py's
+# below-the-last-row test does not reach them; the certificate's FIRST row
+# does, since nothing of the court's own writing stands beneath it.
+#
+# The user, 2026-08-20: 'we dont need the clerk signature here either.' Left
+# to core's geometry both were cropped and planted INSIDE the order as though
+# the court had printed an exhibit.
+@decider("image.role", court="gactapp")
+def image_role_gactapp(page=None, image=None, **_):
+    """Every graphic this court prints is the clerk's, and it stands in the
+    certificate. Returns a surfaced removal — the string is the reason the
+    record shows — or NOTHING for a page that prints no certificate, where
+    core's own geometry is the better answer than a guess."""
+    if page is None or image is None:
+        return NOTHING
+    cert = [l.top for l in page.lines
+            if l.plain.strip() and _CERT_OPEN.match(_norm(l.plain))]
+    if not cert:
+        return NOTHING
+    if image.bottom < min(cert) - 2.0:
+        return NOTHING                  # above the certificate: not its own
+    return ("the clerk's signature"
+            if (image.x1 - image.x0) > 2.5 * (image.bottom - image.top)
+            else "the court's seal")

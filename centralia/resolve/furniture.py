@@ -413,9 +413,24 @@ class FurnitureFinder:
             # each piece vetoed the other, no band key was ever learned, and
             # the whole foot rendered as body prose — 34 of 50 alaska
             # records, 39 of 42 alaskactapp, several paragraphs per file.
+            # …AND A ROW-MATE THAT IS ITSELF THE FOOT DOES NOT VETO. The top
+            # band already allows this (ca6 sets 'Page 2' beside its running
+            # head); the bottom band needs it for the same reason, because a
+            # court can print BOTH halves of its foot on one row: indctapp
+            # sets 'Court of Appeals of Indiana | Opinion 24A-CR-2415 |
+            # August 7, 2026' at the rail and 'Page 1 of 30' flush right on
+            # the same baseline. The citation half is learned as a
+            # running-foot key; the folio half was vetoed BY it and rendered
+            # inside the headmatter (the user, 2026-08-20: 'indctapp captures
+            # in headmatter page 1 of x ???'). Tested against the learned
+            # keys, not by recursion.
             if not any(o is not line and abs(o.top - line.top) < 2
                        and o.plain.strip()
                        and not is_folio_text(o.plain.strip())
+                       and furniture_key(self._row_text(pm, o)
+                                         ) not in self.bottom_keys
+                       and furniture_key(o.plain.strip()
+                                         ) not in self.bottom_keys
                        for o in pm.lines):
                 return "folio"
             # EXCEPT a MARGIN folio: the reporter prints the page number in

@@ -661,6 +661,14 @@ class FootnoteZones:
                     continue
                 sig = (round(r.x0), round(r.width))
                 sigs.setdefault(sig, set()).add(pm.number)
+        # …AND WHAT ONE PAGE PROVED IS STILL PROOF, for the one question
+        # recurrence cannot answer. A note that runs onto the next page
+        # carries NO LABEL and, where the court sets its notes at body size,
+        # no size drop either — so the page that needs the signature is the
+        # very page that cannot corroborate it, and the two-page floor
+        # discards the evidence exactly when it is needed. Kept separately
+        # and used only behind the carried-zone gate (step 8.5).
+        self.proved = {sig for sig, pages in sigs.items() if pages}
         learned = {sig: pages for sig, pages in sigs.items() if len(pages) > 1}
         if learned:
             self.trace.event("footnote.signatures",
@@ -838,6 +846,39 @@ class FootnoteZones:
             top = self._tighter_leading(pm, min_w, x0_max)
             if top is not None:
                 return decide(top, "tighter-leading")
+
+        # 8.5 — THE DOCUMENT'S OWN SEPARATOR, drawn again on a page that
+        # carries a note. A tail that merely FINISHES a note has no label and
+        # no size drop, and the leading test above can be masked by whatever
+        # the page sets between the body and the rule: gactapp's clerk prints
+        # a certificate there, single-spaced at 11pt against a 14pt body, so
+        # the six lines above the rule already read as note leading and the
+        # change the tail proves is invisible (in_re_estate_of_tien_thi_davis:
+        # note 1 came back with a LABEL AND NO TEXT, and its second half
+        # rendered as a paragraph of the order — the user, 2026-08-20: 'the
+        # footnote bleeds to page 2 but its not recognized as a footnote').
+        #
+        # What answers it is the rule itself: 143.9pt at the rail, the same
+        # separator this document already proved on the page before. The
+        # prev-zone gate is the one steps 8 and 9 keep — a note must be OPEN
+        # for a tail to be carried into.
+        if not caption_page and prev_had_zone and getattr(self, "proved", None):
+            # AT THE RAIL, like every other step here. A separator is drawn
+            # at the measure's left edge; a rule CENTRED on the page is a
+            # band divider, and utah draws two of them (90pt at x0 261.0)
+            # between its counsel block and its byline band. Matched without
+            # the rail test, the higher one opened a zone at 0.25 of the page
+            # and took the byline into it — anderson_v._hon._bates lost its
+            # author and typed 'order'.
+            tops = [r.top for r in pool
+                    if r.x0 <= x0_max
+                    and (round(r.x0), round(r.width)) in self.proved
+                    and not veto(r)
+                    and self._body_text_above(pm, r.top)
+                    and any(l.top > r.top + 1 and l.plain.strip()
+                            for l in pm.lines)]
+            if tops:
+                return decide(min(tops), "carried-tail-signature")
 
         # 9 — a RULELESS carried tail: the previous page had a zone, and this
         # page's foot carries a run of sub-body-size single-spaced lines set

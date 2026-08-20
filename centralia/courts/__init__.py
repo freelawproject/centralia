@@ -282,8 +282,16 @@ register(CourtProfile(
     byline=BylineGrammar(style="prose", allow_titlecase_name=True,
                          titles=("Justice", "Chief Justice"))))
 register(CourtProfile(
+    # THE SEPARATE WRITINGS SIGN SHORT. The lead opinion always spells the
+    # office ('Bailey, Judge.'), but a judge writing alone abbreviates it
+    # ('Felix, J., concurring in part and dissenting in part.') -- and with
+    # only the spelled forms declared, those writings stayed inside the
+    # majority.
     "indctapp", "Court of Appeals of Indiana",
     byline=BylineGrammar(style="prose", allow_titlecase_name=True,
+                         also_abbrev=True,
+                         abbrev_titles=(("C.J.", "Chief Judge"),
+                                        ("J.", "Judge")),
                          titles=("Judge", "Chief Judge", "Senior Judge"))))
 # The BANKRUPTCY APPELLATE PANELS sign with a titlecase surname and the
 # panel's full designation ('Bailey, U.S. Bankruptcy Appellate Panel
@@ -764,3 +772,6 @@ from . import delch                                      # noqa: E402,F401
 from . import delsuperct                                 # noqa: E402,F401
 
 from . import guam                                       # noqa: E402,F401
+
+from . import indctapp                                   # noqa: E402,F401
+from . import indtc                                      # noqa: E402,F401

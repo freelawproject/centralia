@@ -277,6 +277,12 @@ _DATED = "dated:"
 # the only landmark the closing band needs: 183 of them over haw's 50
 # records, on every record in the corpus.
 _SIG_GLYPH = "/s/"
+# HOW A SEPARATE WRITING NAMES ITSELF on this court: the kind, then 'BY', then
+# the seat ('DISSENT BY GINOZA, J.', 'CONCURRENCE BY EDDINS, J.'). The same
+# form the profile's `opinion_by_headings` reads for the opinion of the court.
+_WRITING_HEAD = re.compile(
+    r"^(?:DISSENT|CONCURRENCE|CONCURRING\s+OPINION|DISSENTING\s+OPINION"
+    r"|OPINION)\b.*\bBY\b", re.I)
 # RETURN THE BAND FOR `Document.signature`? Only once core reads the key —
 # see the module docstring. Off, the band stays where core's own signature
 # lift puts it, at the foot of the writing the page prints it under, and
@@ -1136,6 +1142,29 @@ def _signing_bench(signers: list[str], panel: list[str]) -> list[str]:
     return out
 
 
+def _writing_opens_below_signature(model, finder) -> bool:
+    """Does a WRITING open below the first conformed signature?
+
+    A dissent or concurrence set under a signed order names itself the way
+    this court names every writing ('DISSENT BY GINOZA, J.'), so the test is
+    the court's own byline grammar plus the kind-led heading it prints for a
+    separate writing — never a page number or a distance."""
+    parser = BylineParser(get_profile("haw").byline)
+    lines = [l for pm in model.pages
+             for l in sorted(pm.lines, key=lambda x: x.top)
+             if l.plain.strip()]
+    first = next((i for i, l in enumerate(lines)
+                  if _norm(l.plain).startswith(_SIG_GLYPH)), None)
+    if first is None:
+        return False
+    for line in lines[first + 1:]:
+        text = _norm(line.plain)
+        if _WRITING_HEAD.match(text) or parser.parse(text) is not None:
+            return True
+    return False
+
+
+
 def _read_signature_band(ctx: _Ctx, model, finder) -> None:
     """Read the closing band: the criteria it states, and the band itself.
 
@@ -1162,6 +1191,34 @@ def _read_signature_band(ctx: _Ctx, model, finder) -> None:
         # beside `panel`: `judges` is who signed, in full, in seat order.
         ctx.crit["judges"] = ", ".join(bench)
     if not _EMIT_SIGNATURE_SECTION:
+        return
+
+    # …EXCEPT WHERE THE DOCUMENT SIGNS EACH WRITING SEPARATELY. The band is
+    # the court's CLOSING attestation — one printed block on the last page,
+    # its appearances at the rail and its seats in the signature column
+    # (bolos sets five seats interleaved with counsel rows, which is one
+    # band, not five). But where a WRITING OPENS BELOW a run, that run is
+    # not the document's closing band: it is the signature of the writing
+    # above it, and the one below signs its own.
+    #
+    #     page 1  ORDER ACCEPTING APPLICATION …   /s/ Devens, McKenna, Eddins
+    #     page 2  DISSENT BY GINOZA, J.  …        /s/ Ginoza, Jackson
+    #
+    # Pooled into `Document.signature` both runs render as one block AFTER
+    # both writings, so the order does not show the three who signed it, the
+    # dissent does not show its two, and the block reads as though all five
+    # signed the same paper (the user, 2026-08-20: 'the signature is
+    # separated from the first and second opinions'). Left in the stream,
+    # core's per-writing lift puts each run at the foot of the writing the
+    # page prints it under — and keeps this court's 53%-width alignment
+    # while doing it.
+    #
+    # Measured over all 50 records: ONE record signs this way
+    # (m.s._v._l.s._1). The other 49 print a single closing band and are
+    # unaffected — checked, not assumed, because claiming nothing where the
+    # band IS the closing one loses it entirely (core's trailing harvest
+    # reaches only part of it).
+    if _writing_opens_below_signature(model, finder):
         return
 
     # …and the band, for the field that cannot receive it yet.

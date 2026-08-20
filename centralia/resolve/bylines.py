@@ -44,6 +44,11 @@ _ANNOUNCED_WRITING = re.compile(
     r"^(?:filed|authored|issued|wrote)\s+an?\s+(?:[a-z]+\s+){0,4}opinions?\b")
 
 _KIND_WORDS = ("concur", "dissent")
+# A row closing on a THIRD-PERSON concur/dissent — 'concur.',
+# 'dissents.', 'concurred.' — reports who JOINED. The participles
+# ('concurring') are that writer's own byline and are deliberately
+# absent here.
+_JOINER_ROW = re.compile(r"\b(?:concur|dissent)(?:s|red|ted)?\s*\.?$", re.I)
 # Only the PARTICIPLES vouch for a titlecase surname; see _prose_parse.
 _KIND_PARTICIPLES = ("concurring", "dissenting")
 _DELIVER_VERBS = ("delivered", "filed", "authored", "announced", "wrote")
@@ -697,6 +702,14 @@ class BylineParser:
             first_word = _bare.split()[0].rstrip(".,") if _bare.split() else ""
             if first_word in ("concurs", "dissents"):
                 return None    # third-person: an ANNOUNCEMENT, not a byline
+            # 'Brown, J. and DeBoer, J., concur.' — a JOINER ROW, not a
+            # byline. The row names the judges who joined the writing above
+            # it and closes on a THIRD-PERSON verb; read as a byline it
+            # opened a phantom writing credited to the first joiner
+            # (indctapp/shirley_e._melton). The participles are left alone,
+            # so a joint 'and JONES, J., dissenting.' still reads as one.
+            if first_word == "and" and _JOINER_ROW.search(text):
+                return None
             if nxt in (",", "(") and any(_bare.startswith(k)
                                          for k in _KIND_WORDS):
                 stop = next((k for k in range(end, len(text))
