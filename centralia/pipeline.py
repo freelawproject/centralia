@@ -384,6 +384,31 @@ def _extract_model(model, court_id: str, pdf_path) -> ExtractionResult:
         # (< 20pt a side) stay silent.
         for _im in pm.images:
             _w, _h = _im.x1 - _im.x0, _im.bottom - _im.top
+            # WHAT A GRAPHIC IS can be the court's own knowledge. Every test
+            # below reads a graphic's role off its GEOMETRY, because geometry
+            # is all core can see — but a court that knows its own stationery
+            # knows the answer outright, and no accumulation of position and
+            # size should outvote it. A decider answers with one of the
+            # reserved words 'seal' (the headmatter's masthead device),
+            # 'figure' (part of the writing) or 'signature' (the stamp a
+            # writing is signed with); ANY OTHER string is a surfaced
+            # removal and the string itself is the reason shown in the
+            # record. NOTHING falls through to core exactly as if the court
+            # file did not exist.
+            _role = court_decides("image.role", court_id, trace,
+                                  model=model, geom=geom, page=pm, image=_im)
+            if _role is not NOTHING:
+                if _role == "seal":
+                    _mastheads.append(_im)
+                elif _role == "signature":
+                    _sig_imgs.append(_im)
+                elif _role == "figure":
+                    _figures.append(_im)
+                else:
+                    doc.dropped.append(m.Dropped(
+                        text=f"graphic {_w:.0f}×{_h:.0f}pt ({_role})",
+                        prov=m.Prov(pm.number), kind="image"))
+                continue
             # AN IMAGE ABOVE ALL THE TYPE IS STATIONERY, not a figure. mo
             # sets its court seal at top 72 of 792 — 9.09%, just past the
             # 0.08 guard — so it was cropped and planted INSIDE the writing,
@@ -591,6 +616,35 @@ def _extract_model(model, court_id: str, pdf_path) -> ExtractionResult:
     for p in _cover_pages:
         segments_by_page[p] = []
 
+    # A COVER PER PAPER: where the court prints one, it declares both where
+    # each writing begins and which rows are the cover's own. The rows are
+    # apparatus — the banner, the caption, the docket, already read once from
+    # page 1 — so they are RECORDED as removed and kept out of assembly
+    # entirely; the user's requirement, 2026-08-20: the standard caption
+    # matter must not end up inside the extracted opinions.
+    _covers = court_decides("writing.covers", court_id, trace,
+                            model=model, geom=geom)
+    _writing_starts: dict[int, str] = {}
+    if _covers is not NOTHING and _covers:
+        _writing_starts = dict(_covers.get("starts") or {})
+        _drop_ids = set(_covers.get("drop") or ())
+        if _drop_ids:
+            from .resolve.segments import Segment as _SegCov
+            for _pg, _sgs in list(segments_by_page.items()):
+                _kept = []
+                for _sg in _sgs:
+                    _keep_lines = [l for l in _sg.lines
+                                   if l.id not in _drop_ids]
+                    _gone = [l for l in _sg.lines if l.id in _drop_ids]
+                    if _gone:
+                        doc.dropped.append(m.Dropped(
+                            text=" ".join(l.plain.strip() for l in _gone)[:400],
+                            prov=m.Prov(_sg.page,
+                                        tuple(l.id for l in _gone)),
+                            kind="cover"))
+                    if _keep_lines:
+                        _kept.append(_SegCov(_sg.page, _keep_lines, _sg.kind))
+                segments_by_page[_pg] = _kept
     def _assemble_with(segs):
         return assemble(model, geom, segs, zones, zone_tops,
                         zone_lines_by_page, parser, vocab, trace,
@@ -598,7 +652,8 @@ def _extract_model(model, court_id: str, pdf_path) -> ExtractionResult:
                         doc_type=meta.doc_type, syl_pages=_syl_pages,
                         front_matter=profile.front_matter,
                         para_indent_min=profile.para_indent_min,
-                        headmatter_claimed=bool(_court_hm))
+                        headmatter_claimed=bool(_court_hm),
+                        writing_starts=_writing_starts)
 
     assembled = _assemble_with(segments_by_page)
     if _court_hm and not assembled.opinions:

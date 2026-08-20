@@ -476,7 +476,8 @@ def assemble(model, geom: DocGeometry | None, segments_by_page: dict,
              doc_type=None, syl_pages: set[int] | None = None,
              front_matter: tuple = (),
              para_indent_min: float = 12.0,
-             headmatter_claimed: bool = False) -> Assembled:
+             headmatter_claimed: bool = False,
+             writing_starts: dict[int, str] | None = None) -> Assembled:
     result = Assembled()
 
     # A byline can be column-split by pdfio ('LYNCH,' | 'Circuit Judge.  …');
@@ -1141,7 +1142,45 @@ def assemble(model, geom: DocGeometry | None, segments_by_page: dict,
             .rstrip(" :*†‡∗⁎﹡＊").lower()
             in front_matter)
         if starts and starts[0] > _body0 and not _fm0:
-            starts = [_body0] + [x for x in starts if x > _body0]
+            # …AND A WRITING NEVER OPENS MID-SENTENCE. Prepending the body's
+            # first segment keeps the deeper anchor as a SECOND writing, and
+            # where that anchor is only the same paragraph continuing over a
+            # page break the document is handed a writing it never had: mo's
+            # millstone broke at 'were sold to another entity. This' | 'also
+            # received an assignment of developer rights', 1 block against
+            # 57, and vernell_beach at 'issued a permanent writ' | 'first
+            # entering a preliminary order in mandamus'. The byline path has
+            # refused this since it was written (see `_midsentence_tail`
+            # above); only the rescue paths never asked.
+            # `_midsentence_tail` is not the test to use here: it asks
+            # whether a ROSTER was cut mid-name, so it looks for a trailing
+            # comma or 'and'. A paragraph broken by a page turn ends on an
+            # ordinary word — 'were sold to another entity. This' — and that
+            # is just as plainly unfinished.
+            # BOTH HALVES OF THE BREAK HAVE TO SAY SO. An open sentence
+            # alone is far too weak a test — a heading, a roster and a
+            # caption cell all end without a terminal, and dropping every
+            # anchor behind one cost 22 sentinels across 12 courts. What a
+            # broken PARAGRAPH also shows is where it resumes: on a
+            # lowercase word. A writing does not open on 'also received an
+            # assignment of developer rights' or 'first entering a
+            # preliminary order in mandamus'.
+            def _paragraph_runs_on(prev, nxt) -> bool:
+                if not prev.lines or not nxt.lines:
+                    return False
+                s = " ".join((prev.lines[-1].plain or "").split()).rstrip()
+                s = s.rstrip("*†‡∗⁎﹡＊0123456789") if s.endswith(
+                    tuple("*†‡∗⁎﹡＊0123456789")) else s
+                if s.endswith((".", "?", "!", '"', "”", "’", ")", ":")):
+                    return False
+                head = " ".join((nxt.lines[0].plain or "").split())
+                first = head.split(" ", 1)[0].lstrip("“\"'([")
+                return bool(first) and first[:1].islower()
+
+            starts = [_body0] + [
+                x for x in starts
+                if x > _body0 and not _paragraph_runs_on(
+                    split_stream[x - 1], split_stream[x])]
         elif not starts and not _fm0:
             starts = [_body0]
     starts = [x for x in starts if 0 <= x < len(split_stream)]
@@ -1432,6 +1471,42 @@ def assemble(model, geom: DocGeometry | None, segments_by_page: dict,
             starts = [j]
             break
 
+    # WRITINGS THE COURT DECLARES, because it prints a COVER for each one.
+    # Every rule above finds a writing by its BYLINE. A court that heads each
+    # separate paper with its full masthead — banner, caption, docket — and a
+    # title, and then signs it only at the FOOT, states its boundaries
+    # somewhere no byline test can look: mo prints 'DISSENTING OPINION' over
+    # a fresh cover on page 11 and signs 'Paul C. Wilson, Judge' on page 28,
+    # so all 13 of its records that carry a separate writing merged it into
+    # the one before — 16 writings, and the majority credited to whoever
+    # signed LAST (r.m.a.: 141 blocks under the dissenter's name).
+    #
+    # The court answers with the LINE its writing opens on and the KIND its
+    # own title states; the phrase goes through `normalize_opinion_type` like
+    # any byline's, so the vocabulary stays in one place. Placed here, before
+    # the gate below, so the boundary survives every rebuild of `starts`
+    # underneath it — and keyed by segment IDENTITY, which the rebuilds
+    # preserve where indices do not. A court that declares nothing reaches
+    # none of this.
+    _declared: dict[int, str] = {}
+    if writing_starts:
+        _seg_of = {l.id: i for i, s in enumerate(split_stream)
+                   for l in s.lines}
+        for _lid, _kind in writing_starts.items():
+            _i = _seg_of.get(_lid)
+            # never BEFORE the first writing: a declaration is for a paper
+            # stapled behind one, and an earlier index would take the
+            # headmatter with it.
+            if _i is None or (starts and _i <= starts[0]) or _i == 0:
+                continue
+            starts.append(_i)
+            _declared[id(split_stream[_i])] = _kind
+        if _declared:
+            starts = sorted(set(starts))
+            trace.event("writing.covers",
+                        f"{len(_declared)} declared: "
+                        + ", ".join(sorted(_declared.values())))
+
     if not starts:
         result.headmatter_segments = split_stream
         result.warnings.append("no opinion start found")
@@ -1552,7 +1627,19 @@ def assemble(model, geom: DocGeometry | None, segments_by_page: dict,
         else:
             from ..classify import heading_doc_type
             from ..model import DocType
-            sig_author = conformed_signature_author(all_lines_text)
+            # A DOCUMENT OF DECLARED WRITINGS SIGNS EACH ONE SEPARATELY.
+            # The conformed signature is read from the whole document, which
+            # is right where there is one writing and wrong the moment there
+            # are two: mo's d.j. carries Fischer's name on page 10 and
+            # Wilson's on page 28, and the whole-document read returns the
+            # LAST — so the principal opinion came back authored by the
+            # dissenter. Where the court declared the boundaries it also
+            # told us how far each writing reaches, so each one is signed
+            # from its OWN lines. Scoped to declaring documents: everywhere
+            # else this is the same call on the same text as before.
+            sig_author = conformed_signature_author(
+                [l.plain for _s6 in split_stream[a:b] for l in _s6.lines]
+                if _declared else all_lines_text)
             dt = heading_doc_type(head_text[:80])
             # An unsigned MEMORANDUM disposition (ca9) is the court's opinion;
             # an unsigned ORDER stays an order. A demoted terminal byline
@@ -1573,8 +1660,21 @@ def assemble(model, geom: DocGeometry | None, segments_by_page: dict,
                     "IT IS ORDERED", "IT IS HEREBY ORDERED",
                     "hereby DENIED", "hereby GRANTED")):
                 op_type = "order"
+            # …AND THE KIND THE COURT'S OWN TITLE STATES WINS. Nothing else
+            # here can name it: an unsigned head types `majority` or `order`
+            # off the doc-type heading, and every one of mo's separate
+            # papers is titled 'OPINION' — so a dissent and a concurrence
+            # both came back `majority`. The phrase is normalised exactly as
+            # a byline's kind clause is.
+            _dec_kind = _declared.get(id(head_seg))
+            if _dec_kind:
+                op_type = normalize_opinion_type(_dec_kind)
             author = sig_author or ""
-            if terminal_author is not None:
+            # A terminal byline is the ONE document's sign-off, so it cannot
+            # speak for a document of several papers — it would put the same
+            # name on all of them. Where the court declared the boundaries,
+            # each writing has already been signed from its own lines.
+            if terminal_author is not None and not _declared:
                 author = terminal_author[1][:terminal_author[0].end].strip()
                 op_type = ("per-curiam"
                            if terminal_author[0].name == "PER CURIAM"

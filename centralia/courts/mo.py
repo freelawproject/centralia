@@ -657,3 +657,144 @@ def read_headmatter_mo(model, geom, **_):
     return {"criteria": crit, "items": items, "attorneys": [],
             "dropped": dropped, "consumed": consumed,
             "anchor_ids": [], "doc_type_final": None}
+
+
+# --------------------------------------------------------------------------
+# writing.covers — Missouri gives every paper its own cover
+# --------------------------------------------------------------------------
+# Measured over all 50 records: 13 carry a separate writing, and every one of
+# them heads it with the FULL COVER over again — the seal, 'SUPREME COURT OF
+# MISSOURI', 'en banc', the caption over its ')' rail, the docket — and then
+# a title naming the paper. The writing is signed only at its FOOT, flush
+# right, so there is no byline at its head for core to find: all 16 separate
+# writings were merged into the paper before them, and the principal opinion
+# came back credited to whoever signed LAST (r.m.a.: 141 blocks under a
+# dissenter's name).
+#
+# The titles, over the 16 later covers — the whole set, not a sample:
+#
+#     12  DISSENTING OPINION
+#      2  SEPARATE OPINION
+#      1  CONCURRING OPINION
+#      1  SEPARATE OPINION CONCURRING IN PART AND DISSENTING IN PART
+#
+# 'SEPARATE OPINION' does not say which it is, so it is READ and not guessed:
+# mcgaugh's opens "I concur in the dissenting opinion's analysis of article
+# V, § 24.3" and mccarty's "For the reasons stated in my dissenting opinion
+# in Lucas v. Ashcroft … I disagree this Court possesses original
+# jurisdiction". One concurs, one dissents, under one title.
+#
+# THE COVER IS NOT SET IN A CONSTANT SIZE and the rail does not stand in a
+# constant place: the banner is 20pt on twelve records and 13pt — body size —
+# on phillip_weeks, whose rail is at x0 360 against d.j.'s 306 and mcgaugh's
+# 310.6. So a cover is found by the words the court prints, never by measure
+# or position.
+_BANNER = "supreme court of missouri"
+_EN_BANC = "en banc"
+# The title always names itself an OPINION, in caps, and says what kind.
+_TITLE = re.compile(r"^[A-Z][A-Z0-9 .,'()§-]*OPINION[A-Z0-9 .,'()§-]*$")
+# What the writing's own first sentence says, when its title will not.
+_CONCUR_CUE = ("i concur", "i fully concur", "i respectfully concur")
+_DISSENT_CUE = ("i dissent", "i respectfully dissent", "i disagree",
+                "respectfully dissent")
+
+
+def _cover_kind(title: str, opening: str) -> str | None:
+    """The kind phrase this paper's title states, read where it will not."""
+    t = " ".join(title.split()).lower()
+    if "concur" in t and "part" in t and "dissent" in t:
+        return "concurring in part and dissenting in part"
+    if "dissent" in t:
+        return "dissenting"
+    if "concur" in t:
+        return "concurring"
+    if t.startswith("separate opinion"):
+        # THE ORDER OF THESE TWO TESTS IS THE WHOLE READING. Both openings
+        # contain the word 'dissenting': mcgaugh CONCURS in the dissenting
+        # opinion ("I concur in the dissenting opinion's analysis of article
+        # V, § 24.3") and mccarty DISSENTS by reference to one ("For the
+        # reasons stated in my dissenting opinion in Lucas v. Ashcroft …
+        # I disagree this Court possesses original jurisdiction"). So how it
+        # OPENS decides first, and only then what it says — and the sentence
+        # runs past the first printed row, which is why several are read.
+        low = " ".join(opening.split()).lower()
+        if any(low.startswith(c) for c in _CONCUR_CUE):
+            return "concurring"
+        if any(c in low for c in _DISSENT_CUE):
+            return "dissenting"
+        # A separate paper that states neither is still separate, and typing
+        # it `majority` would give the document two of those.
+        return "concurring"
+    return None
+
+
+@decider("writing.covers", court="mo")
+def writing_covers_mo(model=None, **_):
+    """Where each of Missouri's papers begins, and which rows are its cover.
+
+    Returns the line the writing opens on (its title) mapped to the kind that
+    title states, plus every cover row above the title to be recorded as
+    removed. Page 1's cover is the document's own headmatter and is left
+    alone. A record with a single cover reaches none of this.
+    """
+    if model is None or len(model.pages) < 2:
+        return NOTHING
+    starts: dict[int, str] = {}
+    drop: list[int] = []
+    for pm in model.pages[1:]:
+        rows = sorted((l for l in pm.lines if l.plain.strip()),
+                      key=lambda l: l.top)
+        if not rows:
+            continue
+        # THE COVER NAMES THE COURT IN ITS TOP BAND. Six rows, because the
+        # seal may be cropped into rows above the banner on a scanned record.
+        if not any(_norm(l.plain).lower() == _BANNER for l in rows[:6]):
+            continue
+        title_at = None
+        for i, line in enumerate(rows):
+            text = _norm(line.plain)
+            if _TITLE.match(text) and text.lower() != _BANNER:
+                title_at = i
+                break
+        if title_at is None:
+            continue
+        # The opening SENTENCE, not the opening row: mccarty's runs three
+        # printed rows before it says which way it goes.
+        opening = _norm(" ".join(l.plain
+                                 for l in rows[title_at + 1:title_at + 5]))
+        kind = _cover_kind(_norm(rows[title_at].plain), opening)
+        if kind is None:
+            continue
+        starts[rows[title_at].id] = kind
+        # THE COVER IS EVERY ROW ABOVE THE TITLE, and only those: the title
+        # itself is the writing's own heading, and the body opens beneath it
+        # on the same page.
+        drop.extend(l.id for l in rows[:title_at])
+    if not starts:
+        return NOTHING
+    return {"starts": starts, "drop": drop}
+
+
+# THE SEAL ON A LATER COVER. Core sends a page-1 seal to the head of the
+# headmatter (the user's call, 2026-08-19: "it doesn't need to go into the
+# opinion since it's not part of it … just put it at the top centered of the
+# headmatter") — but that test is bounded to page 1, so the SAME device
+# printed on a dissent's cover eleven pages in failed it, passed the figure
+# test instead, and was cropped and planted inside the dissent as though
+# Missouri had printed an exhibit. It is the same seal on the same
+# stationery: cover matter, recorded as removed. Page 1 keeps core's
+# behaviour untouched — this answers only for the later covers.
+@decider("image.role", court="mo")
+def image_role_mo(model=None, page=None, image=None, **_):
+    """A graphic on a stapled paper's own cover is the court's seal."""
+    if model is None or page is None or image is None or page.number == 1:
+        return NOTHING
+    rows = sorted((l for l in page.lines if l.plain.strip()),
+                  key=lambda l: l.top)
+    if not any(_norm(l.plain).lower() == _BANNER for l in rows[:6]):
+        return NOTHING
+    title = next((l for l in rows if _TITLE.match(_norm(l.plain))
+                  and _norm(l.plain).lower() != _BANNER), None)
+    if title is None or image.top > title.top:
+        return NOTHING
+    return "the court's seal"

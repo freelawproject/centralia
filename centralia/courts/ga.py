@@ -612,3 +612,52 @@ def _read_order(ctx: _Ctx, rows: list, start: int):
     ctx.crit["headmatter_style"] = STYLE_ORDER
     _record(ctx, [docket], [caption], [], [])
     return ctx.result()
+
+
+# --------------------------------------------------------------------------
+# the clerk's office: what ga prints as a PICTURE
+# --------------------------------------------------------------------------
+# Measured over all 50 records, exactly ONE carries a graphic at all, and it
+# is an order list — the paper that is an extract from the court's minutes.
+# That paper prints two, and both are the clerk's:
+#
+#     72x72pt   at the left margin, over the masthead      the court's seal
+#     335x149pt below the last row of the order            the certificate
+#                                                          (seal, attestation
+#                                                           and signature)
+#
+# Core reads a graphic's role off its geometry, and both of these fail the
+# tests that would place them. The seal stands UNDER the reporter's advisory
+# instead of above all the type, so it is not a masthead; the certificate is
+# not on the document's LAST page — a justice's concurrence follows on pages
+# 2-6 — so it is not a signing stamp. Both fell through to the figure test,
+# were cropped, and were planted inside the order as though the court had
+# printed an exhibit. The user, 2026-08-20: "needs to drop the stamp the
+# court seal and the clerk signature in the order."
+#
+# Bounded so that a real exhibit would still be one: only a graphic in the
+# MASTHEAD BAND (at or above the first row set at the measure — the advisory
+# above it is set 4pt under the body) or BELOW THE LAST ROW OF TYPE on its
+# page is claimed. A graphic between them is not the clerk's, and the answer
+# is NOTHING — core decides.
+_SEAL_MAX = 120.0            # pt a side; the seal measures 72x72
+
+
+@decider("image.role", court="ga")
+def image_role_ga(page=None, image=None, geom=None, **_):
+    """ga prints no figures. Every graphic on its pages is the clerk's."""
+    if page is None or image is None:
+        return NOTHING
+    rows = [l for l in page.lines if l.plain.strip()]
+    if not rows:
+        return NOTHING
+    body_size = geom.body_size if geom else 12.0
+    head = min((l.top for l in rows if (l.size or 0.0) >= body_size - 0.5),
+               default=None)
+    if (head is not None and image.top <= head
+            and max(image.x1 - image.x0, image.bottom - image.top)
+            <= _SEAL_MAX):
+        return "the court's seal"
+    if image.top > max(l.top for l in rows):
+        return "the clerk's certificate"
+    return NOTHING
