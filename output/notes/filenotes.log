@@ -95,3 +95,62 @@
 {"t": 1787236281.33599, "key": "kanctapp/dept._for_children_and_families_v._c.a.n.", "text": "Before COBLE, P.J., BRUNS and HURST, JJ.\n\nis part of the", "sha": "05c3f49ed02e6163"}
 {"t": 1787236899.653676, "key": "kanctapp/allison_v._sabin-mitchell", "text": "5", "sha": "4386430983ea8fee"}
 {"t": 1787236900.704158, "key": "kanctapp/allison_v._sabin-mitchell", "text": "", "sha": "4386430983ea8fee"}
+{"t": 1787238577.255417, "key": "coloctapp/marriage_of_fawcett", "text": "paragph markers should be", "sha": "b8fbac0f5918fac5"}
+{"t": 1787238592.308458, "key": "coloctapp/marriage_of_fawcett", "text": "paragph markers should be used to", "sha": "b8fbac0f5918fac5"}
+{"t": 1787238596.2179022, "key": "coloctapp/marriage_of_fawcett", "text": "paragph markers should be used to identify new paragraphs but", "sha": "b8fbac0f5918fac5"}
+{"t": 1787238599.959328, "key": "coloctapp/marriage_of_fawcett", "text": "paragph markers should be used to identify new paragraphs but they are teh ones that are gra", "sha": "b8fbac0f5918fac5"}
+{"t": 1787238601.0051231, "key": "coloctapp/marriage_of_fawcett", "text": "paragph markers should be used to identify new paragraphs but they are teh ones that are gray", "sha": "b8fbac0f5918fac5"}
+{"t": 1787238605.424316, "key": "coloctapp/marriage_of_fawcett", "text": "paragph markers should be used to identify new paragraphs but they are teh ones that are gray and left aligend not", "sha": "b8fbac0f5918fac5"}
+{"t": 1787238610.675403, "key": "coloctapp/marriage_of_fawcett", "text": "paragph markers should be used to identify new paragraphs but they are teh ones that are gray and left aligend not ones in the middle of setnetnces", "sha": "b8fbac0f5918fac5"}
+{"t": 1787239008.177797, "key": "coloctapp/castillo_v._stem", "text": "*Sitting by assignment of the Chief Justice under provisions of Colo. Const. art.\nVI, \u00a7 5(3), and \u00a7 24-51-1105, C.R.S. 2025.", "sha": "4a41a8df9c50ecc1"}
+{"t": 1787239009.75472, "key": "coloctapp/castillo_v._stem", "text": "*Sitting by assignment of the Chief Justice under provisions of Colo. Const. art.\nVI, \u00a7 5(3), and \u00a7 24-51-1105, C.R.S. 2025.\n\nthis", "sha": "4a41a8df9c50ecc1"}
+{"t": 1787239013.9454348, "key": "coloctapp/castillo_v._stem", "text": "*Sitting by assignment of the Chief Justice under provisions of Colo. Const. art.\nVI, \u00a7 5(3), and \u00a7 24-51-1105, C.R.S. 2025.\n\nthis is correclty marked as headnote", "sha": "4a41a8df9c50ecc1"}
+{"t": 1787239020.446652, "key": "coloctapp/castillo_v._stem", "text": "*Sitting by assignment of the Chief Justice under provisions of Colo. Const. art.\nVI, \u00a7 5(3), and \u00a7 24-51-1105, C.R.S. 2025.\n\nthis is correclty marked as heamatter footnote but left in counsel", "sha": "4a41a8df9c50ecc1"}
+{"t": 1787239035.901335, "key": "coloctapp/elken_v._bain", "text": "still not", "sha": "e3dabf13a4384c7f"}
+{"t": 1787239038.3030038, "key": "coloctapp/elken_v._bain", "text": "still not parsing headmatter", "sha": "e3dabf13a4384c7f"}
+{"t": 1787239041.049439, "key": "coloctapp/elken_v._bain", "text": "still not parsing headmatter correctly.", "sha": "e3dabf13a4384c7f"}
+{"t": 1787239050.031255, "key": "coloctapp/elken_v._bain", "text": "still not parsing headmatter correctly.  when there is a summary page or pages", "sha": "e3dabf13a4384c7f"}
+{"t": 1787239055.294744, "key": "coloctapp/elken_v._bain", "text": "still not parsing headmatter correctly.  when there is a summary page or pages you then have a new page with teh headmatter", "sha": "e3dabf13a4384c7f"}
+{"t": 1787239063.477576, "key": "coloctapp/elken_v._bain", "text": "still not parsing headmatter correctly.  when there is a summary page or pages you then have a new page with teh headmatter that is its own section and teh opinion starts on its own page", "sha": "e3dabf13a4384c7f"}
+{"t": 1787239477.877704, "key": "va/appian_corporation_v._pegasystems", "text": "i just want you to tweak the head", "sha": "545e6bc523d56271"}
+{"t": 1787239485.640922, "key": "va/appian_corporation_v._pegasystems", "text": "i just want you to tweak the headmatter... it looksl ike the v. is alwasy next ot the record no", "sha": "545e6bc523d56271"}
+{"t": 1787239488.882806, "key": "va/appian_corporation_v._pegasystems", "text": "i just want you to tweak the headmatter... it looksl ike the v. is alwasy next ot the record no ... can we just make the v.", "sha": "545e6bc523d56271"}
+{"t": 1787239492.4985678, "key": "va/appian_corporation_v._pegasystems", "text": "i just want you to tweak the headmatter... it looksl ike the v. is alwasy next ot the record no ... can we just make the v. and recornno", "sha": "545e6bc523d56271"}
+{"t": 1787239494.1745942, "key": "va/appian_corporation_v._pegasystems", "text": "i just want you to tweak the headmatter... it looksl ike the v. is alwasy next ot the record no ... can we just make the v. and recornno separated", "sha": "545e6bc523d56271"}
+{"t": 1787239496.247648, "key": "va/appian_corporation_v._pegasystems", "text": "i just want you to tweak the headmatter... it looksl ike the v. is alwasy next ot the record no ... can we just make the v. and recornno separated so", "sha": "545e6bc523d56271"}
+{"t": 1787239501.633727, "key": "va/appian_corporation_v._pegasystems", "text": "i just want you to tweak the headmatter... it looksl ike the v. is alwasy next ot the record no ... can we just make the v. and recornno separated so the v. is part of the caption and t", "sha": "545e6bc523d56271"}
+{"t": 1787239506.7065768, "key": "va/appian_corporation_v._pegasystems", "text": "i just want you to tweak the headmatter... it looksl ike the v. is alwasy next ot the record no ... can we just make the v. and recornno separated so the v. is part of the caption and therecord no is tagged docket.", "sha": "545e6bc523d56271"}
+{"t": 1787239636.660645, "key": "del/in_re_the_aes_corporation_and_owens_corning", "text": "this", "sha": "b0e0fa2be27c658c"}
+{"t": 1787239641.340838, "key": "del/in_re_the_aes_corporation_and_owens_corning", "text": "this doenst have two opinions you are saying the", "sha": "b0e0fa2be27c658c"}
+{"t": 1787239645.594032, "key": "del/in_re_the_aes_corporation_and_owens_corning", "text": "this doenst have two opinions you are saying the end of hte headmatter that is", "sha": "b0e0fa2be27c658c"}
+{"t": 1787239650.1855319, "key": "del/in_re_the_aes_corporation_and_owens_corning", "text": "this doenst have two opinions you are saying the end of hte headmatter that is attorneys/counsel is n order", "sha": "b0e0fa2be27c658c"}
+{"t": 1787240041.831975, "key": "mo/d.j._by_and_through_his_next_friend_r.j._v._first_student_inc.", "text": "there are two opinions here", "sha": "798535bec88a99ec"}
+{"t": 1787240325.777492, "key": "vactapp/belaal_khan_v._cynthia_mcalister_in_her_personal_and_individual_capacity", "text": "incorrectly", "sha": "3cce00cc7fcfc595"}
+{"t": 1787240330.027214, "key": "vactapp/belaal_khan_v._cynthia_mcalister_in_her_personal_and_individual_capacity", "text": "incorrectly splitting opinions up", "sha": "3cce00cc7fcfc595"}
+{"t": 1787240614.609921, "key": "coloctapp/castillo_v._stem", "text": "", "sha": "82cc91e1b81f0602"}
+{"t": 1787240627.05881, "key": "coloctapp/castillo_v._stem", "text": "paaragph markers are now", "sha": "82cc91e1b81f0602"}
+{"t": 1787240628.746073, "key": "coloctapp/castillo_v._stem", "text": "paaragph markers are now in the wrong place", "sha": "82cc91e1b81f0602"}
+{"t": 1787240864.583345, "key": "me/opinion_of_the_justices_ranked-choice_voting", "text": "no headmatter", "sha": "b978d53daee9a05a"}
+{"t": 1787240868.530237, "key": "me/state_of_maine_v._jesse_r._pelletier", "text": "no headmatter", "sha": "4518a0f9d2b5a672"}
+{"t": 1787240942.1155462, "key": "delsuperct/johnson_v._bayhealth_medical_center", "text": "this one", "sha": "4c36ca268577c66d"}
+{"t": 1787240951.056588, "key": "delsuperct/johnson_v._bayhealth_medical_center", "text": "this one takest he first line and puts it in teh ehedmatter", "sha": "4c36ca268577c66d"}
+{"t": 1787240981.896839, "key": "delsuperct/stansbury_v._helm-woulard_and_barry_security", "text": "upon consideration is not counsel... its a sumamry", "sha": "663103e6958cfc0e"}
+{"t": 1787240989.2242079, "key": "delsuperct/starbuck_v._google_llc", "text": "google llc motino to dimiss", "sha": "0f13fe633035d3c0"}
+{"t": 1787240995.5585122, "key": "delsuperct/starbuck_v._google_llc", "text": "google llc motino to dimiss shoudl be part of", "sha": "0f13fe633035d3c0"}
+{"t": 1787240997.25674, "key": "delsuperct/starbuck_v._google_llc", "text": "google llc motino to dimiss shoudl be part of DENIED and", "sha": "0f13fe633035d3c0"}
+{"t": 1787241000.418005, "key": "delsuperct/starbuck_v._google_llc", "text": "google llc motino to dimiss shoudl be part of DENIED and marked as disposition i think", "sha": "0f13fe633035d3c0"}
+{"t": 1787241377.4695082, "key": "coloctapp/inc.", "text": "including", "sha": "8369e22ba54912a0"}
+{"t": 1787241385.7566888, "key": "coloctapp/inc.", "text": "including end of cousenl/headmatter in opinion", "sha": "8369e22ba54912a0"}
+{"t": 1787241391.86372, "key": "coloctapp/mosley_v._daves", "text": "including the", "sha": "743321e57de5e71b"}
+{"t": 1787241396.082625, "key": "coloctapp/mosley_v._daves", "text": "including the footnote in teh opinion", "sha": "743321e57de5e71b"}
+{"t": 1787241410.095917, "key": "coloctapp/people_in_the_interest_of_n.g.", "text": "not properly parsing the headmatter including in the opinion.  all opinions start with", "sha": "7382fcbd6137e91f"}
+{"t": 1787241413.9093828, "key": "coloctapp/people_in_the_interest_of_n.g.", "text": "not properly parsing the headmatter including in the opinion.  all opinions start with \u2022\u00aa", "sha": "7382fcbd6137e91f"}
+{"t": 1787241417.819679, "key": "coloctapp/people_in_the_interest_of_n.g.", "text": "not properly parsing the headmatter including in the opinion.  all opinions start with \u00b6 1 i think", "sha": "7382fcbd6137e91f"}
+{"t": 1787241421.737937, "key": "coloctapp/people_v._fields", "text": "not", "sha": "6088ebb6400f08ed"}
+{"t": 1787241426.675057, "key": "coloctapp/people_v._fields", "text": "not parsing all the headmatter putting in opinion", "sha": "6088ebb6400f08ed"}
+{"t": 1787241430.167819, "key": "coloctapp/people_v._jenkins", "text": "not", "sha": "9ce64851db4f09ed"}
+{"t": 1787241432.606247, "key": "coloctapp/people_v._jenkins", "text": "not parsing proeprly hte", "sha": "9ce64851db4f09ed"}
+{"t": 1787241434.032712, "key": "coloctapp/people_v._jenkins", "text": "not parsing proeprly hte headmatter", "sha": "9ce64851db4f09ed"}
+{"t": 1787241439.8621728, "key": "coloctapp/people_v._romero", "text": "not parsing the headmatter properly.", "sha": "79c9a77b2ccfd64c"}
+{"t": 1787241447.936772, "key": "coloctapp/people_v._romero", "text": "", "sha": "79c9a77b2ccfd64c"}
+{"t": 1787241449.063972, "key": "coloctapp/people_v._romero", "text": "5", "sha": "79c9a77b2ccfd64c"}

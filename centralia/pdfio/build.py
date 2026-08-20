@@ -192,7 +192,22 @@ def build_page(page, page_no: int, id_start: int) -> PageModel:
     # 13pt leading), which shrinks the gap above it below the tight band and
     # splits the paragraph at the marker (ca3 then DISCARDED the fragment).
     # A line's top is where its dominant-size glyphs sit.
+    # …BUT NOT FOR A PIECE SPLIT OUT OF A ROW. `_row` marks the pieces of
+    # one visual line, and their SHARED top is what keeps them in reading
+    # order. Recomputing each piece's own top reorders them: Colorado numbers
+    # its paragraphs in the left margin ('¶ 10' at x0 57.6, 12pt, against a
+    # 14pt body indented to 108.0), the wide-gap split makes the marker a
+    # piece of its paragraph's first row, and its 12pt glyphs sit 1.6pt lower
+    # than the 14pt text. Re-topped, the marker sorted AFTER the text it
+    # opens and rendered mid-sentence — 'Following a forcible entry and
+    # detainer hearing, the court ¶ 11 found that tenant was …' (the user,
+    # 2026-08-20). 45 of the 62 blocks of one record were spliced that way.
+    #
+    # The case this pass exists for is a WHOLE line whose measured top a
+    # superscript raised, which carries no `_row` and is untouched by this.
     for ln in raw:
+        if ln.get("_row") is not None:
+            continue
         printable = [c for c in (ln.get("chars") or [])
                      if (c.get("text") or "").strip()]
         if len(printable) < 3:

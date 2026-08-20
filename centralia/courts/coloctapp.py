@@ -100,7 +100,22 @@ _IN_RE = re.compile(r"^(?:IN RE|In re|In the (?:Matter|Interest)|The People)", r
 _DISPO = re.compile(
     r"\b(AFFIRMED|REVERSED|VACATED|REMANDED|DISMISSED|SET ASIDE|MODIFIED"
     r"|DISCHARGED|ANNULLED|WITHDRAWN|SUSTAINED|GRANTED|DENIED)\b")
-_DIVISION = re.compile(r"^Division\s+[IVXLC]+\.?$", re.I)
+# THE DIVISIONS ARE NUMBERED — AND ONE IS LETTERED. 41 records sit in
+# 'Division I' through 'Division VII'; people_v._jenkins sits in 'Division
+# A'. Read as Roman numerals only, that row matched nothing, fell past every
+# branch, and was left unclaimed — whereupon it became the writing's first
+# block and core's reunite repair pulled the author announcement, the roster,
+# the release date and the whole appearances band in after it.
+_DIVISION = re.compile(r"^Division\s+(?:[IVXLC]+|[A-Z])\.?$", re.I)
+# WHAT BECAME OF AN EARLIER OPINION, stated in the release band above the
+# date: 'Prior Opinion Announced August 3, 2023, Vacated in 24-5460',
+# 'Prior Opinion Announced November 13, 2025, WITHDRAWN', 'Opinion
+# Previously Announced as "NOT PUBLISHED PURSUANT TO C.A.R. 35(e)" on
+# November 13, 2025, is now Designated for Publication'. Three records print
+# one, and on all three it was the row the writing opened on.
+_PRIOR = re.compile(
+    r"^(?:Prior Opinion|Opinion Previously|Opinion Announced|Rehearing)\b",
+    re.I)
 _OPINION_BY = re.compile(r"^Opinion by\b", re.I)
 _ROSTER = re.compile(r"\b(concur|dissent|specially concurr|joins?)\w*\b", re.I)
 _PUBLICATION = re.compile(
@@ -121,7 +136,15 @@ _NOTICE_WORDS = re.compile(
     r"constitute no part of the opinion|convenience of the reader"
     r"|not the official|discrepancy between the language", re.I)
 _SUMMARY_HEAD = re.compile(r"^SUMMARY$")
-_SHEET_DOCKET = re.compile(r"^Nos?\.\s*\d{2}CA\d{3,4}\s*,")
+# THE COMMA IS NOT ALWAYS THERE. 28 of the 30 sheets read 'No. 24CA0934,
+# 1046 Munras Properties, L.P. v. Kabod — …' and two run the case name
+# straight on ('No. 24CA1046 Castillo v. STEM — …', smith_v._terumo). With
+# the comma required, `seen_docket` stayed false on those two, so the subject
+# lines and the whole précis went unclaimed — and once a WRITING opened on
+# them at the top of page 1, core's reunite repair pulled the opinion's own
+# block on page 2 back into it, row by row: 31 read rows became 7 (the user,
+# 2026-08-20: 'it has a summary and then headmatter but its not parsing it').
+_SHEET_DOCKET = re.compile(r"^Nos?\.\s*\d{2}CA\d{3,4}\b\s*,?")
 _DATE = re.compile(
     r"^(?:January|February|March|April|May|June|July|August|September"
     r"|October|November|December)\s+\d{1,2},\s*\d{4}$")
@@ -130,6 +153,18 @@ _DATE = re.compile(
 # Contracts — Fee-shifting Provisions — Fees-on-Fees'). The précis that
 # follows is prose and opens on an indent.
 _SUBJECT = re.compile(r"[—–]")
+# The sheet's own rail: the docket and index rows stand at it, the précis is
+# indented a paragraph in from it.
+_SHEET_RAIL = 72.0
+# The block's own footnote: the court marks an assigned judge on the roster
+# row and explains the mark at the foot of the block.
+_BLOCK_NOTE = re.compile(r"^\*\s*\S")
+# The opinion's own first paragraph, numbered as this court numbers them all.
+_PARA_ONE = re.compile(r"^¶\s*1\b")
+# A body row runs the measure; this court's measure ends at 540.
+_MEASURE_MIN = 470.0
+# The paragraph indent the body opens at.
+_INDENT = 108.0
 
 
 # THE CRITERIA FIELD NAMES ARE THE MODEL'S. `Criteria` (centralia/model.py)
@@ -173,37 +208,90 @@ def read_headmatter_coloctapp(model, geom, **_):
         _read_sheet(ctx, pm, finder)
 
     # ---- the drawn block -------------------------------------------------
-    rows = _rows(head_pm, finder)
+    # THE BLOCK RUNS ONTO THE NEXT PAGE on 5 of the 42 records. The masthead
+    # page holds the rules and the ladder; what does not fit — the division,
+    # the author announcement, the roster, the release date, the appearances
+    # and the block's own footnote — is set on the page after it, and the
+    # opinion then opens on '¶ 1' further down. Walked one page only, all of
+    # that was read as the opinion's first paragraphs (people_v._jenkins
+    # opened its majority on 'Division A'; the user, 2026-08-20: 'not parsing
+    # all the headmatter putting in opinion').
+    if not sorted(r.top for r in head_pm.h_rules if r.top > 50.0):
+        return NOTHING
+    pages = [head_pm]
+    for pm in model.pages[head_pm.number:_MAX_PAGES]:
+        if any(_PARA_ONE.match(_norm(" ".join(l.plain for l in g)))
+               for g in _rows(pm, finder)):
+            pages.append(pm)          # the block's tail, above '¶ 1'
+            break
+        pages.append(pm)
+    rows = [(pm, g) for pm in pages for g in _rows(pm, finder)]
     if not rows:
         return NOTHING
-    # The rules SEGMENT. Their tops are the band edges; a row is in the band
-    # its top falls into. Nothing is indexed off the count.
-    rules = sorted(r.top for r in head_pm.h_rules if r.top > 50.0)
-    if not rules:
-        return NOTHING
+    # The rules SEGMENT, and each page has its own: the tops are the band
+    # edges and a row is in the band its top falls into. Nothing is indexed
+    # off the count.
+    _rules_by_page = {pm.number: sorted(r.top for r in pm.h_rules
+                                        if r.top > 50.0) for pm in pages}
 
-    def band_of(top: float) -> int:
-        return sum(1 for r in rules if r > top)
+    def band_of(page: int, top: float) -> int:
+        return sum(1 for r in _rules_by_page.get(page) or () if r > top)
 
     dockets: list[str] = []
     parties: list[str] = []
     below: list[str] = []
+    ladder_band = None
+    in_block_note = False
+    in_prior = False
     last_band = None
-    for group in rows:
+    for head_pm_of_row, group in rows:
         text = _norm(" ".join(line.plain for line in group))
         if not text:
             continue
         first = group[0]
-        # THE TYPE CLOSES THE BLOCK. The body steps up to 14pt.
-        if (first.size or 0.0) > _HM_SIZE_MAX:
+        # THE OPINION OPENS ON '¶ 1', and that is what closes the block —
+        # measured over all 42 records, every one of them numbers its first
+        # paragraph and none opens any other way (the user's call,
+        # 2026-08-20: 'all opinions start with ¶ 1 i think').
+        #
+        # THE TYPE STEP IS NOT THE BOUNDARY, though the block is 12pt and the
+        # body 14pt: the court sets rows of the block itself at body size —
+        # 'Prior Opinion Announced August 3, 2023, Vacated in 24-5460'
+        # (people_v._fields), 'Opinion Previously Announced as "NOT PUBLISHED
+        # PURSUANT TO C.A.R. 35(e)" …' (people_in_the_interest_of_n.g.), and
+        # a plain 'Division A' (people_v._jenkins). Stopping at the step left
+        # the rest of the block — the division, the author announcement, the
+        # roster, the release date and the appearances — to be read as the
+        # opinion's first paragraphs on five records.
+        if _PARA_ONE.match(text):
             break
-        band = band_of(first.top)
+        # …and the type step still guards a paper this contract does not
+        # describe, but only where the row is BODY-SHAPED: set at body size,
+        # opening at the rail or the paragraph indent, and running the
+        # measure. The block's own body-size rows are none of those — they
+        # are short, or centred, or both.
+        if ((first.size or 0.0) > _HM_SIZE_MAX
+                and first.x0 <= _INDENT + 1.0
+                and max(l.x1 for l in group) >= _MEASURE_MIN):
+            break
+        band = band_of(head_pm_of_row.number, first.top)
         # A DRAWN RULE RENDERS WHERE THE PAGE DRAWS IT.
         if last_band is not None and band != last_band:
-            ctx.rule(head_pm.number)
+            ctx.rule(head_pm_of_row.number)
         last_band = band
-        centred = abs((first.x0 + max(l.x1 for l in group)) / 2
-                      - head_pm.width / 2) <= _AXIS_TOL
+        # CENTRED MEANS SET IN FROM THE RAIL, not 'its midpoint is near the
+        # axis'. A caption row that runs the full measure has its midpoint ON
+        # the axis by construction — smith_v._city_and_county_of_denver sets
+        # 'Ronald G. Smith and Jasper Armstrong, in his representative
+        # capacity and on' from 72.0 to 529.5, a centre of 300.8 against an
+        # axis of 306.0 — so it read as centred, failed the caption's `not
+        # centred` test, and was left unclaimed. A WRITING then opened on it
+        # and core's reunite repair pulled the rest of the block into that
+        # writing. Colorado's centred rows begin at 204-278; every row of the
+        # docket ladder, the caption and the appearances begins at the rail.
+        centred = (abs((first.x0 + max(l.x1 for l in group)) / 2
+                       - head_pm_of_row.width / 2) <= _AXIS_TOL
+                   and first.x0 > body_x0 + 12.0)
 
         if _SLUG.match(text):
             ctx.drop(group, "stamp")
@@ -219,22 +307,58 @@ def read_headmatter_coloctapp(model, geom, **_):
             continue
         if _DOCKET.match(text):
             dockets.append(text)
+            # THE LADDER IS A BAND, and this row names it. Everything the
+            # court says about the tribunal below stands in the same band as
+            # its own docket, between the first two rules.
+            ladder_band = (head_pm_of_row.number, band)
             ctx.emit(group, "docket", centre=False)
             continue
-        if _JUDGE_BELOW.search(text) or _BELOW.search(text) \
-                or _BELOW_NO.match(text):
+        # …AND THE TEST FOR IT IS BAND-BOUND. The tribunal below is named by
+        # words that occur just as readily in the CAPTION and in the
+        # APPEARANCES: goal_academy_v._icao reviews the Industrial Claim
+        # Appeals Office, which is also a named RESPONDENT ('Industrial Claim
+        # Appeals Office of the State of Colorado and Mordecai Valdez') and
+        # the subject of an appearance row ('No Appearance for Respondent
+        # Industrial Claim Appeals Office'). Both were tinted `lower-court`
+        # in the middle of the caption and the counsel (the user, 2026-08-20:
+        # 'it marked a lower court incorrectly again in the caption and in
+        # the counsel'). The rules the page draws already separate the three;
+        # only the ladder's own band answers this question.
+        if ladder_band == (head_pm_of_row.number, band) and (
+                _JUDGE_BELOW.search(text) or _BELOW.search(text)
+                or _BELOW_NO.match(text)):
             below.append(text)
             ctx.emit(group, "lower-court", centre=False)
             continue
         if _ANNOUNCED.match(text):
             ctx.crit.setdefault("decision_date", text.split(None, 1)[-1])
+            in_prior = False              # the release date closes the band
             ctx.emit(group, "date")
+            continue
+        # WHAT BECAME OF AN EARLIER OPINION stands just above the release
+        # date, and it RUNS ON: 'Opinion Previously Announced as "NOT
+        # PUBLISHED PURSUANT TO C.A.R. 35(e)" on November 13, 2025, is now
+        # Designated for Publication' takes two rows, and the first ends on
+        # the abbreviation 'C.A.R.' — so a full stop cannot close the band.
+        # The release date closes it, and the date is tested above.
+        if _PRIOR.match(text) or in_prior:
+            in_prior = True
+            ctx.emit(group, "publication", centre=centred)
             continue
         if _PUBLICATION.match(text):
             ctx.emit(group, "publication")
             continue
         if _OPINION_BY.match(text):
             ctx.crit.setdefault("author_line", text)
+            # THE COURT ANNOUNCES ITS AUTHOR AND NEVER SIGNS. 'Opinion by
+            # JUDGE SCHUTZ' stands in the block, so once the block is claimed
+            # there is no byline left anywhere for core to read and every one
+            # of the 42 records came back with an UNAUTHORED writing. Reported
+            # through core's own `announced_author`, which it applies only to
+            # a lead writing that carries no byline of its own — the
+            # profile's grammar already reads this form
+            # ('opinion_by_headings').
+            ctx.announced = text
             ctx.emit(group, "author")
             continue
         if _DIVISION.match(text):
@@ -254,6 +378,33 @@ def read_headmatter_coloctapp(model, geom, **_):
         # testing it the other way round swapped the caption and the
         # appearances on every record in the corpus.
         if band == 0:
+            # …EXCEPT THE BLOCK'S OWN FOOTNOTE. Colorado marks a judge
+            # sitting by assignment with an asterisk on the roster row and
+            # sets the note at the foot of the block, in the appearances'
+            # band and with no separator above it: '*Sitting by assignment of
+            # the Chief Justice under provisions of Colo. Const. art. VI, §
+            # 5(3), and § 24-51-1105, C.R.S. 2025.' Claimed as an appearance
+            # it read as counsel for a party (the user, 2026-08-20: 'this is
+            # correctly marked as headmatter footnote but left in counsel').
+            # It is left to core's footnote machinery, which already pairs it
+            # with the roster's mark.
+            # Once it opens it runs to the end of the band: the note is the
+            # last thing the block prints. ('Ends with a period' cannot close
+            # it — the first row ends on the abbreviation 'Colo. Const.
+            # art.', so the continuation went back to being counsel.)
+            if _BLOCK_NOTE.match(text) or in_block_note:
+                # CLAIMED, not left to core. The note explains an asterisk on
+                # the roster row ('Grove and Bernard*, JJ., concur'), so it
+                # belongs with the panel it qualifies. Left unclaimed for
+                # core's footnote pass to pair, it paired on two records and
+                # on the third (mosley_v._daves) became the writing's own
+                # first block instead — and once a writing opens on a row of
+                # the block, the reunite repair takes the rest of the block
+                # in after it. A row the page prints inside the block is the
+                # block's; luck is not a reading.
+                in_block_note = True
+                ctx.emit(group, "panel", centre=False)
+                continue
             ctx.emit(group, "counsel", centre=False)
             continue
         # THE CAPTION is what is left between the docket ladder and the
@@ -310,14 +461,33 @@ def _rows(pm, finder) -> list[list]:
     return out
 
 
+def _prov(group: list) -> m.Prov:
+    parts = sorted(group, key=lambda l: l.x0)
+    return m.Prov(parts[0].page, tuple(p.id for p in parts))
+
+
+def _markup(group: list) -> str:
+    text = ""
+    for part in sorted(group, key=lambda l: l.x0):
+        piece = line_markup(part)
+        text = (text.rstrip() + " " + piece.lstrip()) if text.strip() else piece
+    return text
+
+
 def _read_sheet(ctx, pm, finder) -> None:
     """The Reporter's SUMMARY sheet: its notice is furniture, the rest is
     read. The notice is named by its own opening words, and the précis by
     the fact that it is prose set below the subject lines."""
     rows = _rows(pm, finder)
     in_notice = False
-    seen_docket = False
-    in_precis = False
+    # THE SHEET MAY RUN TO A SECOND PAGE, so where the précis stands is
+    # remembered ACROSS the sheet's pages and not per page. elken_v._bain
+    # carries its last two précis rows onto page 2; read per page, that page
+    # had no docket row above them, so they went unclaimed — a WRITING opened
+    # on them and core's reunite repair then pulled the opinion's own block
+    # off page 3 into it, one row at a time (17 read rows became 9).
+    seen_docket = ctx.sheet_docket
+    in_precis = ctx.sheet_precis
     for group in rows:
         text = _norm(" ".join(l.plain for l in group))
         if not text:
@@ -344,18 +514,32 @@ def _read_sheet(ctx, pm, finder) -> None:
             ctx.emit(group, "citation")
             continue
         if _SHEET_DOCKET.match(text):
-            seen_docket = True
+            seen_docket = ctx.sheet_docket = True
             ctx.emit(group, "docket", centre=False)
             continue
         # THE SUBJECT LINES are the Reporter's index entry and stand between
         # the docket row and the précis; the précis opens on an indent and
         # is prose.
-        if not in_precis and seen_docket and _SUBJECT.search(text):
+        # …AND THE INDEX ENTRY WRAPS. Its topics are em-dash separated, but a
+        # wrap carries no dash of its own: elken sets '… — Embryos —
+        # Unmarried' and then 'Parties' alone on the next row. The précis
+        # opens on the paragraph INDENT and this does not, which is what
+        # tells the two apart (the docstring's own rule, applied to the wrap).
+        if not in_precis and seen_docket and (
+                _SUBJECT.search(text)
+                or (group[0].x0 <= _SHEET_RAIL + 1.0 and len(text) < 60)):
             ctx.emit(group, "headnotes", centre=False)
             continue
         if seen_docket:
-            in_precis = True
-            ctx.emit(group, "summary", centre=False)
+            # THE PRÉCIS IS A SECTION OF ITS OWN. Emitted as headmatter rows
+            # it renders inside the block, above a caption it is not part of;
+            # handed over as `summary` it renders as the section the sheet
+            # says it is ('SUMMARY'), which is also what keeps it out of the
+            # opinion when core reunites stray rows.
+            in_precis = ctx.sheet_precis = True
+            ctx.summary.append(m.Paragraph(
+                text=_markup(group), prov=_prov(group)))
+            ctx.consumed.update(l.id for l in group)
             continue
         ctx.dropped_none(group)
 
@@ -368,6 +552,10 @@ class _Ctx:
         self.items: list = []
         self.dropped: list = []
         self.consumed: set[int] = set()
+        self.summary: list = []
+        self.sheet_docket = False
+        self.sheet_precis = False
+        self.announced: str | None = None
         self.crit: dict = {}
 
     def emit(self, group: list, role: str, centre: bool = True) -> None:
@@ -411,4 +599,5 @@ class _Ctx:
     def result(self) -> dict:
         return {"criteria": self.crit, "items": self.items, "attorneys": [],
                 "dropped": self.dropped, "consumed": self.consumed,
+                "summary": self.summary, "announced_author": self.announced,
                 "anchor_ids": [], "doc_type_final": None}

@@ -28,9 +28,11 @@
  "cafc": "complete",
  "cal": "complete",
  "calctapp": "complete",
+ "coloctapp": "complete",
  "conn": "complete",
  "connappct": "complete",
  "dc": "complete",
+ "del": "complete",
  "delch": "complete",
  "fla": "complete",
  "fladistctapp": "complete",
@@ -47,6 +49,7 @@
  "kyed": "complete",
  "mass": "complete",
  "massappct": "complete",
+ "me": "complete",
  "michctapp": "complete",
  "moctapp": "complete",
  "nc": "complete",
@@ -58,5 +61,8 @@
  "scotus": "complete",
  "sd": "complete",
  "tennctapp": "complete",
+ "utah": "complete",
+ "utahctapp": "complete",
+ "va": "complete",
  "wva": "complete"
 }
