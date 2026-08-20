@@ -775,3 +775,9 @@ from . import guam                                       # noqa: E402,F401
 
 from . import indctapp                                   # noqa: E402,F401
 from . import indtc                                      # noqa: E402,F401
+
+from . import kyctapp                               # noqa: E402,F401
+
+from . import orctapp                               # noqa: E402,F401
+
+from . import wvactapp                              # noqa: E402,F401
