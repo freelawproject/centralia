@@ -1425,3 +1425,88 @@ Also confirmed here: **item 38** (the criteria box hides populated fields) —
 `title`, `court`, `case_name` and `headmatter_style` are populated on all 21
 records and displayed on none. **Items 34 and 5 do NOT manifest** (worst
 per-page cid/ink is 0 across all 21; dockets come out clean).
+
+## 52. `conformed_signature_author` cannot read a bare judicial title, and its tail window is 14 lines — `resolve/bylines.py:910-930`
+
+From the ohioctcl port, 2026-08-20. **23 of 30 records come back authorless
+while the page prints the author.**
+
+The Court of Claims signs `LISA L. SADLER` over `Judge` (or `SARAH PIERCE`
+over `Special Master`) at the foot of the last page. The `_OFFICES` arm catches
+`special master` but has no bare `judge`/`magistrate`/`justice`, and its window
+is `lines_text[-14:]`.
+
+Measured with a monkeypatch (no core file edited): an added arm requiring the
+FOLLOWING line to be **exactly** one of
+`Judge|Magistrate|Justice|Chief Justice|Special Master|Magistrate Judge` — an
+exact match, not the substring test the existing arm uses, so `Judge` inside
+prose cannot pose as one — over a **40-line** tail takes ohioctcl to **28 of 30
+authored, every name matching the caption's bench row exactly**, which is
+independent confirmation from the other end of the paper. The 2 that still miss
+(`kanter`, `kolkowski`) print appendices after the signature.
+
+The arm is deliberately tail-limited today, so widening the window has blast
+radius — **full guard run required.** Related to item 39 (no `endmatter.read`
+seam): with that seam a court could claim its own signature block instead.
+
+**EXPECTED DIFF WHEN THIS LANDS, DO NOT READ IT AS A REGRESSION:**
+`lead_bylined` flips false -> true on **23 ohioctcl records**, including 4 of
+its 5 pinned sentinels. Re-bless deliberately.
+
+## 53. `op_type` has no `report-and-recommendation` mirror — `resolve/assemble.py:1550-1554`
+
+From ohioctcl. All **10** of its reports-and-recommendations are typed `order`.
+A report is not an order; it recommends.
+
+    if dt is None and doc_type == DocType.OPINION:
+        dt = DocType.OPINION
+    op_type = "order" if dt in (DocType.ORDER, None) else "majority"
+
+An unbylined writing in an `RR` document falls through `dt is None` to
+`"order"`. Same shape as item 44 (`doc_type_final` has an OPINION mirror but no
+ORDER one) — extend the inheritance,
+`if dt is None and doc_type in (DocType.OPINION, DocType.RR): dt = doc_type`,
+or mirror it at `pipeline.py:1882` where `doc_type_final` already promotes an
+unauthored `order` to `majority` for OPINION. Blast radius: any court whose
+documents classify RR — uscfc's special masters.
+
+**`ohioctcl/brown-austin_v._s._ohio_corr._facility` is deliberately UNPINNED**
+because of this: its headmatter reading is correct but its `ops` is `['order']`.
+All 10 R&R records share the shape, so there is no clean alternative sentinel
+for it. Pin it when this lands.
+
+## Oracle blind spot #4, measured on ohioctcl — a mis-read cover graded IDENTICALLY
+
+The sharpest instance yet. Before this port, core published **the entire cover**
+— cite line, banner, both caption columns, the paper's own name — as opinion
+body prose, and left a one-row headmatter holding `Respondent` under a phantom
+`upside-down-t` caption.
+
+**Quality graded that A, mean 0.183 — exactly what it grades the correct
+reading now.** `hm-unread` could not see it because the mis-read left FEWER
+than the 6 hmrows its gate requires (`harness/quality.py:234`), and
+`_court_has_reader` was false.
+
+Two ideas, offered not patched: keep the existing gate but ALSO flag a
+claimed-headmatter court whose block is implausibly SMALL against its page-1
+ink; and note `v1diff` was dark here for the ordinary reason (no frozen
+baseline). **A court with no reader cannot fail the headmatter metric, so the
+metric cannot find an unported court's worst mis-reads** — which is the whole
+reason headmatter COVERAGE, not grade, is the number this project steers by.
+
+## Item 6 — third manifestation, and a structural fix worth generalising
+
+ohioctcl's running head is ONE visual row of three pieces (`Case No. …` /
+`-2-` / `JUDGMENT ENTRY`). Core learns a head by repetition, so on a TWO-PAGE
+record each piece prints once and the third — the only one that is not a
+number — survives as a doctype heading in the court's own words. With page 1's
+title claimed it became the document's FIRST one and assembly opened a phantom
+writing: **5 records bisected.** Measured split: core names all three pieces on
+the 23 records of >=3 pages and only the first two on the 7 records of 2 pages.
+
+Fixed in-court by a structural test that reads no wording — **a piece of a
+head-band row whose siblings core already calls furniture is the same
+furniture.** Fires on 9 rows corpus-wide, every one genuinely a running head,
+and never where core's pass already succeeded (so no double `Dropped`, item
+46). Worth lifting into item 6's proposed rule alongside wash's
+count-independent docket test.

@@ -8792,6 +8792,146 @@
   "summary": 0,
   "syllabus": 0
  },
+ "ohioctcl/burson_v._ohio_environmental_protection_agency": {
+  "attorneys": 0,
+  "criteria": [
+   "docket_number",
+   "judges",
+   "parties"
+  ],
+  "hm": 4,
+  "hm_roles": {
+   "caption": 12,
+   "citation": 1,
+   "court": 1,
+   "docket": 1,
+   "panel": 2,
+   "title": 1
+  },
+  "lead_bylined": false,
+  "op_blocks": [
+   106
+  ],
+  "ops": [
+   "majority"
+  ],
+  "residual": 0,
+  "status": "valid",
+  "summary": 0,
+  "syllabus": 0
+ },
+ "ohioctcl/maxey_v._dept._of_rehab.__corr.": {
+  "attorneys": 0,
+  "criteria": [
+   "docket_number",
+   "judges",
+   "parties"
+  ],
+  "hm": 4,
+  "hm_roles": {
+   "caption": 11,
+   "citation": 1,
+   "court": 1,
+   "docket": 1,
+   "panel": 2,
+   "title": 2
+  },
+  "lead_bylined": false,
+  "op_blocks": [
+   24
+  ],
+  "ops": [
+   "order"
+  ],
+  "residual": 0,
+  "status": "valid",
+  "summary": 0,
+  "syllabus": 0
+ },
+ "ohioctcl/morris_v._cleveland": {
+  "attorneys": 0,
+  "criteria": [
+   "docket_number",
+   "judges",
+   "parties"
+  ],
+  "hm": 4,
+  "hm_roles": {
+   "caption": 7,
+   "citation": 1,
+   "court": 1,
+   "docket": 1,
+   "panel": 1,
+   "title": 1
+  },
+  "lead_bylined": false,
+  "op_blocks": [
+   8
+  ],
+  "ops": [
+   "order"
+  ],
+  "residual": 0,
+  "status": "valid",
+  "summary": 0,
+  "syllabus": 0
+ },
+ "ohioctcl/nw_ohio_innocence_clinic_v._lucas_cty._prosecutors_office": {
+  "attorneys": 0,
+  "criteria": [
+   "docket_number",
+   "judges",
+   "parties"
+  ],
+  "hm": 4,
+  "hm_roles": {
+   "caption": 15,
+   "citation": 1,
+   "court": 1,
+   "docket": 1,
+   "panel": 1,
+   "title": 1
+  },
+  "lead_bylined": false,
+  "op_blocks": [
+   24
+  ],
+  "ops": [
+   "majority"
+  ],
+  "residual": 0,
+  "status": "valid",
+  "summary": 0,
+  "syllabus": 0
+ },
+ "ohioctcl/walker_v._trumbull_neighborhood_partnership": {
+  "attorneys": 0,
+  "criteria": [
+   "docket_number",
+   "judges",
+   "parties"
+  ],
+  "hm": 4,
+  "hm_roles": {
+   "caption": 9,
+   "citation": 1,
+   "court": 1,
+   "docket": 1,
+   "panel": 1,
+   "title": 1
+  },
+  "lead_bylined": false,
+  "op_blocks": [
+   13
+  ],
+  "ops": [
+   "order"
+  ],
+  "residual": 0,
+  "status": "valid",
+  "summary": 0,
+  "syllabus": 0
+ },
  "pa/commonwealth_v._foster_j._aplt.": {
   "attorneys": 0,
   "criteria": [
