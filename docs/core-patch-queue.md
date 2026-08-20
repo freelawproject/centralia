@@ -1047,3 +1047,102 @@ Item 20 is Connecticut's **Law Journal** folio at 150.5/792 = 0.1900252.
 connappct's corpus contains NO Journal extract, so no connappct record leaks a
 bare numeral and `folio-leak` is absent from all 44. The defect stays latent
 for its extract branch.
+
+## 42. CONTENT LOSS — `_announces` deletes a stapled order's writing — `resolve/assemble.py:1720`
+
+From the calctapp port, 2026-08-20. **The only content loss in that corpus,
+and the most serious class of defect in this queue: 135 words vanish with NO
+residual to show for it.** `calctapp/in_re_mccowen` loses its whole
+modification order (pages 17-18) because `_announces` marks it dead and
+`result.consumed_ids.update(...)` swallows its blocks.
+
+The chain, proved: core splits the stapled paper
+(`pipeline.py::_attached_documents` -> `[(0,16),(16,20)]`); part 2's cover is
+read, so its writing measures under the 900-char bar; `_announces` then returns
+True because the order names a LATER writing's author — which an order
+attaching a concurrence necessarily does (`add and incorporate the concurring
+opinion of RAPHAEL, J.`) — and `_DELIVER_VERBS` matches on the incidental
+`filed`. The veto that should have saved it tests the LITERAL string
+`"IT IS ORDERED"`, and California writes `IT IS THEREFORE ORDERED` /
+`IT IS FURTHER ORDERED`. Verified: veto cues present = `[]`.
+
+    _joined = " ".join(_sta(getattr(b, "text", "") or "") for b in op.blocks)
+    # A RULING THAT PRONOUNCES ITSELF IS A WRITING, whatever else it
+    # mentions — and an order ATTACHING a concurrence necessarily names
+    # that concurrence's author. The formula takes an adverb
+    # ('IT IS THEREFORE ORDERED', 'IT IS FURTHER ORDERED'), so it is
+    # MATCHED, not compared.
+    if any(cue in _joined for cue in ("is denied", "are denied", "is granted",
+                                      "is DENIED", "are DENIED",
+                                      "is dismissed", "is affirmed")) \
+            or _rex.search(r"(?i)\bit is (?:\w+ )?ordered\b", _joined):
+        return False
+
+`import re as _rex` already sits four lines below — hoist it above this block.
+**Do not pin `calctapp/in_re_mccowen` until this lands.**
+
+## 43. `_shift_pages` double-counts a stapled part's pages — `pipeline.py:130-150`
+
+From calctapp. `extract` renumbers a part's `PageModel.number` to 1..n but
+**`Line.page` stays ABSOLUTE** — verified: `pm.number == 1` while
+`pm.lines[0].page == 17`. Every `Prov` is built from `line.page`, so it is
+already absolute when `_shift_pages(doc, a)` adds the offset again:
+`in_re_mccowen` (20 pages) emits `data-pg="33"`, `35`, `36`. Affects every
+stapled record — 8 in calctapp alone.
+
+Two fixes: renumber `Line.page` alongside `PageModel.number`, or drop
+`_shift_pages` entirely and let the absolute `line.page` stand. The second is
+smaller and needs a check that no reader uses `pm.number` for provenance.
+
+## 44. Item 7 UPDATED — `doc_type_final` has an OPINION mirror but no ORDER one
+
+Supersedes part of queued item 7, which said the reader's declared
+`doc_type_final` is thrown away. It is NOT: it reaches op typing through the
+mirror at `pipeline.py:1880-1885`. Declaring `DocType.OPINION` retyped **9**
+calctapp records from `order` to `majority` — all the unpublished ones, because
+`classify_doc_type` has no cue for `NOT TO BE PUBLISHED IN [THE] OFFICIAL
+REPORTS`, so they classify UNKNOWN and `assemble.py:1554` types their only
+writing `order`.
+
+What is missing is the mirror's other half, so an unsigned lead writing typed
+`majority` stays wrong where the court NAMES the paper an order (`citizens`
+part 1, `bates` part 1, `kumar` part 2):
+
+    if (meta.doc_type is m.DocType.ORDER and doc.opinions
+            and doc.opinions[0].type == "majority"
+            and not doc.opinions[0].author_name):
+        doc.opinions[0].type = "order"
+
+`calctapp/citizens_against_marketplace` is already pinned and reads its
+headmatter correctly, but its op typing is still wrong (part 1 is an order
+typed `majority`) — **expect its `ops` to change when this lands; that is the
+fix, not a regression.**
+
+## 45. `_render_endmatter` hard-codes `data-role="counsel"` — `render/html.py:233`
+
+From calctapp. Every endmatter row renders as `counsel` regardless of
+`HmLine.role`, so cal's careful docket-sheet roles (`title`, `docket`, `date`,
+`lower-court`, `case-info`) are all discarded, along with calctapp's 121 sheet
+rows. Cosmetic, but **it makes the role histogram lie about what a reader
+actually read** — which is the metric this project steers by.
+
+    role = getattr(b, "role", "") or "counsel"
+    out.append(f'<div class="hmrow al" data-role="{role}"{attr}>'
+
+## 46. A line a court reader claims can still carry a `Dropped` — `pipeline.py:330-345` vs `:485`
+
+From calctapp. The furniture sweep records `Dropped(kind=...)` ~150 lines
+BEFORE the `headmatter.read` seam, and `_court_hm["consumed"]` is never
+reconciled against `doc.dropped`. calctapp claims its filing stamp — the only
+date the court prints anywhere, and v1's first headmatter row — so on **34
+records the stamp appears both in the headmatter and under "removed"**.
+Over-accounting rather than loss, and the cure is three lines at the seam:
+
+    if _court_hm:
+        _claimed = set(_court_hm.get("consumed") or ())
+        # A LINE A READER CLAIMS IS NOT ALSO REMOVED. The furniture sweep
+        # runs 150 lines above this seam, so a row the court reader goes on
+        # to place was already recorded as junk.
+        doc.dropped = [d for d in doc.dropped
+                       if not (d.prov.line_ids
+                               and set(d.prov.line_ids) <= _claimed)]
