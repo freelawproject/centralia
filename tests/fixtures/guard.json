@@ -6967,6 +6967,218 @@
   "summary": 0,
   "syllabus": 0
  },
+ "iowactapp/auston_david_herman_v._holly_noel_morrison": {
+  "attorneys": 0,
+  "criteria": [
+   "decision_date",
+   "disposition",
+   "docket_number",
+   "judges",
+   "lower_court",
+   "parties",
+   "submitted"
+  ],
+  "hm": 24,
+  "hm_roles": {
+   "author": 1,
+   "caption": 5,
+   "counsel": 4,
+   "court": 1,
+   "date": 1,
+   "disposition": 1,
+   "docket": 1,
+   "lower-court": 2,
+   "panel": 2
+  },
+  "lead_bylined": true,
+  "op_blocks": [
+   42
+  ],
+  "ops": [
+   "majority"
+  ],
+  "residual": 0,
+  "status": "valid",
+  "summary": 0,
+  "syllabus": 0
+ },
+ "iowactapp/brenton_mitchel_huntley_v._state_of_iowa": {
+  "attorneys": 0,
+  "criteria": [
+   "decision_date",
+   "disposition",
+   "docket_number",
+   "judges",
+   "lower_court",
+   "parties",
+   "submitted"
+  ],
+  "hm": 23,
+  "hm_roles": {
+   "author": 1,
+   "caption": 5,
+   "counsel": 3,
+   "court": 1,
+   "date": 1,
+   "disposition": 1,
+   "docket": 1,
+   "lower-court": 2,
+   "panel": 2
+  },
+  "lead_bylined": true,
+  "op_blocks": [
+   22
+  ],
+  "ops": [
+   "majority"
+  ],
+  "residual": 0,
+  "status": "valid",
+  "summary": 0,
+  "syllabus": 0
+ },
+ "iowactapp/brian_d._happel_v._iowa_district_court_for_black_hawk_county": {
+  "attorneys": 0,
+  "criteria": [
+   "decision_date",
+   "disposition",
+   "docket_number",
+   "judges",
+   "lower_court",
+   "parties",
+   "submitted"
+  ],
+  "hm": 24,
+  "hm_roles": {
+   "author": 1,
+   "caption": 5,
+   "counsel": 4,
+   "court": 1,
+   "date": 1,
+   "disposition": 1,
+   "docket": 1,
+   "lower-court": 2,
+   "panel": 2
+  },
+  "lead_bylined": true,
+  "op_blocks": [
+   42
+  ],
+  "ops": [
+   "majority"
+  ],
+  "residual": 0,
+  "status": "valid",
+  "summary": 0,
+  "syllabus": 0
+ },
+ "iowactapp/brianne_garrett_as_of_the_estate_of_betty_peer_v._irc_ii_inc._dba_the": {
+  "attorneys": 0,
+  "criteria": [
+   "decision_date",
+   "disposition",
+   "docket_number",
+   "judges",
+   "lower_court",
+   "parties",
+   "submitted"
+  ],
+  "hm": 27,
+  "hm_roles": {
+   "author": 1,
+   "caption": 8,
+   "counsel": 4,
+   "court": 1,
+   "date": 1,
+   "disposition": 1,
+   "docket": 1,
+   "lower-court": 2,
+   "panel": 2
+  },
+  "lead_bylined": true,
+  "op_blocks": [
+   69,
+   11
+  ],
+  "ops": [
+   "majority",
+   "dissent"
+  ],
+  "residual": 0,
+  "status": "valid",
+  "summary": 0,
+  "syllabus": 0
+ },
+ "iowactapp/in_re_the_marriage_of_kirkpatrick": {
+  "attorneys": 0,
+  "criteria": [
+   "decision_date",
+   "disposition",
+   "docket_number",
+   "judges",
+   "lower_court",
+   "parties",
+   "submitted"
+  ],
+  "hm": 27,
+  "hm_roles": {
+   "author": 1,
+   "caption": 8,
+   "counsel": 4,
+   "court": 1,
+   "date": 1,
+   "disposition": 1,
+   "docket": 1,
+   "lower-court": 2,
+   "panel": 2
+  },
+  "lead_bylined": true,
+  "op_blocks": [
+   39
+  ],
+  "ops": [
+   "majority"
+  ],
+  "residual": 0,
+  "status": "valid",
+  "summary": 0,
+  "syllabus": 0
+ },
+ "iowactapp/in_the_interest_of_f.m._minor_child": {
+  "attorneys": 0,
+  "criteria": [
+   "decision_date",
+   "disposition",
+   "docket_number",
+   "judges",
+   "lower_court",
+   "parties",
+   "submitted"
+  ],
+  "hm": 24,
+  "hm_roles": {
+   "author": 1,
+   "caption": 3,
+   "counsel": 6,
+   "court": 1,
+   "date": 1,
+   "disposition": 1,
+   "docket": 1,
+   "lower-court": 2,
+   "panel": 2
+  },
+  "lead_bylined": true,
+  "op_blocks": [
+   14
+  ],
+  "ops": [
+   "majority"
+  ],
+  "residual": 0,
+  "status": "valid",
+  "summary": 0,
+  "syllabus": 0
+ },
  "kan/in_re_common-law_marriage_of_kelley": {
   "attorneys": 0,
   "criteria": [

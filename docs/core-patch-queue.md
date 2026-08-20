@@ -1266,3 +1266,69 @@ is correctly tagged `citation` and `Criteria.citation` is correctly EMPTY; only
 `apache_corp._v._n.m._tax__rev._dept` carries a real cite (`2024-NMCA-080`).
 Not a defect. Whether a blank placeholder row is worth rendering at all is a
 judgement call for review, not a bug.
+
+## 48. `heading_doc_type` reads an announced-AUTHOR row as a doc-type heading — `classify.py:158`
+
+From the iowactapp port, 2026-08-20. Not previously in this queue, and it will
+bite any of the ~150 unported courts that announce authorship in front matter.
+
+`_matches("OPINION BY GREER, P.J.", "OPINION")` returns True through the
+prefix-phrase arm that exists for `ORDER GRANTING…`:
+
+    >>> heading_doc_type('Opinion by Greer, P.J.')   -> opinion
+    >>> heading_doc_type('Opinion by Sandy, J.')     -> opinion
+
+`assemble.py:1153-1163` uses it to set `_titled`, and `:1293-1305` then CLOSES
+THE HEADMATTER at that segment (`trace: body.doc-type-heading — "heading
+closes headmatter @seg19"`). So `Opinion by Greer, P.J.` rendered as an
+`<h3 class="bhead">` inside the majority — whose real byline
+(`GREER, Presiding Judge.`) is on page 2.
+
+**It is INTERMITTENT, which is why it survived this long.** `:1293` requires
+`not _rostered`, so it fires only where the segmenter puts the roster row in a
+different segment. In iowactapp that is exactly 1 of 30 records — the one
+whose roster row is wide enough (390pt) to be split off, because it carries an
+appended recusal clause.
+
+    def _matches(cand: str, key: str) -> bool:
+        c = _strip_modifiers(cand)
+        if c == key or c.startswith(key + " ") or c.startswith(key + ":"):
+            # 'OPINION BY GREER, P.J.' names the AUTHOR, not the paper.
+            if re.match(rf"^{re.escape(key)}\s+BY\s+\S", c):
+                return False
+            return True
+        return key in _SUFFIX_KEYS and c.endswith(" " + key) and len(c) <= 40
+
+**Caveat from the agent, and the reason it did not apply this: `va` prints a
+bare `OPINION BY` on its own line** over `JUSTICE …`, and `classify_doc_type`
+also feeds two-line joins (`OPINION BY  JUSTICE …`) into `_matches`. The
+`\s+BY\s+\S` guard deliberately keeps the bare form matching, but the
+joined-wrap path needs a full guard run. Moot for iowactapp itself, whose
+reader now claims the row.
+
+## Two iowactapp modelling choices — ACCEPTED 2026-08-20
+
+The agent flagged both rather than burying them, and both are right:
+
+1. **An in-rem caption sets `parties = [the matter title]` alone**, with the
+   appealing party recoverable from `criteria.caption` (verbatim rows). The
+   alternative `[title, appellant]` renders as
+   `"In the Interest of F.M., Minor Child v. T.M., Mother"`, which states a
+   relationship the page does not.
+2. **`history` keeps the origin band AS PRINTED**, duplicating the parsed
+   `lower_court`/`lower_court_judge`, because it is the only field that records
+   the ROUTE — and `Certiorari from` is not `Appeal from`. Affects all 30.
+
+Its six sentinels are pinned on that basis.
+
+## Items 34, 40, 41 — manifestation log
+
+Recorded so nobody re-derives them per court:
+- **item 41** (`criteria.attorneys` unreachable) HIT on idahoctapp and
+  iowactapp as diagnosed; both closed it inside their own court file, as
+  connappct did. Confirmed on conn, connappct, idahoctapp, iowactapp — the
+  patch is wanted regardless.
+- **item 34** (document-wide CID test) does NOT manifest on idahoctapp or
+  iowactapp: `cid_chars == 0` on every page of all 60 records.
+- **item 40** (title-case bylines) does NOT manifest on either: both sign in
+  full caps and all 60 lead writings come back authored.
