@@ -1574,3 +1574,62 @@ cue that would fix it — a caption row with no terminal punctuation followed by
 another caption row — appears on exactly one record, so the agent correctly
 declined to encode it from a single witness. Pin once that style-row rule is
 settled; it is the only consolidated caption AND the only two-row disposition.
+
+## 56. A short LOWER-CASE prose line is accepted as a doc-type heading — `resolve/assemble.py` (~line 1004)
+
+From the ncbizct port, 2026-08-20.
+
+`hart_v._dwm_advisors_llc` page 2 opens with the TAIL of paragraph 3 —
+`judgment are deemed admitted.").`, 32 chars, 189pt wide — which
+`heading_doc_type` types `JUDGMENT`. The `headmatter_claimed` rule at ~1105
+then prepends `_body0` and keeps that anchor, **splitting one order at the page
+break**.
+
+Core alone never reaches the line, because the first heading it finds is the
+caption's own `ORDER AND OPINION GRANTING` and the caption-band rule sends the
+body below it — a row a reader has now claimed. So this only surfaces once a
+court reads its own cover, which is why it is appearing now.
+
+The existing `_wide` guard catches a full-measure prose line but NOT a
+paragraph's LAST line, which is short by definition. One line:
+
+    _wide = _col > 100 and (line.x1 - line.x0) >= 0.8 * _col
+    # A HEADING DOES NOT OPEN IN LOWER CASE.
+    dt = (None if _wide or len(head) >= 80 or head[:1].islower()
+          else heading_doc_type(head))
+
+Measured over the corpus, `hart` is the ONLY record with such a line, so the
+patch moves this court by exactly one file. Same neighbourhood as item 48
+(`heading_doc_type` reading `Opinion by <name>` as a heading) — both are
+`heading_doc_type` being asked a question about a row that is not a heading.
+
+**Do not pin `ncbizct/hart_v._dwm_advisors_llc` until this lands** — it comes
+back with two orders where the paper has one.
+
+## Item 10 — confirmed a second time, and closed locally by ncbizct
+
+`publication_status` read out of a body parenthetical: core had
+`ncbizct/fs_med._supplies_llc_v._tannergap_inc.` as **unpublished** off a
+page-2 citation to ANOTHER decision, `*3-4 (2019) (unpublished)`. ncbizct now
+declares status from the printed opinion number instead — this court numbers
+`YYYY NCBC NN` only what it publishes and cites its unpublished work as
+`YYYY NCBC LEXIS NN`.
+
+## Two ncbizct judgement calls worth a human eye before more pinning
+
+1. **The same-baseline join `v. Plaintiffs,`** — 13 rows across ~11 files,
+   including two pinned sentinels. The court sets the pivot on the SAME
+   baseline as the status above it; we reproduce the line as printed, v1 split
+   them (which prints the status *under* the pivot it stands beside). If v1's
+   reading is preferred, sentinels 1 and 3 change.
+2. **`olds_v._olds` is deliberately unpinned**: its `IN RE: CUSTODIAL ACCOUNT
+   OF …` recital and the plaintiff `DAVIS AUSTIN OLDS` merge into one party
+   group, because the court separates them with a BLANK LINE and no status
+   label — and a blank line is not a landmark the reader treats as structure.
+   Reasonable, but not pinnable as correct.
+
+Also from ncbizct, informational: core types 32 of these 42 papers `order` and
+10 `majority` from an IDENTICAL masthead, which is why `doc_type_final` is now
+stated by the reader rather than inferred. And `disposition` is set to a bare
+`DENIED.` from body prose on two records — core's, not the reader's; thin but
+not false.

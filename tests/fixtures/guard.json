@@ -8030,6 +8030,177 @@
   "summary": 0,
   "syllabus": 0
  },
+ "ncbizct/auto_provisions_llc_v._g1.34_holdings_llc": {
+  "attorneys": 0,
+  "criteria": [
+   "decision_date",
+   "docket_number",
+   "parties",
+   "publication_status"
+  ],
+  "hm": 4,
+  "hm_roles": {
+   "caption": 7,
+   "citation": 1,
+   "court": 4,
+   "docket": 1,
+   "title": 3
+  },
+  "lead_bylined": true,
+  "op_blocks": [
+   212
+  ],
+  "ops": [
+   "order"
+  ],
+  "residual": 0,
+  "status": "valid",
+  "summary": 0,
+  "syllabus": 0
+ },
+ "ncbizct/becker_v._bridges_experience_inc.": {
+  "attorneys": 0,
+  "criteria": [
+   "decision_date",
+   "docket_number",
+   "parties",
+   "publication_status"
+  ],
+  "hm": 4,
+  "hm_roles": {
+   "caption": 14,
+   "citation": 1,
+   "court": 4,
+   "docket": 1,
+   "publication": 1,
+   "title": 13
+  },
+  "lead_bylined": true,
+  "op_blocks": [
+   91
+  ],
+  "ops": [
+   "order"
+  ],
+  "residual": 0,
+  "status": "valid",
+  "summary": 0,
+  "syllabus": 0
+ },
+ "ncbizct/best_logistics_grp._inc._v._bravo": {
+  "attorneys": 0,
+  "criteria": [
+   "decision_date",
+   "docket_number",
+   "parties",
+   "publication_status"
+  ],
+  "hm": 6,
+  "hm_roles": {
+   "caption": 6,
+   "citation": 1,
+   "counsel": 2,
+   "court": 4,
+   "docket": 1,
+   "title": 2
+  },
+  "lead_bylined": true,
+  "op_blocks": [
+   11
+  ],
+  "ops": [
+   "order"
+  ],
+  "residual": 0,
+  "status": "valid",
+  "summary": 0,
+  "syllabus": 0
+ },
+ "ncbizct/cadieu_tree_experts_inc._v._wiedner": {
+  "attorneys": 0,
+  "criteria": [
+   "decision_date",
+   "docket_number",
+   "parties",
+   "publication_status"
+  ],
+  "hm": 5,
+  "hm_roles": {
+   "caption": 18,
+   "citation": 1,
+   "court": 4,
+   "docket": 1,
+   "title": 6
+  },
+  "lead_bylined": true,
+  "op_blocks": [
+   101
+  ],
+  "ops": [
+   "order"
+  ],
+  "residual": 0,
+  "status": "valid",
+  "summary": 0,
+  "syllabus": 0
+ },
+ "ncbizct/moore_v._brooks": {
+  "attorneys": 0,
+  "criteria": [
+   "decision_date",
+   "docket_number",
+   "parties",
+   "publication_status"
+  ],
+  "hm": 4,
+  "hm_roles": {
+   "caption": 25,
+   "citation": 1,
+   "court": 4,
+   "docket": 1,
+   "title": 6
+  },
+  "lead_bylined": true,
+  "op_blocks": [
+   88
+  ],
+  "ops": [
+   "order"
+  ],
+  "residual": 0,
+  "status": "valid",
+  "summary": 0,
+  "syllabus": 0
+ },
+ "ncbizct/wright_v._lorusso": {
+  "attorneys": 0,
+  "criteria": [
+   "decision_date",
+   "docket_number",
+   "parties",
+   "publication_status"
+  ],
+  "hm": 7,
+  "hm_roles": {
+   "caption": 16,
+   "citation": 1,
+   "counsel": 3,
+   "court": 4,
+   "docket": 1,
+   "title": 2
+  },
+  "lead_bylined": true,
+  "op_blocks": [
+   11
+  ],
+  "ops": [
+   "majority"
+  ],
+  "residual": 0,
+  "status": "valid",
+  "summary": 0,
+  "syllabus": 0
+ },
  "nd/adams_v._state": {
   "attorneys": 0,
   "criteria": [
