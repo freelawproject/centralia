@@ -150,10 +150,20 @@ vaed vawd vtd waed wawd wied wiwd wvnd wvsd wyd
 # ATTORNEY-GENERAL opinion series (calag/mdag/minnag/texag alongside olc,
 # the user's call 2026-08-19) — an AG opinion is not a state court's paper
 # and listing it among them made the state group misread as unfinished.
+# TERRITORIES AND TRIAL COURTS, the state lane's leftovers (the user's call,
+# 2026-08-20: 'move the remaining state courts not done to the misc other
+# tribunal category ... move virgin islands over there too'). Not one of them
+# is a state's appellate court: New York's four trial courts (its appellate
+# papers are nyappdiv and ny), Puerto Rico, the Northern Marianas and the
+# Virgin Islands. Every other court in the state group now has a reader, so
+# the group reads as the state lane's real progress instead of carrying
+# courts that lane will never close.
 _OTHER = set("""
 acca afcca armfor nmcca uscgcoca asbca bia cavc cit uscfc tax ttab mspb
 olc calag mdag minnag texag
 delctcompl
+nycivct nyfamct nysupct nysurct
+prapp prsupreme nmariana virginislands
 """.split())
 
 
