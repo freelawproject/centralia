@@ -2019,3 +2019,104 @@ words are the right standard: the reader "would be lying if it did".
 
 **So the signature seam still has exactly one user (haw).** md itself remains
 the place to prove the pattern.
+
+## 66. A full SENTENCE is read as a doc-type heading and anchors a second writing — `resolve/assemble.py:405`
+
+From the hawapp port, 2026-08-20. The fourth member of the family with items
+48, 56 and 62 — `heading_doc_type` asked about a row that is not a heading.
+
+    heading_doc_type('Judgment and Writ are affirmed.') -> JUDGMENT
+
+On `hawapp/mola_v._lopez-ruiz` that sentence CLOSES the summary disposition and
+anchors a second writing: `[order 4 blocks] [majority 3 blocks]` where the
+paper holds one order.
+
+`assemble.py:1023` ALREADY carries the guard for this shape (the
+`mass murray`/`gorbatova` note) but reaches it through `_is_dispo_line`, whose
+`_DISPO` is a closed list of TWO-WORD phrases — `judgment affirmed` is in it,
+`judgment and writ are affirmed` is not.
+
+    _DISPO_TAIL = ("affirmed", "reversed", "vacated", "denied", "granted",
+                   "dismissed", "remanded")
+
+    def _is_dispo_line(txt: str) -> bool:
+        norm = " ".join(txt.split())
+        if norm.lower().rstrip(".").strip() in _DISPO:
+            return True
+        # A DISPOSITION IS A SENTENCE, NOT A TITLE. hawapp spells its ruling
+        # out ('Judgment and Writ are affirmed.'), which is the same object as
+        # 'Judgment affirmed.', and a closed phrase list cannot enumerate it.
+        words = norm.rstrip(".").split()
+        return (norm.endswith(".") and len(words) >= 3
+                and words[-1].lower().rstrip(".") in _DISPO_TAIL)
+
+Blast radius is confined by its only caller
+(`dt is not None and headmatter_claimed and i > 0`). 1 of 30 hawapp records,
+and **identical with the decider popped except that the anchor does not fire
+there — so the claim EXPOSES it rather than causing it.** Needs a guard run.
+
+**Do not pin `hawapp/mola_v._lopez-ruiz` until this lands.**
+
+## 67. pdfio WELDS the cover's docket onto the e-filing stamp — `pdfio/build.py` line grouping
+
+From hawapp. The docket ends at `x1=374.4` and the stamp column starts at
+`x0=372.0`, so two records return ONE line:
+`NO. CAAP-25-0000012Dkt. 71 OAWST` and `NO. CAAP-26-0000319D kt. 25 OGMD`.
+
+**haw's fix cannot reach this** — haw sorts the stamp column out before
+grouping visual rows, but this weld is at the LINE level. Present in the
+baseline. The court file emits the row verbatim and parses `docket_number` off
+the leading match, so the criterion is clean either way; a court file may not
+invent provenance for half a line.
+
+## A DESIGN QUESTION for both Hawai'i courts, raised by hawapp and inherited deliberately
+
+hawapp routes its closing band to `doc.attorneys`, which is
+`SectionSpec("endmatter", "attorneys", 15, …)` — so it renders **above the
+writings** and exports under the `attorneys` casebody element, meaning **the
+conformed JUDICIAL signatures in its right column are exported as counsel of
+record.**
+
+The agent matched `haw` rather than splitting the block by column, on the
+repo's own rule that one printed block is one object — and haw had measured
+that a one-column claim loses 1-6 rows to the bisection invariant on 9 of 12
+records. **This is a `sections.py`/export decision for both court files at
+once, not a hawapp change.** The alternative is routing the bench to
+`signature` on every record rather than only the signature-only ones.
+
+Recorded here because it is the first time the two seams (endmatter at order 15
+vs signature at order 60) have visibly disagreed about the same printed block.
+
+## hawapp: the furniture must be CLAIMED, not left to core
+
+The agent's own first wrong answer, and the measurement that corrected it —
+worth keeping because it generalises to every reader.
+
+Left unclaimed, hawapp's advisory and e-filing stamp are the first UNREAD rows
+on page 1. **Under a claim, core reads an unread row as the writing's**, so the
+writing opened at the top of the sheet and the bisection invariant put every
+claimed row back: `invariant.reunited: headmatter row p1` fired ELEVEN times on
+one record and on 29 of 30 overall. After claiming them the `removed` box is
+unchanged from the baseline (running-head 32, folio 29, status 30, stamp 42) —
+so there is one owner and no item-46 double count.
+
+Also from this port, on the dispatch: `v_rules == 0` on every page of all 30
+records except three, and those three are inside one footnote's TABLE. Not one
+record draws a rule passing haw's fence test. So hawapp is the
+no-second-column branch — and the dispatch keeps the NEGATIVE test: a page that
+DOES set a fence pair returns `NOTHING`, because that is haw's paper, not this
+court's.
+
+Four contract details that each cost a record until measured: the zone gap is
+**1.5x the block's own leading, not haw's 2.0**; the caption is the run from
+the FIRST pivot zone to the LAST (consolidated captions occupy two or three
+zones, one of them holding only `and`); the pivot may CLOSE a row
+(`…, Plaintiff-Appellee, v.`) on 8 of 30; and the roster's recusal clause may
+open INSIDE the token that names a seat — `and Circuit Court Judge Costa in
+place of Nakasone, C.J., Leonard, Hiraoka, and Wadsworth, JJ., recused` seats
+THREE and recuses FOUR, where haw's version seats six.
+
+Item 44's OPINION half is now used twice (calctapp, hawapp) — declaring
+`DocType.OPINION` retypes hawapp's three memorandum opinions from `order` to
+`majority`. **The ORDER half of that mirror is still missing**, and hawapp's 25
+orders rely on `assemble` for it.

@@ -6131,6 +6131,192 @@
   "summary": 0,
   "syllabus": 0
  },
+ "hawapp/association_of_apartment_owners_of_kawaihae_crescent_east_v._yang_1": {
+  "attorneys": 2,
+  "criteria": [
+   "decision_date",
+   "docket_number",
+   "judges",
+   "lower_court",
+   "parties",
+   "publication_status"
+  ],
+  "hm": 29,
+  "hm_roles": {
+   "caption": 22,
+   "court": 2,
+   "docket": 1,
+   "lower-court": 2,
+   "panel": 1,
+   "title": 1
+  },
+  "lead_bylined": true,
+  "op_blocks": [
+   76
+  ],
+  "ops": [
+   "majority"
+  ],
+  "residual": 0,
+  "status": "valid",
+  "summary": 0,
+  "syllabus": 0
+ },
+ "hawapp/deutsche_bank_national_trust_company_v._mendonza": {
+  "attorneys": 1,
+  "criteria": [
+   "decision_date",
+   "docket_number",
+   "judges",
+   "lower_court",
+   "parties",
+   "publication_status"
+  ],
+  "hm": 20,
+  "hm_roles": {
+   "caption": 12,
+   "court": 3,
+   "date": 1,
+   "docket": 1,
+   "lower-court": 2,
+   "panel": 1
+  },
+  "lead_bylined": true,
+  "op_blocks": [
+   56
+  ],
+  "ops": [
+   "majority"
+  ],
+  "residual": 0,
+  "status": "valid",
+  "summary": 0,
+  "syllabus": 0
+ },
+ "hawapp/mount_jr._v._apao": {
+  "attorneys": 2,
+  "criteria": [
+   "decision_date",
+   "docket_number",
+   "judges",
+   "lower_court",
+   "parties",
+   "publication_status"
+  ],
+  "hm": 27,
+  "hm_roles": {
+   "caption": 18,
+   "court": 2,
+   "docket": 1,
+   "lower-court": 2,
+   "panel": 3,
+   "title": 1
+  },
+  "lead_bylined": true,
+  "op_blocks": [
+   136
+  ],
+  "ops": [
+   "majority"
+  ],
+  "residual": 0,
+  "status": "valid",
+  "summary": 0,
+  "syllabus": 0
+ },
+ "hawapp/muller_v._betsill_brother_llc": {
+  "attorneys": 0,
+  "criteria": [
+   "decision_date",
+   "docket_number",
+   "judges",
+   "lower_court",
+   "parties",
+   "publication_status"
+  ],
+  "hm": 11,
+  "hm_roles": {
+   "caption": 3,
+   "court": 2,
+   "docket": 1,
+   "lower-court": 3,
+   "panel": 1,
+   "title": 1
+  },
+  "lead_bylined": true,
+  "op_blocks": [
+   2
+  ],
+  "ops": [
+   "order"
+  ],
+  "residual": 0,
+  "status": "valid",
+  "summary": 0,
+  "syllabus": 0
+ },
+ "hawapp/state_v._cavasso": {
+  "attorneys": 2,
+  "criteria": [
+   "decision_date",
+   "docket_number",
+   "judges",
+   "lower_court",
+   "parties",
+   "publication_status"
+  ],
+  "hm": 10,
+  "hm_roles": {
+   "caption": 3,
+   "court": 2,
+   "docket": 1,
+   "lower-court": 2,
+   "panel": 1,
+   "title": 1
+  },
+  "lead_bylined": true,
+  "op_blocks": [
+   25
+  ],
+  "ops": [
+   "order"
+  ],
+  "residual": 0,
+  "status": "valid",
+  "summary": 0,
+  "syllabus": 0
+ },
+ "hawapp/state_v._kealoha": {
+  "attorneys": 2,
+  "criteria": [
+   "decision_date",
+   "docket_number",
+   "judges",
+   "lower_court",
+   "parties",
+   "publication_status"
+  ],
+  "hm": 9,
+  "hm_roles": {
+   "caption": 2,
+   "court": 2,
+   "docket": 1,
+   "lower-court": 2,
+   "panel": 1,
+   "title": 1
+  },
+  "lead_bylined": true,
+  "op_blocks": [
+   54
+  ],
+  "ops": [
+   "order"
+  ],
+  "residual": 0,
+  "status": "valid",
+  "summary": 0,
+  "syllabus": 0
+ },
  "idaho/baiz_v._magistrate_division": {
   "attorneys": 0,
   "criteria": [

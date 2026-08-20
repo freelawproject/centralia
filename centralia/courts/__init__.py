@@ -678,3 +678,8 @@ from . import mdctspecapp                                 # noqa: E402,F401
 from . import utahctapp                                  # noqa: E402,F401
 
 from . import wisctapp                                   # noqa: E402,F401
+from . import hawapp                                     # noqa: E402,F401
+
+from . import washctapp                                  # noqa: E402,F401
+
+from . import vactapp                                    # noqa: E402,F401
