@@ -1332,3 +1332,96 @@ Recorded so nobody re-derives them per court:
   iowactapp: `cid_chars == 0` on every page of all 60 records.
 - **item 40** (title-case bylines) does NOT manifest on either: both sign in
   full caps and all 60 lead writings come back authored.
+
+## 49. A byline BELOW the attestation is a signature too — `resolve/assemble.py:717`
+
+From the nmctapp port, 2026-08-20. **22 phantom empty writings across 11 of
+13 records**, and the best-evidenced patch in this queue — its author measured
+the counterfactual.
+
+`_signs_off` (~703) catches the AUTHOR's conformed name, which stands ABOVE
+`WE CONCUR:`. The judges who JOINED sign BELOW it, one name per row — and
+nmctapp types a rule over each name, so those names are NOT ADJACENT segments
+and the panel-roster fold at line 731 (`b - a == 1`) cannot see them:
+
+    state_v._klumb p16:  349.1  '      ______________________________'
+                         365.1  '      KRISTOPHER N. HOUGHTON, Judge'   <- author, caught
+                         397.3  'WE CONCUR:'
+                         445.6  '___________________________'
+                         461.7  'ZACHARY A. IVES, Judge'                <- opens a writing
+                         509.9  '___________________________'
+                         526.1  'JANE B. YOHALEM, Judge'                <- opens a writing
+
+That is exactly the slip/memorandum split: the 7 memorandum records print no
+rules, their names ARE adjacent, and they fold correctly.
+
+Patch goes immediately before the `# A TERMINAL byline is a SIGNATURE` comment
+(~line 758), where `_kindless_pure` is in scope — full text in the agent's
+report; the shape is a `_under_attest(i)` predicate walking back to an
+`_ATTEST` row on the same page, bailing on any line over 60 chars, then
+`starts = [i for i in starts if not _under_attest(i)]`.
+
+**THE `_kindless_pure` GATE IS LOAD-BEARING, AND THERE IS A MEASUREMENT
+PROVING IT.** Without it, nmctapp goes 22/22 clean but **`nm` LOSES TWO REAL
+DISSENTS** — `nm/state_v._cardenas_1` (`dissent THOMSON 15`) and
+`nm/state_v._vasquez_1` (`dissent ZAMORA 16`) fold into their majorities. With
+the gate, across **273 files of nm / calctapp / ca7 / wis / nmcca only 2
+change, both `nm`, both strict improvements** (each loses a phantom
+`[…,'FULL NAME',0]` and returns its rows to the writing above).
+
+nmctapp then goes 21 of 22. The one remaining is `silva`'s
+`J. MILES HANISEE, Judge, specially concurring` under `WE CONCUR:` — that row
+carries a KIND, so it ANNOUNCES a writing beginning on the next page, which is
+**queue item 1**, not this. Needs a full guard run when landed.
+
+## 50. `sitting by designation` is only recognized at the START of the kind clause — `resolve/bylines.py:531`
+
+From nmctapp. `BUSTAMANTE, Judge, retired, sitting by designation.` yields
+`kind='retired, sitting by designation'`, and `normalize_opinion_type` turns
+that into the opinion TYPE **`retired,-sitting-by-designation`**. apache's only
+writing is typed that way, and `nm` already carries a
+`['retired', 'RICHARD C. BOSSON', 5]` from the same shape.
+
+    sitting = bool(kind) and "sitting by designation" in \
+        " ".join(kind.lower().split()) \
+        and not any(w in kind.lower() for w in _KIND_WORDS)
+
+A/B'd against a grammar carrying `Circuit Judge` / `United States District
+Judge`: only the target changes — `David J. NOVAK, …, sitting by designation:`,
+`Tolliver, …, sitting by designation.` and `GRASZ, Circuit Judge, dissenting,
+sitting by designation.` all behave identically.
+
+## 51. HOLD (MINE) — nmctapp's CourtProfile is missing two measured facts (`courts/__init__.py:374`)
+
+Not core's, and not applied yet because two porters were appending to that file.
+`register` refuses a duplicate id, so the agent could not move the profile into
+its own module. `centralia/courts/nmctapp.py:146` records what belongs on it:
+
+- **`titles=(… "Justice", "Chief Justice")`** — retired Supreme Court justices
+  sit here by designation and sign as such. `BOSSON, Justice, retired, sitting
+  by designation.` fails to parse, which is why
+  **`komis_v._farmers_ins._co.` is the one authorless record** and its byline
+  renders as a body block. (Authorless is not a defect per the 2026-08-19
+  ruling — but here the page DOES print an author.)
+- **`para_indent_min=24.0`** — `state_v._romanis-beltran` body pages: 649 rows
+  at x0 72 (rail), 139 at 108 (paragraph opener), 12 at 144 and 56 at 180
+  (quotations). At the 12.0 default the quotation fence sits at 24pt and every
+  ordinary paragraph opener falls inside it.
+
+## nmctapp: the signing stamp is an ANNOTATION with no characters
+
+Worth recording because I briefed the agent to fear it. The
+`Office of the Director / New Mexico Compilation Commission / 2024.12.17`
+block is a `/Widget` SIGNATURE ANNOTATION on exactly ONE of the 21 records
+(`apache_corp` — the only paper the Commission has signed). **pdfminer returns
+zero characters for it**: `[c for c in pg.chars if c['top'] < 75] == []`, and
+page 1's first text row is the masthead at top 75.8. So there was never a row
+to drop and its timestamp could not have reached `decision_date` (which comes
+from `Filing Date: June 17, 2024`). The reader still claims that region as
+`kind="stamp"` so a future extractor that DOES render annotations lands
+somewhere already accounted for.
+
+Also confirmed here: **item 38** (the criteria box hides populated fields) —
+`title`, `court`, `case_name` and `headmatter_style` are populated on all 21
+records and displayed on none. **Items 34 and 5 do NOT manifest** (worst
+per-page cid/ink is 0 across all 21; dockets come out clean).
