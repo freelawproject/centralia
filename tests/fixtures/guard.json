@@ -5209,32 +5209,6 @@
   "summary": 0,
   "syllabus": 0
  },
- "calctapp/citizens_against_marketplace_etc._v._city_of_san_ramon": {
-  "attorneys": 0,
-  "criteria": [
-   "decision_date",
-   "disposition",
-   "docket_number",
-   "parties",
-   "publication_status"
-  ],
-  "hm": 513,
-  "lead_bylined": false,
-  "op_blocks": [
-   8,
-   8,
-   8
-  ],
-  "ops": [
-   "order",
-   "majority",
-   "majority"
-  ],
-  "residual": 0,
-  "status": "valid",
-  "summary": 0,
-  "syllabus": 0
- },
  "calctapp/colonial_manor_inc._v._reyes": {
   "attorneys": 0,
   "criteria": [

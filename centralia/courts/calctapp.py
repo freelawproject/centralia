@@ -684,9 +684,18 @@ def _read_stamp(ctx: _Ctx, pm, masthead_top: float, body_size: float) -> None:
     changed the paper's status after filing ('Filed 6/30/26; Certified
     for Publication 7/22/26 (order attached)') on the six records that
     print no flag at all."""
+    # BOTH THRESHOLDS, not just the upper one. Reading off the page instead
+    # of the filtered rows is what lets this claim the stamp at all — but it
+    # also re-offers the Rules-of-Court notice, which the furniture filter
+    # had already taken out of `above`, so `_read_masthead` never saw it to
+    # drop. With only `<= body_size - _STAMP_STEP` the 8.0pt notice passes a
+    # test meant for the 10.0pt stamp and its three rows come back as
+    # `date` (bates_v._city_of_temecula_ca41). The window between the two
+    # steps is empty across the corpus, which is what makes this safe.
     stamp = [l for l in pm.lines
              if l.plain.strip() and l.top < masthead_top - 2.0
-             and (l.size or body_size) <= body_size - _STAMP_STEP
+             and body_size - _NOTICE_STEP
+             < (l.size or body_size) <= body_size - _STAMP_STEP
              and l.id not in ctx.consumed]
     stamp.sort(key=lambda l: (l.top, l.x0))
     joined = " ".join(_norm(l.plain) for l in stamp).lower()

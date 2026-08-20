@@ -1169,3 +1169,39 @@ the COURT'S OWN GRAMMAR never offered it, and that reads exactly like an
 assembly defect from the outside. Check the profile before the pipeline.
 
 The three stems are now pinned, since their readings are correct.
+
+## calctapp notice fix, and one more stale pin removed — 2026-08-20
+
+**User-reported:** the California Rules of Court rule 8.1115(a) notice was not
+being removed on `calctapp/bates_v._city_of_temecula_ca41` — its three 8.0pt
+rows came back tagged `date`.
+
+Cause was in the court file, not core. `_read_stamp` deliberately reads off the
+PAGE rather than the filtered rows (that is what lets it claim the clerk's
+stamp at all, since core's furniture finder takes the stamp out of `above` on
+28 of 42 records) — but it applied only the UPPER size bound
+`<= body_size - _STAMP_STEP` (<= 11.0). The notice at 8.0pt passed a test meant
+for the 10.0pt stamp, and `_read_masthead` never saw those rows to drop them
+because the furniture filter had already removed them from `above`.
+
+The file's own comment (~line 186) already documented the two-threshold design
+— "the body is 13.0pt, the clerk's stamp 10.0-10.1pt, and the
+uncertified-opinion notice 8.0pt. Two steps, so two thresholds, and the window
+between them (9.0-11.0) is empty across the corpus" — the stamp reader just
+never applied the second one. Now:
+
+    body_size - _NOTICE_STEP < (l.size or body_size) <= body_size - _STAMP_STEP
+
+Verified: rule 8.1115 no longer lands in ANY content section on any of the 42
+records; calctapp holds at 1026/1026 rows (100%), 42/42 valid, 0 unread. The
+row total fell 1029 -> 1026, which is exactly the three notice rows now dropped.
+
+**Also removed a stale pin:**
+`calctapp/citizens_against_marketplace_etc._v._city_of_san_ramon` recorded
+`hm: 513` — the whole document sitting in the headmatter, which was the
+pre-port bug. It now reads 14 hm rows, `valid`, residual 0. But its op typing
+is STILL wrong (`ops` is two unauthored majorities where part 1 is an order),
+which is queue item 44. A stale pin whose stored state is the old bug produces
+noise rather than signal, and re-blessing it would lock the wrong op typing —
+so it is unpinned, like `bath_v._rudisill` and `in_re_mccowen`. **Re-pin all
+three after items 40, 42 and 44 land.**
