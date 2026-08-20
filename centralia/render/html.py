@@ -344,6 +344,21 @@ def render_html(doc: m.Document, title: str | None = None) -> str:
             # and `render_hm_items` raises on a Paragraph, so that fallback
             # would take the whole document down. Render it as blocks.
             inner = _render_endmatter(value)
+        elif spec.name == "signature" and all(
+                isinstance(x, (m.HmLine, m.CaptionBlock, m.Rule,
+                               m.Divider, m.Gap))
+                for x in value):
+            # A COURT THAT READ ITS OWN SIGNATURE BAND may hand over the
+            # page's ROWS instead of assembled blocks, and rows are what a
+            # two-abreast signature needs: guam sets two justices side by
+            # side over drawn rules, and one flow paragraph per printed row
+            # fuses the columns into a single run ('/s/ /s/ F. PHILIP
+            # CARBULLIDO KATHERINE A. MARAMAN Associate Justice Associate
+            # Justice' — three printed rows, six cells, one line). Rendered
+            # the way the headmatter renders rows, the whitespace is the
+            # page's. Courts that hand over Paragraphs (haw, dc, hawapp,
+            # ohioctapp) still take the flow path below, exactly as before.
+            inner = render_hm_items(value)
         elif spec.html == "hm":
             inner = render_hm_items(value)
         elif spec.html == "flow":

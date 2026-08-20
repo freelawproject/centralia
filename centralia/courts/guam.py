@@ -172,12 +172,12 @@ def _side(line, mid: float, want: str):
                     x1=max(c.get("x1", c["x0"]) for c in keep))
 
 
-def _cell(parts: list, page: int):
+def _cell(parts: list, page: int, role: str = "counsel"):
     """One column's cell on one row — the empty one keeps its place."""
     parts = sorted(parts, key=lambda l: l.x0)
     if not parts:
         return m.HmLine(text="", prov=m.Prov(page), align=m.Align.LEFT,
-                        role="counsel")
+                        role=role)
     text = ""
     for part in parts:
         piece = line_markup(part)
@@ -185,7 +185,7 @@ def _cell(parts: list, page: int):
     return m.HmLine(
         text=text, prov=m.Prov(parts[0].page, tuple(p.id for p in parts)),
         align=m.Align.LEFT, x0=parts[0].x0, size=parts[0].size or 0.0,
-        bold=all(bool(p.all_bold) for p in parts), role="counsel")
+        bold=all(bool(p.all_bold) for p in parts), role=role)
 
 
 def _text_of(row) -> str:
@@ -201,6 +201,10 @@ class _Ctx:
         self.consumed: set[int] = set()
         self.anchor: list[int] = []
         self.crit: dict = {}
+        # THE CLOSING SIGNATURE BAND, for `Document.signature`. Held apart
+        # from `items` because it is neither headmatter nor counsel, and it
+        # renders at order 60 -- after the writing it closes.
+        self.signature: list = []
 
     def emit(self, group: list, role: str, centre: bool = True) -> None:
         parts = sorted(group, key=lambda l: l.x0)
@@ -219,9 +223,29 @@ class _Ctx:
             bold=all(bool(p.all_bold) for p in parts), role=role))
         self.consumed.update(p.id for p in parts)
 
+    def sign_row(self, group: list) -> None:
+        """One printed row of the signature band, kept where the page set it.
+        Not `emit`: that appends to the headmatter block, and this row closes
+        the writing rather than opening the document."""
+        parts = sorted(group, key=lambda l: l.x0)
+        if not parts:
+            return
+        text = ""
+        for part in parts:
+            piece = line_markup(part)
+            text = (text.rstrip() + " " + piece.lstrip()) if text.strip() \
+                else piece
+        first = parts[0]
+        self.signature.append(m.HmLine(
+            text=text, prov=m.Prov(first.page, tuple(p.id for p in parts)),
+            align=m.Align.CENTER, x0=first.x0, size=first.size or 0.0,
+            bold=all(bool(p.all_bold) for p in parts), role="signature"))
+        self.consumed.update(p.id for p in parts)
+
     def result(self) -> dict:
         return {"criteria": self.crit, "items": self.items, "attorneys": [],
                 "dropped": self.dropped, "consumed": self.consumed,
+                "signature": self.signature,
                 "anchor_ids": self.anchor, "doc_type_final": None}
 
 
@@ -383,6 +407,7 @@ def read_headmatter_guam(model, geom, **_):
         ctx.crit.setdefault("parties", [_norm(" ".join(caption_rows))[:300]])
     if "docket_number" not in ctx.crit:
         return NOTHING              # no number read: the block was not read
+    _read_signature(ctx, model, finder)
     return ctx.result()
 
 
@@ -437,3 +462,115 @@ def _sides(caption_rows: list[str]) -> tuple[str, str] | None:
         return None
     return (_norm(" ".join(left)).rstrip(", "),
             _norm(" ".join(right)).rstrip(", "))
+
+
+# --------------------------------------------------------------------------
+# the closing signature band
+# --------------------------------------------------------------------------
+# THE BENCH SIGNS TWO ABREAST. Measured over all 32 records, every one closes
+# on the last page in the same shape — two justices side by side, then the
+# third alone beneath them:
+#
+#     /s/                          /s/
+#     ────────────────────         ────────────────────
+#     F. PHILIP CARBULLIDO         KATHERINE A. MARAMAN
+#     Associate Justice            Associate Justice
+#
+#                     /s/
+#              ────────────────────
+#              ROBERT J. TORRES
+#              Chief Justice
+#
+# 32 of 32 print the '/s/' rows on the LAST page; 32 of 32 print them in that
+# (2, 1) shape; and the 96 offices below them are the four this court holds
+# (Associate Justice 63, Chief Justice 31, Justice Pro Tempore 1, Presiding
+# Justice 1). The gutter is the one the appearances already use: the page axis
+# separates the columns, and it separates them CHAR BY CHAR for the same
+# reason (a row may arrive fused).
+#
+# Left to core the band is lifted as flow paragraphs, and the two columns are
+# fused row by row into one run of prose — '/s/ /s/ F. PHILIP CARBULLIDO
+# KATHERINE A. MARAMAN Associate Justice Associate Justice', three printed
+# rows and six cells in a single line, with the page's whitespace gone (the
+# user, 2026-08-20: 'it needs handling of the signatures of the judges to
+# preserve whitspace at the end of the opinions'). Read here it is handed
+# over as the page's own rows.
+# HOW FAR THE COLUMNS CLEAR THE AXIS where the page sets two of them: the
+# narrowest clearance measured on this court is 14.9pt (the left column's ink
+# ends at x1 291.1, the right opens at x0 324.1, on a 306.0 axis).
+_GUTTER_CLEAR = 8.0
+_CONFORMED = re.compile(r"^/s/")
+_OFFICE = re.compile(
+    r"^(?:Chief|Associate|Presiding)\s+Justice\b|^Justice\s+Pro\s+Tempore\b")
+# A SIGNER'S NAME is set in capitals between the two — 'F. PHILIP
+# CARBULLIDO', 'ROBERT J. TORRES'. Read as a shape, never against a roster of
+# justices: the bench changes and a pro tempore is not on it at all.
+_SIGNER = re.compile(r"^[A-Z][A-Z.’'\- ]{4,}$")
+
+
+def _is_sig_row(text: str) -> bool:
+    flat = _norm(text)
+    return bool(flat) and bool(_CONFORMED.match(flat) or _OFFICE.match(flat)
+                               or _SIGNER.match(flat))
+
+
+def _read_signature(ctx: _Ctx, model, finder) -> None:
+    """The band the bench signs, as the page sets it, or nothing."""
+    pm = model.pages[-1]
+    axis = pm.width / 2
+    rows = _rows(pm, finder)
+    band: list = []
+    for group in rows:
+        pieces = sorted(group, key=lambda l: l.x0)
+        text = _norm(" ".join(l.plain for l in pieces))
+        if not text:
+            continue
+        # THE BAND OPENS ON THE FIRST CONFORMED ROW and closes at the first
+        # row that is none of its three shapes — the footnote zone below it
+        # neither belongs to the band nor is part of the writing above.
+        if not band:
+            if _CONFORMED.match(text):
+                band.append(pieces)
+            continue
+        if not _is_sig_row(text):
+            break
+        band.append(pieces)
+    if not band:
+        return
+    # ---- the columns, as columns -----------------------------------------
+    run: list = []              # consecutive rows that print BOTH columns
+    for pieces in band:
+        left = [p for p in (_side(l, axis, "L") for l in pieces) if p]
+        right = [p for p in (_side(l, axis, "R") for l in pieces) if p]
+        # TWO COLUMNS MEANS A GAP AT THE AXIS, not ink on both sides of it.
+        # The lone signer below is CENTRED and straddles the axis ('ROBERT J.
+        # TORRES' runs x0 252.5 to x1 359.6), so a side test alone cut every
+        # one of its rows in half — '/s' | '/', 'ROBERT J' | '. TORRES'.
+        # Where the page really sets two signers the columns clear the axis:
+        # the left ends at x1 291.1 and the right opens at x0 324.1.
+        if left and right \
+                and max(p.x1 for p in left) < axis - _GUTTER_CLEAR \
+                and min(p.x0 for p in right) > axis + _GUTTER_CLEAR:
+            run.append((left, right))
+            continue
+        _flush(ctx, run)
+        run = []
+        ctx.sign_row(pieces)
+    _flush(ctx, run)
+
+
+def _flush(ctx: _Ctx, run: list) -> None:
+    """A run of two-abreast rows, published as the two columns it is —
+    `rail=None` is what the model means by a whitespace gutter, the same
+    device this court's appearances are published with."""
+    if not run:
+        return
+    page = run[0][0][0].page
+    ids = {p.id for left, right in run for p in left + right}
+    ctx.signature.append(m.CaptionBlock(
+        left=[_cell(left, page, "signature") for left, _r in run],
+        right=[_cell(right, page, "signature") for _l, right in run],
+        rail=None, rail_rows=len(run), style_id="conformed-abreast",
+        fp={"rail": None, "mid_x": None},
+        prov=m.Prov(page, tuple(sorted(ids)))))
+    ctx.consumed.update(ids)
