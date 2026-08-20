@@ -302,11 +302,11 @@
 "sign": 0.0
 },
 "calctapp": {
-"ab": 0.98,
-"g": "A",
+"ab": 0.93,
+"g": "B",
 "n": 42,
-"s": 0.46,
-"sign": 0.18
+"s": 0.56,
+"sign": 0.64
 },
 "cand": {
 "ab": 1.0,
@@ -645,10 +645,10 @@
 "sign": 1.0
 },
 "kanctapp": {
-"ab": 0.67,
-"g": "B",
+"ab": 1.0,
+"g": "A",
 "n": 42,
-"s": 1.01,
+"s": 0.01,
 "sign": 1.0
 },
 "ksd": {
@@ -19065,11 +19065,12 @@
 },
 "calctapp/bates_v._city_of_temecula_ca41": {
 "f": [
+"warn:2 stapled documents (covers at pp 1, 2)",
 "joins\u00d72"
 ],
-"g": "B",
-"o": 1,
-"s": 1.0
+"g": "C",
+"o": 2,
+"s": 3.0
 },
 "calctapp/beale_v._dept._of_motor_vehicles": {
 "f": [],
@@ -19206,11 +19207,12 @@
 },
 "calctapp/kumar_v._mid-century_insurance_co.": {
 "f": [
-"warn:2 stapled documents (covers at pp 1, 29)"
+"warn:2 stapled documents (covers at pp 1, 29)",
+"authorless"
 ],
-"g": "B",
+"g": "C",
 "o": 2,
-"s": 2.0
+"s": 4.0
 },
 "calctapp/linson_v._chesney_ca28": {
 "f": [],
@@ -21424,13 +21426,13 @@
 "dc/in_re_correa": {
 "f": [],
 "g": "A",
-"o": 2,
+"o": 1,
 "s": 0.0
 },
 "dc/in_re_kester": {
 "f": [],
 "g": "A",
-"o": 2,
+"o": 1,
 "s": 0.0
 },
 "dc/in_re_mcneal": {
@@ -21448,7 +21450,7 @@
 "dc/in_re_tucker_jr.": {
 "f": [],
 "g": "A",
-"o": 2,
+"o": 1,
 "s": 0.0
 },
 "dc/jones_v._united_states": {
@@ -29957,195 +29959,175 @@
 "kanctapp/board_of_riley_county_commrs_v._kansas_historical_society": {
 "f": [],
 "g": "A",
-"o": 2,
+"o": 1,
 "s": 0.0
 },
 "kanctapp/city_of_leavenworth_v._corecivic": {
 "f": [],
 "g": "A",
-"o": 2,
+"o": 1,
 "s": 0.0
 },
 "kanctapp/clark_v._mckee": {
 "f": [],
 "g": "A",
-"o": 2,
+"o": 1,
 "s": 0.0
 },
 "kanctapp/creative_planning_v._greco": {
 "f": [],
 "g": "A",
-"o": 2,
+"o": 1,
 "s": 0.0
 },
 "kanctapp/dept._for_children_and_families_v._c.a.n.": {
-"f": [
-"hm-unread\u00d716"
-],
-"g": "C",
+"f": [],
+"g": "A",
 "o": 1,
-"s": 3.0
+"s": 0.0
 },
 "kanctapp/estate_of_kuebler_v._kansas_village_at_old_town": {
 "f": [],
 "g": "A",
-"o": 2,
+"o": 1,
 "s": 0.0
 },
 "kanctapp/housing_authority_of_kansas_city_v._mcconnell": {
 "f": [],
 "g": "A",
-"o": 2,
+"o": 1,
 "s": 0.0
 },
 "kanctapp/in_re_equalization_appeal_of_plaza_speedway_development": {
 "f": [],
 "g": "A",
-"o": 2,
+"o": 1,
 "s": 0.0
 },
 "kanctapp/in_re_i.h.": {
-"f": [
-"hm-unread\u00d720"
-],
-"g": "C",
+"f": [],
+"g": "A",
 "o": 1,
-"s": 3.0
+"s": 0.0
 },
 "kanctapp/in_re_k.s.": {
 "f": [],
 "g": "A",
-"o": 2,
+"o": 1,
 "s": 0.0
 },
 "kanctapp/in_re_max_hacker_family_trust": {
 "f": [],
 "g": "A",
-"o": 2,
+"o": 1,
 "s": 0.0
 },
 "kanctapp/kemper_v._bnsf_railway_co.": {
 "f": [],
 "g": "A",
-"o": 2,
+"o": 1,
 "s": 0.0
 },
 "kanctapp/kenyatta_v._sopha": {
-"f": [
-"hm-unread\u00d716"
-],
-"g": "C",
+"f": [],
+"g": "A",
 "o": 1,
-"s": 3.0
+"s": 0.0
 },
 "kanctapp/letourneau_v._law_offices_of_richard_lester": {
 "f": [],
 "g": "A",
-"o": 2,
+"o": 1,
 "s": 0.0
 },
 "kanctapp/ncr_corp._v._raytheon_co.": {
 "f": [],
 "g": "A",
-"o": 2,
+"o": 1,
 "s": 0.0
 },
 "kanctapp/plain_v._kansas_dept._of_revenue": {
 "f": [],
 "g": "A",
-"o": 2,
+"o": 1,
 "s": 0.0
 },
 "kanctapp/rural_water_district_no._3_v._rural_water_district_no._8": {
 "f": [],
 "g": "A",
-"o": 2,
+"o": 1,
 "s": 0.0
 },
 "kanctapp/sierra_club_v._kansas_corporation_commn": {
 "f": [],
 "g": "A",
-"o": 2,
+"o": 1,
 "s": 0.0
 },
 "kanctapp/state_v._arreola": {
 "f": [],
 "g": "A",
-"o": 2,
+"o": 1,
 "s": 0.0
 },
 "kanctapp/state_v._bausby": {
-"f": [
-"hm-unread\u00d713"
-],
-"g": "C",
+"f": [],
+"g": "A",
 "o": 1,
-"s": 3.0
+"s": 0.0
 },
 "kanctapp/state_v._bishop": {
-"f": [
-"hm-unread\u00d715"
-],
-"g": "C",
+"f": [],
+"g": "A",
 "o": 1,
-"s": 3.0
+"s": 0.0
 },
 "kanctapp/state_v._carter": {
 "f": [],
 "g": "A",
-"o": 2,
+"o": 1,
 "s": 0.0
 },
 "kanctapp/state_v._degraeve": {
-"f": [
-"hm-unread\u00d715"
-],
-"g": "C",
+"f": [],
+"g": "A",
 "o": 1,
-"s": 3.0
+"s": 0.0
 },
 "kanctapp/state_v._garrett": {
-"f": [
-"hm-unread\u00d731"
-],
-"g": "C",
+"f": [],
+"g": "A",
 "o": 1,
-"s": 3.0
+"s": 0.0
 },
 "kanctapp/state_v._hardesty": {
-"f": [
-"hm-unread\u00d713"
-],
-"g": "C",
+"f": [],
+"g": "A",
 "o": 1,
-"s": 3.0
+"s": 0.0
 },
 "kanctapp/state_v._hughes": {
 "f": [],
 "g": "A",
-"o": 3,
+"o": 2,
 "s": 0.0
 },
 "kanctapp/state_v._mcahren": {
-"f": [
-"hm-unread\u00d714"
-],
-"g": "C",
+"f": [],
+"g": "A",
 "o": 1,
-"s": 3.0
+"s": 0.0
 },
 "kanctapp/state_v._odell": {
-"f": [
-"hm-unread\u00d714"
-],
-"g": "C",
+"f": [],
+"g": "A",
 "o": 1,
-"s": 3.0
+"s": 0.0
 },
 "kanctapp/state_v._odom": {
 "f": [],
 "g": "A",
-"o": 2,
+"o": 1,
 "s": 0.0
 },
 "kanctapp/state_v._pennington": {
@@ -30153,81 +30135,73 @@
 "joins\u00d71"
 ],
 "g": "B",
-"o": 2,
+"o": 1,
 "s": 0.5
 },
 "kanctapp/state_v._richmond": {
-"f": [
-"hm-unread\u00d713"
-],
-"g": "C",
+"f": [],
+"g": "A",
 "o": 1,
-"s": 3.0
+"s": 0.0
 },
 "kanctapp/state_v._shrubshall": {
-"f": [
-"hm-unread\u00d715"
-],
-"g": "C",
+"f": [],
+"g": "A",
 "o": 1,
-"s": 3.0
+"s": 0.0
 },
 "kanctapp/state_v._slaton": {
-"f": [
-"hm-unread\u00d715"
-],
-"g": "C",
+"f": [],
+"g": "A",
 "o": 1,
-"s": 3.0
+"s": 0.0
 },
 "kanctapp/state_v._stark": {
-"f": [
-"hm-unread\u00d715"
-],
-"g": "C",
+"f": [],
+"g": "A",
 "o": 1,
-"s": 3.0
+"s": 0.0
 },
 "kanctapp/state_v._williams": {
 "f": [],
 "g": "A",
-"o": 2,
+"o": 1,
 "s": 0.0
 },
 "kanctapp/stonegate_motorplaza_condominium_assoc._v._hp_motorplaza": {
 "f": [],
 "g": "A",
-"o": 2,
+"o": 1,
 "s": 0.0
 },
 "kanctapp/stormont-vail_healthcare_v._kansas_dept._of_health_and_environment": {
 "f": [],
 "g": "A",
-"o": 2,
+"o": 1,
 "s": 0.0
 },
 "kanctapp/stormont-vail_healthcare_v._kansas_dept._of_health_and_environment_1": {
 "f": [],
 "g": "A",
-"o": 2,
+"o": 1,
 "s": 0.0
 },
 "kanctapp/szerwinski_v._mainstreet_assoc._inc.": {
 "f": [],
 "g": "A",
-"o": 2,
+"o": 1,
 "s": 0.0
 },
 "kanctapp/talkington_v._schnurr_warden": {
 "f": [],
 "g": "A",
-"o": 2,
+"o": 1,
 "s": 0.0
 },
 "kanctapp/washington_v._topeka_rescue_mission": {
 "f": [],
 "g": "A",
-"o": 2,
+"o": 1,
 "s": 0.0
 },
 "ksd/gov.uscourts.ksd.154874.20.0": {

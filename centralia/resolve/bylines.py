@@ -862,6 +862,21 @@ class BylineParser:
         return None
 
 
+# A one-line conformed signature: a NAME, a comma, and a judicial title —
+# the whole row and nothing else.
+_ONE_LINE_SIG = re.compile(
+    # The prefix is part of the NAME — captured outside the group it made
+    # 'McCONNELL, P. J.' come back as 'CONNELL'.
+    r"^(?P<name>(?:Mc|Mac|St\.\s?)?[A-Z][A-Za-z'’\-]+"
+    r"(?:\s+[A-Z][A-Za-z'’\-.]+){0,3}),\s*"
+    r"(?P<title>(?:Chief\s+|Presiding\s+|Associate\s+|Acting\s+"
+    r"|Senior\s+|Retired\s+)?"
+    # …and the period belongs to the ABBREVIATION: 'P. J.' is not 'P. J'.
+    r"(?:C\.\s?J\.|P\.\s?J\.|V\.\s?C\.|J\.|Justice|Judge|Chancellor"
+    r"|Magistrate(?:\s+in\s+Chancery)?|Commissioner|Master)\.?)$")
+_ATTEST_ROW = re.compile(r"^(?:WE|I)\s+(?:CONCUR|DISSENT)", re.I)
+
+
 def conformed_signature_author(lines_text: list[str]) -> str | None:
     """'/s/ Name' plus its adjacent judicial title line — the author of an
     unsigned order. Also ca10's ORDER AND JUDGMENT signer: 'Entered for the
@@ -927,6 +942,25 @@ def conformed_signature_author(lines_text: list[str]) -> str | None:
         if 2 <= len(t.split()) <= 5 and t[:1].isupper() and not t.endswith(
                 (".", ",", ";", ":")):
             return f"{t}, {_tail[i + 1]}"
+    # …AND THE SIGNATURE MAY BE THE NAME AND THE TITLE ON ONE LINE, with no
+    # '/s/' above it and no office beneath it (queue item 52, diagnosed by
+    # the scctapp port). Two courts sign only this way:
+    #
+    #     McCONNELL, P. J.            calctapp, flush right over 'WE CONCUR:'
+    #     Sheldon K. Rennie, Judge    delsuperct, under a graphic signature
+    #
+    # 10 of delsuperct's 42 records and both papers of calctapp's stapled
+    # bates came back with an unauthored writing for want of it.
+    #
+    # LAST RESORT, and it stops at the attestation: everything below 'WE
+    # CONCUR:' is the judges who JOINED, and each of those rows has this
+    # same shape ('O’ROURKE, J.', 'DO, J.'). The author signs above it.
+    for t in _tail:
+        if _ATTEST_ROW.match(t):
+            break
+        hit = _ONE_LINE_SIG.match(t)
+        if hit:
+            return f"{hit.group('name')}, {hit.group('title')}"
     return None
 
 

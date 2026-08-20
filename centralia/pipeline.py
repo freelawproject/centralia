@@ -94,6 +94,11 @@ class ExtractionResult:
     versions: dict = field(default_factory=lambda: {"pipeline": PIPELINE_VERSION})
 
 
+# A FILING STAMP IN THE COURT'S OWN FORM: 'Filed 7/20/26'. Prose cannot
+# match it, which is what lets the length bound below be waived.
+_FILED_STAMP = _re.compile(r"^Filed\s+\d{1,2}/\d{1,2}/\d{2,4}\b", _re.I)
+
+
 def _attached_documents(model) -> list[tuple[int, int]]:
     """Page ranges of the documents STAPLED into one PDF. A later page
     opening with a fresh 'Filed <date>' stamp AND the court's banner is a
@@ -106,7 +111,22 @@ def _attached_documents(model) -> list[tuple[int, int]]:
             continue
         tops = sorted((l for l in pm.lines if l.plain.strip()),
                       key=lambda l: l.top)[:4]
-        has_banner = any(_is_banner_row(l.plain) for l in tops)
+        # THE WIDER BANNER WINDOW IS COUPLED TO THE STRICT STAMP. calctapp
+        # sets the stamp, the 'NOT TO BE PUBLISHED' flag and a three-row
+        # rule-8.1115 notice above its own name, which puts the banner on row
+        # 6 — outside the four rows the stamp is looked for in. But widening
+        # the window unconditionally cut ca9/dickinson_v._trump at page 34,
+        # where a separate writing opens under the CLERK'S stamp and that
+        # stamp's own 'U.S. COURT OF APPEALS' row reads as a banner: the
+        # document split mid-writing, 459 rows of opinion became headmatter
+        # and the majority lost half its blocks. So the window only opens
+        # where the page carries a stamp in the court's exact form, which a
+        # clerk's 'FILED' / date / 'MOLLY C. DWYER, CLERK' block does not.
+        _strict = any(_FILED_STAMP.match(l.plain.strip()) for l in tops)
+        has_banner = any(_is_banner_row(l.plain) for l in
+                         (sorted((l for l in pm.lines if l.plain.strip()),
+                                 key=lambda l: l.top)[:8] if _strict
+                          else tops))
         # the filing stamp may be its own row ('FILED' over 'AUG 10 2026'
         # — ca9) or an inline 'Filed 7/30/26' (calctapp)
         # A filing STAMP IS SHORT. Without a bound, a sentence of the body
@@ -116,9 +136,19 @@ def _attached_documents(model) -> list[tuple[int, int]]:
         # `_is_banner_row` accepts — it cuts a new stapled document out of
         # the middle of an opinion (ortiz-rodriguez split at page 9 and lost
         # its writing). calctapp's 'Filed 7/30/26' is 13 characters.
+        # …OR IT NAMES ITSELF EXACTLY: 'Filed 7/20/26'. A stamp in that form
+        # cannot be prose, so it needs no length bound — and it needs none,
+        # because calctapp writes the case onto the stamp when it staples the
+        # unmodified opinion behind its modification order ('Filed 7/20/26
+        # Bates v. City of Temecula CA4/1 (unmodified opinion)', 67
+        # characters against the 40 above). Without this, bates read as ONE
+        # document: the order's writing ran on through the opinion's whole
+        # reprinted cover and its 26 pages of body, 105 blocks under one
+        # empty byline (the user's call, 2026-08-20).
         has_filed = any(
             (l.plain.strip().lower().startswith("filed ")
              and len(l.plain.strip()) <= 40)
+            or _FILED_STAMP.match(l.plain.strip())
             or l.plain.strip().rstrip(":").upper() == "FILED"
             for l in tops)
         if has_banner and has_filed:

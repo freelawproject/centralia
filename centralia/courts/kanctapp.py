@@ -25,6 +25,11 @@ from ..resolve.furniture import FurnitureFinder
 # 'syllabus' front-matter declaration applied there); this module adds the
 # reader only, so importing it twice can never raise a duplicate profile.
 
+# THE UNPUBLISHED FLAG. Kansas prints it above everything else on the page,
+# in the body's own type and on the axis, and it says what it is.
+_PUBLICATION = re.compile(
+    r"^NOT DESIGNATED FOR PUBLICATION\.?$", re.I)
+
 STYLE_SLIP = "reported slip"
 STYLE_ORDER = "court order"
 
@@ -66,7 +71,31 @@ _DOCKET_MORE = re.compile(r"^\d{1,3},\d{3}\.?$")
 # 'Before CLINE, P.J., BOLTON FLEMING, J., and JEFFREY GETTLER, District
 # Judge, assigned.' — the panel, as this court names it. Judges sitting
 # by assignment are named in full and titled, so the row is not all-caps.
-_PANEL = re.compile(r"^Before\s+.*?(?:JJ?\.|Judges?)\b.*$", re.S)
+# THE ROSTER IS BOUNDED BY WHAT FOLLOWS IT, not by how it ends. Its tail is
+# an open vocabulary — 'JJ.' on 31 records, 'District Judge, assigned.' on 8,
+# 'retired Court of Appeals judge, assigned.' on 2 — and on two of them it
+# WRAPS, so the abbreviation is not even on the same row as the 'Before'
+# (kenyatta, sierra_club: '…and MICHAEL B. BUSER, retired Court of Appeals' /
+# 'judge, assigned.'). No tail pattern reaches that; the user's call,
+# 2026-08-20: 'cant we use the next line that starts the opinion instead of
+# over matching the tail?'
+#
+# So this is an OPENER. The roster opens on 'Before' AT THE WALK'S OWN
+# POSITION — the row after the appearances and before the byline — and runs
+# to the row that closes its sentence, with the byline as the backstop. That
+# also settles the false positive a whole-row pattern could not: state_v._
+# arreola sets 'Before imposing a fine as part of the punishment for a
+# crime, K.S.A. 21-6612(b)' in the middle of page 9, where this walk never
+# looks.
+#
+# (The pattern this replaces required `\b` after 'JJ.' — a period is not a
+# word character, so there was no transition for it to match and it matched
+# NOTHING. All 42 records print a roster and all 42 were left unclaimed, so
+# on 34 of them it opened a phantom writing of its own.)
+_PANEL = re.compile(r"^Before\s+[A-Z]", re.S)
+# A roster row that closes its own sentence closes the roster.
+_PANEL_CLOSES = re.compile(r"[.]\s*$")
+_PANEL_MAX_ROWS = 3
 # THE RECITAL Kansas prints over every authored opinion. It is the last row
 # of the headmatter and the only body-size row below the apparatus that is
 # not a byline.
@@ -205,12 +234,47 @@ def read_headmatter_kanctapp(model, geom, **_):
     # only structural difference between the two papers, which is why the
     # id could not simply be rebound. The banner is therefore looked for in
     # the first two rows, and a row above it must be the docket.
+    # …AND THE ROWS ABOVE IT ARE THE COURT'S OWN APPARATUS, in the three
+    # shapes it prints. Measured over all 42 records against kan's 50:
+    #
+    #     No. 129,646                                       28   the docket
+    #     NOT DESIGNATED FOR PUBLICATION / No. 129,646      12   …under the
+    #                                                            unpublished flag
+    #     Nos. 127,481 / 127,482                             2   a consolidated
+    #                                                            docket, ranged
+    #     (nothing above the banner)                         0   — kan's shape,
+    #                                                            50 of 50
+    #
+    # Read as 'at most one row, and it must be a docket', the last two shapes
+    # dispatched to NOTHING: 14 of the 42 records — every nay this court
+    # carried — rendered with all 16 headmatter rows untagged, the criteria
+    # mined by core's ladder and 'NOT DESIGNATED FOR PUBLICATION' fused onto
+    # the head of `parties` (the user, 2026-08-20: 'this isnt showing any
+    # headmatter parsing?'). The run above the banner is now read for what it
+    # is: an optional publication flag over a docket that may range its
+    # consolidations.
     _head = 0
     if not _is_banner(rows[0].plain):
-        if len(rows) > 1 and _is_banner(rows[1].plain) \
-                and _DOCKET.match(_norm(rows[0].plain)):
-            _head = 1
-        else:
+        for i in range(1, min(4, len(rows))):
+            if not _is_banner(rows[i].plain):
+                continue
+            above = [_norm(r.plain) for r in rows[:i]]
+            ok = True
+            seen_docket = False
+            for text in above:
+                if _PUBLICATION.match(text) and not seen_docket:
+                    continue
+                if _DOCKET.match(text):
+                    seen_docket = True
+                    continue
+                if seen_docket and _DOCKET_MORE.match(text):
+                    continue
+                ok = False
+                break
+            if ok and seen_docket:
+                _head = i
+            break
+        if not _head:
             return NOTHING
 
     # THE MASTHEAD BLOCK: the leading run of centred rows.
@@ -241,6 +305,13 @@ def read_headmatter_kanctapp(model, geom, **_):
     # its docket above its own name, so row 0 is a docket on every record
     # that dispatched through the second branch above.
     kinds[_head] = "court"
+    # The flag above the docket is neither: it is the court saying what this
+    # paper is for, which is the `publication` role and a criterion of its
+    # own. Left as caption it was fused onto the head of `parties`.
+    for i in range(0, _head):
+        if _PUBLICATION.match(_norm(block[i].plain)):
+            kinds[i] = "publication"
+            ctx.crit.setdefault("publication_status", "unpublished")
     in_docket = False
     for i in range(0, len(block)):
         if i == _head:
@@ -273,6 +344,12 @@ def read_headmatter_kanctapp(model, geom, **_):
             ctx.anchor.append(line.id)
         elif kind == "docket":
             dockets.append(text.rstrip("."))
+        elif kind == "publication":
+            # The court's own flag for the paper, not a party. Joined into
+            # the caption it opened `parties` and `case_name` with 'NOT
+            # DESIGNATED FOR PUBLICATION DEPARTMENT FOR CHILDREN AND
+            # FAMILIES, o/b/o K.C.N., …'.
+            pass
         else:
             caption.append(text)
         ctx.emit(line, kind, centred=True)
@@ -344,12 +421,18 @@ def read_headmatter_kanctapp(model, geom, **_):
     # sits en banc and does not, which is why kan.py has no counterpart to
     # this. Unclaimed, the roster fell into the writing and read as the
     # opinion's first sentence on 28 of 42 records.
-    if i < len(rows):
-        _p = _norm(rows[i].plain)
-        if _PANEL.match(_p):
+    if i < len(rows) and _PANEL.match(_norm(rows[i].plain)):
+        _panel: list[str] = []
+        while i < len(rows) and len(_panel) < _PANEL_MAX_ROWS:
+            _p = _norm(rows[i].plain)
+            if _panel and parser.parse(_p) is not None:
+                break                     # the writing signs itself here
+            _panel.append(_p)
             ctx.emit(rows[i], "panel")
-            ctx.crit["panel_line"] = _p.rstrip(".")
             i += 1
+            if _PANEL_CLOSES.search(_p):
+                break
+        ctx.crit["panel_line"] = _norm(" ".join(_panel)).rstrip(".")
 
     if not recital:
         return NOTHING                    # not the paper this contract names
