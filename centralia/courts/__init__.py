@@ -221,6 +221,16 @@ register(CourtProfile(
         titles=("Chancellor", "Vice Chancellor", "Magistrate in Chancery",
                 "Master in Chancery", "Magistrate", "Master", "Judge",
                 "Justice"))))
+# THE SUPERIOR COURT SIGNS 'Miller, J.' AND 'GREEN-STREETT, J.' — the same
+# name in title case and in caps, on the same court's paper, so both are
+# admitted; and its letter rulings are signed at the foot with a conformed
+# '/s/', which core reads.
+register(CourtProfile(
+    "delsuperct", "Superior Court of the State of Delaware",
+    byline=BylineGrammar(
+        style="prose", also_abbrev=True, allow_titlecase_name=True,
+        titles=("Judge", "Resident Judge", "President Judge",
+                "Commissioner", "Master", "Justice"))))
 register(CourtProfile(
     "haw", "Supreme Court of the State of Hawaiʻi",
     byline=BylineGrammar(style="abbrev", opinion_by_headings=True)))
@@ -724,3 +734,5 @@ from . import washctapp                                  # noqa: E402,F401
 from . import vactapp                                    # noqa: E402,F401
 
 from . import delch                                      # noqa: E402,F401
+
+from . import delsuperct                                 # noqa: E402,F401

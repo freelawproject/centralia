@@ -2420,3 +2420,32 @@ independently of the claim, so the same two rows ALSO appear in the document's
 once discarded. Filtering that peel by the court's `consumed` ids fixes it.
 Display only: no content is lost either way, and it is why delch's letters show
 5-6 'removed' rows that are all also present in the headmatter.
+
+## The conformed signature need not carry `/s/` — `resolve/bylines.py:865`
+
+Found porting `delsuperct` (2026-08-20). **10 of its 42 records come back with an
+unauthored writing**, and every one of them is signed — by a typed name and
+title on ONE line, in the signature band, under a graphic signature:
+
+    IT IS SO ORDERED.
+                                   Sheldon K. Rennie, Judge      (state_v._anderson, destafney)
+                                   Sean P. Lugg, Judge           (american_civil_liberties_union_v._hudson)
+
+`conformed_signature_author()` already has three tail paths — `/s/ Name` (+ a
+title line beneath), ca10's 'Entered for the Court', and a NAME line followed by
+an OFFICE line ('Tomasi' / 'Superior Court Judge'). The shape it does not have
+is the one-line form: **a tail line reading `<Name>, <judicial title>` and
+nothing else.** The titles tuple it already keeps ('justice', 'judge',
+'chancellor', 'magistrate', 'commissioner') is the test; the guard is that it
+must come from the TAIL (the existing `lines_text[-14:]` window) and be a
+personal name of 2-5 words, exactly as the OFFICE path is guarded, so a counsel
+roster cannot pose as a signature.
+
+The affected records, all delsuperct: american_civil_liberties_union_of_delaware
+_v._hudson, boyington, johnson_v._bayhealth_medical_center, powell_v._cannon,
+state_v._anderson, state_v._carr, state_v._davis, state_v._destafney,
+state_v._vickery, walls_v._pressley. (The last signs with initials only — 'NEP'
+over 'oc: Prothonotary' — and will still, correctly, find no author.)
+
+Wants its own guard run: any court whose document tail carries a 'Name, Judge'
+line is in its blast radius.

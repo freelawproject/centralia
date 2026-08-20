@@ -5834,6 +5834,306 @@
   "summary": 0,
   "syllabus": 0
  },
+ "delsuperct/aclu_v._martin": {
+  "attorneys": 0,
+  "criteria": [
+   "decision_date",
+   "disposition",
+   "docket_number",
+   "parties",
+   "submitted"
+  ],
+  "hm": 11,
+  "hm_roles": {
+   "caption": 27,
+   "counsel": 4,
+   "court": 1,
+   "date": 2,
+   "docket": 1,
+   "lower-court": 1,
+   "title": 2
+  },
+  "lead_bylined": true,
+  "op_blocks": [
+   57
+  ],
+  "ops": [
+   "majority"
+  ],
+  "residual": 0,
+  "status": "valid",
+  "summary": 0,
+  "syllabus": 0
+ },
+ "delsuperct/albertsons_llc_v._express_scripts_inc.": {
+  "attorneys": 0,
+  "criteria": [
+   "decision_date",
+   "docket_number",
+   "parties",
+   "submitted"
+  ],
+  "hm": 12,
+  "hm_roles": {
+   "caption": 20,
+   "counsel": 6,
+   "court": 1,
+   "date": 2,
+   "disposition": 1,
+   "docket": 2,
+   "title": 1
+  },
+  "lead_bylined": true,
+  "op_blocks": [
+   91
+  ],
+  "ops": [
+   "majority"
+  ],
+  "residual": 0,
+  "status": "valid",
+  "summary": 0,
+  "syllabus": 0
+ },
+ "delsuperct/arclight_capital_partners_llc_v._freepoint_commodities_llc": {
+  "attorneys": 0,
+  "criteria": [
+   "decision_date",
+   "disposition",
+   "docket_number",
+   "parties",
+   "submitted"
+  ],
+  "hm": 32,
+  "hm_roles": {
+   "caption": 32,
+   "counsel": 15,
+   "court": 1,
+   "date": 2,
+   "disposition": 12,
+   "docket": 2,
+   "title": 1
+  },
+  "lead_bylined": true,
+  "op_blocks": [
+   120
+  ],
+  "ops": [
+   "majority"
+  ],
+  "residual": 0,
+  "status": "valid",
+  "summary": 0,
+  "syllabus": 0
+ },
+ "delsuperct/del-one_fcu_v._godspeed_transport_llc": {
+  "attorneys": 0,
+  "criteria": [
+   "decision_date",
+   "disposition",
+   "docket_number",
+   "parties",
+   "submitted"
+  ],
+  "hm": 12,
+  "hm_roles": {
+   "caption": 25,
+   "counsel": 2,
+   "court": 1,
+   "date": 2,
+   "disposition": 5,
+   "docket": 1,
+   "title": 1
+  },
+  "lead_bylined": true,
+  "op_blocks": [
+   0
+  ],
+  "ops": [
+   "majority"
+  ],
+  "residual": 0,
+  "status": "scanned",
+  "summary": 0,
+  "syllabus": 0
+ },
+ "delsuperct/franceschi-rodriguez_v._perdue_foods_llc": {
+  "attorneys": 0,
+  "criteria": [
+   "decision_date",
+   "disposition",
+   "docket_number",
+   "parties",
+   "submitted"
+  ],
+  "hm": 11,
+  "hm_roles": {
+   "caption": 19,
+   "counsel": 4,
+   "court": 1,
+   "date": 2,
+   "disposition": 1,
+   "docket": 1,
+   "lower-court": 1,
+   "title": 1
+  },
+  "lead_bylined": true,
+  "op_blocks": [
+   60
+  ],
+  "ops": [
+   "majority"
+  ],
+  "residual": 0,
+  "status": "valid",
+  "summary": 0,
+  "syllabus": 0
+ },
+ "delsuperct/msg_network_inc._v._federal_insurance_company": {
+  "attorneys": 0,
+  "criteria": [
+   "decision_date",
+   "docket_number",
+   "judges",
+   "parties",
+   "submitted"
+  ],
+  "hm": 25,
+  "hm_roles": {
+   "author": 2,
+   "caption": 2,
+   "counsel": 15,
+   "court": 3,
+   "date": 2,
+   "docket": 1
+  },
+  "lead_bylined": true,
+  "op_blocks": [
+   26
+  ],
+  "ops": [
+   "order"
+  ],
+  "residual": 0,
+  "status": "valid",
+  "summary": 0,
+  "syllabus": 0
+ },
+ "delsuperct/state_v._clark": {
+  "attorneys": 0,
+  "criteria": [
+   "decision_date",
+   "docket_number",
+   "judges",
+   "submitted"
+  ],
+  "hm": 12,
+  "hm_roles": {
+   "author": 2,
+   "caption": 1,
+   "counsel": 4,
+   "court": 3,
+   "date": 2
+  },
+  "lead_bylined": true,
+  "op_blocks": [
+   38
+  ],
+  "ops": [
+   "order"
+  ],
+  "residual": 0,
+  "status": "valid",
+  "summary": 0,
+  "syllabus": 0
+ },
+ "delsuperct/state_v._destafney": {
+  "attorneys": 0,
+  "criteria": [
+   "disposition",
+   "docket_number",
+   "parties"
+  ],
+  "hm": 3,
+  "hm_roles": {
+   "caption": 13,
+   "court": 1,
+   "docket": 1,
+   "title": 1
+  },
+  "lead_bylined": false,
+  "op_blocks": [
+   11
+  ],
+  "ops": [
+   "order"
+  ],
+  "residual": 0,
+  "status": "valid",
+  "summary": 0,
+  "syllabus": 0
+ },
+ "delsuperct/state_v._tamba": {
+  "attorneys": 0,
+  "criteria": [
+   "decision_date",
+   "disposition",
+   "docket_number",
+   "parties",
+   "submitted"
+  ],
+  "hm": 11,
+  "hm_roles": {
+   "caption": 10,
+   "court": 1,
+   "date": 2,
+   "disposition": 6,
+   "docket": 2,
+   "title": 1
+  },
+  "lead_bylined": true,
+  "op_blocks": [
+   156
+  ],
+  "ops": [
+   "order"
+  ],
+  "residual": 0,
+  "status": "valid",
+  "summary": 0,
+  "syllabus": 0
+ },
+ "delsuperct/walker_v._new_castle_county": {
+  "attorneys": 0,
+  "criteria": [
+   "decision_date",
+   "disposition",
+   "docket_number",
+   "parties",
+   "submitted"
+  ],
+  "hm": 14,
+  "hm_roles": {
+   "caption": 33,
+   "counsel": 6,
+   "court": 1,
+   "date": 2,
+   "disposition": 3,
+   "docket": 1,
+   "title": 1
+  },
+  "lead_bylined": true,
+  "op_blocks": [
+   41
+  ],
+  "ops": [
+   "majority"
+  ],
+  "residual": 0,
+  "status": "valid",
+  "summary": 0,
+  "syllabus": 0
+ },
  "fla/andrew_richard_lukehart_v._state_of_florida": {
   "attorneys": 9,
   "criteria": [
