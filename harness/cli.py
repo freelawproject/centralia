@@ -605,7 +605,7 @@ def cmd_released(args: list[str]) -> int:
     out += [f'    "{c}": ({n}, {seen}, {bad}),'
             for c, (n, seen, bad) in sorted(held.items())]
     out += ["}\n"]
-    path = REPO_ROOT / "centralia" / "released.py"
+    path = Path(__file__).resolve().parent.parent / "centralia" / "released.py"
     path.write_text("\n".join(out))
     print(f"wrote {path}")
     return 0
