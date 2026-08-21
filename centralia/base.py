@@ -353,6 +353,13 @@ class BaseExtractor:
     # ``_snap_margin_bottom``. Off only for a fidelity-locked court whose
     # reference output dropped such a line (see ``_alabama``).
     margin_bottom_yields: bool = True
+    # Is this court's ``find_footnote_separator`` the FINAL word? ``extract``
+    # otherwise retries the base chain whenever a court's override answers None,
+    # which helps a court that merely missed a rule but overrules one that
+    # declined on purpose. Connecticut excludes rules above 185pt because its
+    # running heads are ruled at 163.8/180.2; the base chain answers 163.8, so
+    # every body line counted as being inside the footnote zone.
+    footnote_sep_override_final: bool = False
     # A line-to-line change in bold normally marks a structural boundary
     # (heading / byline). Courts that bold text *inline* for emphasis — e.g.
     # Puerto Rico bolds dates and times mid-paragraph — set this False so an
@@ -432,6 +439,28 @@ class BaseExtractor:
     FOOTNOTE_LABEL_CHARS = set("0123456789*†‡§∗⁎﹡＊")
     # Every glyph the corpus uses for a star, folded onto the plain one.
     _LABEL_CANON = {"∗": "*", "⁎": "*", "﹡": "*", "＊": "*"}
+    # A SYMBOL FONT DOES NOT SPEAK UNICODE. A PDF that sets its footnote star in
+    # SymbolMT encodes it in the private use area — 0xF000 plus the font's own
+    # byte, so the ordinary asterisk 0x2A arrives as U+F02A. It is a raised star
+    # on the page and a star to the reader, but it matched no label character,
+    # so the note it opened was refused and came out '?' or not at all. Nine
+    # documents in the hand-labelled set fail this way, ca1/vasquez-chavez among
+    # them, and every one of them reports no warning at all: the body's
+    # reference is the same private glyph, so nothing is left owing a note.
+    #
+    # Folded back by ARITHMETIC rather than a list, and self-limiting: the
+    # translation is only accepted when it lands on a character this reader
+    # already knows as a label, so no other private glyph can be dragged in.
+    _PUA_LO, _PUA_HI = 0xF000, 0xF0FF
+
+    @classmethod
+    def _canon_glyph(cls, ch: str) -> str:
+        """One character, with a Symbol-font private-use code folded back."""
+        if len(ch) == 1 and cls._PUA_LO <= ord(ch) <= cls._PUA_HI:
+            plain = chr(ord(ch) - cls._PUA_LO)
+            if plain in cls.FOOTNOTE_LABEL_CHARS:
+                return plain
+        return cls._LABEL_CANON.get(ch, ch)
     # Some courts number paragraphs with a raised, bracket-wrapped pinpoint
     # ('{1}' — New Mexico; '[1]' — Indiana Court of Appeals). The digit is
     # small + a label char, so it otherwise reads as a footnote reference; a
@@ -472,6 +501,16 @@ class BaseExtractor:
     # a CID-broken one at 0.63+, so the band between them is wide; a court whose
     # template mixes a broken decorative font into good text can raise it.
     cid_unreadable_max_frac: float = 0.35
+    # A page whose content is DRAWN rather than typed strokes one path per
+    # glyph, so its vector-object count runs into the hundreds or thousands. A
+    # born-digital page strokes a handful of things: a caption box, a footnote
+    # separator, a signature rule, the odd table grid — well under this even on
+    # the most heavily ruled pleading paper.
+    non_digital_min_drawn_objects: int = 200
+    # ...and the drawn content has to reach this far below where the text stops,
+    # as a fraction of the sheet. That is what separates "the body is a
+    # picture" from "a chart sits under a page of prose".
+    non_digital_drawn_below_text_frac: float = 0.25
 
     # ====================================================================
     # MAIN PIPELINE
@@ -486,12 +525,48 @@ class BaseExtractor:
                 return True
         return False
 
+    def _page_outlined(self, page) -> bool:
+        """True when the page's content is DRAWN below a stamp-only text band.
+
+        A scan is not always a raster. nywd/gov.uscourts.nywd.163866.5.0 is
+        three pages carrying no image large enough to trip
+        ``_page_image_covered`` at all — the filing was flattened so that every
+        glyph is a vector path (1,579 curves on page 1). The only characters
+        left on the sheet are the 51 the CM/ECF stamper wrote across the top
+        band afterwards, so the parser returned a "document" whose entire
+        content was the bates line, and the viewer called it a missing opinion
+        rather than OCR work.
+
+        The discriminator is geometric and needs no text at all: the characters
+        stop at the header band while the ink keeps running down the page.
+        Requiring both — almost no text, and a lot of ink well below it — is
+        what keeps a nearly-blank digital page (no ink) and a chart-bearing one
+        (plenty of text) out."""
+        real = [c for c in page.chars if (c.get("text") or "").strip()]
+        # No more text than a stamp band; the same bar the raster arm uses for
+        # "only the ECF header is real text".
+        if len(real) > self.non_digital_page1_text_max:
+            return False
+        drawn = list(page.curves) + list(page.images)
+        if len(drawn) < self.non_digital_min_drawn_objects:
+            return False
+        text_bottom = max((c["bottom"] for c in real), default=0.0)
+        ink_bottom = max((d["bottom"] for d in drawn), default=0.0)
+        height = page.height or 792.0
+        return (
+            ink_bottom - text_bottom
+            >= height * self.non_digital_drawn_below_text_frac
+        )
+
     def is_non_digital(self, pdf) -> bool:
-        """True when the PDF is a scanned image rather than a born-digital
-        document. Detected by a full-page raster image on most pages (an OCR'd
-        scan), OR by an image-only page 1 whose caption is a raster with only
-        the ECF header as text — the engine's geometry cues are unreliable
-        either way, so the caller skips processing and only flags the document."""
+        """True when the PDF is a picture of a document rather than a
+        born-digital one. Detected by a full-page raster image on most pages
+        (an OCR'd scan), by an image-only page 1 whose caption is a raster with
+        only the ECF header as text, or by a document whose body is drawn as
+        vector outlines with only the filing stamp left as text — the engine's
+        geometry cues are unreliable in every case, so the caller skips
+        processing and only flags the document."""
+        self._non_digital_note = self._NON_DIGITAL_RASTER_NOTE
         pages = pdf.pages
         if not pages:
             return False
@@ -509,7 +584,20 @@ class BaseExtractor:
             )
             if real < self.non_digital_page1_text_max and body_pages <= 1:
                 return True
+        outlined = sum(1 for page in pages if self._page_outlined(page))
+        if outlined / len(pages) >= self.non_digital_min_page_frac:
+            self._non_digital_note = self._NON_DIGITAL_OUTLINE_NOTE
+            return True
         return False
+
+    # Wording for the warning the caller raises. Kept as the default so a court
+    # that overrides ``is_non_digital`` and answers True on its own still gets
+    # the message it has always got.
+    _NON_DIGITAL_RASTER_NOTE = "scanned image + OCR text layer"
+    _NON_DIGITAL_OUTLINE_NOTE = (
+        "content drawn as vector outlines; the only text is the filing stamp"
+    )
+    _non_digital_note = _NON_DIGITAL_RASTER_NOTE
 
     def footnote_sep_min_width(self, page) -> float:
         """Narrowest rule that can be a footnote separator, in points.
@@ -567,6 +655,9 @@ class BaseExtractor:
         # furniture is discarded; a court may override ``detect_printed_folio``
         # for a folio embedded in a running header.
         self._printed_folio_by_page = {}
+        # Pages whose footnote zone was rejected for want of any readable
+        # label — the text stayed in the body; surfaced as a warning.
+        self._zone_rejected_pages = []
         # Measured per-document body geometry (see _measure_doc_geometry);
         # None until the whole document has been read, and stays None when the
         # document is too small to measure confidently.
@@ -608,7 +699,7 @@ class BaseExtractor:
                     source_path=pdf_path,
                 )
                 doc.warnings.append(
-                    "non-born-digital (scanned image + OCR text layer); not processed"
+                    f"non-born-digital ({self._non_digital_note}); not processed"
                 )
                 return doc
             cid_broken, n_cid = self.cid_unreadable(pdf)
@@ -656,6 +747,28 @@ class BaseExtractor:
                     if self.footnote_sep_structural
                     else self.find_footnote_separator(page)
                 )
+                # AN UNDERLINE IS NOT A SEPARATOR, whichever court override
+                # returned it. The two are the same drawn object — ca10/
+                # scannell's citation underline and its real separator are both
+                # 0.6pt-high black rects at x0=72 — and only the rule's
+                # position against the text tells them apart (inside the
+                # line's band vs 20pt+ clear of one). Individual finders had
+                # each grown this check locally (scan step, _circuit's
+                # indented branch) while the others stayed open: the same bug
+                # shipped through four separate implementations in one day
+                # (alsd, cit, ca10, almd). Vetoed HERE, at the one call site
+                # every override flows through, for the same reason as the
+                # retry below: it is one rule and belongs in one place.
+                # Measured over the 2,090 hand-labelled no-'?' documents
+                # (broke 2, both conn — hence the per-court opt-out) and the
+                # 206 '?' documents (resolved 32 across 22 courts, lost none).
+                if (
+                    sep_y is not None
+                    and not self.footnote_sep_structural
+                    and self.footnote_sep_reject_underlines
+                    and self._sep_is_underline(page, sep_y)
+                ):
+                    sep_y = None
                 # AN OVERRIDE MAY ADD A CANDIDATE OR VETO ONE; IT MAY NEVER
                 # DECIDE THERE IS NONE. 38 of the 77 court overrides never reach
                 # ``super()``, so for those courts nothing the shared chain knows
@@ -672,10 +785,25 @@ class BaseExtractor:
                 # chain corroborates every rule it admits, so this can only find
                 # a separator a court missed — a court that DID answer is never
                 # second-guessed.
-                if sep_y is None and not self.footnote_sep_structural:
+                if (
+                    sep_y is None
+                    and not self.footnote_sep_structural
+                    and not self.footnote_sep_override_final
+                ):
                     own = type(self).find_footnote_separator
                     if own is not BaseExtractor.find_footnote_separator:
-                        sep_y = BaseExtractor.find_footnote_separator(self, page)
+                        cand = BaseExtractor.find_footnote_separator(self, page)
+                        # A FOOTNOTE ZONE ALWAYS FOLLOWS BODY TEXT. The retry is
+                        # for a court that MISSED a rule; a candidate with no
+                        # body-size line above it on the page is head furniture,
+                        # and accepting one swallowed whole opinions — conn's
+                        # running-head rule at 163.8 put every body line (which
+                        # starts at 187) inside the footnote zone, emptying
+                        # body_lines on 33 documents. Measured against the page's
+                        # own body size, so a court that legitimately rules its
+                        # notes high on a continuation page is unaffected.
+                        if cand is not None and self._body_size_text_above(page, cand):
+                            sep_y = cand
                 # Whether this document has ANY footnote zone at all. A document
                 # that never draws one has no footnotes for a raised glyph to
                 # refer to — see ``_warn_orphan_footnote_refs``.
@@ -832,6 +960,31 @@ class BaseExtractor:
                     and not is_registered_folio(l)
                     and not is_zone_folio(l)
                 ]
+                # AN UNREADABLE ZONE STAYS IN THE BODY. A zone none of whose
+                # lines carries a readable label, on a page whose predecessor
+                # had no zone (so no tail can be carrying over), is a mistaken
+                # separator — and every '?' it would produce pulls real prose
+                # out of the document: caed 473061 lost its STIPULATION
+                # heading and opening recitals to one, michctapp/banker lost
+                # 'Before: LETICA ... PER CURIAM.' and with it the whole
+                # opinion (the byline was inside the phantom zone, so nothing
+                # authored the document). Measured across the corpus the '?'
+                # label is nearly always this mistake, so the default flips:
+                # text stays where it is, and the doubt is recorded as a
+                # warning instead of enacted as a footnote.
+                if fn_lines and (page.page_number - 1) not in footnote_lines_by_page:
+                    if not any(
+                        self.detect_footnote_label(l) is not None
+                        or self.footnote_flush_label_shape(l) is not None
+                        for l in fn_lines
+                    ):
+                        body_lines = sorted(
+                            body_lines + fn_lines, key=lambda l: l["top"]
+                        )
+                        fn_lines = []
+                        self._zone_rejected_pages = getattr(
+                            self, "_zone_rejected_pages", []
+                        ) + [page.page_number]
                 for seg in self.segment_lines(body_lines, pw):
                     # Classification is deferred until every page's lines are
                     # in: classify_segment judges indents against the
@@ -1008,6 +1161,54 @@ class BaseExtractor:
                 )
             )
 
+        # A NOTE'S TAIL DOES NOT STOP AT THE HEADMATTER/OPINION SEAM. Page
+        # ownership hands the first opinion its own pages, so a headmatter
+        # note long enough to run onto the opinion's first page leaves its
+        # tail there with no label and no prior note in that bucket to merge
+        # into — ca3/lisenby's panel note '*' breaks at 'submitted to the |
+        # merits panel.', and the tail became a '?' ahead of real note 1.
+        # The seam is provable: the first opinion's first note is unlabelled,
+        # it opens that writing's FIRST page, and the headmatter's last note
+        # sits on the page immediately before.
+        if (
+            doc.opinions
+            and doc.headmatter_footnotes
+            and doc.opinions[0].footnotes
+            and first_op_page is not None
+        ):
+            head = doc.opinions[0].footnotes[0]
+            if (head.label or "").strip() == "?" and getattr(
+                head, "page", None
+            ) in (None, first_op_page):
+                hm_last = doc.headmatter_footnotes[-1]
+                hm_pages_used = {
+                    pno for pno in footnote_lines_by_page if pno < first_op_page
+                }
+                if hm_pages_used and max(hm_pages_used) == first_op_page - 1:
+                    hm_last.paragraphs = list(hm_last.paragraphs) + list(
+                        head.paragraphs
+                    )
+                    doc.opinions[0].footnotes = doc.opinions[0].footnotes[1:]
+        # The SAME SEAM runs between consecutive WRITINGS: page ownership
+        # splits at each writing's first page, so a majority note that runs
+        # long leaves its unlabelled tail at the head of the dissent's first
+        # zone — ca9/forward's dissent opened with '?': 'of the CWA.” In that
+        # case ...', the tail of the majority's note 2.
+        for a, b in zip(doc.opinions, doc.opinions[1:]):
+            if not (a.footnotes and b.footnotes):
+                continue
+            head = b.footnotes[0]
+            if (head.label or "").strip() != "?":
+                continue
+            # ``Footnote`` carries no page, so adjacency cannot be asked; the
+            # '?' at the HEAD of a later writing's notes is itself the seam's
+            # signature — a zone that opened unlabelled with no note of its
+            # own bucket to continue can only be continuing the writing
+            # before it.
+            a_last = a.footnotes[-1]
+            a_last.paragraphs = list(a_last.paragraphs) + list(head.paragraphs)
+            b.footnotes = b.footnotes[1:]
+
         if self._order_start is not None and doc.opinions:
             # The unsigned-order fallback found the body via the ORDER title;
             # its single writing is an order, not a majority opinion.
@@ -1086,6 +1287,7 @@ class BaseExtractor:
             or bool(getattr(self, "_footnote_type_seen", False)),
             zoned_pages=getattr(self, "_zone_pages", set()),
         )
+        self._warn_unreadable_labels(doc)
         self._warn_body_in_headmatter(doc)
         self._warn_dropped_images(doc)
         self._warn_image_only_pages(doc)
@@ -1184,8 +1386,15 @@ class BaseExtractor:
         Judged against the document's own size rather than a fixed count: a
         real opinion sets far more body than front matter, so front matter that
         outweighs a body of under one block per page means the anchor is
-        wrong."""
-        if doc.n_pages < 3:
+        wrong.
+
+        The check presupposes that there IS a byline to find. Administrative
+        paper has none — a clerk's list of appealed cases is four pages of
+        docket entries, all of it correctly headmatter — so a document the
+        extractor has typed as no-body-expected is exempt; otherwise the
+        warning accuses the parser of losing an opinion the filing never
+        contained."""
+        if doc.n_pages < 3 or doc.doc_type in DocType.NO_BODY_EXPECTED:
             return
         blocks = sum(len(op.blocks) for op in doc.opinions)
         rows = len([r for r in (doc.summary or []) if r])
@@ -1442,6 +1651,42 @@ class BaseExtractor:
         )
 
     @classmethod
+    def _warn_unreadable_labels(self, doc: ExtractedDocument) -> None:
+        """A note built under the '?' placeholder is a FAULT, not a note.
+
+        '?' is what the builder falls back to when it opened a zone and then
+        found no label to put on it, so every one of them is either a real note
+        whose mark could not be read, a tail carried from the previous page that
+        should have merged into its parent, or a stretch of caption/body text
+        that is not a footnote at all. None of those is a finished extraction,
+        and until now none of them said so: 211 documents across 66 courts carry
+        a '?' and most reported no warning whatsoever, so they sat in the corpus
+        as 'clean'.
+
+        Raised as a footnote warning so it reaches the same place every other
+        footnote fault does — the health bucket, the review page and the
+        manifest — without a per-document query at manifest time.
+        """
+        n = sum(
+            1
+            for group in ([doc.headmatter_footnotes or []]
+                          + [op.footnotes or [] for op in doc.opinions])
+            for fn in group
+            if (fn.label or "").strip() == "?"
+        )
+        if n:
+            doc.warnings.append(
+                f"footnote label could not be read: {n} note(s) returned '?'"
+            )
+        rejected = getattr(self, "_zone_rejected_pages", None)
+        if rejected:
+            pages = ", ".join(str(p) for p in rejected[:6])
+            more = "" if len(rejected) <= 6 else f" (+{len(rejected) - 6} more)"
+            doc.warnings.append(
+                f"a footnote zone candidate on page {pages}{more} carried no "
+                f"readable label — text left in the body"
+            )
+
     def _warn_orphan_footnote_refs(
         cls, doc: ExtractedDocument, zoned=True, zoned_pages=()
     ) -> None:
@@ -2436,6 +2681,28 @@ class BaseExtractor:
             return None
         return True
 
+    def _body_size_text_above(self, page, y) -> bool:
+        """Is there body-size text above ``y`` on this page?
+
+        The head band is set smaller than the body — a volume/date line and a
+        running case name — so a candidate separator with nothing but that above
+        it is not opening a footnote zone at all."""
+        try:
+            lines = page.extract_text_lines()
+        except Exception:
+            return True
+        sizes = []
+        for line in lines:
+            chars = [c for c in (line.get("chars") or []) if (c.get("text") or "").strip()]
+            if chars:
+                sizes.append((line, median([c["size"] for c in chars])))
+        if not sizes:
+            return True
+        body = median([s for _l, s in sizes])
+        return any(
+            line["top"] < y - 2 and sz >= body - 0.5 for line, sz in sizes
+        )
+
     def _snap_margin_bottom(self, page) -> None:
         """Never let the bottom margin cut THROUGH a line of text.
 
@@ -2712,6 +2979,25 @@ class BaseExtractor:
                 # of the line it decorates.
                 if x0_lo is not None and self._rule_underlines_text(page, r):
                     continue
+                # AN UNDERLINE IS ONLY A SEPARATOR IF THIS DOCUMENT DRAWS THAT
+                # SHAPE AS ONE. The guard above runs for indented rules only, so
+                # a decoration sitting at the rail was never asked about: cit
+                # /nanjing_dongsheng underlines a citation across a line in two
+                # runs, and the left one — 142.5pt at x0=72, all but exactly the
+                # 2-inch default — opened a footnote zone in the middle of page
+                # 3 and swallowed the rest of it. That document proves no
+                # separator signature at all, references no footnote mark and
+                # sets no raised glyph on any of its ten pages.
+                #
+                # Asked as a PREFERENCE rather than a ban, because a real
+                # separator can sit inside a text line's band and read as an
+                # underline: Connecticut's reporter rule is 264pt at x0=174 and
+                # does exactly that. Its signature is proven across the
+                # document, so it survives; a one-off decoration does not.
+                if self._rule_underlines_text(page, r):
+                    sig = (round(r["x0"]), round(r["x1"] - r["x0"]))
+                    if sig not in (getattr(self, "_fn_sep_sigs", None) or {}):
+                        continue
                 if not corroborate(r["top"]):
                     continue
                 out.append(r)
@@ -2838,7 +3124,103 @@ class BaseExtractor:
         # on its own, from one page. This step asks what the rest of the
         # document does, and is reached only when no page-local test answered,
         # so nothing that finds a separator today can change its mind here.
-        return self._learned_separator(page)
+        sep = self._learned_separator(page)
+        if sep is not None:
+            return sep
+
+        # STEP 7 — THE LEADING CHANGES AT THE RULE. Every test above asks about
+        # SIZE or about a LABEL, and a footnote CARRIED OVER from the previous
+        # page has neither: its text is the note's own body size, and it opens
+        # with no label because the label stayed behind with the first half. So
+        # a page that draws the very same separator its neighbours draw answers
+        # nothing, and the tail is delivered as body prose — alsd 78017 page 5
+        # continues note 1 ("was dismissed as frivolous. See McClain v. U.S.
+        # Gov't ...") under a 144pt rule at the rail identical to the one page 4
+        # uses successfully.
+        #
+        # What those pages do say, loudly, is that the LEADING changes. A court
+        # that double-spaces its body single-spaces its notes, so the pitch
+        # halves at the rule:
+        #
+        #     above the rule   27.1  27.4  27.1 ...   the body
+        #     below the rule   13.4  13.7  13.7 ...   the note
+        #
+        # Both bands are measured off this page, so there is no constant here
+        # beyond "materially tighter". The same test refuses the non-separator
+        # rule at y=330 on page 4 of that document, where the pitch is 27.1 on
+        # both sides. Placed last so it can only ever ADD a zone to a page that
+        # currently finds none.
+        return self._rule_over_tighter_leading(page)
+
+    def _line_pitches(self, lines) -> Optional[float]:
+        """The median line pitch of a run, or None if it cannot be measured.
+
+        Folios are dropped: the gap from the last line of a zone down to the
+        page number is a page-bottom margin, not leading, and including it
+        drags the median toward the body's."""
+        kept = [
+            l for l in lines
+            if self._page_number_value(self.line_plain_text(l)) is None
+        ]
+        gaps = [
+            round(kept[i]["top"] - kept[i - 1]["top"], 2)
+            for i in range(1, len(kept))
+        ]
+        gaps = [g for g in gaps if 2.0 < g < 80.0]
+        return median(gaps) if len(gaps) >= 2 else None
+
+    def _rule_over_tighter_leading(self, page) -> Optional[float]:
+        """y of a rule with the body's leading above it and a tighter leading
+        below — the signature of a footnote zone opened by a carried tail.
+
+        NEVER ON THE CAPTION PAGE. This step exists for one shape — a note
+        CARRIED OVER from the previous page — and no tail can be carried onto
+        the first page. What the caption page has instead is exactly the
+        pitch profile this step reads as evidence: caption rows spaced out
+        above a divider, a single-spaced roster/cite block below it. Hawaiʻi's
+        one-page orders fail that way in ten documents — the divider over
+        'CERTIORARI TO THE INTERMEDIATE COURT OF APPEALS / ORDER ... /
+        (By: Devens, C.J., ...)' opened a zone and the whole order became a
+        '?' footnote (bloch_v._bloch_1 and nine siblings). The motivating
+        case, alsd 78017's carried tail, fires on page 5."""
+        if page.page_number == getattr(self, "_caption_pno", 1):
+            return None
+        min_w = self.footnote_sep_min_width(page)
+        x0_max = self.body_baseline_x0 + 4
+        lines = sorted(
+            (
+                l for l in page.extract_text_lines()
+                if (l.get("chars") or []) and self._line_in_margin_band(l)
+            ),
+            key=lambda l: l["top"],
+        )
+        if len(lines) < 6:
+            return None
+        best = None
+        for r in (
+            list(page.rects)
+            + list(page.lines)
+            + list(getattr(page, "curves", None) or [])
+        ):
+            if abs(r.get("height", 0)) >= 2:
+                continue
+            if (r["x1"] - r["x0"]) < min_w or r["x0"] > x0_max:
+                continue
+            if r["top"] < page.height * 0.25:
+                continue
+            if self._rule_underlines_text(page, r):
+                continue
+            above = self._line_pitches(
+                [l for l in lines if l["top"] < r["top"] - 1][-6:]
+            )
+            below = self._line_pitches(
+                [l for l in lines if l["top"] > r["top"] + 1][:6]
+            )
+            if above is None or below is None:
+                continue
+            if below <= above * 0.75 and (best is None or r["top"] < best):
+                best = r["top"]
+        return best
 
     def _raised_label_below(self, page, rule_top) -> bool:
         """``_labelled_note_below``, restricted to a RAISED label.
@@ -2873,6 +3255,27 @@ class BaseExtractor:
             len(below) > 1 and self._opens_with_raised_label(below[1])
         )
 
+    def _sep_is_underline(self, page, sep_top) -> bool:
+        """Is the rule a separator finder chose at ``sep_top`` an underline?
+
+        The finders return a HEIGHT, not the rule, so the veto at the call
+        site has to recover the ink: any thin rule within 0.6pt of the
+        returned top (rect, vector line or curve — producers draw the same
+        rule as any of the three). A height with no rule near it (a court
+        that infers its zone another way) has no underline to be."""
+        for r in (
+            list(page.rects)
+            + list(page.lines)
+            + list(getattr(page, "curves", None) or [])
+        ):
+            if abs(r.get("height", 0)) >= 2:
+                continue
+            if abs(r.get("top", -999) - sep_top) > 0.6:
+                continue
+            if self._rule_underlines_text(page, r):
+                return True
+        return False
+
     def _rule_underlines_text(self, page, rule) -> bool:
         """Does this rule sit inside the vertical band of a text line?
 
@@ -2882,8 +3285,17 @@ class BaseExtractor:
         margin, the separator's exact signature — but position within the line
         can."""
         for tl in page.extract_text_lines():
+            bottom = tl.get("bottom", tl["top"])
+            # An underline hangs UNDER the glyphs it decorates — below the
+            # baseline, in the lower half of the line's band (scannell's sit
+            # 2.5pt above the band's bottom; conn's reporter rule 1.9pt below
+            # it). A rule at the TOP of a line's band is not decorating that
+            # line: it is a separator drawn tight over its first note — azd
+            # 1445740 rules 144pt at exactly note 1's top-1, and the band
+            # test read it as an underline of the note beneath it, deleting
+            # footnotes 1, 2, 5 and 6; minnctapp regressed the same way.
             if (
-                tl["top"] - 1 <= rule["top"] <= tl.get("bottom", tl["top"]) + 2
+                (tl["top"] + bottom) / 2 <= rule["top"] <= bottom + 2
                 and tl["x0"] < rule["x1"]
                 and tl["x1"] > rule["x0"]
             ):
@@ -2930,9 +3342,34 @@ class BaseExtractor:
             ]
             # A page ruled like a spreadsheet is a table, and asking each of its
             # rules to corroborate costs a text extraction apiece.
-            if len(rules) > 12:
+            #
+            # Count the ink the table is actually DRAWN IN. This counted thin
+            # rules only, and a table drawn as FILLED CELL BOXES has almost
+            # none: uscfc/davis sets a three-page table as 23, 24 and 23 box
+            # rects with 12, 4 and 4 hairlines, so all three pages sailed past a
+            # >12 test on hairlines and taught the document a 336pt table rule
+            # as one of its own separator signatures. Two phantom notes labelled
+            # '170' were built out of table cells, and the numbers in those
+            # cells were then harvested as footnote references — which is what
+            # reported 146 notes 'missing' from a document whose 23 real notes
+            # are all present and correct.
+            boxes = [r for r in page.rects if abs(r.get("height", 0)) >= 2]
+            if len(rules) + len(boxes) > 12:
                 continue
             for r in rules:
+                # A court that underlines its citations can draw a decoration
+                # with the separator's exact signature: gutschmidt's underline
+                # beneath 'Inc. v. Sageco, Inc.' (p20) is 144.0@72, identical
+                # to the real separator on p24 — so it both TAUGHT the
+                # signature a second page and then rode in on it, and the
+                # quoted Chen passage beneath it became a 226-word '?' note.
+                # Gated by the same per-court knob as the finders, for the
+                # same reason (conn's genuine rule sits 1.88pt under the last
+                # body line and would be rejected as an underline).
+                if self.footnote_sep_reject_underlines and self._rule_underlines_text(
+                    page, r
+                ):
+                    continue
                 try:
                     ok = self._rule_over_footnotes(
                         page, r["top"]
@@ -2943,7 +3380,18 @@ class BaseExtractor:
                     continue
                 sig = (round(r["x0"]), round(r["x1"] - r["x0"]))
                 sigs.setdefault(sig, set()).add(page.page_number)
+        # TWO PAGES, and it was MEASURED that one is not enough. Accepting a
+        # signature corroborated on a single page rescues alsd 78017 page 5 (a
+        # carried tail under the same 144@72 rule its page 4 proves) but breaks
+        # worse than it fixes: cacd 972521 is a protective order on numbered
+        # pleading paper whose blank fill-in rules then read as proven
+        # separators, and 2,170 words of the order's body were swallowed into
+        # seventeen "footnotes" made of the running footer. or/state_v._shine
+        # grew a duplicate '*' the same way. One fixed, two broken — so the
+        # requirement stays, and a carried tail needs different evidence than
+        # shape recurrence.
         self._fn_sep_sigs = {sig: pages for sig, pages in sigs.items() if len(pages) > 1}
+
 
     def _learned_separator(self, page) -> Optional[float]:
         """A rule matching one of the document's own separator signatures.
@@ -2966,6 +3414,14 @@ class BaseExtractor:
             if abs(r.get("height", 0)) >= 2:
                 continue
             if (round(r["x0"]), round(r["x1"] - r["x0"])) not in sigs:
+                continue
+            # Same underline gate as the learn side, and it is needed HERE
+            # even when learning was clean: the signature can be honestly
+            # proven by real separators on other pages while THIS page's
+            # match is a citation underline that happens to share it.
+            if self.footnote_sep_reject_underlines and self._rule_underlines_text(
+                page, r
+            ):
                 continue
             if self._labelled_note_after_carry(page, r["top"]):
                 tops.append(r["top"])
@@ -3154,6 +3610,10 @@ class BaseExtractor:
                 continue
             if r["x0"] > x0_max:
                 continue
+            if self.footnote_sep_reject_underlines and self._rule_underlines_text(
+                page, r
+            ):
+                continue
             if not any(
                 r["top"] < c["top"] < page.height and (c.get("text") or "").strip()
                 for c in page.chars
@@ -3189,8 +3649,28 @@ class BaseExtractor:
     # measurements.
     footnote_zone_by_size: bool = False
 
+    # A RULE INSIDE A TEXT LINE'S OWN BAND IS AN UNDERLINE, not a separator.
+    # PDF has no underline attribute — bold and italic arrive as separate
+    # embedded fonts, but an underline is drawn ink, the same 0.6pt filled
+    # rectangle a court draws for its footnote rule. In ca10/scannell the two
+    # are indistinguishable on every property either carries (both h=0.60,
+    # both x0=72.0, both black); only position tells them apart, and by a wide
+    # margin — the underlines sit 2.5pt inside a line's band, the separators
+    # 22.3pt clear of one.
+    #
+    # ON BY DEFAULT, with a per-court opt-out, because the measurement ran
+    # both ways: over the 2,090 hand-labelled documents that carry no '?',
+    # rejecting underlines broke exactly two — both conn, whose genuine
+    # separator sits 1.88pt below the last body line, inside the 2pt band
+    # ``_rule_underlines_text`` treats as decoration — and over the 206 '?'
+    # documents it resolved 32 across 22 courts and lost nothing. So the
+    # default is reject, and the Connecticut family (the one court whose
+    # template genuinely draws its rule against the text) opts out.
+    footnote_sep_reject_underlines: bool = True
+
     def _footnote_zone_by_size(self, page) -> Optional[float]:
         """Top of a footnote zone identified by TYPE SIZE, not by a rule.
+
 
         Footnote capture is gated on ``find_footnote_separator`` returning a y,
         and several cadc documents draw no separator whatsoever — no rect, no
@@ -3485,7 +3965,18 @@ class BaseExtractor:
             if configured is not None:
                 if (ln["x1"] - ln["x0"]) < configured:
                     continue
-            elif not self._labelled_note_below(page, ln["top"]):
+            elif not self._labelled_note_after_carry(page, ln["top"]):
+                # PAST THE CARRIED TAIL. ``_labelled_note_below`` asks only
+                # about the FIRST line under the rule, which is right for a zone
+                # that opens with a label and wrong for one that opens midway
+                # through a note continued from the page before —
+                # njsuperctappdiv/della_m._bournes types its separator as
+                # underscores on page 3 and sets note 1's tail directly beneath
+                # it ("began living with their maternal grandparents …"), with
+                # note 2's raised label three lines further down. Unlabelled
+                # first line, so the separator was refused, and the page lost
+                # both the tail and note 2 to the body. The carry-aware test is
+                # the same one ``_learned_separator`` already uses.
                 continue
             if best is None or ln["top"] < best:
                 best = ln["top"]
@@ -3507,6 +3998,19 @@ class BaseExtractor:
             chars = ln.get("chars") or []
             sizes = [c["size"] for c in chars if c.get("size")]
             if not sizes:
+                continue
+            # A PAGE FOLIO IS NOT FOOTNOTE TEXT. The folio is set smaller than
+            # the body and sits below every rule on the page, so it satisfies
+            # 'smaller text below' on its own — which makes this test say yes to
+            # the LOWEST rule on any page, whatever that rule is. alsd 74071
+            # page 1 draws a case-name underline inside footnote 1's own text at
+            # y=718 with nothing beneath it but the folio '1' (11pt against a
+            # 12pt body, clearing the 0.75 margin by a quarter point). It was
+            # taken for the separator, the zone opened BELOW note 1, and note 1
+            # was delivered as body prose while the real 144pt rule at y=683.5 —
+            # which the very next step corroborates correctly — was never
+            # reached. Furniture cannot vouch for a separator.
+            if self._page_number_value(self.line_plain_text(ln)) is not None:
                 continue
             sz = median(sizes)
             top = ln["top"]
@@ -4793,9 +5297,21 @@ class BaseExtractor:
             for c in chars
             if (c.get("text") or "").strip()
         ]
-        return max(inked) if inked else max(
-            (round(c.get("size", 0), 1) for c in chars), default=0.0
-        )
+        # THE MODE, NOT THE MAX. A line's type is what most of it is set in.
+        # Taking the largest glyph let a few oversized characters redefine the
+        # whole line: cit/qatar_melamine sets its '[[ ]]' redaction brackets
+        # at 14.2pt inside 12pt footnote text, so a wrapped citation line
+        # ('04 at 10 ("[[') read as 14.2pt type — its ordinary 12pt digits
+        # then measured as RAISED, and '04' was minted as a footnote label
+        # mid-zone. Ties break toward the larger size, which preserves the
+        # old answer wherever the counts are even.
+        if not inked:
+            return max(
+                (round(c.get("size", 0), 1) for c in chars), default=0.0
+            )
+        counts = Counter(inked)
+        top = max(counts.values())
+        return max(s for s, n in counts.items() if n == top)
 
     def _footnote_mark_chars(self, chars, body_size) -> list:
         """Per-char: may this small glyph be read as a footnote MARK?
@@ -5551,6 +6067,18 @@ class BaseExtractor:
         out = []
         by_label: dict = {}
         for label, lines, opens in grouped:
+            # A SYMBOL DOES NOT NUMBER ANYTHING, so a repeat of one is not a
+            # duplicate. Deduping exists for a sequence — a second '1' really is
+            # a fault — but '*', '†' and '**' carry no order, and a court is
+            # free to set two starred notes on one page. The 10th Circuit does
+            # exactly that, every time: one '*' note saying the panel decided
+            # the appeal without oral argument, and a second '*' note saying the
+            # order is not binding precedent. The first was built, the second
+            # met a label already seen and was dropped whole —
+            # ca10/watson_v._dequardo, marquez-cortez and ol_private_counsel all
+            # reported 'authored content remains unplaced' for text that had
+            # simply been deleted for wearing the same mark as its neighbour.
+            sequenced = label.isdigit()
             if label in seen_labels and self.dedupe_footnote_labels:
                 # A footnote too long for one page RESUMES on the next under its
                 # own label. That is the same footnote, not a repeat, so
@@ -5575,7 +6103,11 @@ class BaseExtractor:
                             continue
                         out.append(fn)
                         by_label[label] = fn
-                continue
+                    continue
+                if sequenced:
+                    continue
+                # A symbol repeat further down the zone: a second note, not a
+                # duplicate. Fall through and build it as its own.
             fn = self.build_footnote_with_tables(
                 label, lines, footnote_tables_by_page
             )
@@ -5784,7 +6316,34 @@ class BaseExtractor:
             return None
         # The gap to the first word. Without a full stop, anything wider than
         # a word space is a second COLUMN, not a label.
-        if gap <= size * (2.0 if dotted else 0.45):
+        #
+        # ASK THE LINE WHAT ITS WORD SPACE IS. ``size * 0.45`` is a guess at
+        # one, and it is a guess calibrated on a proportional face: alsd sets
+        # its opinions in Courier New, whose space is far wider, and its
+        # footnote 4 — a label the producer simply forgot to superscript — is
+        # separated from its prose by 6.048pt against a 5.400pt ceiling.
+        # Refused by two thirds of a point, the line read as more of note 3 and
+        # note 4 was swallowed whole. Every one of the four checks in
+        # ``_admit_flush_labels`` passes for it: the body owes a 4, the zone has
+        # seen 1-3 so 4 is next, no raised 4 claims it, and the line above stops
+        # short. The bookkeeping had it right and a constant overruled it.
+        #
+        # The line's own inter-word gap is measurable — the modal positive gap
+        # between its glyphs — and a label set off by one or two word spaces is
+        # ordinary typesetting, while a real second column is the tab already
+        # taken above. The old constant stays as a FLOOR so no line that reads
+        # as a label today can stop doing so.
+        word_gaps = [
+            round(chars[k]["x0"] - chars[k - 1]["x1"], 2)
+            for k in range(1, len(chars))
+        ]
+        word_gaps = [g for g in word_gaps if g > 0.5]
+        if word_gaps:
+            space = Counter(word_gaps).most_common(1)[0][0]
+            ceiling = max(size * (2.0 if dotted else 0.45), space * 2.0)
+        else:
+            ceiling = size * (2.0 if dotted else 0.45)
+        if gap <= ceiling:
             return label, prefix
         # A HANGING label: the stop is followed by a tab, the prose resumes
         # exactly on the rail the zone's own continuation lines are set to,
@@ -5880,6 +6439,12 @@ class BaseExtractor:
             self._flush_labels_admitted = outer
         return admitted
 
+    @staticmethod
+    def _flush_line_page(line):
+        """The page a footnote-zone line was set on."""
+        chars = line.get("chars") or []
+        return (chars[0].get("page_number") if chars else line.get("page_number")) or 0
+
     def _walk_flush_candidates(
         self, zone, measure, rail, owed, claimed, admitted
     ):
@@ -5898,7 +6463,33 @@ class BaseExtractor:
                 prev = line
                 continue
             size = self._line_type_size(line.get("chars") or [])
-            opens_para = prev is None or prev["x1"] < measure - 2.5 * size
+            # NOT EVERY NOTE IS SET FLUSH. Where a court INDENTS the first line
+            # of each note — ca7 hangs its openers 18pt right of the rail its
+            # continuations run to — the indent IS the paragraph, stated by the
+            # page and needing nothing inferred:
+            #
+            #     x0=162.0  +18.0   1 "Dkt." refers to the docket number …
+            #     x0=144.0   +0.0   risdiction and, thus, Illinois law …
+            #
+            # Reading only the PREVIOUS line's right edge is a proxy for that,
+            # and a weak one. It fails outright across a page break, because the
+            # zone is stitched from every page that has one and 'the line
+            # before' can be six pages back: eugenia_kamberos sets note 1 on
+            # page 2, note 2 on page 8 and note 3 on page 12, and note 1's only
+            # line runs to x1=443.9 against a 443.0 threshold — so note 2 was
+            # refused by nine tenths of a point, its label having been read
+            # correctly as ('2','2'), and notes 2 and 3 fused into note 1: one
+            # entry of 222 words where the document prints three.
+            #
+            # So ask the page first (is this line indented off its own zone's
+            # rail?), then the page boundary, and keep the right-edge proxy last
+            # for the courts that really do set their openers flush.
+            opens_para = (
+                prev is None
+                or (rail is not None and line["x0"] > rail + size * 0.5)
+                or self._flush_line_page(prev) != self._flush_line_page(line)
+                or prev["x1"] < measure - 2.5 * size
+            )
             prev = line
             if not opens_para:
                 continue
@@ -5931,7 +6522,7 @@ class BaseExtractor:
 
     def _canon_label(self, text: str) -> str:
         """One label per note, whatever glyph the producer reached for."""
-        return "".join(self._LABEL_CANON.get(ch, ch) for ch in text)
+        return "".join(self._canon_glyph(ch) for ch in text)
 
     def detect_footnote_label(self, line) -> Optional[str]:
         """If ``line`` starts a new footnote, return its label; else None.
@@ -5960,24 +6551,68 @@ class BaseExtractor:
         if (
             plain
             and len(plain) <= 3
-            and all(char in self.FOOTNOTE_LABEL_CHARS for char in plain)
+            and all(self._canon_glyph(char) in self.FOOTNOTE_LABEL_CHARS for char in plain)
         ):
             return self._canon_label(plain)
         body_size = self._line_type_size(chars)
         first = chars[0]
         first_small = round(first["size"], 1) <= body_size - 1.5
-        if not (first_small and first["text"] in self.FOOTNOTE_LABEL_CHARS):
-            return None
+        if not (
+            first_small
+            and self._canon_glyph(first["text"]) in self.FOOTNOTE_LABEL_CHARS
+        ):
+            return self._symbol_label_at_head(line)
         label_chars = []
         for c in chars:
             if (
                 round(c["size"], 1) <= body_size - 1.5
-                and c["text"] in self.FOOTNOTE_LABEL_CHARS
+                and self._canon_glyph(c["text"]) in self.FOOTNOTE_LABEL_CHARS
             ):
-                label_chars.append(c["text"])
+                label_chars.append(self._canon_glyph(c["text"]))
             else:
                 break
         return self._canon_label("".join(label_chars)) or "?"
+
+    def _symbol_label_at_head(self, line) -> Optional[str]:
+        """A SYMBOL label set at body size: leading * / † / ‡, a word space,
+        a sentence opening. Utah sets 'Filed February 26, 2026*' against
+        '* As of January 31, ...' with both asterisks 12pt on 12pt; ca7 sets
+        '* We have agreed to decide the case without oral argument' at
+        9.96pt on 9.96pt (jeffrey_jones). Digits stay with the flush-label
+        bookkeeping — a symbol has no sequence to keep, and prose cannot
+        open with one: an asterisk mid-sentence trails a word, never leads
+        one."""
+        chars = [
+            c for c in (line.get("chars") or []) if (c.get("text") or "").strip()
+        ]
+        if len(chars) < 3 or self._canon_glyph(chars[0]["text"]) not in "*†‡":
+            return None
+        size = self._line_type_size(line.get("chars") or [])
+        i = 1
+        while i < len(chars) and chars[i]["text"] == chars[0]["text"]:
+            # A compound label ('**') is set SOLID; symbols separated by word
+            # spaces are a DINKUS — ca2 closes its opinions with a centred
+            # '* * *' above 'We have considered ...', and reading it as a
+            # label manufactured a trailing '*' note in three documents
+            # (hampton, xinuos, schneiderman).
+            if chars[i]["x0"] - chars[i - 1]["x1"] > size * 0.15:
+                return None
+            i += 1
+        if i >= len(chars):
+            return None
+        gap = chars[i]["x0"] - chars[i - 1]["x1"]
+        head = (chars[i]["text"] or "")[:1]
+        if head == chars[0]["text"]:
+            return None  # a spaced repeat further on: still the dinkus
+        if gap >= size * 0.2 and (head.isupper() or head in "“”\"‘’'(["):
+            # The PRINTED glyph, unless it is a Private-Use-Area artifact: a
+            # SymbolMT '' is truly '*', but ca2's ASTERISK OPERATOR
+            # '∗' (U+2217) is the label as the court set it (alvarenga).
+            g = chars[0]["text"]
+            if self._PUA_LO <= ord(g[:1] or " ") <= self._PUA_HI:
+                g = self._canon_glyph(g)
+            return g * i
+        return None
 
     @staticmethod
     def _footnote_table_html(rows) -> str:

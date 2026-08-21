@@ -7,6 +7,11 @@ This case arises ...'. Separate writings carry the kind in the same form
 distinguishes the byline from the 'BEFORE:' panel line and the trial-court
 history; bold centered section labels ('STANDARD OF REVIEW', 'ANALYSIS') are
 headings in the body.
+
+Some memorandum opinions are published with NO byline at all — the roster is
+followed straight by the opening paragraph and the writing closes on 'ALL
+CONCUR.' ('crystal_blair-lewis_v._arh_advanced_care_inc.'). That is an unsigned
+opinion of the panel; see ``page_lines`` and ``find_authors``.
 """
 
 from __future__ import annotations
@@ -36,7 +41,17 @@ class KentuckyCourtOfAppeals(StateAppellate):
             text = re.sub(r"<[^>]+>", "", blocks[i].text or "").strip().upper()
             if any(
                 marker in text
-                for marker in ("ON THE BRIEFS", "BRIEFS FOR", "ORAL ARGUMENT FOR", "ENTERED:")
+                # SINGULAR AND PLURAL. Where one brief was filed per side the
+                # court heads the column 'BRIEF FOR APPELLANT:', which is not a
+                # substring of 'BRIEFS FOR' — so the appearances stayed at the
+                # end of the opinion body instead of moving to the trailer.
+                for marker in (
+                    "ON THE BRIEFS",
+                    "BRIEFS FOR",
+                    "BRIEF FOR",
+                    "ORAL ARGUMENT FOR",
+                    "ENTERED:",
+                )
             ):
                 return i
         return None
@@ -117,6 +132,81 @@ class KentuckyCourtOfAppeals(StateAppellate):
         if r is not None:
             return r
         return super().parse_author_line(text)
+
+    # -------------------------------------------------- unsigned panel opinion
+    def _is_panel_roster(self, line) -> bool:
+        """'BEFORE: KAREM, MCNEILL, AND TAYLOR, JUDGES.' — the roster that
+        introduces the court's own writing. It opens on the capitalised word and
+        closes on the bench word, which is what separates it from body prose
+        that merely begins a sentence with 'before'."""
+        text = self.line_plain_text(line).strip()
+        if not text.startswith("BEFORE"):
+            return False
+        return text.rstrip(".:;, ").upper().endswith(("JUDGE", "JUDGES"))
+
+    def page_lines(self, page):
+        """Close the headmatter at the panel roster.
+
+        The roster and the opening paragraph are the same size and the same
+        double leading apart, so on an unsigned opinion the segmenter joins them
+        and the body's first line is buried mid-segment where ``find_authors``
+        (which reads a segment's FIRST line) can never see it — all nine pages
+        of blair-lewis landed in headmatter. Cutting below the roster follows
+        the page's own structure: nothing above the roster is ever body, and on
+        a signed opinion the line below it is the byline, which starts its own
+        segment anyway.
+        """
+        lines = super().page_lines(page)
+        for prev, line in zip(lines, lines[1:]):
+            if self._is_panel_roster(prev):
+                line["_seg_break"] = True
+        return lines
+
+    def _percuriam_start(self, all_segments):
+        """Index of the first body segment after the panel roster, or None."""
+        roster = None
+        for i, (_p, seg, _k) in enumerate(all_segments):
+            if seg and self._is_panel_roster(seg[-1]):
+                roster = i
+        if roster is None:
+            return None
+        for j in range(roster + 1, len(all_segments)):
+            seg = all_segments[j][1]
+            if not seg or self.is_separator_line(seg[0]):
+                continue
+            if not self.line_plain_text(seg[0]).strip():
+                continue
+            return j
+        return None
+
+    def find_authors(self, all_segments):
+        self._pc_starts = set()
+        out = super().find_authors(all_segments)
+        if out:
+            return out
+        # No 'NAME, JUDGE:' anywhere: the panel published the opinion unsigned.
+        # It opens immediately below the roster; the writing is the court's, so
+        # the author is the panel — PER CURIAM, the same name the circuit family
+        # gives an unsigned memorandum.
+        start = self._percuriam_start(all_segments)
+        if start is None:
+            return []
+        self._pc_starts.add(start)
+        return [start]
+
+    def split_author_line(self, line):
+        if getattr(self, "_pc_now", False):
+            return "PER CURIAM", [line]  # no byline line — keep it as body
+        return super().split_author_line(line)
+
+    def build_opinion(self, op_start, op_end, **kwargs):
+        self._pc_now = op_start in getattr(self, "_pc_starts", set())
+        op = super().build_opinion(op_start, op_end, **kwargs)
+        self._pc_now = False
+        if op_start in getattr(self, "_pc_starts", set()):
+            op.author = "PER CURIAM"
+            op.type = self.normalize_opinion_type(None)
+        return op
 
     def _byline_split(self, line):
         text = self.line_plain_text(line).strip()

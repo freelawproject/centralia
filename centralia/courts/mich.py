@@ -47,6 +47,12 @@ from ._abbrevtitle import AbbrevTitleSupreme
 
 
 class MichiganSupreme(AbbrevTitleSupreme):
+    # Michigan's own separator decision is final: the base chain's retry
+    # answered with a rule this court's ``find_footnote_separator`` had
+    # already rejected, and in_re_estate_of_jerome_e_sizick lost its whole
+    # opinion to it (6140 body words -> 0).
+    footnote_sep_override_final = True
+
     court_id = "mich"
     court_label = "Michigan Supreme Court."
     blockquote_by_indent = True
@@ -70,9 +76,36 @@ class MichiganSupreme(AbbrevTitleSupreme):
         and masthead rules are full-width or right-shifted) finds it where the
         small-text-below heuristic cannot; fall back to that heuristic if a
         document draws a differently-sized rule."""
-        return self.footnote_sep_fixed_left_rule(page) or (
-            self._footnote_sep_small_text_below(page)
+        return self.footnote_sep_fixed_left_rule(page) or self._no_byline_below(
+            page, self._footnote_sep_small_text_below(page)
         )
+
+    def _no_byline_below(self, page, sep: Optional[float]) -> Optional[float]:
+        """Reject a fallback separator that has an opinion byline beneath it.
+
+        A separate writing opens on its own page: the caption is repeated and
+        closed by a ~250pt shelf rule, and the byline stands directly below it.
+        Michigan sets that byline in SMALL CAPS, so its lowercase-cap glyphs
+        measure 9.5pt against the 13pt body — a hair under the 3.5pt marker
+        delta — and the shelf therefore reads as a footnote separator whose
+        'marker' is the byline itself. Everything below it, i.e. the entire
+        dissent, is then appended to the majority's last footnote (in
+        158869_77_01 that was 6 pages of CLEMENT, C.J. inside footnote 55, and
+        the dissent's own note 3 collided with the majority's and fell out as
+        unplaced content).
+
+        A rule cannot open a footnote zone if a byline is printed beneath it —
+        no footnote zone contains the start of an opinion. Applied only to the
+        fallback: the proved 144pt separator is never thrown away, and no size
+        test is used (Michigan's byline is *smaller* than its body)."""
+        if sep is None:
+            return None
+        for line in page.extract_text_lines():
+            if line.get("top", 0) <= sep:
+                continue
+            if self.parse_author_line((line.get("text") or "").strip()):
+                return None
+        return sep
 
     # -------------------------------------------------------- opinion layout
     def _deep_indent_flags(self, lines) -> list:

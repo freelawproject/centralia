@@ -208,7 +208,35 @@ class ThirdCircuit(FederalCircuitBase):
         )
         if separator is not None:
             return separator
-        return BaseExtractor.find_footnote_separator(self, page)
+        separator = BaseExtractor.find_footnote_separator(self, page)
+        if separator is not None:
+            return separator
+        # THE UNRULED CAPTION STAR NOTE — a matched pair with no separator
+        # anywhere: naacp_delaware rules nothing on any of its six pages, sets
+        # 'NONPRECEDENTIAL OPINION*' in the caption and '*This is not an
+        # opinion of the full Court ...' at the very foot of page 1. Nothing
+        # like the removed fallback above: star family only (the folio
+        # phantoms were DIGITS), the caption page only, the bottom quarter
+        # only, and only with the TRAILING star reference printed above it —
+        # a note without its mark stays unread, exactly as before.
+        if page.page_number == getattr(self, "_caption_pno", 1):
+            lines = page.extract_text_lines()
+            has_ref = any(
+                (l.get("text") or "").rstrip().endswith(("*", "†", "‡"))
+                and l["top"] < page.height * 0.75
+                for l in lines
+            )
+            if has_ref:
+                for l in lines:
+                    t = (l.get("text") or "").strip()
+                    if (
+                        l["top"] > page.height * 0.75
+                        and len(t) > 2
+                        and t[0] in "*†‡"
+                        and (t[1] == " " or t[1].isalpha())
+                    ):
+                        return l["top"] - 1.0
+        return None
 
     def matches_expected_layout(self, pdf):
         """Accept CA3's abbreviated first-page court banner.

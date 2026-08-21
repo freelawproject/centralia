@@ -23,11 +23,17 @@ matches the loose byline grammar and must be rejected by case.
 from __future__ import annotations
 
 from ._appellate import StateAppellate
+from ._statesupreme import _is_byline_name
 
 
 class OhioCourtOfAppeals(StateAppellate):
     court_id = "ohioctapp"
     court_label = "Ohio Court of Appeals."
+
+    # 4th/5th District print shops set the byline in Title Case ('King, P.J.' /
+    # 'Hess, J.'), not ALL CAPS; the surname-shape guards below keep the
+    # end-of-opinion concur roster out.
+    allow_titlecase_name = True
 
     # Footnotes at body size with a raised label digit — the 'smaller text
     # below the rule' test never fires; use the structural separator test.
@@ -89,23 +95,61 @@ class OhioCourtOfAppeals(StateAppellate):
         return [l for l in lines if id(l) not in drop]
 
     # --------------------------------------------------------------- byline
+    def _name_ok(self, name: str) -> bool:
+        """An ALL-CAPS surname may carry initials ('JOHN W. CAMPBELL'); a
+        Title Case surname must stand alone.
+
+        The 4th/5th District conformed concur roster at the end of the opinion
+        is a column of full names in the same Title Case as their byline
+        ('Gene A. Zmuda, J.' / 'Thomas J. Osowik, P.J.'), and it is the panel
+        signing off, not a new writing. The bylines themselves are bare
+        surnames, so the token count separates the two."""
+        if _is_byline_name(name):
+            return True
+        return len(name.split()) == 1 and super()._name_ok(name)
+
+    def _byline_split(self, line):
+        """A byline here always occupies its whole line — the body opens on the
+        line below it. What *does* run inline is the concur roster closing the
+        opinion ('Hoffman, P.J. and' + 'Gormley, J. concur.' / 'Abele, J. &
+        Wilkin, J.: Concur in Judgment and Opinion.'), where the grammar reads
+        the roster's second name as opinion text. Decline any split that leaves
+        text over, so such a line cannot open a writing."""
+        r = super()._byline_split(line)
+        if r is not None and r[1].strip():
+            return None
+        return r
+
     def parse_author_line(self, text):
-        """Real bylines are ALL-CAPS surnames + abbreviated title
-        ('HANSEMAN, J.' / 'SULEK, J.,' / 'MAYLE, J., concurring') or PER
-        CURIAM. Quoted transcript speech ('Additionally, Judge, the State
-        would have shown …') satisfies the loose spelled-title grammar, so
-        reject title-case names (a real McFARLAND/DeWINE keeps ≥2 capitals)
-        and any remainder that isn't concur/dissent language."""
+        """Bylines are a surname + abbreviated title ('HANSEMAN, J.' /
+        'SULEK, J.,' / 'MAYLE, J., concurring' / 'King, P.J.' / 'Popham, J.,')
+        or PER CURIAM.
+
+        Two byline-shaped impostors have to be rejected. Quoted trial-
+        transcript speech ('Additionally, Judge, the State would have shown …')
+        satisfies the loose spelled-title grammar — its remainder is not
+        concur/dissent language. And the concur roster that closes a 4th/5th
+        District opinion is byline-shaped per line ('Hoffman, P.J. and' /
+        'Gormley, J. concur.' / 'Abele, J. & Wilkin, J.: Concur in Judgment
+        and Opinion.'); what marks those is text left over AFTER the byline
+        clause the grammar consumed. A Title Case byline must therefore be the
+        whole line and nothing more (a real separate writing spends its
+        remainder inside the grammar's kind clause — 'King, J., concurring.'),
+        while the ALL-CAPS 6th District form keeps the looser remainder test
+        it has always used."""
         parsed = super().parse_author_line(text)
         if not parsed:
             return None
         name = parsed[0] or ""
-        if sum(1 for ch in name if ch.isupper()) < 2:
-            return None
         rest = parsed[2] if len(parsed) > 2 else None
         if rest:
             low = rest.lower()
             if "concur" not in low and "dissent" not in low:
+                return None
+        if not _is_byline_name(name):
+            stripped = text.strip()
+            r = self._abbrev_parse(stripped)
+            if r is None or stripped[r[3] :].strip(" ,.;:—–"):
                 return None
         return parsed
 

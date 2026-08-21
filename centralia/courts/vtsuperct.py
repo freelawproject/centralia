@@ -79,6 +79,59 @@ class VermontSuperiorCourt(DistrictBase):
         doc.dropped = rows
         super()._sweep_residual(doc, source_pages)
 
+    # ------------------------------------------------------- phantom tables
+    def extract_page_tables(self, page) -> list:
+        """Ignore the e-filing tool's per-word background boxes.
+
+        Some rulings arrive with a filled rectangle drawn behind EVERY word and
+        every inter-word space of a passage — village_square_v._adams draws 113
+        of them over footnote 9, each one line high and each starting exactly
+        where the last one ended. pdfplumber builds its grid from drawn edges,
+        so that tiling reads as a 3-row, 34-column table: the note's own words
+        became cells ('of' | 'service' | 'fees' | 'incurred'), the note never
+        reached the footnote zone ('footnote referenced but never built: 9'),
+        and its last line came out as unplaced content.
+
+        A rule is thin and a real cell border encloses several text lines; a
+        word box is exactly one line tall and butts against its neighbours.
+        Drop that run before the grid is built — there is no table on the
+        page."""
+        boxes = self._word_box_rects(page)
+        if boxes:
+            page = page.filter(
+                lambda o: o.get("object_type") != "rect"
+                or (
+                    round(o.get("x0", 0), 1),
+                    round(o.get("top", 0), 1),
+                    round(o.get("x1", 0), 1),
+                )
+                not in boxes
+            )
+        return super().extract_page_tables(page)
+
+    @staticmethod
+    def _word_box_rects(page) -> set:
+        """Keys of the rects that tile a single text line word by word."""
+        rows: dict = {}
+        for r in page.rects:
+            height = r["bottom"] - r["top"]
+            if height < 3 or height > 20:  # a hairline rule / a multi-line cell
+                continue
+            rows.setdefault(round(r["top"], 1), []).append(r)
+        out = set()
+        for group in rows.values():
+            if len(group) < 8:
+                continue
+            group.sort(key=lambda r: r["x0"])
+            if all(
+                abs(b["x0"] - a["x1"]) <= 1.0 for a, b in zip(group, group[1:])
+            ):
+                out |= {
+                    (round(r["x0"], 1), round(r["top"], 1), round(r["x1"], 1))
+                    for r in group
+                }
+        return out
+
     def find_authors(self, all_segments) -> list:
         out = super().find_authors(all_segments)
         # a furniture line ('Superior Court Judge') is not a name

@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 from ._statesupreme import StateSupreme
+from ..models import DocType
 
 
 class ArkansasSupreme(StateSupreme):
@@ -21,6 +22,39 @@ class ArkansasSupreme(StateSupreme):
     # ordinary paragraphs merely indent their first line.  The shared detector
     # requires the former multi-line geometry.
     blockquote_by_indent = True
+
+    def classify_document_type(self, all_segments, author_indices, n_pages):
+        """A hand-down sheet with no case on it is a NOTICE, not an opinion.
+
+        Arkansas posts one PDF per hand-down day, and on a day it releases
+        nothing the sheet says so: a single page carrying two centered rows
+        ('NO SUPREME COURT OPINIONS TODAY' / 'MAY 14, 2026') and the page
+        number, with no caption, no drawn caption divider and no prose at all.
+
+        The structural test is that nothing on the page is set as body text.
+        An Arkansas opinion — and its caption's party and appeal-from columns —
+        always puts left-aligned prose on the page; a sheet whose every line is
+        CENTERED has no body to have lost, so an empty ``opinions`` list is the
+        correct outcome rather than a parse failure. The shared classifier
+        reached ``unknown`` because the announcement does not spell the word
+        'notice' anywhere and its own wording ('NO SUPREME COURT OPINIONS
+        TODAY') is not the cue list's 'no opinions'.
+        """
+        if not author_indices and n_pages == 1:
+            lines = [
+                line
+                for _page, seg, _kind in all_segments
+                for line in seg
+                if self.line_plain_text(line).strip()
+            ]
+            page_width = getattr(self, "_page1_width", None) or 612.0
+            if lines and all(
+                self.line_alignment(line, page_width) == "C" for line in lines
+            ):
+                return DocType.NOTICE
+        return super().classify_document_type(
+            all_segments, author_indices, n_pages
+        )
 
     def find_footnote_separator(self, page):
         """Do not treat the bottom edge of Arkansas's page-1 caption as a

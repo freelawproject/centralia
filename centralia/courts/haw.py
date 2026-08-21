@@ -19,6 +19,92 @@ class HawaiiSupreme(HawaiiStyle, StateSupreme):
     court_id = "haw"
     court_label = "Supreme Court of the State of Hawaiʻi."
 
+    def page_lines(self, page):
+        """Flag the text rows the court UNDERLINES with a drawn rule.
+
+        Hawaiʻi rules its disposition title — 'ORDER REJECTING APPLICATION FOR
+        WRIT OF CERTIORARI' — with a line drawn under the row (in strips, so
+        span is measured rather than trusting any one strip). Nothing else in the
+        caption is drawn: the court banner and the party block are divided by
+        rows of TYPED underscores instead. Mark the row on the line itself, where
+        the page is still in hand, so the segmenter and the author search can
+        both read it.
+
+        The rule sits at the BASELINE, inside the row's own box — 425.8 on a row
+        spanning 417.4 to 431.2, because the title's footnote mark stretches the
+        box down. So an underline is a rule below the row's midline and no
+        further than a hair past its bottom; anything lower belongs to the row
+        beneath, and the footnote separator (686.5, well clear of every row) is
+        never in reach.
+        """
+        lines = super().page_lines(page)
+        rules = [
+            r
+            for r in list(page.rects) + list(page.lines)
+            if (r["x1"] - r["x0"]) > 30 and (r["bottom"] - r["top"]) < 3
+        ]
+        for line in lines:
+            midline = (line["top"] + line["bottom"]) / 2
+            if any(midline < r["top"] <= line["bottom"] + 4 for r in rules):
+                line["_haw_ruled_title"] = self._is_title_row(line)
+        return lines
+
+    def _is_title_row(self, line) -> bool:
+        """A ruled row is a TITLE row only if it is set in capitals.
+
+        The other rule this court draws is the footnote separator, and on a full
+        page the last body line can sit within an underline's reach of it. A
+        title is upper-case throughout; body prose is not, so the case of the
+        row keeps the two apart without measuring the page's footnote zone
+        twice.
+        """
+        text = self.line_plain_text(line)
+        letters = [c for c in text if c.isalpha()]
+        return bool(letters) and all(c.isupper() for c in letters)
+
+    def _byline_at(self, line) -> bool:
+        # An underlined all-caps title opens a writing here even when the title
+        # grammar cannot read it (see ``find_authors``), so it has to become a
+        # segment of its own — otherwise it stays buried in the caption block.
+        return bool(line.get("_haw_ruled_title")) or super()._byline_at(line)
+
+    def split_author_line(self, line):
+        # Keep the ruled title as the opening body line, exactly as the shared
+        # style keeps a recognised 'ORDER …' header: the disposition's own title
+        # is content, and the author it carries is the panel, not a name.
+        if line.get("_haw_ruled_title"):
+            return "", [line]
+        return super().split_author_line(line)
+
+    def find_authors(self, all_segments) -> list:
+        """Fall back to the UNDERLINE when the order title is qualified.
+
+        ``HawaiiStyle`` recognises a disposition from its title ('ORDER …' /
+        '… ORDER' / 'SUMMARY DISPOSITION ORDER') plus the '(By: <panel>)'
+        roster beneath it. An AMENDED order breaks the title test:
+        ``pacific_hawaii_food_service_llc_v._yang`` heads its disposition
+        'AMENDED¹ ORDER REJECTING APPLICATION FOR WRIT OF CERTIORARI' — the
+        qualifier, with its footnote mark glued to it, comes first — so nothing
+        authored the document, its order and its five conformed signatures
+        stayed in the headmatter and it came out ``doc_type=unknown``.
+
+        The court's own typography still marks the row: it is underlined and the
+        panel roster follows it. Consulted only when the title grammar found no
+        writing at all, so a document the shared rules already read is never
+        re-anchored.
+        """
+        found = super().find_authors(all_segments)
+        if found:
+            return found
+        for i, (_page_no, seg, _kind) in enumerate(all_segments):
+            if not seg or not seg[0].get("_haw_ruled_title"):
+                continue
+            if not self._by_panel_near(all_segments, i):
+                continue
+            self._haw_order.add(i)
+            return [i]
+        return []
+
     def correct_page_geometry(self, page) -> None:
         """Put the ʻokina back on its own text row.
 

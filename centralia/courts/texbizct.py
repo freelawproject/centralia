@@ -15,6 +15,15 @@ from ._district import DistrictBase
 
 
 class TexasBusinessCourt(DistrictBase):
+    # This court's separator decision is final. Overruled by the base chain's
+    # retry, both synergy_thermogen filings lost their opinion outright (2091
+    # body words -> 0) and five caption lines read as unplaced content. The four
+    # documents that are 44-141 words short (kampmann, pradera_sfr, sri_shirdi,
+    # westlake_longview) were ALREADY short before this flag and have their own
+    # cause — measured, not assumed.
+    footnote_sep_override_final = True
+
+
     court_id = "texbizct"
     court_label = "The Business Court of Texas."
     # The neutral cite ('2026 Tex. Bus. 23') can sit above the default top

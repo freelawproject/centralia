@@ -17,6 +17,23 @@ _REV = ("C.J.", "J.", "J.P.T.")
 class NorthernMarianaSupreme(AbbrevTitleSupreme):
     court_id = "nmariana"
     court_label = "Supreme Court of the Commonwealth of the Northern Mariana Islands."
+
+    # TWO RULE POPULATIONS, NOTHING BETWEEN. Censused over every thin rule in
+    # the corpus (assets/nmariana, 2026-08):
+    #
+    #     x0~70-130   w~140    162 rules   the separator: 144pt at the rail
+    #     x0~140-150  w~320    104 rules   a CENTRED divider (mid = page mid
+    #                                      ±2pt) drawn under the banner on the
+    #                                      caption page and above the roster
+    #
+    # The centred divider was being chosen as the separator on 46 pages: its
+    # x0 of ~142 sits just inside StateSupreme's left-quarter fence (153 on
+    # this page size), and everything under it — 'SLIP OPINION / Cite as: … /
+    # CHIEF JUSTICE ALEXANDRO C. CASTRO …' — was delivered as a '?' footnote
+    # in 27 documents. The width cap splits the populations with 60pt of
+    # clearance on either side; no genuine separator in the corpus is wider
+    # than ~150.
+    footnote_sep_max_width = 200
     abbrev_titles = (
         ("CJ.", "Chief Justice"),  # 'CASTRO, CJ.:' typo variant
     ) + AbbrevTitleSupreme.abbrev_titles

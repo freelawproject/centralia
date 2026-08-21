@@ -34,6 +34,17 @@ def _is_red(ch) -> bool:
 
 
 class HawaiiStyle:
+    # Hawaiʻi UNDERLINES what other courts italicise: every case citation, the
+    # opinion byline ('OPINION OF THE COURT BY GINOZA, J.'), and the
+    # '*** FOR PUBLICATION IN WEST'S HAWAIʻI REPORTS ***' banner at the head of
+    # every page. gutschmidt_v._maui_planning_commission draws 30-odd of them,
+    # and two — under 'Inc. v. Sageco, Inc.' on p20 and 'Kaleikini v. Thielen'
+    # on p30 — are 144.0pt at x0=72.0, which is this court's own separator
+    # signature to the decimal. Width and rail cannot refuse them; only the
+    # rule's position within the line can (+0.5 and +0.17 against the real
+    # separator's -16.42 on p24).
+    footnote_sep_reject_underlines = True
+
     def _haw_parse(self, text: str):
         """Return (name, kind) for a Hawaiʻi opinion byline, or None."""
         t = text.strip().rstrip(".")
@@ -201,12 +212,14 @@ class HawaiiStyle:
         if body is None:
             body = Counter(round(size_of(l)) for l in lines).most_common(1)[0][0]
         top = bottom = None
+        top_line = None
         for ln in sorted(lines, key=lambda l: -l["top"]):
             txt = (ln.get("text") or "").strip()
             if txt.isdigit():
                 continue  # printed folio: below the zone, not its edge
             if round(size_of(ln)) <= body - 1.5:
                 top = ln["top"]
+                top_line = ln
                 if bottom is None:
                     bottom = ln["bottom"]
                 continue
@@ -215,6 +228,31 @@ class HawaiiStyle:
         # where the run starts would reject a footnote long enough to fill most
         # of the sheet, which is exactly the case that needs finding.
         if top is None or bottom is None or bottom < page.height * 0.75:
+            return None
+        # THE ZONE MUST OPEN WITH A LABEL. Nothing is drawn on these pages, so
+        # the only evidence a zone exists is the type dropping — and a BLOCK
+        # QUOTATION set in reduced type running to the foot of the page reads
+        # identically. base.py turned its own ``_footnote_zone_by_size`` off
+        # for exactly this reason ('every cue it reads is equally true of a
+        # block quotation set in reduced type') and requires a label on the
+        # first line of the zone before it will believe one; this path was
+        # written without that requirement and inherits the failure.
+        #
+        # gutschmidt_v._maui_planning_commission is the case: Hawaiʻi sets its
+        # body at 12pt Courier and its quotations at 10pt, so the deposition
+        # excerpt on p12 ('Dr. Deakos: [I]t sounds to me like ...') and the
+        # quoted points of error on p15 ('The [MPC] reversibly erred by:')
+        # each opened a zone. With the two underline zones on p16/p20/p30 they
+        # carry-merged into ONE 670-word '?' note that also took the
+        # conclusion, the disposition, the conformed signatures and counsel
+        # out of a document holding exactly one real footnote.
+        #
+        # The label is what separates them, and it costs nothing real: the
+        # note this path exists for opens '1 The Honorable Michelle N. Comeau
+        # presided.' (choi_v._aloha_pacific p1) and gutschmidt's own genuine
+        # note opens '1 HRAP Rule 4 is titled ...' (p24) — both label, both
+        # kept. The quotations carry none.
+        if top_line is None or self.detect_footnote_label(top_line) is None:
             return None
         return top - 1.0
 

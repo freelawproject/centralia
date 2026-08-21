@@ -70,6 +70,39 @@ class TennesseeHeadmatter:
     is emitted between blocks. Centered lines keep their own row, alignment,
     relative size, and inline bold/italics; underscore rules stay dividers."""
 
+    def parse_author_line(self, text):
+        """Also read a byline whose text layer carries no spaces.
+
+        The separate writings published as their own file set the byline with no
+        space glyphs and kerning too tight for the gap-based rebuild in
+        ``line_plain_text``. gary_wygant's concurrence prints its byline as
+        'DWIGHT E.TARWATER,J.,concurring in part and dissenting in part.', so
+        the grammar saw one long token: no author, no opinion start, and the
+        whole file became headmatter (42 rows against 0 body). The two
+        tenncrimapp files that never parsed at all — burrow and gordon — are the
+        same shape ('KYLE A.HIXSON, J., delivered ...').
+
+        The setting implies the spaces: a period or comma followed directly by a
+        letter. Restore those and ask the grammar once more. Tried only after
+        the normal parse declines, so a byline that already reads correctly is
+        untouched.
+
+        This lives on the shared headmatter mixin because both Tennessee bases
+        inherit it — TennesseeSupreme does NOT inherit TennesseeAppellate, so a
+        method placed on the appellate base fixed tenncrimapp and left the
+        Supreme Court's own concurrences broken.
+        """
+        parsed = super().parse_author_line(text)
+        if parsed is not None:
+            return parsed
+        out = []
+        for i, ch in enumerate(text):
+            out.append(ch)
+            if ch in ".," and i + 1 < len(text) and text[i + 1].isalpha():
+                out.append(" ")
+        repaired = "".join(out)
+        return super().parse_author_line(repaired) if repaired != text else None
+
     def extract_headmatter(self, headmatter_segs, page1_rules=None) -> dict:
         from collections import Counter
 

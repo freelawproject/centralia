@@ -526,6 +526,28 @@ class SupremeCourtUS(ReversedJusticeSupreme):
             return "*"
         return None
 
+    def _footnote_sep_text(self, page):
+        """An underscore row PAIRED with another just below it is the FRAME
+        around a writing's docket line ('No. 24–872' between two '________'
+        rows on each caption page), not a separator — the shared typed-rule
+        reader took hamm_v._smith p2's top frame row and the whole caption
+        became a '?' note. A real SCOTUS underscore separator (the syllabus
+        '*' note's rule — rutherford, west_virginia) stands alone: rejecting
+        underscores wholesale broke 11 of 100 truth documents, so only the
+        pair is refused."""
+        sep = super()._footnote_sep_text(page)
+        if sep is None:
+            return None
+        for ln in page.extract_text_lines():
+            t = (ln.get("text") or "").strip()
+            if (
+                len(t) >= 4
+                and all(c == "_" for c in t)
+                and sep + 1 < ln["top"] <= sep + 60
+            ):
+                return None
+        return sep
+
     def find_footnote_separator(self, page):
         """The slip footnote rule is a short em-dash run drawn as TEXT."""
         sep = super().find_footnote_separator(page)

@@ -16,6 +16,12 @@ Court-specific tuning lives here:
     ``find_footnote_separator`` is overridden here to drop any rule that has a
     same-height partner to its right (a caption pair) before choosing the
     separator.
+  * Some of the court's judges sign with a leading INITIAL ('N. MARK
+    KLAPPENBACH, Chief Judge'). The shared byline grammar requires two letters
+    in the name's first token, so it rejects the whole byline — and with no
+    byline the document has no opinion start at all and every page lands in
+    headmatter. ``parse_author_line`` lifts the initial off, parses the rest
+    with the shared grammar, and puts the initial back on the name.
 """
 
 from __future__ import annotations
@@ -32,6 +38,29 @@ class ArkansasCourtOfAppeals(StateAppellate):
     # Render its measured x/y positions so the parties and appeal-from block
     # remain opposite one another in the review HTML.
     facsimile_headmatter = True
+
+    def parse_author_line(self, text):
+        """The shared byline grammar, plus a leading given-name INITIAL.
+
+        'N. MARK KLAPPENBACH, Chief Judge' is how this judge signs. The shared
+        name grammar spells the first token ``[A-Z][A-Za-z]+`` — two letters or
+        more — so a one-letter initial in front fails the whole match, no
+        opinion start is found anywhere in the document, and the entire opinion
+        becomes headmatter. Peel the initial, hand the remainder to the shared
+        grammar (so the title/kind vocabulary stays in one place), and restore
+        the initial on the parsed name.
+        """
+        parsed = super().parse_author_line(text)
+        if parsed is not None:
+            return parsed
+        head, sep, rest = (text or "").strip().partition(" ")
+        if not sep or len(head) != 2 or head[1] != "." or not head[0].isupper():
+            return None
+        parsed = super().parse_author_line(rest)
+        if parsed is None:
+            return None
+        name, title, kind = parsed
+        return f"{head} {name}", title, kind
 
     def find_footnote_separator(self, page) -> Optional[float]:
         """Topmost thin horizontal rule in the lower half that is the real

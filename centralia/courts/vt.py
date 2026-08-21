@@ -103,14 +103,23 @@ class VermontSupreme(AbbrevTitleSupreme):
         return super().classify_document_type(all_segments, author_indices, n_pages)
 
     def extract_headmatter(self, headmatter_segs, page1_rules=None):
-        """Route the explanatory asterisk advisory to Removed."""
+        """Route the advisories to Removed: the asterisk explainer, and the
+        reargument notice every slip opinion opens with ('NOTICE: This
+        opinion is subject to motions for reargument under V.R.A.P. 40 ...
+        Readers are requested to notify the Reporter of Decisions ...') —
+        publication furniture, not caption."""
         kept, notice = [], []
         for seg in headmatter_segs:
             text = " ".join(
                 (line.get("text") or "").strip() for line in seg
             ).strip()
             folded = " ".join(text.lower().split())
-            if folded.startswith("note: in the case title, an asterisk"):
+            # One stray leading glyph is tolerated: in_re_o.r.g. fuses an
+            # artifact 'F' onto the first line ('FNOTICE: This opinion ...'),
+            # the only one of 50 documents whose notice missed the prefix.
+            if folded.startswith(
+                ("note: in the case title, an asterisk", "notice:")
+            ) or folded[1:].startswith("notice:"):
                 notice.append(text)
             else:
                 kept.append(seg)

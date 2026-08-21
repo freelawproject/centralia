@@ -2064,13 +2064,27 @@ class SecondCircuit(FederalCircuitBase):
         paragraph that happens to start with a symbol."""
         lines = sorted(page.extract_text_lines(), key=lambda ln: ln.get("top", 0))
         lead = self._page_lead(lines) or 0
+        saw_dinkus = False
         for prev, line in zip(lines, lines[1:]):
             if line.get("top", 0) < page.height * 0.45:
                 continue
             gap = line.get("top", 0) - prev.get("top", 0)
-            if lead and gap <= lead * 1.4:
+            if not saw_dinkus and lead and gap <= lead * 1.4:
                 continue
             text = " ".join((line.get("text") or "").split())
+            # A line that is NOTHING BUT marks is the '* * *' section dinkus
+            # CA2 closes an opinion with, not a note opener — hampton,
+            # xinuos and schneiderman each grew a trailing '*' note holding
+            # the dinkus and the closing paragraph beneath it. But the
+            # dinkus still testifies that what follows is SET APART: in
+            # farrington the real '* Judge Park took no part ...' note sits
+            # directly under it, closer than the leading test allows, and
+            # skipping the dinkus outright lost that note. So the dinkus is
+            # never the opener, and the first mark-opening line after it
+            # need not re-prove its own whitespace.
+            if text and set(text) <= (set(self._CAPTION_MARKS) | {" "}):
+                saw_dinkus = True
+                continue
             if self._opens_with_footnote_mark(text):
                 return line.get("top", 0) - 1.0
         return None

@@ -85,6 +85,14 @@ class ColoradoCourtOfAppeals(StateAppellate):
                 return page
         return pdf.pages[0] if pdf.pages else None
 
+    # The caption page's refusal below is a DECISION, not a miss. Without this
+    # the base chain is retried whenever this court answers None, and on page 1
+    # it takes one of the four caption dividers for a separator and reads the
+    # whole lower caption — 'APPEAL DISMISSED / Division VI / Opinion by JUDGE
+    # BERNARD* / …' — as a single unlabelled footnote. 26 of the 28 labelled
+    # Colorado documents carry that phantom '?' note.
+    footnote_sep_override_final = True
+
     def find_footnote_separator(self, page):
         """Colorado sets footnotes at the BODY size (14pt) and rules them off
         with a full-measure line — the same width as the four rules that

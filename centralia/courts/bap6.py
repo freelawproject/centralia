@@ -6,6 +6,11 @@ box-drawing caption (┐ │ ┘ glyphs), 'Appeal from …', the panel roster
 Appellate Panel Judges.'), a COUNSEL block, then a centered 'OPINION'
 heading and the byline with the body inline: 'JOHN T. GREGG, Bankruptcy
 Appellate Panel Judge. Doug Woods, the appellant …'.
+
+The panel also issues UNSIGNED orders ('in_re_curare_laboratory_llc'): the
+caption's right column carries a letter-spaced 'O R D E R' instead of a
+disposition, there is no byline anywhere, and the panel closes with 'ENTERED BY
+ORDER OF THE PANEL' over the clerk's name. See ``_order_fallback``.
 """
 
 from __future__ import annotations
@@ -81,6 +86,85 @@ class SixthCircuitBAP(StateSupreme):
             ):
                 return name, title, None
         return None
+
+    def _order_fallback(self, all_segments):
+        """An unsigned panel order: the body opens after the panel roster.
+
+        The shared fallback anchors on a segment whose first line reads
+        'ORDER …', which this court never gives it — its order title is set
+        inside the caption's right column and letter-spaced ('O R D E R'), so
+        the anchor was never found and all six pages of
+        ``in_re_curare_laboratory_llc`` stayed in the headmatter.
+
+        The roster is the boundary instead: in this court everything above
+        'Before: <judges>, Bankruptcy Appellate Panel Judges.' is caption, and
+        below it comes either the byline (a signed opinion, which never reaches
+        this fallback) or, on an unsigned order, the body itself.
+        """
+        anchored = super()._order_fallback(all_segments)
+        if anchored:
+            return anchored
+        roster = None
+        for i, (_p, seg, _k) in enumerate(all_segments):
+            if not seg:
+                continue
+            text = " ".join(self.line_plain_text(l).strip() for l in seg)
+            if text.startswith("Before") and text.rstrip(".").endswith(
+                ("Judge", "Judges")
+            ):
+                roster = i
+        if roster is None:
+            return []
+        # ONLY AN ACTUALLY UNSIGNED DOCUMENT. 'in_re_ormet_corp.' does carry a
+        # byline ('JESSICA E. PRICE SMITH, Bankruptcy Appellate Panel Judge.
+        # The issue on appeal …') that the byline pass fails to pick up for its
+        # own reasons; anchoring it after the roster would open the writing on
+        # the COUNSEL block above the OPINION AND ORDER title and dress a
+        # byline bug up as a parsed order. If any line below the roster is
+        # byline-shaped, leave the document alone.
+        for _p, seg, _k in all_segments[roster + 1 :]:
+            for line in seg:
+                if self._byline_split(line) is not None:
+                    return []
+        for j in range(roster + 1, len(all_segments)):
+            seg = all_segments[j][1]
+            if not seg or self.is_separator_line(seg[0]):
+                continue
+            if not self.line_plain_text(seg[0]).strip():
+                continue
+            self._order_start = j
+            self._order_author = self._conformed_signature_author(all_segments)
+            return [j]
+        return []
+
+    def _has_body_between(self, all_segments, start, end) -> bool:
+        """Also accept a byline whose opinion body shares its own segment.
+
+        This panel runs the opinion's first sentence INLINE with the byline
+        ('JESSICA E. PRICE SMITH, Bankruptcy Appellate Panel Judge.  The issue
+        on appeal before the Panel is …') and the rest of the paragraph
+        continues in the same segment. The shared base looks for the body in a
+        LATER segment, so on a one-page disposition — where the byline's
+        segment is the LAST one, footnotes and counsel aside — the byline read
+        as a sign-off and ``in_re_ormet_corp.`` came out with no author, no
+        opinion and ``doc_type=unknown``, its whole affirmance sitting in the
+        headmatter.
+
+        The split is the proof: ``_byline_split`` only returns a second element
+        when real text follows the title on the byline's own line, and a bare
+        signature ('C. KATHRYN PRESTON, Bankruptcy Appellate Panel Judge' with
+        nothing after it) still has none.
+        """
+        if super()._has_body_between(all_segments, start, end):
+            return True
+        seg = all_segments[start][1] if start < len(all_segments) else []
+        if not seg:
+            return False
+        text = self.line_plain_text(seg[0]).strip()
+        split = self._byline_split(seg[0])
+        if self._is_bare_signature(text, split):
+            return False
+        return len(seg) > 1 or bool(split and split[1])
 
     def _is_indented_blockquote(self, seg):
         # Issue-list continuations use a deeper hanging indent (x≈144), while

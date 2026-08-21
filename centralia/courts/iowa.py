@@ -45,6 +45,44 @@ class IowaSupreme(StateSupreme):
             return [mixed_per_curiam[-1]]
         return super().find_authors(all_segments)
 
+    def _order_fallback(self, all_segments) -> list:
+        """An evenly divided court has no author to find.
+
+        When the justices split 3-3 the appeal is 'affirmed by operation of law'
+        under Iowa Code § 602.4107, and the court says so in an unsigned
+        per-curiam disposition: below the caption's closing rule comes 'The
+        court, Waterman, J., taking no part, being evenly divided, declares this
+        case affirmed by operation of law.', then who would have affirmed and who
+        would have reversed, then the clerk's 'Copies to:' service list.
+        (``patty_a._thorington …``.) There is no byline anywhere, so the byline
+        pass found nothing and all fourteen lines of the disposition stayed in
+        the headmatter with ``doc_type=unknown``.
+
+        The shared fallback anchors on a segment titled 'ORDER …', which this
+        court never writes. Its template gives the boundary geometrically
+        instead: the caption is a stack of CENTERED rows closed by a
+        full-measure rule, and the body is the first left-aligned prose segment
+        at the body rail below it. That is the same place a signed opinion puts
+        its byline — which is why a signed opinion never reaches this fallback.
+        """
+        anchored = super()._order_fallback(all_segments)
+        if anchored:
+            return anchored
+        start = next(
+            (
+                i
+                for i, (_page, seg, kind) in enumerate(all_segments)
+                if kind == "body"
+                and min(line["x0"] for line in seg) <= self.body_baseline_x0 + 1
+            ),
+            None,
+        )
+        if start is None:
+            return []
+        self._order_start = start
+        self._order_author = self._conformed_signature_author(all_segments)
+        return [start]
+
     def find_footnote_separator(self, page):
         sep = super().find_footnote_separator(page)
         if sep is None:

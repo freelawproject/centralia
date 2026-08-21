@@ -254,18 +254,35 @@ class ConnecticutSupreme(ConnecticutStyle, AbbrevTitleSupreme):
                 lines.append((pno, round(line["top"], 1), round(line["x0"], 1), line))
         lines.sort(key=lambda r: (r[0], r[1], r[2]))
         cut = self._reporter_matter_start(lines)
-        caption = [
-            (pno, top, x0, (line.get("text") or "").strip())
-            for pno, top, x0, line in lines[:cut]
-        ]
+        # The caption gets the same styled treatment as the reporter matter
+        # below it. It used to go through the family base's positional text
+        # layout, which pads each row with spaces to fake its indent — so the
+        # case name, the '(SC 21173)' docket and the panel came out as a
+        # monospaced text dump inside the collapsed 'raw' box, and read as
+        # missing. They are centered rows at their own sizes, and saying so
+        # renders them as the reporter set them (CLAUDE.md principle 6).
+        self._conn_caption = self._conn_styled_rows(lines[:cut])
         self._conn_reporter = self._conn_styled_rows(lines[cut:])
-        return {
+        # The named parts of the reporter's front matter — argued/released
+        # dates, the procedural history, counsel — read by the family base off
+        # the labels and the paragraph indent. The rows stay in ``summary``, so
+        # this only ever ADDS structure (see ``_read_conn_criteria``).
+        out = {
             "court": self.court_label or self.court_id,
-            "summary": self._paged_layout_rows(caption) + self._conn_reporter,
+            "summary": self._conn_caption + self._conn_reporter,
             "headmatter_lines": [],
             "caption_box": getattr(self, "_hm_caption_box", None),
             "dropped": [],
         }
+        crit = self._read_conn_criteria(
+            [
+                (pno, top, x0, (line.get("text") or "").strip())
+                for pno, top, x0, line in lines
+            ]
+        )
+        self._conn_criteria = crit   # published by ConnecticutStyle.extract
+        out.update(crit)
+        return out
 
     def _reporter_matter_start(self, lines) -> int:
         """Index of the first line of the reporter's front matter.

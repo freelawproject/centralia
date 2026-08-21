@@ -757,6 +757,57 @@ class StateSupreme(GenericExtractor):
                 # writing ('JUSTICE X filed a concurring opinion.') — not an
                 # opinion start.
                 continue
+            # A BARE BYLINE THAT REPEATS AN AUTHOR THE DOCUMENT ALREADY HAS is
+            # the author signing their own opinion, whatever follows it. The
+            # body test above cannot see this: CIT signs 'Jane A. Restani,
+            # Judge / Dated: August 10, 2026 / New York, New York' under a
+            # 'Restani, Judge:' opinion, and the date and place lines counted
+            # as a body — so the sign-off opened a phantom second opinion
+            # whose page then owned the last footnote zone, orphaning note
+            # 10's carried tail as a '?' (icon_ev_llc). A genuine second
+            # writing is never a bare repeat: a concurrence or dissent byline
+            # carries its kind, and ``_is_bare_signature`` already refuses
+            # anything ending in '.' or ':'.
+            if _bare and out:
+                # ONLY WHEN NOTHING SUBSTANTIVE FOLLOWS. The sign-off's tail
+                # is furniture — CIT's 'Dated: August 10, 2026 / New York,
+                # New York' — but a court that signs each writing and then
+                # opens the companion docket's ORDER on the next page puts a
+                # bare repeat of the author's name ahead of pages of real
+                # content: pacommwct/passhe anchors its order writings at
+                # exactly such lines, and dropping them silently deleted the
+                # order's footnotes 1-2 (duplicate labels in the merged
+                # bucket). Measured by words, not segments, because a date
+                # and a place are two segments too.
+                tail_words = 0
+                for k in range(i + 1, end):
+                    seg_k = all_segments[k][1]
+                    tail_words += sum(
+                        len(self.line_plain_text(l).split()) for l in seg_k
+                    )
+                if tail_words > 40:
+                    out.append(i)
+                    continue
+                text = self.line_plain_text(all_segments[i][1][0]).strip()
+                parsed = self.parse_author_line(text)
+                surname = (parsed[0].split()[-1].lower() if parsed and parsed[0]
+                           else None)
+                prior = set()
+                for j in out:
+                    split = self._byline_split(all_segments[j][1][0])
+                    pt = (
+                        split[0]
+                        if split
+                        else self.line_plain_text(all_segments[j][1][0])
+                    )
+                    # The kept byline carries its terminator ('Restani,
+                    # Judge:'), which the grammar refuses; the NAME is what is
+                    # being compared, so shed it before parsing.
+                    pp = self.parse_author_line(pt.strip().rstrip(":.").strip())
+                    if pp and pp[0]:
+                        prior.add(pp[0].split()[-1].lower())
+                if surname is not None and surname in prior:
+                    continue
             out.append(i)
         if self.hm_caption_footnotes and out:
             self._hm_super_labels = self._superscript_labels(
@@ -1153,6 +1204,10 @@ class StateSupreme(GenericExtractor):
                     0.4 if page.page_number == getattr(self, "_caption_pno", 1)
                     else 0.10
                 )
+            ):
+                continue
+            if self.footnote_sep_reject_underlines and self._rule_underlines_text(
+                page, r
             ):
                 continue
             below = [

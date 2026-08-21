@@ -29,6 +29,11 @@ _CAPTION_START = "supreme court of new jersey"
 
 
 class NewJerseySupreme(ReversedJusticeSupreme):
+    # This court's separator decision is final: state_v._nirav_patel lost its
+    # whole opinion (4640 body words -> 0) when the base chain retried and
+    # answered with a rule this court had declined.
+    footnote_sep_override_final = True
+
     court_id = "nj"
     court_label = "Supreme Court of New Jersey."
     # The page number sits centered at the bottom of each page, so it drops into
@@ -121,8 +126,39 @@ class NewJerseySupreme(ReversedJusticeSupreme):
         the 'footnote' line, so no opinion is found. NJ's real separator is a
         short 2-inch rule with footnote-SIZE text beneath it, so discriminate by
         the size of the text below the rule (the repo's robust discriminator),
-        not its width: the byline under the divider is body-size and rejected."""
-        return self._footnote_sep_small_text_below(page)
+        not its width: the byline under the divider is body-size and rejected.
+
+        THE SIZE TEST GOES BLIND WHEN THE NOTES ARE SET AT BODY SIZE — and NJ
+        does exactly that on pages where a long note carries over:
+        mist_pharmaceuticals p37 draws the 144pt rule at the rail with the
+        TAIL of note 8 beneath it ('We do not reach the question whether
+        causation ...') at the body's own 14pt; the only sub-body glyphs on
+        the page are the two raised 9pt '9' marks. 'Smaller text below' can
+        never see that boundary, so the tail AND note 9 were delivered as
+        body prose. Fall back to the court's own fixed rule — censused over
+        all 50 documents, the separator population is 144pt at x0~72 (246
+        rules), disjoint from the full-width divider (~470pt) the size test
+        exists to dodge. ``footnote_sep_fixed_left_rule`` is built for
+        exactly this ('reliable where the footnote text is BODY-sized'), and
+        the shared underline veto at the call site keeps a 144pt citation
+        underline from riding in on the width."""
+        sep = self._footnote_sep_small_text_below(page)
+        if sep is not None:
+            return sep
+        # WIDTH ALONE IS NOT ENOUGH HERE: the syllabus page draws a 144pt
+        # rule at the same rail, and an unconditioned fallback shunted the
+        # byline — and the whole first opinion — into the headmatter. The
+        # fallback rule must show FOOTNOTE evidence below it: a raised label
+        # directly under it, or (the carried-tail page) a labelled note
+        # opening deeper in the zone — mist p37 is body-size tail first,
+        # raised '9' below. The syllabus page has neither.
+        sep = self.footnote_sep_fixed_left_rule(page, width=144.0)
+        if sep is not None and (
+            self._labelled_note_below(page, sep)
+            or self._labelled_note_after_carry(page, sep)
+        ):
+            return sep
+        return None
 
     @staticmethod
     def _line_page(line) -> int:

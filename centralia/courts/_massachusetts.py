@@ -139,6 +139,26 @@ class MassachusettsStyle:
             for ln in seg
             if (ln.get("text") or "").strip()
         ]
+        # The NOTICE is the page's own first SEGMENT — a tightly-led block set
+        # off from the caption below it by a full blank line. This used to end
+        # at the SJC reporter's e-mail address, which is a token of one court's
+        # notice rather than a property of notices: the Appeals Court's Rule
+        # 23.0 notice closes 'See Chace v. Curran, 71 Mass. App. Ct. 258, 260
+        # n.4 (2008).' and carries no address at all. The terminator therefore
+        # never fired and every remaining line of the document — caption,
+        # opinion, signature and all — was appended to the notice and dropped,
+        # leaving seven summary decisions with no opinion body at all. The
+        # segment boundary says the same thing for both courts: on the SJC it
+        # closes on exactly the e-mail line the old test looked for.
+        notice_lines = set()
+        for seg in headmatter_segs:
+            first = next((l for l in seg if (l.get("text") or "").strip()), None)
+            if first is None:
+                continue
+            if self.line_plain_text(first).strip().lower().startswith("notice:"):
+                notice_lines = {id(l) for l in seg}
+            break
+
         notice, headnote, hm = [], [], []
         phase, seen_panel = "pre", False
         for ln in lines:
@@ -149,16 +169,16 @@ class MassachusettsStyle:
             size = self.line_meta(ln)[0]
 
             if phase == "pre":
-                if low.startswith("notice:"):
+                if id(ln) in notice_lines:
                     phase = "notice"
                     notice.append(t)
                     continue
                 phase = "hm"
             if phase == "notice":
-                notice.append(t)
-                if "sjcreporter@" in low or "@sjc.state.ma.us" in low:
-                    phase = "hm"
-                continue
+                if id(ln) in notice_lines:
+                    notice.append(t)
+                    continue
+                phase = "hm"
             if phase == "hm":
                 hm.append(ln)
                 if low.startswith("present:"):

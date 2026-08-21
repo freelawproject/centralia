@@ -276,10 +276,28 @@ class FederalCircuitBase(GenericExtractor):
         banner_of = _is_writing_banner
 
         for index, opinion in enumerate(doc.opinions):
-            while opinion.blocks and banner_of(opinion.blocks[-1].text):
+            # A BANNER WITH NOWHERE TO GO IS NOT A BANNER. This popped the
+            # trailing block unconditionally and only re-inserted it when a
+            # LATER writing existed to receive it, so on a single-opinion
+            # document the block was discarded — and discarded here, after
+            # ``super().extract()`` has already run the residual sweep, so the
+            # safety net had already certified the document complete and no
+            # warning, no Removed row and no residual recorded the loss. What
+            # vanished was the DISPOSITION: cafc closes on a centred all-caps
+            # 'AFFIRMED', which answers the banner shape test exactly, and
+            # actelion_pharmaceuticals reported only 'source coverage 99.9%'
+            # from the separate audit pass — a cosmetic-looking number standing
+            # in for the holding of the case.
+            #
+            # A banner announces the writing that FOLLOWS it. Where nothing
+            # follows, it is the writing's own last line, and it stays.
+            while (
+                index + 1 < len(doc.opinions)
+                and opinion.blocks
+                and banner_of(opinion.blocks[-1].text)
+            ):
                 block = opinion.blocks.pop()
-                if index + 1 < len(doc.opinions):
-                    doc.opinions[index + 1].blocks.insert(0, block)
+                doc.opinions[index + 1].blocks.insert(0, block)
         # The majority's own banner closes the headmatter for the same reason.
         if doc.opinions and doc.summary:
             trailing = []
@@ -2430,6 +2448,8 @@ class FederalCircuitBase(GenericExtractor):
         Circuit Judges.'). The body is the next non-divider, non-empty segment."""
         panel = self._panel_segment(all_segments)
         if panel is None:
+            panel = self._front_matter_fence(all_segments)
+        if panel is None:
             return None
         for j in range(panel + 1, len(all_segments)):
             seg = all_segments[j][1]
@@ -2439,6 +2459,39 @@ class FederalCircuitBase(GenericExtractor):
                 continue
             return j
         return None
+
+    def _front_matter_fence(self, all_segments):
+        """Index of the typed rule that CLOSES the front matter, or None.
+
+        A panel roster is not the only thing that can end the caption, and on a
+        motion decided by one judge there is no roster at all — ca7 fences its
+        front matter with typed rules and the court's own writing begins under
+        the last of them:
+
+            ____________________          x0=246   (centred typed rule)
+            Before SYKES, … Circuit Judges.  x0=162   roster, when there is one
+            KOLAR, Circuit Judge.  This case …  x0=144   the body rail
+
+        sidney_upchurch is the same page with the roster absent, so its opening
+        line sits in the 162 slot instead: 'BRENNAN, Chief Judge, in chambers.
+        Before me is a proposed petition …'. With no roster to anchor on this
+        returned None, nothing marked where the writing began, and all eight
+        pages became headmatter.
+
+        Only the rules the caption itself draws count, so the search stops at
+        the first segment set on the body rail — past that we are in the
+        opinion and any rule is the court's own.
+        """
+        fence = None
+        for i, (_p, seg, _k) in enumerate(all_segments):
+            if not seg:
+                continue
+            first = seg[0]
+            if round(first.get("x0", 0.0), 1) <= self.body_baseline_x0 + 1:
+                break  # body rail reached: the front matter is behind us
+            if _is_typed_rule(self.line_plain_text(first).strip()):
+                fence = i
+        return fence
 
     def _panel_segment(self, all_segments):
         """Index of the segment holding the panel roster, or None."""
@@ -2479,6 +2532,36 @@ class FederalCircuitBase(GenericExtractor):
                 return s.rstrip(".:;,*†‡∗ ").endswith(
                     ("judge", "judges", "designation")
                 )
+
+            # A ROSTER CLOSES WHERE IT CLOSES, not at the end of whatever
+            # segment holds it. Reading only the joined text made a roster that
+            # shares its segment with the authorship lines below it look
+            # unfinished: cafc sets
+            #
+            #     Before DYK, LINN, and STARK, Circuit Judges.
+            #     Opinion for the court filed by Circuit Judge STARK.
+            #     Concurring opinion filed by Circuit Judge DYK.
+            #
+            # as ONE segment, so the joined text ends on a judge's NAME rather
+            # than the bench word. The roster then read as unclosed, the
+            # forward-read below swallowed the next segment — which is the
+            # majority's byline, 'STARK, Circuit Judge.' — and the
+            # 'no opinion begins above the roster' filter discarded the very
+            # byline it exists to protect. kendall_v._collins lost sixteen
+            # pages of majority to the headmatter and published DYK's
+            # concurrence as the opinion; tavakkol_v._mspb the same.
+            #
+            # So look for the first PREFIX of this segment's lines that closes.
+            prefix = ""
+            for line in seg:
+                prefix += (" " if prefix else "") + self.line_plain_text(line).strip().lower()
+                if closes(prefix) and "judge" in prefix:
+                    break
+            else:
+                prefix = None
+            if prefix is not None:
+                panel = i
+                continue
 
             # ...and where the roster's own lines are split into separate
             # segments (CA4 spaces them like ordinary prose), read forward

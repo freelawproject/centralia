@@ -25,6 +25,43 @@ class OregonCourtOfAppeals(OregonReports, StateAppellate):
     # only the bold byline registers as an opinion start.
     require_bold_byline = True
 
+    def find_authors(self, all_segments) -> list:
+        """A nonprecedential memorandum sets its byline in ROMAN.
+
+        ``require_bold_byline`` is there because the reporter prints a roman
+        look-alike above the real byline — the trial judge appealed from, and the
+        one-line disposition summary signed 'TOOKEY, P. J.' — and only the bold
+        byline opens the opinion.
+
+        A nonprecedential memorandum opinion has no bold byline to find. It IS
+        the disposition summary: under the 'This is a nonprecedential memorandum
+        opinion pursuant to ORAP 10.30' banner come the caption, counsel, the
+        panel, a roman 'PER CURIAM', and a two-line holding — 'Reversed. Lopez v.
+        Oregon State Hospital, 342 Or App 190, 196-99, 575 P3d 1061 (2025).' —
+        and that is the whole document. With the bold gate on, nothing authored
+        ``leckenby_v._oregon_state_hospital`` and it came out
+        ``doc_type=unknown`` with its holding in the headmatter.
+
+        Dropping the gate wholesale is wrong: the roman look-alikes are still
+        there, and the FIRST of them is the trial judge ('Rebecca D. Guptill,
+        Judge.'), so the memorandum's opinion opened on the counsel block under
+        the wrong author. Only a roman PER CURIAM is admitted, and only when the
+        bold search came up empty — a per curiam names no judge to mistake, and
+        it sits below counsel and the panel where the writing really begins.
+        """
+        found = super().find_authors(all_segments)
+        if found:
+            return found
+        return [
+            i
+            for i, (_page, seg, _kind) in enumerate(all_segments)
+            if seg and self._is_per_curiam_line(seg[0])
+        ][:1]
+
+    def _is_per_curiam_line(self, line) -> bool:
+        text = " ".join(self.line_plain_text(line).split()).rstrip(".").upper()
+        return text == "PER CURIAM"
+
     def extract(self, pdf_path):
         self._or_running_head = []
         doc = super().extract(pdf_path)

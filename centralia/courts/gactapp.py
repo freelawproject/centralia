@@ -109,7 +109,44 @@ class CourtOfAppealsOfGeorgia(StateAppellate):
                 prev = cur
             if flips > 4:
                 ln["chars"] = [c for c in chars if c.get("text") != "_"]
+        self._mark_order_caption(lines)
         return lines
+
+    def _mark_order_caption(self, lines) -> None:
+        """Cut the order sheet open at its docket caption, whatever its length.
+
+        The order template's three rows — the italic formula, the bold ALL-CAPS
+        docket caption, the first body line — are set at the SAME 22pt leading,
+        so nothing but the change in weight separates them. The shared
+        segmenter only treats bold as a boundary when the line is bold
+        throughout AND stops short of the right measure, because a bold case
+        name filling a line of a string citation is prose, not a heading.
+
+        A long party name defeats that: ``A27A0030. SABRINA MELTON v.
+        JEFFERSON CAPITAL SYSTEMS, LLC.`` runs to x=539 on a 540pt measure, so
+        the caption was not a boundary, the formula and the whole order body
+        segmented as ONE segment, and ``find_authors``' order fallback — which
+        reads the caption off a segment's FIRST line — found nothing. The
+        document had no body and ``doc_type=unknown``.
+
+        Position, not width, is what makes this row a heading: it is the row
+        directly below the 'passes the following order' formula, and the body
+        begins on the row after it. Mark both as structural breaks so the sheet
+        segments exactly as the short-caption orders already do.
+        """
+        formula = next(
+            (
+                i
+                for i, ln in enumerate(lines)
+                if _ORDER_FORMULA in self.line_plain_text(ln).lower()
+            ),
+            None,
+        )
+        if formula is None:
+            return
+        for i in (formula + 1, formula + 2):
+            if i < len(lines):
+                lines[i]["_seg_break"] = True
 
     def find_authors(self, all_segments) -> list:
         starts = super().find_authors(all_segments)

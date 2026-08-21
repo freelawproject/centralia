@@ -423,8 +423,15 @@ class CaliforniaSupreme(BaseExtractor):
                 flush()
                 t = fl["text"]
                 if t[:1] in _FN_SYMBOLS:  # symbol label: *, †, ‡, §
-                    cur_label = t[0]
-                    cur_text = [t[1:].strip()]
+                    # The WHOLE run: a court that doubles a symbol repeats
+                    # the same one, and taking t[0] alone read fox_paine's
+                    # '**' assignment note as a second '*' with a stray
+                    # asterisk left at the head of its text.
+                    k = 1
+                    while k < len(t) and t[k] == t[0]:
+                        k += 1
+                    cur_label = t[:k]
+                    cur_text = [t[k:].strip()]
                 else:  # numeric label
                     k = 0
                     while k < len(t) and t[k].isdigit():

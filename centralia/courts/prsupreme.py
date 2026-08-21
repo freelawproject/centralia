@@ -118,10 +118,44 @@ class PuertoRicoSupreme(StateSupreme):
         documents it cannot predict fall through to the shared chain — where
         step 6 answers from the width the DOCUMENT repeats rather than from any
         prediction about where the rule starts.
+
+        A CAPTION SHELF COMES IN PAIRS; A FOOTNOTE RULE IS ALONE. The court's
+        administrative resolutions (``integración_de_salas_de_verano``) rule
+        their caption as a LEFT shelf under the case name and a RIGHT shelf
+        under the docket block, both at the same height. The right-hand shelf
+        is outside the 132pt rail so the fixed rule declines it, and the shared
+        chain then took the LEFT shelf (top 354 of 1008) for a separator —
+        opening a footnote zone across the middle of the page that swallowed
+        the ``RESOLUCIÓN`` heading and the whole body under it, so the document
+        had no writing start and 15 headmatter rows stood for three pages.
+        Veto a shared-chain answer that is one half of such a pair.
         """
-        return self.footnote_sep_fixed_left_rule(
-            page, x0_max=132
-        ) or super().find_footnote_separator(page)
+        fixed = self.footnote_sep_fixed_left_rule(page, x0_max=132)
+        if fixed is not None:
+            return fixed
+        sep = super().find_footnote_separator(page)
+        if sep is not None and self._is_caption_shelf(page, sep):
+            return None
+        return sep
+
+    @staticmethod
+    def _is_caption_shelf(page, top) -> bool:
+        """True if the rule at ``top`` has a same-height partner set off to its
+        right — the two-shelf caption bottom, not a footnote separator."""
+        # The shelves are drawn as vector LINES here, not rects — and one of
+        # the pair carries a 0.1pt height, which is enough for pdfplumber to
+        # call the edge vertical. Measure the span instead of trusting the
+        # orientation flag.
+        thin = [
+            r
+            for r in list(page.rects) + list(page.lines)
+            if (r["x1"] - r["x0"]) >= 40 and (r["bottom"] - r["top"]) < 3
+        ]
+        at_top = [r for r in thin if abs(r["top"] - top) < 3]
+        if not at_top:
+            return False
+        left = min(at_top, key=lambda r: r["x0"])
+        return any(o["x0"] > left["x1"] - 5 for o in at_top)
 
     def _byline_at(self, line) -> bool:
         """PR writing markers are Spanish prose bylines or centered writing

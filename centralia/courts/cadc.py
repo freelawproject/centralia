@@ -61,6 +61,55 @@ class DCCircuit(FederalCircuitBase):
             return False
         return sum(counts[i + 1:]) / total <= self._SIGNATURE_TAIL_MAX
 
+    # A banner set this many times the document's body size is a placeholder
+    # standing in FOR the text, not a heading over it.
+    _BANNER_SIZE_RATIO = 2.0
+
+    def classify_document_type(self, all_segments, author_indices, n_pages):
+        """A sealed-opinion placeholder is a NOTICE, not a lost opinion.
+
+        When this court seals an opinion it still dockets a public sheet in its
+        place: the masthead, the docket and term, the caption, the 'BEFORE:'
+        roster — and then, where the opinion would be, two banner rows set at
+        28pt against the 12pt body ('OPINION UNDER SEAL' / 'NOT AVAILABLE TO
+        THE PUBLIC') and nothing after them. (``john_doe_v._sec``; the text
+        arrives later as the separate ``john_doe_v._sec_public_reissued_
+        opinion``.) There is no body to parse, so an empty ``opinions`` list is
+        the correct outcome and the reviewer should not be sent hunting for a
+        parser bug.
+
+        The evidence is typographic and needs no wording: nothing authored the
+        document, no judgment or order title anchors it, and the LAST thing on
+        the sheet is an oversized bold banner. A real opinion cannot end that
+        way — its last line is prose, a footnote or a signature.
+        """
+        if not author_indices and self._ends_in_banner(all_segments):
+            from ..models import DocType
+
+            return DocType.NOTICE
+        return super().classify_document_type(
+            all_segments, author_indices, n_pages
+        )
+
+    def _ends_in_banner(self, all_segments) -> bool:
+        """True when the document's final rows are an oversized bold banner
+        measured against the size the document itself sets most often."""
+        lines = [
+            line
+            for _page, seg, _kind in all_segments
+            for line in seg
+            if self.line_plain_text(line).strip()
+        ]
+        if not lines:
+            return False
+        counts: dict = {}
+        for line in lines:
+            size = round(self.line_meta(line)[0], 1)
+            counts[size] = counts.get(size, 0) + 1
+        body_size = max(counts.items(), key=lambda kv: (kv[1], -kv[0]))[0]
+        size, _font, bold = self.line_meta(lines[-1])
+        return bold and size >= body_size * self._BANNER_SIZE_RATIO
+
     def _order_fallback(self, all_segments) -> list:
         """Anchor an unsigned judgment on its own title row.
 
