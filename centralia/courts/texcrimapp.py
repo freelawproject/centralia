@@ -381,6 +381,7 @@ class _Ctx:
         self.dropped: list = []
         self.crit: dict = {}
         self.endmatter: list = []
+        self.announced: str | None = None
 
     def emit(self, row: _Row, role: str) -> None:
         pm = self.pages[row.page]
@@ -399,10 +400,26 @@ class _Ctx:
             self.consumed.update(row.ids)
 
     def result(self):
-        return {"criteria": self.crit, "items": self.items,
-                "attorneys": self.endmatter,
-                "dropped": self.dropped, "consumed": self.consumed,
-                "anchor_ids": [], "doc_type_final": None}
+        out = {"criteria": self.crit, "items": self.items,
+               "attorneys": self.endmatter,
+               "dropped": self.dropped, "consumed": self.consumed,
+               "anchor_ids": [], "doc_type_final": None}
+        if self.announced:
+            out["announced_author"] = self.announced
+        return out
+
+
+# THE BANNER: the paper's own name for the writing, set centred and letter-
+# spaced ('O P I N I O N'), or plain ('OPINION', 'CONCURRING OPINION',
+# 'DISSENTING OPINION'). Tested on the LETTERS so the spacing cannot hide it.
+_BANNER_WORDS = ("OPINION", "CONCURRINGOPINION", "DISSENTINGOPINION",
+                 "CONCURRINGANDDISSENTINGOPINION", "ORDER")
+
+
+def _is_banner(row: "_Row", page_width: float) -> bool:
+    letters = "".join(c for c in row.text.upper() if c.isalpha())
+    return (letters in _BANNER_WORDS
+            and _on_axis(row.x0, row.x1, page_width))
 
 
 def _bands_by_fence(fences: list, rows: list) -> dict:
@@ -596,6 +613,45 @@ def read_headmatter_texcrimapp(model, geom, **_):
         if band is None:
             return NOTHING                # an unplaced row inside the block
         ctx.emit(row, band)
+
+    # ---- THE VOTE, which this court sets in BOLD ------------------------
+    # Below the last fence the court reports its whole vote before the
+    # banner — who delivered the opinion, who joined it, and what else was
+    # filed — and it sets every row of it in BOLD, against a body that is
+    # plain (36 of the 42 records; the rest print no vote at all):
+    #
+    #     PARKER, J., delivered the opinion of the Court in which        bold
+    #     RICHARDSON, NEWELL, WALKER, and MCCLURE, JJ., joined.          bold
+    #     MCCLURE, J., filed a concurring opinion …                      bold
+    #                          O P I N I O N                             bold
+    #     Throughout the trial, this case included serious …             plain
+    #
+    # That is the PANEL and it belongs in the block, not at the head of the
+    # writing — read as the opinion's opening it put the court's vote inside
+    # the body (the user, 2026-08-21: 'the summary or panel is not in the
+    # headmatter but in the opinion start', 'its bolded').
+    #
+    # The reader used to stop at the fence for a reason: core was taking the
+    # first row or two of the vote into the block by itself and the writings
+    # came back unsigned. Claiming the whole of it fixes that instead of
+    # avoiding it — the FIRST clause names this document's author, and it is
+    # reported to core as `announced_author`, which core applies only to a
+    # lead writing that carries no byline of its own.
+    after = [r for r in rows if r.page == page1.number and r.top > last]
+    parser = BylineParser(TEXCRIMAPP.byline)
+    for row in after:
+        if not row.bold:
+            break                      # the writing's own prose begins
+        if _is_banner(row, page1.width):
+            # THE BANNER IS THE WRITING'S OWN HEADING and is left to it:
+            # claimed into the block it took the writing's first heading
+            # away and the body then broke at the page turn.
+            ctx.crit.setdefault("title", row.text)
+            break
+        if ctx.announced is None and parser.parse(row.text) is not None:
+            ctx.announced = row.text
+        ctx.emit(row, "panel")
+        last = row.top
 
     ctx.crit["headmatter_style"] = style
     ctx.crit["court"] = _norm(" ".join(r.text for r in bands["court"]))

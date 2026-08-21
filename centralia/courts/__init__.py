@@ -141,8 +141,19 @@ _TENN_GRAMMAR = BylineGrammar(
     # 'W. MARK WARD, SR. J., delivered the opinion of the court…'.
     # `title_suffixes` strips only what FOLLOWS the title, so without this
     # the panel slips assemble with no author at all.
+    # THE PRESIDING JUDGE'S TITLE LOSES A PERIOD. Measured over all three
+    # Tennessee courts' 134 records, the lead byline's title is 'J.' 74
+    # times, 'P.J.' 8 times, 'C.J.' 6 — and 'PJ.' ONCE
+    # (tenncrimapp/state_of_tennessee_v._johnny_mack_powell). This court's
+    # text layer drops spaces throughout ('KYLE A.HIXSON, J.,delivered'),
+    # and here it dropped a period. Unlisted, the byline did not parse, so
+    # the row stayed in the stream and the writing OPENED ON IT — the opinion
+    # began one row above the court's own bold centred 'OPINION' heading,
+    # with no author read.
     abbrev_titles=(("SR. J.", "Senior Judge"),
-                   ("SR.J.", "Senior Judge")) + DEFAULT_ABBREV,
+                   ("SR.J.", "Senior Judge"),
+                   ("PJ.", "Presiding Judge"),
+                   ("CJ.", "Chief Judge")) + DEFAULT_ABBREV,
     title_suffixes=("W.S.", "M.S.", "E.S."))
 
 register(CourtProfile("tenn", "Supreme Court of Tennessee",
@@ -274,8 +285,30 @@ register(CourtProfile(
                                      "Justice", "Presiding Justice"))))
 register(CourtProfile(
     "ind", "Indiana Supreme Court",
+    # INDIANA SIGNS ITS MAJORITY AND ITS SEPARATE WRITINGS DIFFERENTLY, and
+    # declared with the spelled title only it read one of the two: the Court
+    # signs 'Molter, Justice.' but a concurrence or a dissent signs
+    # 'Goff, J., dissenting.' — the ABBREVIATED title. Measured over all 50
+    # records, every separate writing in the court was lost: 40 majorities
+    # and 10 per curiams, and not one concurrence or dissent anywhere.
+    # `also_abbrev` reads both and finds 22 records with a separate writing
+    # (6 concurring-in-part-and-dissenting-in-part, 5 dissents, 4
+    # concurrence+dissent, 3 concurrences, 2 double concurrences, 2 with a
+    # per curiam). No lead writing loses its author, and no vote line
+    # becomes a byline — 'Rush, C.J., and Massa and Slaughter, JJ., concur.'
+    # is refused by the joiner rule in bylines.py.
     byline=BylineGrammar(style="prose", allow_titlecase_name=True,
-                         titles=("Justice", "Chief Justice"))))
+                         also_abbrev=True,
+                         titles=("Justice", "Chief Justice")),
+    # THE COURT RULES ITS SEPARATOR AT ONE MEASURE AND ITS COVER FENCE AT
+    # ANOTHER — 126+3 separators at 144.0pt, 104 fences at 395.5-396.2pt,
+    # and nothing between them is ever drawn (measured over all 50 records).
+    # Both start at the body rail, so rail cannot tell them apart the way it
+    # does on ariz, and the fence cleared the caption-page floor on 14
+    # records: the lower cover (argued/decided, the appeal-from lines, the
+    # 'Opinion by' announcement, the bench line) was lifted into a phantom
+    # '?' footnote before the court reader ran.
+    footnotes=FootnoteConfig(sep_measure=(140.0, 148.0))))
 register(CourtProfile(
     # THE SEPARATE WRITINGS SIGN SHORT. The lead opinion always spells the
     # office ('Bailey, Judge.'), but a judge writing alone abbreviates it
@@ -298,13 +331,34 @@ register(CourtProfile(
 # centralia/courts/bap6.py.
 register(CourtProfile(
     # The tax court signs ABBREV ('WELCH, Special J.'), unlike Indiana's
-    # supreme and appellate courts, and seats special/senior judges.
+    # supreme and appellate courts, and seats special/senior judges. It also
+    # SPELLS the office on the bench it borrows -- 'ROBB, Special Judge.' and
+    # 'WENTWORTH, Senior Judge' -- and with only the abbreviated forms
+    # declared those two records never found their byline: the walk ran past
+    # the signature into the opinion's prose.
     "indtc", "Indiana Tax Court",
     byline=BylineGrammar(style="abbrev",
-                         abbrev_titles=(("Special J.", "Special Judge"),
+                         abbrev_titles=(("Special Judge.", "Special Judge"),
+                                        ("Senior Judge.", "Senior Judge"),
+                                        ("Chief Judge.", "Chief Judge"),
+                                        ("Judge.", "Judge"),
+                                        ("Special Judge", "Special Judge"),
+                                        ("Senior Judge", "Senior Judge"),
+                                        ("Chief Judge", "Chief Judge"),
+                                        ("Judge", "Judge"),
+                                        ("Special J.", "Special Judge"),
                                         ("Senior J.", "Senior Judge"),
                                         ("C.J.", "Chief Judge"),
-                                        ("J.", "Judge")))))
+                                        ("J.", "Judge"))),
+    # THE FOOTNOTE SEPARATOR IS 144.0pt AND THE COVER'S FENCES ARE 459-468.
+    # Undeclared, the zone finder read the LAST FENCE as the separator and
+    # lifted everything below it -- 'FOR PUBLICATION', the date, and the
+    # byline 'MCADAM, J.' -- into a phantom '?' note, which left the writing
+    # with no author and printed the cover's last band twice. Measured over
+    # the corpus: 180 rules at 144.0-144.1 (the separator), 164 at 459-468
+    # (the fences), and the appearance-head underlines at 197.4; nothing
+    # stands between.
+    footnotes=FootnoteConfig(sep_measure=(143.0, 145.0))))
 register(CourtProfile(
     "iowa", "Supreme Court of Iowa",
     byline=BylineGrammar(style="prose", allow_titlecase_name=True,
@@ -653,6 +707,10 @@ for _cid, _fm in _FRONT_MATTER.items():
 # of its own (profile + deciders, nothing else). Imported last, so `register`
 # and this table exist; flat, so no court file can reach another.
 # --------------------------------------------------------------------------
+from . import nysupct                                         # noqa: E402,F401
+from . import nmariana                                        # noqa: E402,F401
+from . import prsupreme                                       # noqa: E402,F401
+from . import prapp                                           # noqa: E402,F401
 from . import ca1                                             # noqa: E402,F401
 from . import ca11                                            # noqa: E402,F401
 from . import ca2                                             # noqa: E402,F401
@@ -666,6 +724,7 @@ from . import cadc                                            # noqa: E402,F401
 from . import ca9                                             # noqa: E402,F401
 from . import ca10                                            # noqa: E402,F401
 from . import cafc                                            # noqa: E402,F401
+from . import cavc                                            # noqa: E402,F401
 from . import scotus                                          # noqa: E402,F401
 from . import bap8                                            # noqa: E402,F401
 from . import fla                                             # noqa: E402,F401
@@ -783,6 +842,9 @@ from . import ohioctcl                                       # noqa: E402,F401
 from . import ncbizct                                    # noqa: E402,F401
 
 from . import nmcca                                        # noqa: E402,F401
+from . import uscgcoca                                     # noqa: E402,F401
+
+from . import afcca                                        # noqa: E402,F401
 
 from . import scctapp                                    # noqa: E402,F401
 
@@ -808,6 +870,15 @@ from . import almd                                       # noqa: E402,F401
 from . import indctapp                                   # noqa: E402,F401
 
 from . import kyctapp                                    # noqa: E402,F401
+
+from . import acca                                       # noqa: E402,F401
+
+from . import armfor                                     # noqa: E402,F401
+
+from . import mspb                                       # noqa: E402,F401
+
+# nycivct — the New York State Reporter's slip-opinion cover sheet.
+from . import nycivct                                    # noqa: E402,F401
 
 # ---- the federal district lane: one flat file per court, all on the
 # ---- shared ECF paper at centralia/districts/. See docs/district-rollout.md.
@@ -901,8 +972,42 @@ from . import wvnd                          # noqa: E402,F401
 from . import wvsd                          # noqa: E402,F401
 from . import wyd                            # noqa: E402,F401
 
+from . import cit                                        # noqa: E402,F401
+
 from . import indtc                                      # noqa: E402,F401
 
 from . import orctapp                                    # noqa: E402,F401
 
 from . import wvactapp                                   # noqa: E402,F401
+
+from . import texag                                      # noqa: E402,F401
+
+from . import calag                                      # noqa: E402,F401
+
+from . import olc                                        # noqa: E402,F401
+
+from . import minnag                                     # noqa: E402,F401
+
+from . import mdag                                       # noqa: E402,F401
+
+# The Board of Immigration Appeals — an administrative tribunal, not a
+# court: the reporter cover of a precedent decision (courts/bia.py).
+from . import bia                                        # noqa: E402,F401
+
+# The United States Tax Court — an Article I court whose cover fences every
+# zone with the SAME 60pt rule on the page axis (courts/tax.py).
+from . import tax                                        # noqa: E402,F401
+
+from . import nyfamct                                    # noqa: E402,F401
+
+from . import asbca                                      # noqa: E402,F401
+
+# Surrogate's Court of the State of New York — the Law Reporting Bureau's
+# cover sheet over a scanned, fence-captioned decision (courts/nysurct.py).
+from . import nysurct                                    # noqa: E402,F401
+
+from . import uscfc                                      # noqa: E402,F401
+
+# The Trademark Trial and Appeal Board — an administrative board, not a
+# court: it stamps its own precedential status on the cover (courts/ttab.py).
+from . import ttab                                        # noqa: E402,F401

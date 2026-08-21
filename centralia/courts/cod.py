@@ -28,11 +28,26 @@ COD = register(CourtProfile(
     single_writing=True,
     # A district judge signs in the reversed form — the name over the office
     # ('EMILY C. MARKS' / 'UNITED STATES DISTRICT JUDGE').
+    #
+    # …AND THIS COURT ALSO ANNOUNCES THE JUDGE IN ITS MASTHEAD, in the same
+    # reversed order but with the office SHORT and the name in titlecase:
+    # 'District Judge S. Kato Crews', 'Magistrate Judge N. Reid Neureiter'.
+    # 18 of the 22 records print such a row and all 22 reached the end of the
+    # pipeline with no author on the lead writing, because the declared
+    # titles all begin 'United States' and the declared name had to be
+    # capitals. Both forms are the same grammar; only the spellings differ.
     byline=BylineGrammar(style="reversed",
+                         allow_titlecase_name=True,
                          rev_titles=("United States District Judge",
                                      "United States Magistrate Judge",
                                      "Senior United States District Judge",
-                                     "Chief United States District Judge")),
+                                     "Chief United States District Judge",
+                                     "Chief District Judge",
+                                     "Senior District Judge",
+                                     "District Judge",
+                                     "Magistrate Judge",
+                                     "Chief Judge",
+                                     "Judge")),
 ))
 
 PAPER = EcfPaper()

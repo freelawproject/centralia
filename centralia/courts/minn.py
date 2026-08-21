@@ -262,7 +262,12 @@ def read_headmatter_minn(model, geom, **_):
                 placed = True
                 continue
             if right and _AUTHOR.match(one):
-                ctx.crit.setdefault("author_line", one)
+                # `judges` IS THE FIELD, and this file's own docstring
+                # warns about exactly this: `Criteria` has no `author_line`,
+                # so the name was setattr'd onto the object, dropped by
+                # `asdict`, and never reported. It is the field the render
+                # prints and the field every other court writes.
+                ctx.crit.setdefault("judges", one)
                 ctx.emit([piece], "author", centre=False)
                 placed = True
                 continue

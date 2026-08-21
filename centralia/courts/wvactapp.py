@@ -139,6 +139,50 @@ _PARTY_STATUS = re.compile(
     r"\b(?:Below|Petitioner|Respondent|Appellant|Appellee|Claimant|Employer"
     r"|Plaintiff|Defendant|Intervenor)\b[\s,.]*$", re.I)
 _PIVOT = re.compile(r"^v\.?\)?$|^vs\.?$", re.I)
+# THE PIVOT OPENS THE DOCKET'S ROW, and it belongs to the caption. This court
+# sets the two on one line at the caption rail — 'v.) No. 24-ICA-265
+# (Fam. Ct. Wood Cnty. Case No. FC-54-2023-D-157)' — so a whole-row `docket`
+# claim swallowed the pivot and the caption lost the word that makes it a
+# caption (the user, 2026-08-21: "i dont want to lose the v"). 24 of the 42
+# records print the row this way.
+#
+# The ')' STAYS WITH THE PIVOT, as printed. It is the remnant of the pleading
+# rail this paper draws on that one row and nowhere else — a lone glyph, not a
+# column — so calling it furniture would be a guess about a mark the page
+# plainly sets next to the 'v.'; 'v.)' is what the row says.
+_PIVOT_LED = re.compile(r"^(v\.?\)?|vs\.?\)?)(?=\s)", re.I)
+
+
+def _replace_line(line, chars: list):
+    import dataclasses
+    return dataclasses.replace(
+        line, chars=chars,
+        x0=min(c["x0"] for c in chars),
+        x1=max(c.get("x1", c["x0"]) for c in chars))
+
+
+def _split_after_pivot(line):
+    """``(pivot, remainder)`` when a row OPENS on the pivot, else None.
+
+    Split on the CHARS, not on the rebuilt text: `Line.plain` measures its own
+    word gaps, so an index into it does not address the glyph list."""
+    got = _PIVOT_LED.match(" ".join((line.plain or "").split()))
+    if not got:
+        return None
+    want = got.group(1).replace(" ", "")
+    raw = ""
+    for i, c in enumerate(line.chars):
+        raw += (c.get("text") or "")
+        if raw.replace(" ", "") == want:
+            tail = [x for x in line.chars[i + 1:]
+                    if (x.get("text") or "").strip()]
+            if not tail:
+                return None            # the row WAS the pivot
+            return _replace_line(line, line.chars[:i + 1]), \
+                _replace_line(line, tail)
+        if len(raw.replace(" ", "")) > len(want):
+            return None
+    return None
 _TITLE = re.compile(r"^MEMORANDUM DECISION$", re.I)
 _DISPO = re.compile(
     r"^(?:AFFIRMED|REVERSED|VACATED|DISMISSED|REMANDED|GRANTED|DENIED"
@@ -324,7 +368,26 @@ def read_headmatter_wvactapp(model, geom, **_):
                 got = low.group(1) or low.group(2)
                 if got:
                     ctx.crit.setdefault("lower_court_docket", []).append(got)
-            # The row may carry the pivot and a party name beside the number.
+            # The row may carry the pivot and a party name beside the
+            # number. Where it OPENS on the pivot, the pivot is the caption's
+            # and only the rest is the docket — see _PIVOT_LED.
+            # THE PIVOT COMES IN TWO SHAPES on this row, and both must be
+            # split off. Usually it is welded into the docket's own piece
+            # ('v.) No. 24-ICA-265  (Fam. Ct. …)'), which needs the glyph
+            # split; but where the page leaves a wide enough gap after it,
+            # pdfio has already broken the row and the pivot arrives as a
+            # PIECE OF ITS OWN (lechiara sets 'v.)' at x0 72 against
+            # 'No. 25-ICA-200' at 108). Splitting only the welded shape left
+            # that record's pivot inside the docket row.
+            if len(pieces) > 1 and _PIVOT.match(_norm(pieces[0].plain)):
+                ctx.emit([pieces[0]], "caption", centre=False)
+                ctx.emit(list(pieces[1:]), "docket", centre=False)
+                continue
+            _sp = _split_after_pivot(pieces[0])
+            if _sp is not None:
+                ctx.emit([_sp[0]], "caption", centre=False)
+                ctx.emit([_sp[1]] + list(pieces[1:]), "docket", centre=False)
+                continue
             ctx.emit(pieces, "docket", centre=(style == STYLE_TERM))
             continue
         if _ORIGIN.match(text):

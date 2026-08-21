@@ -35,6 +35,91 @@ SCAN_INK_FLOOR = 120
 # CID glyphs as a fraction of ink beyond which the text layer is unreadable.
 CID_MAX_FRAC = 0.2
 
+# THE STANDARD 14. A PDF may name these without embedding anything, so a
+# document whose glyphs come only from this list has embedded no type of its
+# own — which is what an OCR engine writes.
+_BASE_14 = frozenset({
+    "Times-Roman", "Times-Bold", "Times-Italic", "Times-BoldItalic",
+    "Helvetica", "Helvetica-Bold", "Helvetica-Oblique",
+    "Helvetica-BoldOblique",
+    "Courier", "Courier-Bold", "Courier-Oblique", "Courier-BoldOblique",
+    "Symbol", "ZapfDingbats",
+    # THE ALIASES A VIEWER SUBSTITUTES FOR THEM, which an OCR layer names just
+    # as readily and which embed nothing either. texbizct's scans are the
+    # reason: may_v._ineos_usa_oil__gas is a 4-page raster covered 4/4 with
+    # nothing embedded, but it names ArialMT beside the standard faces, so an
+    # exact-14 test called it born-digital and it carried no banner at all
+    # while its text layer mangled every paragraph mark ('<jfl', '912',
+    # '<jf3' for ¶1, ¶2, ¶3). The gate that does the real work is the image
+    # coverage; this list only has to admit the faces a scan can name.
+    "Arial", "ArialMT", "Arial-Bold", "Arial-BoldMT", "Arial-Italic",
+    "Arial-ItalicMT", "Arial-BoldItalicMT",
+    "TimesNewRoman", "TimesNewRomanPSMT", "TimesNewRomanPS-BoldMT",
+    "TimesNewRomanPS-ItalicMT", "TimesNewRomanPS-BoldItalicMT",
+    "CourierNew", "CourierNewPSMT", "CourierNewPS-BoldMT",
+    "CourierNewPS-ItalicMT", "SymbolMT", "Wingdings",
+})
+# THE OCR ENGINE SIGNING ITS OWN WORK. Tesseract lays an invisible
+# 'GlyphLessFont' over the image it read; GdPicture embeds
+# 'GDPFNTCI-GdPictureOCRFont' (texbizct/plains_pipeline, whose every other
+# face is a substituted '*Times New Roman-3251'). A face whose NAME says OCR
+# is the layer saying what it is, so the name is read for it — and only after
+# the image-coverage gate above has already passed, which is what keeps the
+# real OCR-A and OCR-B typefaces, set as ordinary text on a form, out of it.
+_OCR_FONTS = frozenset({"GlyphLessFont"})
+
+
+def _is_ocr_font(name: str) -> bool:
+    bare = name.split("+")[-1]
+    return bare in _OCR_FONTS or "ocr" in bare.lower()
+
+
+def ocr_text_layer(model: PdfModel) -> bool:
+    """True when the paper is a SCAN and its text is an OCR layer over it.
+
+    This is a different question from `triage`, which asks whether a document
+    can be read at all, and it is asked separately because the answers must
+    not share a consequence: a 'scan' verdict can REFUSE a document
+    (pipeline.py, max ink < 250), and a born-digital page printed over a
+    page-sized background must never be refused.
+
+    A FULL-PAGE IMAGE IS NOT PROOF OF A SCAN and text volume cannot settle it
+    either — nevapp/ccmsi_v._odell is a bilevel 200dpi raster on all 10 pages
+    carrying 761-1,680 OCR characters each, so it clears every ink floor in
+    this module and was reported as ordinary born-digital paper, geometry and
+    all (the user, 2026-08-21). What settles it is WHOSE TYPE THE GLYPHS ARE.
+    Measured over the corpus, the two families separate with nothing in
+    between:
+
+        a scan's OCR layer     names only the standard 14 (mesuperct, nevapp)
+                               or Tesseract's GlyphLessFont (virginislands)
+                               and embeds nothing
+        born-digital paper     embeds at least one subsetted face —
+                               'KJYOFE+LiberationSans' (ared 153173, the
+                               CM/ECF sheet over a background that this
+                               module's SCAN_INK_FLOOR comment was written
+                               for), 'BCDEEE+TimesNewRomanPSMT' (lactapp)
+
+    The test is per DOCUMENT, not per court: lactapp prints both kinds.
+    """
+    if not model.pages:
+        return False
+    covered = [p for p in model.pages if p.image_area > SCAN_IMAGE_AREA]
+    if len(covered) / model.n_pages < SCAN_PAGE_FRAC:
+        return False
+    fonts = {f for p in model.pages for f in p.fonts if f}
+    if not fonts:
+        return False            # no text at all: `triage` owns that answer
+    if any(_is_ocr_font(f) for f in fonts):
+        return True
+    # A '*' PREFIX IS PDFMINER SAYING IT SUBSTITUTED — the PDF named a face it
+    # could not find, which is the opposite of embedding. plains_pipeline's
+    # scan names every face '*Times New Roman-3251', '*Times New Roman-Bold-
+    # 3253' and so on; read as embedded they made a 5-of-5 raster look
+    # born-digital.
+    return all("+" not in f and (f.startswith("*") or f in _BASE_14)
+               for f in fonts)
+
 
 def triage(model: PdfModel) -> str | None:
     """'scan' | 'unreadable' | None (proceed)."""

@@ -72,6 +72,22 @@ _CITE_AFTER = re.compile(
     r"Ltd|Co|Corp|Ass'?n)\b|\s+(?:Corp|Corporation|Co\.|Ltd|Bank|Ass'?n)\b)")
 
 
+# A CAMEL WORD INSIDE A URL IS NOT A MISSING SPACE. Courts cite the web, and
+# a query parameter is camel-cased by whoever wrote the site:
+# 'https://ciris.mt.cdcr.ca.gov/details?cdcrNumber=AS1891' (cand) read as the
+# join 'cdcrNu'. The allowlist cannot learn the web's parameter names, and no
+# opinion prose is set inside an unbroken run carrying '://' or a query.
+_URLISH = re.compile(r"://|^www\.|\.(?:com|gov|org|net|edu|us)[/?]|[?&]\w+=")
+
+
+def _in_url(text: str, at: int) -> bool:
+    """Is the offset inside a whitespace-delimited run that is a URL?"""
+    lo = text.rfind(" ", 0, at) + 1
+    hi = text.find(" ", at)
+    tok = text[lo:hi if hi != -1 else len(text)]
+    return bool(_URLISH.search(tok))
+
+
 def _text(html: str) -> str:
     return _TAG.sub(" ", html)
 
@@ -108,7 +124,8 @@ def score_file(path: Path) -> dict:
         _cap = jm.start() + jm.group(0).index(
             next(c for c in jm.group(0) if c.isupper()))
         if (_CITE_BEFORE.search(text[max(0, _cap - 16):_cap])
-                or _CITE_AFTER.search(text[_cap:_cap + 44])):
+                or _CITE_AFTER.search(text[_cap:_cap + 44])
+                or _in_url(text, _cap)):
             continue
         join_words[jm.group(0)] = join_words.get(jm.group(0), 0) + 1
     joins = sum(n for n in join_words.values() if n < 3)
@@ -139,20 +156,38 @@ def score_file(path: Path) -> dict:
     if resid:
         score += 5 * resid
         flags.append(f"residual×{resid}")
-    if not ops:
+    _scan_stub = any("non-born-digital" in w for w in warns)
+    if not ops and not _scan_stub:
         score += 8
         flags.append("no-opinions")
+    elif not ops:
+        # A PAGE-IMAGE DOCUMENT HAS NO WRITING TO FIND, and saying so is not
+        # a defect report. Graded as a miss it cost the file 8 points and a
+        # 'no-opinions' flag it can never clear.
+        flags.append("image-source")
     if warns:
         # A SOURCE complaint (the PDF is a scan) is not a parse defect and
         # must not drag a court's grade down — nothing in this repo can fix
         # it, and 100+ files carrying it drowned out the real work.
         _src = [w for w in warns if "scan with OCR" in w
-                or "image-only page" in w]
+                or "image-only page" in w or "text missing from" in w
+                or "non-born-digital" in w]
         _parse = [w for w in warns if w not in _src]
         score += 2 * len(_parse)
         if _parse:
             flags.append("warn:" + ";".join(sorted(set(_parse)))[:60])
-        if _src:
+        # A SCAN AND A HOLE IN THE RECORD ARE NOT THE SAME COMPLAINT. Both
+        # are the source's fault and neither is gradeable, but one says the
+        # geometry is untrusted and the other says PAGES OF THE COURT'S TEXT
+        # ARE NOT IN THIS DOCUMENT. Flagged as one, a reader had no way to
+        # tell a good reading of a scan from a reading that is missing eight
+        # pages (the user, 2026-08-21, on nev/engle_julie_2).
+        _gap = [w for w in _src if "text missing from" in w]
+        if _gap:
+            _n = re.search(r"text missing from (\d+) of (\d+)", _gap[0])
+            flags.append(f"pages-without-text×{_n.group(1)}/{_n.group(2)}"
+                         if _n else "pages-without-text")
+        if [w for w in _src if w not in _gap]:
             flags.append("scanned-source")
     if joins:
         score += min(5.0, 0.5 * joins)

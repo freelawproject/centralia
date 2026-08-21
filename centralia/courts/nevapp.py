@@ -128,6 +128,11 @@ def read_headmatter_nevapp(model, geom, **_):
 
     ctx = _Ctx()
     caption: list[str] = []
+    # THE CAPTION'S TWO COLUMNS, buffered until the band closes: the left
+    # rows in the order the page prints them, and the right column keyed by
+    # the baseline it shares with one of them.
+    box_left: list = []
+    box_right: dict = {}
     parties: list[str] = []
     origin: list[str] = []
     disposition: list[str] = []
@@ -174,7 +179,14 @@ def read_headmatter_nevapp(model, geom, **_):
             docket = _DOCKET.match(text)
             if docket:
                 dockets.append(_norm(docket.group(1)).replace(" ", ""))
-                ctx.emit(pieces, "docket", centre=False)
+                # IN THE CAPTION BAND it is the box's right column and is
+                # paired with the party row it is printed beside; anywhere
+                # else it stands on its own.
+                if band == "caption":
+                    box_right.setdefault(round(first.top, 1), []).extend(
+                        pieces)
+                else:
+                    ctx.emit(pieces, "docket", centre=False)
             else:
                 ctx.drop(pieces, "stamp")
             continue
@@ -237,7 +249,7 @@ def read_headmatter_nevapp(model, geom, **_):
                 # and survive the overprint ('Avsp.pellant,').
                 if text.upper() == text:
                     parties.append(text)
-                ctx.emit(pieces, "caption", centre=False)
+                box_left.append((page_no, round(first.top, 1), pieces))
                 prev_top, prev_page = first.top, page_no
                 continue
             band = "origin"
@@ -266,6 +278,9 @@ def read_headmatter_nevapp(model, geom, **_):
 
         prev_top, prev_page = first.top, page_no
 
+    if box_left:
+        ctx.box([(pg, pieces, box_right.get(top, []))
+                 for pg, top, pieces in box_left])
     if not caption or not origin_paras:
         return NOTHING
     if dockets:
@@ -373,6 +388,51 @@ class _Ctx:
             x0=first.x0, size=first.size or 0.0,
             bold=all(bool(p.all_bold) for p in parts), role=role))
         self.consumed.update(p.id for p in parts)
+
+    def cell(self, parts: list, role: str, page: int):
+        parts = sorted(parts, key=lambda l: l.x0)
+        if not parts:
+            return m.HmLine(text="", prov=m.Prov(page), align=m.Align.LEFT,
+                            role=role)
+        text = ""
+        for part in parts:
+            piece = line_markup(part)
+            text = (text.rstrip() + " " + piece.lstrip()) if text.strip() \
+                else piece
+        return m.HmLine(
+            text=text, prov=m.Prov(parts[0].page, tuple(p.id for p in parts)),
+            align=m.Align.LEFT, x0=parts[0].x0, size=parts[0].size or 0.0,
+            bold=all(bool(p.all_bold) for p in parts), role=role)
+
+    def box(self, rows: list) -> None:
+        """The caption, as the page sets it: two columns paired by the
+        printed row, over the whitespace gutter the clerk's form leaves.
+
+        Emitted flat, the docket stood between the first party and its own
+        status row -- 'BRITT HAYES, AN INDIVIDUAL,' / 'No. 85087-COA' /
+        'Appellant,' -- because page order is not reading order across a
+        gutter (the user, 2026-08-21). The pairing is by BASELINE, which is
+        what the form itself uses: the docket is set on the first party's
+        row and nothing else in the right column survives the scan.
+        """
+        left, right = [], []
+        ids: set[int] = set()
+        for pg, l_cells, r_cells in rows:
+            left.append(self.cell(l_cells, "caption", pg))
+            right.append(self.cell(r_cells, "docket" if r_cells
+                                   else "caption", pg))
+            ids.update(c.id for c in l_cells + r_cells)
+        while left and not (left[-1].text or "").strip() \
+                and not (right[-1].text or "").strip():
+            left.pop()
+            right.pop()
+        if not left:
+            return
+        self.items.append(m.CaptionBlock(
+            left=left, right=right, rail=None, rail_rows=len(left),
+            style_id="open-gutter", fp={"rail": None},
+            prov=m.Prov(rows[0][0], tuple(sorted(ids)))))
+        self.consumed.update(ids)
 
     def drop(self, group: list, kind: str) -> None:
         parts = sorted(group, key=lambda l: l.x0)

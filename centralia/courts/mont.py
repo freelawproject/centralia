@@ -83,7 +83,34 @@ _PARTY_ROLE = re.compile(
     r"|Appellees?|Relators?|Claimants?|Intervenors?|Movants?)\b"
     r"[\w\s,/-]*[,.]$", re.I)
 # The two ladder headings, and the sub-heading a step in.
-_APPEAL_FROM = re.compile(r"^APPEAL FROM:", re.I)
+#
+# THE ORIGIN LADDER OPENS TWO WAYS, and until 2026-08-21 only one was known.
+# Montana heads the recital 'APPEAL FROM:' on an appeal and 'ORIGINAL
+# PROCEEDING:' when it takes a case itself, and both open the same ladder of
+# entries a step in from the rail. Unmatched, the heading fell to the caption
+# catch-all and the ladder BELOW it went unclaimed — a hole inside the block,
+# which the bisection invariant then hands to a writing along with everything
+# after it. transparent_election_initiative_v._knudsen lost its entire
+# counsel block into the majority's body that way, opening the opinion on
+# 'Petition for Declaratory Judgment … COUNSEL OF RECORD: For Petitioners:
+# …'; only the heading was ever claimed.
+#
+# `\s*` BETWEEN THE WORDS, because the paper does not always print the space
+# into its text layer: matter_of_s.j.c._yinc reads 'APPEALFROM: District Court
+# of the Thirteenth Judicial District,' welded, so the heading missed, its
+# three continuation rows went unclaimed, and a phantom `order` writing opened
+# on them holding the county, the cause numbers and the presiding judge as its
+# whole body. That record is not alone — its opinion says 'Thirteenth
+# JudicialDistrict', 'chronic abuse or neglectand', 'orderedtreatment' — so
+# the lost space is a MEASUREMENT defect in this court's paper, reported not
+# patched here (see the note at the end of this module's docstring).
+_ORIGIN_HEAD = re.compile(r"^(?:APPEAL\s*FROM|ORIGINAL\s*PROCEEDING)\s*:",
+                          re.I)
+# An ORIGINAL PROCEEDING HAS NO COURT BELOW, so its recital is not a
+# lower-court row. `case-info` is the role for caption apparatus that is none
+# of the named things (model.py); tinting 'Petition for Declaratory Judgment'
+# `lower-court` would be a confident wrong answer.
+_ORIGINAL = re.compile(r"^ORIGINAL\s*PROCEEDING", re.I)
 _COUNSEL_HEAD = re.compile(r"^COUNSEL OF RECORD:", re.I)
 _COUNSEL_FOR = re.compile(r"^For\s+.+:$", re.I)
 _JUDGE_BELOW = re.compile(r"^Honorable\b|Presiding Judge|,\s*Judge$", re.I)
@@ -144,6 +171,7 @@ def read_headmatter_mont(model, geom, **_):
     caption: list[str] = []
     below: list[str] = []
     band = "ident"          # ident | caption | appeal | counsel
+    origin_role = "lower-court"   # …or `case-info` on an original proceeding
     for group in rows:
         pieces = sorted(group, key=lambda l: l.x0)
         text = _norm(" ".join(l.plain for l in pieces))
@@ -191,10 +219,11 @@ def read_headmatter_mont(model, geom, **_):
         if _TYPED_RULE.match(text):
             ctx.rule(first.page, tuple(p.id for p in pieces), typed=True)
             continue
-        if _APPEAL_FROM.match(text):
+        if _ORIGIN_HEAD.match(text):
             band = "appeal"
+            origin_role = "case-info" if _ORIGINAL.match(text) else "lower-court"
             below.append(text)
-            ctx.emit(pieces, "lower-court", centre=False)
+            ctx.emit(pieces, origin_role, centre=False)
             continue
         if _COUNSEL_HEAD.match(text):
             band = "counsel"
@@ -205,7 +234,7 @@ def read_headmatter_mont(model, geom, **_):
             # heading; anything at the rail has left the ladder.
             if first.x0 > body_x0 + 20.0:
                 below.append(text)
-                ctx.emit(pieces, "lower-court", centre=False)
+                ctx.emit(pieces, origin_role, centre=False)
                 if _JUDGE_BELOW.search(text):
                     ctx.crit.setdefault("lower_court_judge", text)
                 continue

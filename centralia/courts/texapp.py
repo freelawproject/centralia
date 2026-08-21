@@ -84,6 +84,7 @@ texapp prints NO appearance of counsel anywhere in the corpus.
 from __future__ import annotations
 
 import re
+from dataclasses import replace as _replace
 
 from .. import model as m
 from ..profile import CourtProfile
@@ -454,6 +455,9 @@ def read_headmatter_texapp(model, geom, **_):
     rows = [r for r in _visual_rows(model, finder) if r.page == 1]
     if not rows:
         return NOTHING
+    filed = _read_filed_motion(model, geom, rows, page1)
+    if filed is not NOTHING:
+        return filed
 
     ctx = _Ctx(model, geom)
     mast: list = []
@@ -687,3 +691,159 @@ def image_role_texapp(page=None, image=None, **_):
     if image.top / page.height > _SEAL_BAND:
         return NOTHING
     return "seal"
+
+# --------------------------------------------------------------------------
+# THE SECOND CONTRACT — DALLAS'S E-FILED MOTION
+# --------------------------------------------------------------------------
+#
+#                     NO. 05-25-00821-CR              the docket, centred
+#     THE STATE OF TEXAS  *  IN THE COURT OF APPEALS  the caption, over a
+#     V.                  *  FIFTH                    typed '*' rail
+#     GERALD WEST         *  DISTRICT OF TEXAS
+#          MOTION FOR EXTENSION OF TIME TO FILE       what the paper is
+#                  APPELLATE BRIEF
+#     TO THE HONORABLE COURT OF APPEALS:              …and the motion begins
+#
+# The Fifth District staples the party's e-filed motion in front of the
+# paper, and the first contract declines it for having no landmark it knows
+# (see the note at the head of this file). The caption is still this court's
+# and reads perfectly well, so it is read here instead of left unclaimed.
+#
+# THE CLERK STAMPS TWICE AND BOTH STAMPS COLLIDE WITH THE CAPTION. An
+# 'ACCEPTED / FIFTH COURT OF APPEALS / RUBEN MORIN / CLERK' block sits in
+# the top corner at 8pt, and a second 'FILED IN / 5th COURT OF APPEALS /
+# DALLAS, TEXAS / 8/26/2025 3:11:00 PM / Ruben Morin / Clerk' is stamped
+# ACROSS the caption at 10pt — on the caption's own baselines, so pdfio
+# returns the two interleaved character by character:
+#
+#     'DISTRICT OF TE8X/2A6/S2 02 5 3:11:00 PM'
+#     'MOTION FOR EXTENSION OF TIME TO F I  L   E         Clerk'
+#
+# No word can be recovered by reading the row. THE TYPE SEPARATES THEM: the
+# court's paper is set at the body's 12pt and every glyph of both stamps is
+# smaller, so the stamp is shed BY SIZE, glyph by glyph, and what is left is
+# what the filer typed.
+
+_RAIL_GLYPH_TX = "*"
+_RAIL_MIN_TX = 2
+_STAMP_SIZE_SLACK = 1.0
+_MOTION_OPENER = re.compile(r"^TO\s+THE\s+HONOU?RABLE\b", re.I)
+
+
+def _shed_stamp(line, body_size: float):
+    """``line`` with every glyph smaller than the body's type removed, or
+    None when the whole row was the stamp."""
+    keep = [c for c in line.chars
+            if (c.get("size") or body_size) >= body_size - _STAMP_SIZE_SLACK]
+    if len(keep) == len(line.chars):
+        return line
+    if not any((c.get("text") or "").strip() for c in keep):
+        return None
+    return _replace(line, chars=keep, x0=min(c["x0"] for c in keep),
+                    x1=max(c.get("x1", c["x0"]) for c in keep))
+
+
+def _read_filed_motion(model, geom, rows, page1):
+    """Read the Fifth District's e-filed motion, or NOTHING."""
+    body_size = (geom.body_size if geom and geom.body_size else 12.0)
+    rail = [line for r in rows for line in r.pieces
+            if "".join((line.plain or "").split()) == _RAIL_GLYPH_TX]
+    if len(rail) < _RAIL_MIN_TX:
+        return NOTHING
+    rail_x = min(l.x0 for l in rail)
+    if abs(rail_x - page1.width / 2) > 60.0:
+        return NOTHING
+    top, bottom = min(l.top for l in rail), max(l.top for l in rail)
+
+    ctx = _Ctx(model, geom)
+    box: list = []
+    dockets: list = []
+    title: list = []
+    for row in rows:
+        if row.page != 1:
+            continue
+        # THE STAMP, wherever it stands: its own rows and its glyphs inside
+        # the court's.
+        pieces = []
+        for line in row.pieces:
+            bare = _shed_stamp(line, body_size)
+            if bare is None:
+                ctx.dropped.append(m.Dropped(
+                    text=_norm(line.plain)[:200],
+                    prov=m.Prov(row.page, (line.id,)), kind="stamp"))
+                ctx.consumed.add(line.id)
+                continue
+            pieces.append(bare)
+        if not pieces:
+            continue
+        text = _norm("  ".join(p.plain.strip() for p in pieces))
+        if not text:
+            continue
+        if top - 2.0 <= row.top <= bottom + 2.0:
+            left, right = [], []
+            for line in pieces:
+                if "".join((line.plain or "").split()) == _RAIL_GLYPH_TX:
+                    ctx.consumed.add(line.id)
+                    continue
+                (left if line.x0 < rail_x else right).append(line)
+            box.append((row.page, left, right))
+            continue
+        got = _dockets(text)
+        if got and not box:
+            dockets.extend(got)
+            ctx.emit(_Row(pieces), "docket")
+            continue
+        if box and not _MOTION_OPENER.match(text):
+            title.append(text)
+            ctx.emit(_Row(pieces), "title")
+            continue
+        if _MOTION_OPENER.match(text):
+            break
+    if not box or not dockets:
+        return NOTHING
+    _emit_box_tx(ctx, box, rail_x)
+    ctx.crit["docket_number"] = dockets[0]
+    if dockets[1:]:
+        ctx.crit["other_dockets"] = dockets[1:]
+    if title:
+        ctx.crit.setdefault("title", " ".join(title))
+    left_rows = [_norm("  ".join(l.plain for l in lc))
+                 for _pg, lc, _rc in box]
+    ctx.crit.setdefault("caption", [t for t in left_rows if t])
+    parties, name = _case_name([t for t in left_rows if t])
+    if parties:
+        ctx.crit.setdefault("parties", parties)
+    if name:
+        ctx.crit.setdefault("case_name", name)
+    ctx.crit["headmatter_style"] = "e-filed motion"
+    return ctx.result()
+
+
+def _emit_box_tx(ctx: _Ctx, box: list, rail_x: float) -> None:
+    """The caption, paired by the row the page printed."""
+    def cell(parts, role, page):
+        parts = sorted(parts, key=lambda l: l.x0)
+        if not parts:
+            return m.HmLine(text="", prov=m.Prov(page), align=m.Align.LEFT,
+                            role=role)
+        text = ""
+        for part in parts:
+            piece = line_markup(part)
+            text = (text.rstrip() + " " + piece.lstrip()) if text.strip() \
+                else piece
+        return m.HmLine(
+            text=text, prov=m.Prov(parts[0].page, tuple(p.id for p in parts)),
+            align=m.Align.LEFT, x0=parts[0].x0, size=parts[0].size or 0.0,
+            bold=all(bool(p.all_bold) for p in parts), role=role)
+
+    left, right, ids = [], [], set()
+    for pg, lc, rc in box:
+        left.append(cell(lc, "caption", pg))
+        right.append(cell(rc, "case-info", pg))
+        ids.update(l.id for l in lc + rc)
+    ctx.items.append(m.CaptionBlock(
+        left=left, right=right, rail=_RAIL_GLYPH_TX, rail_rows=len(left),
+        style_id="starred-box", fp={"rail": _RAIL_GLYPH_TX,
+                                    "mid_x": round(rail_x, 1)},
+        prov=m.Prov(box[0][0], tuple(sorted(ids)))))
+    ctx.consumed.update(ids)

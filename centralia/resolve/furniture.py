@@ -296,6 +296,11 @@ def _looks_like_efiling_stamp(text: str) -> bool:
 # form number runs 3.0-6.5pt against a 12.0pt body in the last 7% of the page.
 _FORM_BAND = 0.07
 _FORM_SIZE_MAX = 0.6
+# THE SCANNER'S FOOT BAND. nevapp's deepest row of real text sits at 0.919 of
+# the sheet and its shallowest piece of margin junk at 0.916 — so the band
+# alone cannot separate them and does not try to: it only bounds where the
+# position test below is allowed to look.
+_SCAN_FOOT_BAND = 0.90
 
 
 @dataclass
@@ -347,6 +352,38 @@ class FurnitureFinder:
         return " ".join(l.plain.strip() for l in pm.lines
                         if l.row == line.row).strip()
 
+    def _scan_margin(self, pm: PageModel, line: Line) -> bool:
+        """On a SCANNED sheet, does this row stand where no text is set?
+
+        A raster page carries whatever was on the paper — the seal caption
+        printed sideways down the left margin, the clerk's biro, the
+        reporter's pencil — and the OCR hands it back as rows of nonsense at
+        full body size: 'pqq bC', '2,44- 01307', 'zei.2.ti3g', 'w so', and
+        the form number in a different mangling on every page ('(01 1947R',
+        '10) 1947ki aelit(p', 'PR 1947B altDa'). No spelling can catch them,
+        and the repeat-keyed rules never can either, because a scanner reads
+        the same mark differently each time it meets it.
+
+        POSITION is what they all share, and the page states it. Measured
+        over nevapp's 31 records: in the last tenth of the sheet every row
+        of the court's own text opens within 2pt of the body rail — its
+        deepest indent, a blockquote, reaches 73pt — and every one of the 62
+        junk rows either ends LEFT of the rail or opens RIGHT of the page's
+        axis, 145pt further out than any indent the court uses. Nothing
+        stands in between. Gated on the sheet being a raster, so no
+        born-digital page can be touched by it.
+        """
+        from ..classify import SCAN_IMAGE_AREA
+        if pm.image_area <= SCAN_IMAGE_AREA:
+            return False
+        if line.top < pm.height * _SCAN_FOOT_BAND:
+            return False
+        ink = [c for c in line.chars if (c.get("text") or "").strip()]
+        if not ink:
+            return False
+        return (max(c.get("x1", c["x0"]) for c in ink) < self.body_x0
+                or min(c["x0"] for c in ink) > pm.width / 2)
+
     def kind(self, pm: PageModel, line: Line) -> str | None:
         """Furniture kind, or None when the line is (potential) content."""
         text = line.plain.strip()
@@ -391,6 +428,11 @@ class FurnitureFinder:
         # stood there.
         if is_chambers_path(text):
             return "stamp"
+        # THE SCANNER'S MARGIN. Placed after the paragraph-marker guard above
+        # and before every spelling-based rule, but declining wherever the
+        # row is a plain folio so the folio keeps its own name.
+        if not is_folio_text(text) and self._scan_margin(pm, line):
+            return "stamp"
         row_text = self._row_text(pm, line)
         if row_text != text and (frac <= 0.15 or frac >= 0.85):
             if _looks_like_efiling_stamp(row_text):
@@ -404,6 +446,24 @@ class FurnitureFinder:
             _ink = [c["x1"] for c in line.chars
                     if (c.get("text") or "").strip()]
             if _ink and abs(max(_ink) - self.doc_gutter_x1) <= 2.5 \
+                    and max(_ink) <= self.body_x0 - 6:
+                return "gutter"
+        # …AND WHATEVER ELSE THE PRESS PRINTED IN THAT COLUMN. cand rules
+        # its pleading paper AND runs the court's own name sideways down the
+        # left margin: the watermark arrives as 3-6pt fragments ('i', 'tr',
+        # 'uoC rof') and, where one shares a numeral's row, FUSES to it ('a
+        # 12', 'uoC rof 13', 'iDtc 15'). No digit test can see either, and
+        # the mid-page fragments stand clear of the form band — so on
+        # cand/431521 fifteen of them opened the writing as its first
+        # paragraph and cut four body sentences in half (the user,
+        # 2026-08-20: 'looks like this is bleeding in from the sidebar').
+        # The proof is the gutter the numerals already established: a row
+        # whose WHOLE ink stands inside that column is the stationery,
+        # whatever it happens to spell.
+        if self.doc_gutter_x1 is not None:
+            _ink = [c["x1"] for c in line.chars
+                    if (c.get("text") or "").strip()]
+            if _ink and max(_ink) <= self.doc_gutter_x1 + 2.5 \
                     and max(_ink) <= self.body_x0 - 6:
                 return "gutter"
         # bottom band starts at 0.82: ca3's half-format sheet folios its
@@ -436,9 +496,15 @@ class FurnitureFinder:
             # inside the headmatter (the user, 2026-08-20: 'indctapp captures
             # in headmatter page 1 of x ???'). Tested against the learned
             # keys, not by recursion.
+            # …AND NEITHER DOES THE SCANNER'S MARGIN. On a raster sheet the
+            # folio shares its baseline with whatever the OCR made of the
+            # margin beside it ('NEVADA' and 'pqq bC' sit on nevapp's), and
+            # vetoed by it the page number rendered as the writing's own
+            # paragraph.
             if not any(o is not line and abs(o.top - line.top) < 2
                        and o.plain.strip()
                        and not is_folio_text(o.plain.strip())
+                       and not self._scan_margin(pm, o)
                        and furniture_key(self._row_text(pm, o)
                                          ) not in self.bottom_keys
                        and furniture_key(o.plain.strip()

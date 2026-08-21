@@ -8,6 +8,8 @@ question: what did the extractor do with everything?
 
 from __future__ import annotations
 
+import re
+
 from html import escape
 
 from .. import model as m
@@ -33,6 +35,16 @@ h1 { font-size:1.15em; margin:.2em 0 }
         background:var(--accent); border-radius:9px; padding:1px 9px; margin-right:.4em }
 .chip.warn { background:var(--bad) }
 .chip.kind { background:#8a8a8a }
+/* THE SOURCE BANNER. A scan's OCR text reads like any other text — that is
+   exactly the danger, so the page says so before it says anything else. The
+   warning chip alone was a tooltip on a glyph; this is unmissable and its
+   colour is the one the sheet already reserves for a defect. */
+.srcbanner { border:1px solid var(--bad); border-left-width:6px; border-radius:4px;
+             background:#fdf3f2; color:#7a2620; padding:.6em .9em; margin:0 0 1.1em;
+             font:13px/1.45 system-ui,sans-serif }
+.srcbanner b { font:700 13px system-ui,sans-serif; letter-spacing:.02em }
+.srcbanner code { font:12px ui-monospace,Menlo,monospace; background:#fff;
+                  border:1px solid #e6cfcd; border-radius:3px; padding:0 4px }
 section { margin:1.4em 0 }
 section > h2 { font:600 12px system-ui,sans-serif; text-transform:uppercase;
                letter-spacing:.08em; color:var(--mut); border-bottom:1px solid var(--line);
@@ -147,7 +159,7 @@ p { margin:.55em 0; text-indent:1.6em }
 p.noindent { text-indent:0 }
 blockquote { margin:.7em 2.2em; font-size:.95em }
 h3.bhead { font-size:1em; text-align:center; margin:1em 0 .4em }
-table.tb { border-collapse:collapse; margin:.6em 0 } .tb td,.tb th { border:1px solid var(--line); padding:2px 8px }
+table.tb { border-collapse:collapse; margin:.6em 0; max-width:100% } .tb td,.tb th { border:1px solid var(--line); padding:2px 8px; vertical-align:top; text-align:left } .tb td:empty,.tb th:empty { height:1em }
 .opinion { border-top:2px solid var(--accent); margin-top:1.6em; padding-top:.5em }
 .byline { font-weight:bold; margin:.4em 0 }
 .fns { border-top:1px solid var(--line); margin-top:1em; padding-top:.4em; font-size:.88em }
@@ -245,11 +257,34 @@ def _render_footnotes(fns: list) -> str:
     return f'<div class="fns">{"".join(rows)}</div>'
 
 
-def _render_opinion(op: m.Opinion) -> str:
+_TAG = re.compile(r"<[^>]+>")
+
+
+def _hm_signature(doc: m.Document) -> str:
+    """The headmatter's own author rows, whitespace removed — what the page
+    prints as its ANNOUNCEMENT of who wrote the opinion."""
+    out = []
+    for item in doc.headmatter:
+        if getattr(item, "role", "") == "author":
+            out.append(_TAG.sub("", getattr(item, "text", "") or ""))
+    return "".join("".join(t.split()) for t in out)
+
+
+def _render_opinion(op: m.Opinion, hm_sig: str = "") -> str:
     parts = [f'<div class="opinion"><span class="chip">{escape(op.type)}</span>']
     if op.caption:
         parts.append(render_hm_items(op.caption))
-    if op.author:
+    # AN ANNOUNCEMENT IS NOT THE WRITING'S BYLINE. Where the court announces
+    # its author in the HEADMATTER ('MATTHEW J. WILSON, J., delivered the
+    # opinion of the court, in which …' — the Tennessee courts, va, tenn),
+    # the row is already rendered where the page prints it, and drawing it
+    # again at the head of the writing prints the same sentence twice and
+    # reads as though the opinion began with it (the user, 2026-08-21: 'this
+    # is not part of the opinion its the headmatter'). The author stays on
+    # the object for every consumer of it; only the duplicate line goes.
+    _same = op.author and hm_sig and "".join(
+        _TAG.sub("", op.author).split()) in hm_sig
+    if op.author and not _same:
         parts.append(f'<div class="byline">{inline_to_html(op.author)}</div>')
     parts.append(_render_blocks(op.blocks))
     if op.signature:
@@ -288,6 +323,31 @@ def _render_removed(doc: m.Document) -> str:
     return "".join(out)
 
 
+_SOURCE_BANNER = {
+    "ocr-scan": (
+        "This document is a SCAN, read by OCR.",
+        "The text below is a machine's reading of a page image, not the "
+        "court's own type. The words are usable and the structure is real, "
+        "but every coordinate is the scanner's guess, spelling and spacing "
+        "may be wrong in ways nothing here can detect, and the page may "
+        "carry marks no text layer records. Do not treat this as an "
+        "authoritative transcription."),
+    "scan": (
+        "This document is a SCAN with no usable text layer.",
+        "Nothing was parsed. What follows is whatever little text the file "
+        "carries — a stamp, a header — and not the document."),
+}
+
+
+def _source_banner(kind: str) -> str:
+    """The bar that says what the paper is, before it says anything else."""
+    lead, rest = _SOURCE_BANNER.get(
+        kind, (f"Source kind: {kind}.",
+               "This document is not born-digital paper."))
+    return (f'<div class="srcbanner"><b>⚠ {escape(lead)}</b> {escape(rest)} '
+            f'<code>source={escape(kind)}</code></div>')
+
+
 def render_html(doc: m.Document, title: str | None = None) -> str:
     meta = doc.meta
     title = title or f"{meta.court_id} — {meta.doc_type}"
@@ -301,6 +361,17 @@ def render_html(doc: m.Document, title: str | None = None) -> str:
             f" · {meta.n_pages}pp</div>")
 
     body = [head]
+    # WHAT THE PAPER IS, SAID FIRST. A scan's OCR text layer reads exactly
+    # like a court's own type — same words, same order, no marker of any kind
+    # — so a reader who does not already know cannot tell, and neither can
+    # anything downstream. The chip row carried a '⚠' whose only explanation
+    # was a hover title (nevapp/ccmsi_v._odell: ten pages of 200dpi raster,
+    # graded A, indistinguishable from born-digital paper on the page). The
+    # banner states it, and `meta name="centralia-source"` states it again in
+    # a form a consumer can read without parsing the review furniture.
+    if meta.source_kind:
+        body.append(_source_banner(meta.source_kind))
+
     c = doc.criteria
     crit_rows = [(k, v) for k, v in (
         ("publication", c.publication_status),
@@ -311,6 +382,7 @@ def render_html(doc: m.Document, title: str | None = None) -> str:
         ("decided", c.decision_date),
         ("argued/submitted", c.submitted),
         ("judges", c.judges),
+        ("author", c.author),
         ("disposition", c.disposition),
         ("lower court", c.lower_court),
         ("lower court docket",
@@ -328,6 +400,7 @@ def render_html(doc: m.Document, title: str | None = None) -> str:
     if removed_html:
         body.append(removed_html)
 
+    _hm_sig = _hm_signature(doc)
     for spec in SECTIONS:
         if spec.html == "removed":
             continue  # rendered up top
@@ -366,7 +439,7 @@ def render_html(doc: m.Document, title: str | None = None) -> str:
         elif spec.html == "footnotes":
             inner = _render_footnotes(value)
         elif spec.html == "opinions":
-            inner = "".join(_render_opinion(op) for op in value)
+            inner = "".join(_render_opinion(op, _hm_sig) for op in value)
         else:
             raise ValueError(f"unknown html style {spec.html!r}")
         _sc = f' class="sec-{escape(spec.name)}"' if spec.name else ""
@@ -411,4 +484,6 @@ def render_html(doc: m.Document, title: str | None = None) -> str:
             f"</section>")
 
     return (f"<!doctype html><meta charset='utf-8'><title>{escape(title)}</title>"
+            f"<meta name='centralia-source' "
+            f"content='{escape(meta.source_kind or 'born-digital', quote=True)}'>"
             f"<style>{_CSS}</style>{''.join(body)}")

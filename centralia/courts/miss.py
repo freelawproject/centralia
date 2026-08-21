@@ -63,6 +63,16 @@ _MASTHEAD = re.compile(
     r"|COURT OF APPEALS OF THE STATE OF MISSISSIPPI)$", re.I)
 _DOCKET = re.compile(r"^NOS?\.\s*\d{4}-[A-Z]{1,3}-\d{4,5}(?:-[A-Z]{2,4})?"
                      r"(?:\s*(?:,|and|&)\s*[\dA-Z-]+)*$", re.I)
+# THE SECOND CONTRACT'S OWN MARKS (the en banc order, below).
+_EN_BANC = re.compile(r"^EN\s+BANC\s+ORDER\.?$", re.I)
+_SERIAL = re.compile(r"^Serial:\s*\d+$", re.I)
+# The e-filing strip the clerk lays across the head of the sheet.
+_EFILE_STRIP = re.compile(r"^Electronic\s+Document\b|^Pages:\s*\d+$", re.I)
+# A party's STATUS, set flush right against its name.
+_EB_STATUS = re.compile(
+    r"^(?:Petitioner|Respondent|Appellant|Appellee|Movant|Plaintiff"
+    r"|Defendant)s?\.?,?$", re.I)
+
 _AXIS_TOL = 10.0
 _MAX_PAGES = 2
 # The ladder's two columns, measured: labels at the body rail, values at 290.
@@ -137,7 +147,7 @@ def read_headmatter_miss(model, geom, **_):
     if len(rows) < 4:
         return NOTHING
     if not _MASTHEAD.match(_norm(" ".join(l.plain for l in rows[0]))):
-        return NOTHING
+        return _read_en_banc(rows, page1)
 
     ctx = _Ctx()
     caption: list[str] = []
@@ -337,8 +347,109 @@ class _Ctx:
             bold=all(bool(p.all_bold) for p in parts), role=role))
         self.consumed.update(p.id for p in parts)
 
+    def drop(self, group: list, kind: str) -> None:
+        parts = sorted(group, key=lambda l: l.x0)
+        if not parts:
+            return
+        self.dropped.append(m.Dropped(
+            text=_norm(" ".join(p.plain for p in parts))[:400],
+            prov=m.Prov(parts[0].page, tuple(p.id for p in parts)),
+            kind=kind or "furniture"))
+        self.consumed.update(p.id for p in parts)
+
     def result(self) -> dict:
         self.flush_ladder()
         return {"criteria": self.crit, "items": self.items, "attorneys": [],
                 "dropped": self.dropped, "consumed": self.consumed,
                 "anchor_ids": [], "doc_type_final": None}
+
+
+# --------------------------------------------------------------------------
+# THE SECOND CONTRACT — THE EN BANC ORDER
+# --------------------------------------------------------------------------
+#
+#  Electronic Document   Mar 20 2026 17:27:13   2026-JP-00306-SCT  Pages: 2
+#  Serial: 261995                                     the clerk's serial
+#            IN THE SUPREME COURT OF MISSISSIPPI      the masthead
+#                 No. 2026-JP-00306-SCT               the docket
+#  MISSISSIPPI COMMISSION ON JUDICIAL                 the caption, at the
+#  PERFORMANCE                                        rail — and on one
+#  v.                                                 record the docket and
+#  JAMES LITTLETON, LEFLORE COUNTY JUDGE              the STATUS share its
+#                 EN BANC ORDER                       rows
+#  This judicial performance matter is before …       the writing
+#
+# The court's other paper — the case-history ladder read above — opens on
+# its masthead, so the ladder reader gates on the first row being one. This
+# one opens on the clerk's e-filing strip and a serial number, and all three
+# records that print it came back with a headmatter nothing had claimed.
+#
+# WHAT SEPARATES THE BLOCK FROM THE WRITING IS THE TYPE. Everything down to
+# and including the banner is set BOLD and the order's prose is not, on all
+# three records — the same mark texcrimapp makes. The banner itself is left
+# to the writing, which is what names the paper.
+#
+# THE RIGHT-HAND COLUMN HOLDS TWO DIFFERENT THINGS. On harris it is the
+# party's status ('Petitioner' / 'Respondent') printed against the name; on
+# thomas it is the clerk's FILED stamp, struck across the caption in 9-24pt
+# against a 12.9pt body. The status is read; anything else standing there is
+# the stamp and is dropped.
+
+
+def _read_en_banc(rows: list, page1) -> dict:
+    """Read Mississippi's en banc order, or NOTHING."""
+    mast = next((i for i, g in enumerate(rows[:6])
+                 if _MASTHEAD.match(_norm(" ".join(l.plain for l in g)))),
+                None)
+    if mast is None:
+        return NOTHING
+    banner = next((i for i, g in enumerate(rows[mast + 1:], mast + 1)
+                   if _EN_BANC.match(_norm(" ".join(l.plain for l in g)))),
+                  None)
+    if banner is None:
+        return NOTHING            # not this paper
+
+    ctx = _Ctx()
+    caption: list[str] = []
+    rail = min(l.x0 for g in rows[:banner] for l in g)
+    for i, group in enumerate(rows[:banner]):
+        pieces = sorted(group, key=lambda l: l.x0)
+        text = _norm(" ".join(l.plain for l in pieces))
+        if not text:
+            continue
+        if i < mast:
+            # the e-filing strip and the clerk's serial, above the masthead
+            ctx.drop(pieces, "stamp")
+            continue
+        if i == mast:
+            ctx.crit.setdefault("court", text)
+            ctx.emit(pieces, "court")
+            continue
+        # THE ROW MAY CARRY THREE THINGS AT ONCE — the party at the rail,
+        # the docket on the axis and the status flush right — so each PIECE
+        # is placed on its own, in the order the page sets them. What it is
+        # decides first and where it stands decides only what is left: a
+        # party name may run well past the axis ('MISSISSIPPI COMMISSION ON
+        # JUDICIAL' reaches 323 of a 612pt sheet) and a column test alone
+        # threw two of the three captions away as stamps.
+        for piece in pieces:
+            one = _norm(piece.plain)
+            if not one:
+                continue
+            if _DOCKET.match(one):
+                ctx.crit.setdefault("docket_number", one)
+                ctx.emit([piece], "docket")
+            elif _EB_STATUS.match(one):
+                ctx.emit([piece], "caption", centre=False)
+            elif piece.x0 <= rail + 40.0:
+                if not _PIVOT.match(one):
+                    caption.append(one)
+                ctx.emit([piece], "caption", centre=False)
+            else:
+                ctx.drop([piece], "stamp")     # the clerk's FILED block
+    if not ctx.crit.get("docket_number") or not caption:
+        return NOTHING
+    ctx.crit.setdefault("parties", caption[:8])
+    ctx.crit.setdefault("caption", caption)
+    ctx.crit["headmatter_style"] = "en banc order"
+    return ctx.result()

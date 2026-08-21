@@ -812,3 +812,198 @@ tennctapp 8, wyo 7, nev 2, wash 2, bap1 1, ca11 1, ca6 1, wva 1.
 Companion negative result worth keeping: the ill defect (a public-domain
 citation wearing the `docket` role) was swept across all 82 readers and
 occurs NOWHERE else — it was genuinely isolated, and is fixed.
+
+## nh, from the three viewer 'nay' marks (checked 2026-08-21)
+
+The three marks are `contoocook_valley_sch._dist._v._state`, `state_v._dunbar`
+and `state_v._miller`. All three shas are STALE — the output has been
+re-rendered since they were set — so each was re-checked against its PDF
+rather than taken at face value.
+
+CLEARED, nothing left to do:
+
+    state_v._dunbar    8pp   every PDF line present bar the nine-line notice
+                             (correctly dropped); headmatter routes tribunal,
+                             docket, citation, caption and both dates; 20/20
+                             `[¶N]` open a paragraph; the PDF has no footnotes
+    state_v._miller   13pp   same, 47/47 paragraphs
+
+STILL OPEN:
+
+- **contoocook_valley: two separate writings buried in the lead opinion.**
+  A 48-page case with three writings; we render one, so pages 29–48 are
+  welded onto Bassett's lead opinion and credited to him. The court opens
+  each separate writing at the HEAD of a page on the paragraph indent
+  (x0 108.0 against a 72.0 rail), runs it on at the rail, and closes it on a
+  full stop whose last clause names the kind:
+
+      p29  COUNTWAY and DONOVAN, JJ., jointly concurring in Part II(B)
+           but otherwise dissenting.                        (2 rows)
+      p34  NADEAU, J., retired superior court chief justice, and ABRAMSON,
+           J., retired superior court justice, both specially assigned
+           under RSA 490:3, jointly concurring in part and dissenting in
+           part.                                            (3 rows)
+
+  `BylineGrammar(style="abbrev")` parses `BASSETT, J.` and returns None for
+  both of these — plural `JJ.`, two named judges, and a kind clause that
+  wraps across rows. A sweep of all 50 nh PDFs found these two page-heads
+  and no others, so this is ONE fact about how this court opens a separate
+  writing, and it belongs in a `writing.covers` provider in `nh.py`
+  (lactapp.py and mo.py are the models) — never as a relaxation of the
+  byline rule in core. Note the lead byline `BASSETT, J.` also stands at
+  108.0 but does NOT open its page (p3, top 285.3, under the appearances),
+  and the prose openers `[¶N]` hang at 103.6/103.7, not 108.0.
+
+- **`criteria.parties` carries the printed pivot — 32 of nh's 50 files.**
+  `nh.py:307` sets `parties` to the raw caption rows, `v.` row included, and
+  `render/html.py:353` joins that list with `" v. "`:
+
+      THE STATE OF NEW HAMPSHIRE v. v. v. JALEN MILLER
+      ROBERT MORRIS & a. v. v. v. COMMISSIONER, NEW HAMPSHIRE
+        DEPARTMENT OF REVENUE v. ADMINISTRATION
+
+  The second shows the other half of it: a party name that WRAPS becomes two
+  list entries and gets a pivot inserted between them. The fix is wyo's
+  `_party_names` — split the caption on its printed pivot rows and join each
+  run — and it must be a run-join, not a row-per-party. `case_name` is built
+  by a different path and reads correctly; leave it alone.
+
+## pacommwct, from the five viewer 'nay' marks (fixed 2026-08-21)
+
+THE FINDING THAT COVERED FOUR OF THE FIVE: **this court files its order as a
+separate paper, and gives every paper its own cover.** Swept over all 42
+records — each one ENDS with a fresh page carrying the masthead, the caption
+box and (on 41) the bench roster, then a centred bold order title ('O R D E R'
+letter-spaced on 35, 'ORDER' solid on 7), the 'AND NOW, …' decree and the
+signing judge. Four records staple further writings behind that, each on its
+own cover: abdulhay p27, giant_eagle p15, js_technology p51, passhe p19 and
+p24.
+
+Before this the order was never a writing on ANY of the 42 — it fell into the
+last paragraph of whatever came before it — and the repeated cover went with
+it, so the caption, the docket and the whole bench roster were published a
+second time inside the body of the opinion.
+
+Fixed in `courts/pacommwct.py` (`writing.covers`):
+- ✅ The cover is found by its own ink — masthead, then the box's rows (every
+  one carrying a glyph in the rail's own column, which `_rail`/`_is_rail`
+  already measure for page 1), then the roster. The paper begins at the first
+  row that is none of those; everything above it is dropped, RECORDED as
+  `kind="cover"`. Page 1 is exempt: its cover is the headmatter the reader
+  above has already claimed.
+- ✅ The order title is declared as a writing start. The title is
+  letter-spaced, which is a fact about glyphs and not words: 'O R D E R'
+  collapses to 'ORDER' once its spaces are shed.
+- ✅ `_ANN_HEAD` now admits a solidus in the kind. passhe files both forms —
+  'CONCURRING AND DISSENTING OPINION BY' (p24) and 'CONCURRING/DISSENTING
+  OPINION' (p19) — and a kind class of letters and spaces alone matched the
+  first and missed the second, so Judge Covey's writing was swallowed whole.
+
+Two core fixes fell out of it, both scoped to `headmatter_claimed`:
+- ✅ `assemble.py` — a doc-type anchor on page 1 is no longer pushed below the
+  caption band when a reader has claimed that band. The two cases the push
+  was written for (akd's 'ORDER OF DISMISSAL', ca9's 'MEMORANDUM*') are
+  caption CELLS of a caption still standing in the stream; where a reader took
+  those rows, a heading that survives inside the band's coordinates is the
+  writing's own title. pacommwct measures its band down to the announcement,
+  so 'MEMORANDUM OPINION BY' read as a cell and the anchor moved to page 2 —
+  city_of_lancaster came back as a 3-block 'majority' plus an 82-block
+  'order' opening on 'I. BACKGROUND'.
+- ✅ `assemble.py` — a `writing.covers` declaration AT the first writing (not
+  before it) is now honoured, and index 0 counts as the first writing when the
+  headmatter is claimed. The boundary does not move; the court is naming the
+  kind of the paper that already opens there. passhe's announcement is
+  'OPINION1' (this court hangs a footnote mark on the paper's own name), so
+  `heading_doc_type` did not recognise it, the head went unsigned, and an
+  unsigned head types `order` — the lead opinion of a 31-page en banc case
+  came back an order.
+
+Result: all 42 records now read `['majority', 'order']`, except the five that
+genuinely carry more — abdulhay (+concurrence), giant_eagle (+dissent),
+js_technology (+dissent), passhe (majority/order/dissent/dissent), and
+g._wilkins, whose order this court signs PER CURIAM.
+
+STILL OPEN, small:
+- **g._wilkins types its order `per-curiam`, not `order`.** Its cover is the
+  corpus's only per curiam one, and the row under it is 'PER CURIAM' rather
+  than the order title. That row names the order's author, so the paper opens
+  there — but core consults a declared kind ONLY in its unsigned branch, and
+  a parsed byline wins. Nothing is lost or misplaced; only the type is the
+  narrower fact. Fixing it means letting a declared kind outrank a parsed
+  byline's, which is a corpus-wide question about `assemble.py` and wants its
+  own sweep.
+- **js_technology's majority and order have an empty `author`.** The
+  announcement is 'OPINION BY' / 'PRESIDENT JUDGE COHN JUBELIRER' over two
+  rows and neither parses alone; the writing is typed right and placed right,
+  but the name never reaches `Opinion.author`. Same family as the note in the
+  `writing.covers` comment about 12 of 13 announcements not parsing.
+
+## cadc, from the three viewer 'nay' marks (2026-08-21)
+
+TWO OF THE THREE WERE ONE DEFECT: **the clerk's attestation was opening a
+writing.** This court closes every paper the way a federal appellate clerk
+does — the text, a centred `Per Curiam`, then
+
+    Per Curiam
+                                  FOR THE COURT:
+                                  Clifton B. Cislak, Clerk
+                                  BY: /s/  Daniel J. Reidy, Deputy Clerk
+
+That trailing `Per Curiam` is the paper's attribution; core read it as a
+byline opening a new writing, so the record grew a phantom per-curiam holding
+nothing but the signature block. 7 of cadc's 100 records: in_re_donald_trump_1
+('not tow opinions'), joe_neguse ('too many opinions'), alexander_kursar,
+heritage_foundation, jorge_lujan, national_trust…v._nps, new_york_times.
+
+- ✅ `assemble.py` — `_ATTEST` now admits the clerk's form. Core already had
+  the concept (a byline followed by an attestation is a signature, not a
+  start); its vocabulary was `WE CONCUR:` / `I DISSENT:` only. `FOR THE
+  COURT:` is anchored WHOLE, exactly as the others are, because the narrow
+  anchoring is what an earlier regression bought (idahoctapp/state_v._reyes).
+  The row occurs in 11 courts — vt 42, cadc 37, nmcca 36, afcca 32, cafc 29,
+  acca 13, ca2 8, lactapp 5, ilcd 2, washctapp 2, nj 1.
+  After: trump is one `order`, neguse is `order` + `concurrence`, and both
+  retain 100% of their PDF text.
+
+STILL OPEN — **vermont_information_processing…_adopted_proposed_judgment**,
+and deliberately not fixed, because every rule it wants would be built from
+ONE record:
+
+  It is an OCR SCAN (the only one in cadc) and it is not this court's paper at
+  all — it is an NLRB adopted-proposed-judgment packet of four stapled papers:
+
+      p1-2  JUDGMENT       masthead, caption, 'JUDGMENT', 'Before: Millett,
+                           Walker, and Pan, Circuit Judges', the THIS CAUSE
+                           recital, 'ORDERED AND ADJUDGED…', the judges'
+                           hand signatures (OCR renders them as garbage —
+                           `-=::1:c~:....t,•"'`), 'ENTERED:'
+      p3-5  ORDER          the Board's cease-and-desist terms, 'Mandate
+                           shall issue forthwith.', 'ENTERED:'
+      p6-7  APPENDIX       'NOTICE TO EMPLOYEES'
+      p8    CERTIFICATE OF SERVICE, over a repeat of the caption
+
+  All eight pages come back as ONE writing typed `order`, authored **'Ruth E.
+  Burdick'** — the NLRB Deputy Associate General Counsel who signed the
+  certificate of service on page 8. The court's own judges never reach the
+  record.
+
+  Why nothing was built for it, measured:
+  - its caption is a `)` rail, not the `_` fence the cadc reader is built on.
+    `parenthetical-box` is 1 of cadc's 100 records, and it is the ONLY cadc
+    record whose headmatter renders entirely unclaimed (the note's 'no
+    headmatter': the rows are all there, none carries a role). Teaching cadc
+    the `)` rail off one record is the mistake `[[misc-lane-2026-08-20]]`
+    already names — the `)` rail is per-court, never inherited.
+  - the packet shape is 1 of the whole corpus: only 10 rendered records
+    anywhere carry a 'CERTIFICATE OF SERVICE' (uscfc 3, mied 3, cadc 1,
+    texapp 1, nvd 1, ned 1, nev 1) and only this one is the NLRB packet.
+
+  What IS generalizable, and wants its own pass: **a `s/ <name>` standing
+  under a CERTIFICATE OF SERVICE is the filer's signature, never the
+  writing's author.** Of the 10 records above, mied's 'Judith E. Levy' and
+  uscfc's 'Brian H. Corcoran' are genuinely the judge and the special master,
+  but cadc's 'Ruth E. Burdick', ned's 'F. Beau Howard', nvd's 'Gina G.
+  Zayat', texapp's 'Kristian McCray Stewart' and nev's 'Kathryn Reynolds'
+  all look like counsel or clerks credited as authors. Confirming each
+  against its PDF is the work; the rule is one line in
+  `conformed_signature_author` once they are confirmed.

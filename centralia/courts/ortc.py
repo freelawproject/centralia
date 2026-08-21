@@ -285,16 +285,287 @@ def _page_frame(pm) -> tuple[float, float, float] | None:
     return None
 
 
+# --------------------------------------------------------------------------
+# B — the court's own filing, captioned against a stacked ')' rail
+# --------------------------------------------------------------------------
+
+# THE SECOND PAPER, MEASURED (2026-08-21). This file used to decline all 22 of
+# these records by name, on the ground that their rail "has not been measured
+# here". It is measured now, and it is the plainest cover in the corpus. All
+# 22 print exactly this and nothing else:
+#
+#     ┌──────────────────────────────────────────────────────────────────┐
+#     │              IN THE OREGON TAX COURT               the court     │
+#     │                MAGISTRATE DIVISION                 its division  │
+#     │                   Property Tax                     the subject   │
+#     │                                                                  │
+#     │ COVENANT PRESBYTERIAN CHURCH,      )                             │
+#     │ A MEMBER CONGREGATION OF THE       )               the caption,  │
+#     │ PRESBYTERY OF THE CASCADES,        )               two columns   │
+#     │     Plaintiff,                     )  TC-MD 250545R  against a   │
+#     │ v.                                 )               stacked ')'   │
+#     │ MULTNOMAH COUNTY ASSESSOR,         )                             │
+#     │     Defendant.                     )  ORDER        the docket    │
+#     │                                                    and the title │
+#     │ This matter is before the court on Defendant's …   the BODY      │
+#     └──────────────────────────────────────────────────────────────────┘
+#
+#   page          612x792 on all 22 (the advance sheet is 396x612, so the
+#                 sheet alone tells the two papers apart before a word is read)
+#   the banner    'IN THE OREGON TAX COURT' over 'MAGISTRATE DIVISION' (17)
+#                 or 'REGULAR DIVISION' (5) — 22 of 22
+#   the subject   'Property Tax' (9), 'Income Tax' (9), 'Mandamus; Review'
+#                 (2), 'Local Business Tax' (1), 'Personal Income Tax' (1)
+#   the rail      ')' stacked at x0 297 (17), 298 (4), 308 (1)
+#   the right     the docket ('TC-MD 250545R', 'TC 5500', 'TC 5477 (Control);
+#                 TC 5483') and the TITLE, bold and sometimes wrapped
+#                 ('DECISION', 'ORDER GRANTING DEFENDANT'S …')
+#
+# WHAT IS NOT ON THIS COVER: counsel, dates, a panel, a signature block.
+# Measured on all 22 — the row after the rail's last is the body's first on
+# every one of them. So the walk claims the banner and the box and stops; it
+# invents no ladder this paper does not print.
+_RAIL_GLYPH = ")"
+_RAIL_FLOOR = 4               # fewer stacked ')' than this is not a rail
+_RAIL_WINDOW = 12.0           # how far off the column a rail glyph may sit
+_RAIL_GAP = 20.0              # a break this wide ends the rail's own run
+_FILING_W, _FILING_H = 612.0, 792.0
+_COURT_ROW = re.compile(r"^IN THE OREGON TAX COURT$", re.I)
+_DIVISION = re.compile(r"^(?:MAGISTRATE|REGULAR)\s+DIVISION$", re.I)
+# The subject line the court prints under its division. Read as a SHORT
+# TITLE-CASE ROW rather than a closed vocabulary: 'Mandamus; Review' and
+# 'Local Business Tax' are already two forms outside any list worth writing,
+# and the row is pinned between the division above it and the rail below.
+_SUBJECT = re.compile(r"^[A-Z][A-Za-z]*(?:[;,]?\s+[A-Za-z]+){0,4}$")
+_TC_DOCKET = re.compile(r"\bTC(?:-MD|-RD)?\s*\d", re.I)
+# A party's POSITION, printed on its own rung a step in from the name. It is
+# not a party, so it is kept out of `Criteria.parties` while staying in the
+# caption the page prints.
+_PIVOT_ROW = re.compile(r"^(?:v\.?|vs\.?|and)$", re.I)
+_PARTY_STATUS = re.compile(
+    r"^(?:Plaintiffs?|Defendants?|Petitioners?|Respondents?|Relators?"
+    r"|Intervenors?|Appellants?|Appellees?|Plaintiff-Intervenors?"
+    r"|Defendant-Intervenors?)"
+    r"[\w\s/-]*[,.]?$", re.I)
+
+
+def _filing_rail(pm) -> dict | None:
+    """The caption's ')' column on a court filing, or None.
+
+    Read exactly as asbca, afcca and ca6 read theirs: the most common x0
+    among the page's ')' glyphs, kept only when enough of them stack there in
+    one contiguous run. A ')' that closes real text is not in the column."""
+    from collections import Counter
+    paren = [c for l in pm.lines for c in l.chars
+             if (c.get("text") or "") == _RAIL_GLYPH]
+    if len(paren) < _RAIL_FLOOR:
+        return None
+    x, _n = Counter(round(c["x0"]) for c in paren).most_common(1)[0]
+    stack = [c for c in paren if abs(c["x0"] - x) < _RAIL_WINDOW]
+    tops = sorted({round(c["top"], 1) for c in stack})
+    if not tops:
+        return None
+    runs: list[list[float]] = [[tops[0]]]
+    for t in tops[1:]:
+        if t - runs[-1][-1] > _RAIL_GAP:
+            runs.append([])
+        runs[-1].append(t)
+    band = max(runs, key=len)
+    stack = [c for c in stack
+             if band[0] - 0.5 <= round(c["top"], 1) <= band[-1] + 0.5]
+    if len(stack) < _RAIL_FLOOR:
+        return None
+    return {"x": float(x), "glyph": _RAIL_GLYPH,
+            "top": min(c["top"] for c in stack),
+            "bottom": max(c["bottom"] for c in stack)}
+
+
+def _replace_line(line, chars: list):
+    import dataclasses
+    return dataclasses.replace(
+        line, chars=chars,
+        x0=min(c["x0"] for c in chars),
+        x1=max(c.get("x1", c["x0"]) for c in chars))
+
+
+def _shed_rail(line, rail):
+    """``line`` without the rail's glyphs, or None when the line WAS the rail.
+    The glyph is identified by its COLUMN, never by its character — a ')'
+    closing a party's parenthetical is not the rail."""
+    lo, hi = rail["x"] - _RAIL_WINDOW, rail["x"] + _RAIL_WINDOW
+    ids = {id(c) for c in line.chars
+           if (c.get("text") or "") == rail["glyph"] and lo <= c["x0"] <= hi}
+    if not ids:
+        return line
+    kept = [c for c in line.chars if id(c) not in ids]
+    if not any((c.get("text") or "").strip() for c in kept):
+        return None
+    return _replace_line(line, kept)
+
+
+def _side(line, mid: float, want: str):
+    keep = [c for c in line.chars
+            if ((c["x0"] + c.get("x1", c["x0"])) / 2 < mid) == (want == "L")]
+    if not any((c.get("text") or "").strip() for c in keep):
+        return None
+    if len(keep) == len(line.chars):
+        return line
+    return _replace_line(line, keep)
+
+
+def _cell(cells: list, pm, role: str) -> m.HmLine:
+    if not cells:
+        return m.HmLine(text="", prov=m.Prov(pm.number, ()), role=role)
+    parts = sorted(cells, key=lambda l: l.x0)
+    text = ""
+    for part in parts:
+        piece = line_markup(part)
+        text = (text.rstrip() + "  " + piece.lstrip()) if text.strip() \
+            else piece
+    first = parts[0]
+    return m.HmLine(
+        text=text, prov=m.Prov(first.page, tuple(p.id for p in parts)),
+        align=m.Align.LEFT, x0=first.x0, size=first.size or 0.0,
+        bold=all(bool(p.all_bold) for p in parts), role=role)
+
+
+def _read_filing(model):
+    """Read the court's own filing, or NOTHING."""
+    pm = model.pages[0]
+    if abs(pm.width - _FILING_W) > 1.0 or abs(pm.height - _FILING_H) > 1.0:
+        return NOTHING
+    rail = _filing_rail(pm)
+    if rail is None:
+        return NOTHING
+
+    rows = _rows(pm)
+    if len(rows) < 5:
+        return NOTHING
+    flat = [_norm(" ".join(l.plain for l in g)) for g in rows]
+
+    # THE DISPATCH is the court naming itself over its division. Both rows,
+    # because 'IN THE OREGON TAX COURT' alone is also the advance sheet's
+    # masthead and this branch must never read that paper.
+    head = None
+    for i in range(min(4, len(rows) - 1)):
+        if _COURT_ROW.match(flat[i]) and _DIVISION.match(flat[i + 1]):
+            head = i
+            break
+    if head is None:
+        return NOTHING
+
+    ctx = _Ctx()
+    for i in range(head):
+        ctx.drop(rows[i], "stamp")
+    ctx.crit["court"] = flat[head]
+    ctx.emit(rows[head], "court")
+    ctx.emit(rows[head + 1], "court")
+    idx = head + 2
+    # The subject line, where the paper prints one: between the division and
+    # the rail, short, and not itself a caption row.
+    if idx < len(rows) and rows[idx][0].top < rail["top"] - 1.0 \
+            and _SUBJECT.match(flat[idx]):
+        ctx.crit["case_type"] = flat[idx]
+        ctx.emit(rows[idx], "case-info")
+        idx += 1
+
+    # ---- the box: every row the rail spans -------------------------------
+    # GROUPED BY BASELINE, not by `_rows`. `_rows` splits a printed row at a
+    # wide gap, which is right for the page head it was written for and wrong
+    # here: the caption's two columns ARE a wide gap, so every rung arrived as
+    # two groups and the box rendered 17 half-empty rungs where the page
+    # prints 11.
+    band: dict = {}
+    for line in pm.lines:
+        if not line.plain.strip():
+            continue
+        if not (rail["top"] - 1.0 <= line.top <= rail["bottom"] + 1.0):
+            continue
+        band.setdefault(round(line.top, 1), []).append(line)
+    box = [sorted(band[k], key=lambda l: l.x0) for k in sorted(band)]
+    if not box:
+        return NOTHING
+    mid = rail["x"]
+    left, right, left_txt, right_txt = [], [], [], []
+    for g in box:
+        l_cells, r_cells = [], []
+        for line in g:
+            shed = _shed_rail(line, rail)
+            if shed is None:
+                continue                      # the line WAS the rail
+            lo, hi = _side(shed, mid, "L"), _side(shed, mid, "R")
+            if lo is not None:
+                l_cells.append(lo)
+            if hi is not None:
+                r_cells.append(hi)
+        rt = _norm(" ".join(c.plain for c in sorted(r_cells,
+                                                    key=lambda c: c.x0)))
+        # THE RIGHT COLUMN SAYS TWO THINGS and the docket is the one with a
+        # number: 'TC-MD 250545R', 'TC 5477 (Control); TC 5483'. Everything
+        # else it prints is the paper naming itself — 'DECISION', 'ORDER
+        # GRANTING DEFENDANT'S MOTION' — which may wrap onto the next rung.
+        role_r = "docket" if _TC_DOCKET.search(rt) else "title"
+        if role_r == "docket":
+            ctx.crit.setdefault("docket_number", rt)
+        elif rt:
+            ctx.crit["title"] = (ctx.crit.get("title", "") + " " + rt).strip()
+        # A CELL'S ROLE IS ITS COLUMN, filled or not. The rail runs taller
+        # than either column's text, so most rungs are blank on one side, and
+        # what the role reports is which column the cell belongs to — not
+        # that it prints something. Left untinted they read as UNREAD rows:
+        # coverage fell to 48% on records whose every printed row was in fact
+        # claimed. asbca, afcca and ca6 all tag by column; this follows them.
+        left.append(_cell(l_cells, pm, "caption"))
+        right.append(_cell(r_cells, pm, role_r))
+        left_txt.append(_norm(" ".join(c.plain for c in sorted(
+            l_cells, key=lambda c: c.x0))))
+        right_txt.append(rt)
+        ctx.consumed.update(l.id for l in g)
+    # THE RAIL'S OWN RUN IS NOT THE CAPTION'S RHYTHM: once the glyphs are
+    # gone, a rung that held nothing else is empty on both sides and renders
+    # as a phantom blank row.
+    while left and not left_txt[-1] and not right_txt[-1]:
+        left.pop(), right.pop(), left_txt.pop(), right_txt.pop()
+    if not left:
+        return NOTHING
+    ctx.items.append(m.CaptionBlock(
+        left=left, right=right, rail=rail["glyph"], rail_rows=len(left),
+        style_id="parenthetical-box",
+        fp={"rail": rail["glyph"],
+            "rail_band": (rail["top"], rail["bottom"]), "mid_x": mid},
+        prov=m.Prov(pm.number, tuple(sorted(l.id for g in box for l in g)))))
+    # THE PARTIES ARE THE TWO SIDES OF THE PIVOT, not the rungs. `Criteria`
+    # renders `parties` as ' v. '.join(...), so one party per printed rung put
+    # a pivot inside a single name — 'COVENANT PRESBYTERIAN CHURCH, v. A
+    # MEMBER CONGREGATION OF THE v. PRESBYTERY OF THE CASCADES'. The caption
+    # block above keeps the rungs as printed; this joins each side.
+    sides: list[list[str]] = [[]]
+    for t in left_txt:
+        if not t:
+            continue
+        if _PIVOT_ROW.match(t):
+            sides.append([])
+            continue
+        if _PARTY_STATUS.match(t):
+            continue
+        sides[-1].append(t)
+    parties = [_norm(" ".join(part)) for part in sides if part]
+    if parties:
+        ctx.crit["parties"] = [p.rstrip(",") for p in parties][:8]
+    ctx.crit["headmatter_style"] = "court-filing"
+    return ctx.result()
+
+
 @decider("headmatter.read", court="ortc")
 def read_headmatter_ortc(model, geom, **_):
-    """Read the Oregon Tax Reports advance-sheet block, or NOTHING."""
+    """Read either of this court's two papers, or NOTHING."""
     if not model.pages:
         return NOTHING
-    # THE DISPATCH, part one: the page's own drawn measure. This is what
-    # refuses the 22 court-filing records without reading a word of them.
+    # THE DISPATCH, part one: the page's own drawn measure. This is what tells
+    # the advance sheet from the court's own filing without reading a word.
     frame1 = _page_frame(model.pages[0])
     if frame1 is None:
-        return NOTHING
+        return _read_filing(model)
 
     rows: list[tuple] = []          # (page, rail, axis, head_foot, [lines])
     for pm in model.pages[:_MAX_PAGES]:

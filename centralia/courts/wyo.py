@@ -287,6 +287,8 @@ class _Walk:
         self.dockets: list[str] = []
         self.origin: list[str] = []
         self.counsel: list[str] = []
+        # a rail row the appearances may yet claim (see `_row`)
+        self.pending: list | None = None
         self.panel_line: str | None = None
         self.title: str | None = None
 
@@ -391,6 +393,18 @@ class _Walk:
 
         if at_rail and (_PARA.match(text) or _BYLINE.match(text)):
             return False                        # the paper begins
+        if self.pending is not None:
+            # A HELD ROW IS ANSWERED BY THE NEXT ONE OR NOT AT ALL. Only the
+            # appearances can claim it, and nothing else may be read while
+            # it is open — a held row that goes unanswered was never tinted.
+            if first.x0 >= self.body_x0 + _INDENT_MIN \
+                    or (at_rail and _COUNSEL_LABEL.search(text)):
+                self.band = "counsel"
+                self._take_pending()
+                self.counsel.append(text)
+                self.ctx.emit(parts, "counsel", align=m.Align.LEFT)
+                return True
+            return False
         # ---- the four centred identifiers -------------------------------
         if _MASTHEAD.match(text):
             self.ctx.crit.setdefault("court", text)
@@ -456,7 +470,23 @@ class _Walk:
             self.counsel.append(text)
             self.ctx.emit(parts, "counsel", align=m.Align.LEFT)
             return True
+        # A LABEL MAY WRAP, AND THE COLON IS ON ITS LAST LINE. Measured on
+        # memorial_hospital, whose consolidated party name outruns the
+        # measure: 'Representing Memorial Hospital of Converse County-Advance
+        # Medicine, Hometown' at the rail, then 'Care:' at the rail under it.
+        # The first row matches nothing above, and the claim used to end
+        # there — taking the appearances, the roster and the revision notice
+        # of a two-page caption with it. The row is HELD, not claimed.
+        if at_rail and self.band in ("ladder", "counsel"):
+            self.pending = parts
+            return True
         return False
+
+    def _take_pending(self) -> None:
+        """Emit a held rail row as the label it turned out to open."""
+        held, self.pending = self.pending, None
+        self.counsel.append(_norm(" ".join(l.plain for l in held)))
+        self.ctx.emit(held, "counsel", align=m.Align.LEFT)
 
     # -- the parsed forms ------------------------------------------------
     def finish(self) -> None:

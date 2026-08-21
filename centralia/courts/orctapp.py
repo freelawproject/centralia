@@ -107,6 +107,7 @@ import re
 from .. import model as m
 from ..resolve.evidence import NOTHING, decider
 from ..resolve.footnotes import line_markup
+from ..resolve.furniture import FurnitureFinder
 
 STYLE = "advance sheet"
 
@@ -125,6 +126,14 @@ _AXIS_TOL = 4.0
 _CENTRED_WIDTH_MAX = 295.0
 # The ladder: an opener stands ~15pt in from the rail, a wrap at the rail.
 _LADDER_X_MAX = 22.0
+# THE DISPOSITION STATEMENT'S OWN INDENT. Below the byline the reporter sets
+# one short statement of what the court did, opening 15pt in from the page's
+# rail and wrapping back to it — the same ladder fact this reader already uses
+# above, and the same 15pt or.py measured on the Supreme Court's half of the
+# very same volume. MEASURED over all 42 records: openers at x0 60.0 and 64.5,
+# wraps at 45.0 and 49.5, which is the recto/verso rail alternation this
+# module's docstring documents.
+_SUMMARY_INDENT = 15.0
 # The paper is 11pt (2,288 rows). The reporter's apparatus is 8pt (84) and its
 # block quotations 10pt (42); nothing the block prints is under 11pt.
 _BODY_SIZE_MIN = 10.5
@@ -207,6 +216,15 @@ def read_headmatter_orctapp(model, geom, **_):
     rows = _rows(model, _MAX_PAGES)
     if len(rows) < 6:
         return NOTHING
+    # `_rows` deliberately keeps every printed line — this reader finds its
+    # bearings from the drawn rule, not from core's furniture guess. But the
+    # disposition statement below the byline is bounded by the FOOT of its
+    # page, so that one pass asks core what the page's furniture is rather
+    # than sweeping the folio into the summary.
+    finder = FurnitureFinder(model,
+                             geom.body_x0 if geom and geom.body_x0 else rail,
+                             geom.body_size if geom and geom.body_size
+                             else _BODY_SIZE_MIN)
 
     def centred(group) -> bool:
         x0 = min(l.x0 for l in group)
@@ -291,6 +309,7 @@ def read_headmatter_orctapp(model, geom, **_):
 
     # ---- the caption band, then the ladder ------------------------------
     in_caption = True
+    signed_at: tuple[int, float] | None = None
     for group in rows[mast:]:
         pieces = sorted(group, key=lambda l: l.x0)
         text = _norm(" ".join(l.plain for l in pieces))
@@ -301,6 +320,7 @@ def read_headmatter_orctapp(model, geom, **_):
 
         # THE BYLINE ENDS THE READER and is never claimed.
         if _BYLINE.match(text) or _PER_CURIAM.match(text):
+            signed_at = (pieces[0].page, pieces[0].top)
             break
 
         if in_caption and centred(group):
@@ -360,6 +380,51 @@ def read_headmatter_orctapp(model, geom, **_):
     if panel:
         ctx.crit.setdefault(
             "judges", re.sub(r"^Before\s+", "", " ".join(panel)).strip(" ."))
+    # THE REPORTER'S DISPOSITION STATEMENT IS NOT THE OPINION. The byline
+    # stands over a short statement of what the court did — 'Reversed.',
+    # 'Vacated and remanded.', 'Reconsideration allowed; former opinion
+    # modified and adhered to as modified.', 'In Case No. 24CR16542, general
+    # judgment of dismissal reversed and remanded. …' — and then the page ends
+    # and the opinion PROPER opens on the next leaf. Read as the writing's
+    # opening it made 40 of the 42 records begin with their own outcome
+    # ('Reversed. … In this consolidated juvenile dependency case, parents
+    # appeal jurisdictional judgments'). This is the same fact or.py records
+    # for the Supreme Court's half of the same advance-sheet volume, and the
+    # user asked for it here (2026-08-21).
+    #
+    # MEASURED over all 42: 39 sign, and the rows below the signature on its
+    # own page number 1 on 32 records, 2 on 6 and 3 on 1 — never more. That
+    # bound is tighter than or's 3-8 because this court states its outcome in
+    # a sentence and its Supreme Court states it in a paragraph. Nothing below
+    # the signature's own page is touched.
+    #
+    # THE SIGNATURE ROW ITSELF IS LEFT WHERE IT IS: it is the anchor core
+    # opens the writing on and the only place this paper names the author, so
+    # a reader that claimed it would cost the document its byline.
+    # THE SUMMARY IS A FLOW SECTION — `sections.py` declares it "flow", so it
+    # carries PARAGRAPHS and not rows; HmLine rows put there take the renderer
+    # down (`_render_blocks: HmLine`). The statement wraps, so it is rebuilt
+    # on the reporter's own indent.
+    if signed_at is not None:
+        _pg, _top = signed_at
+        _page = model.pages[_pg - 1]
+        _tail = [l for l in sorted(_page.lines, key=lambda l: (l.top, l.x0))
+                 if l.top > _top + 1.0 and l.plain.strip()
+                 and not finder.kind(_page, l)
+                 and not (l.size and l.size < _BODY_SIZE_MIN)]
+        if _tail:
+            _rail = min(l.x0 for l in _tail)
+            _paras: list[list] = []
+            for _line in _tail:
+                if not _paras or _line.x0 > _rail + _SUMMARY_INDENT / 2:
+                    _paras.append([_line])
+                else:
+                    _paras[-1].append(_line)
+            for _run in _paras:
+                ctx.summary.append(m.Paragraph(
+                    text=" ".join(_norm(l.plain) for l in _run),
+                    prov=m.Prov(_run[0].page, tuple(l.id for l in _run))))
+                ctx.consumed.update(l.id for l in _run)
     ctx.crit["headmatter_style"] = STYLE
     return ctx.result()
 
@@ -419,6 +484,7 @@ class _Ctx:
         self.consumed: set[int] = set()
         self.crit: dict = {}
         self.attorneys: list = []
+        self.summary: list = []
 
     def emit(self, group: list, role: str, centre: bool = True) -> None:
         parts = sorted(group, key=lambda l: l.x0)
@@ -453,6 +519,6 @@ class _Ctx:
 
     def result(self) -> dict:
         return {"criteria": self.crit, "items": self.items,
-                "attorneys": self.attorneys,
+                "attorneys": self.attorneys, "summary": self.summary,
                 "dropped": self.dropped, "consumed": self.consumed,
                 "anchor_ids": [], "doc_type_final": None}

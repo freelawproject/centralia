@@ -463,6 +463,7 @@ class _Ctx:
         self.consumed: set[int] = set()
         self.dropped: list = []
         self.crit: dict = {}
+        self.announced: str = ""
 
     def row(self, cells: list, role: str):
         """A visual ROW, which the page may have set as two cells ('No.
@@ -500,6 +501,7 @@ class _Ctx:
     def result(self, anchor_ids=()):
         return {"criteria": self.crit, "items": self.items, "attorneys": [],
                 "dropped": self.dropped, "consumed": self.consumed,
+                "announced_author": self.announced,
                 "anchor_ids": list(anchor_ids), "doc_type_final": None}
 
 
@@ -707,12 +709,37 @@ def _read(model, geom, rows, stamped, band):
             break                         # the writing starts here
         if byline_at is not None and (line.page, line.top) == (
                 byline_at.page, byline_at.top):
-            # THE BYLINE STAYS IN THE STREAM: core builds the author from
-            # it, and a claim would leave the writing unsigned. Its own
-            # block (the joined-roster tail) goes with it.
+            # THE BANNER IS THE START OF THE OPINION, SO EVERYTHING ABOVE IT
+            # IS HEADMATTER — the byline announcement included (the user,
+            # 2026-08-21: 'shouldn't it be easy to identify the OPINION
+            # bolded and centered as the start of the opinion … and make
+            # things headmatter before it').
+            #
+            # This reader used to leave the announcement in the stream so
+            # core could build the author from it, and that cost the block
+            # its ROSTER TAIL. Core welds the announcement's wrapped second
+            # row on only where the first row breaks MID-WORD ('…in which
+            # JILL BART' / 'AYERSand…' — collins); where it breaks at a word
+            # boundary ('…in which TIMOTHY L.' / 'EASTER and JILL BARTEE
+            # AYERS, JJ., joined.' — powell) the continuation was orphaned on
+            # 12 of the 40 signed records. Worse, that orphan then became the
+            # writing's FIRST BLOCK, so the opinion opened one row above the
+            # court's own banner and dragged the appearances with it: the
+            # reader claimed powell's five counsel rows and core's 'a writing
+            # is never bisected' invariant reunited every one of them into
+            # the body.
+            #
+            # So the whole announcement is claimed, and the joined text is
+            # handed to core as `announced_author` — which signs the lead
+            # writing with the court's own grammar precisely when the stream
+            # holds no byline of its own. The author now comes from the
+            # JOINED block, so a mid-word wrap reads whole too.
             idx = index[id(line)]
             end, whole = block_at.get(idx, (idx + 1, text))
             _panel(ctx, whole)
+            for k in range(idx, end):
+                ctx.row(vrows[k], "author")
+            ctx.announced = whole
             signed = True
             if end >= len(vrows):
                 break

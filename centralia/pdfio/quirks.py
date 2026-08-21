@@ -518,14 +518,19 @@ def merge_interleaved(lines: list, event) -> list:
 
 def tag_underlined_chars(rects: list, lines: list,
                          offset_min: float = -2.5,
-                         offset_max: float = 5.0) -> None:
+                         offset_max: float = 5.0,
+                         skip: set | None = None) -> None:
     """Mark chars underlined by a hairline rect near the baseline
     (sets ``_underline=True`` on the char dicts). The char box's bottom
     includes descender space, so a true underline may measure slightly
     ABOVE it (nh draws at −1.3pt) — a strike-through sits at −4 and
-    below, outside the window."""
+    below, outside the window.
+
+    ``skip``: rect ids withheld from the pass — a drawn table's cell borders
+    sit exactly where an underline sits (see pdfio.tables.row_edge_rects)."""
     hairlines = [r for r in rects
-                 if r.get("height", 0) < 2 and (r["x1"] - r["x0"]) > 6]
+                 if r.get("height", 0) < 2 and (r["x1"] - r["x0"]) > 6
+                 and not (skip and id(r) in skip)]
     if not hairlines:
         return
     for line in lines:
@@ -544,3 +549,178 @@ def tag_underlined_chars(rects: list, lines: list,
                 if r["x0"] - 1 <= cmid <= r["x1"] + 1:
                     c["_underline"] = True
                     break
+
+
+# --------------------------------------------------------------------------
+# redaction boxes
+# --------------------------------------------------------------------------
+
+# A name blacked out for privacy is DRAWN, not written: the PDF fills a small
+# black rectangle where the glyphs stood, and the text layer says nothing at
+# all. Read as text the sentence loses its subject — acca/kindschi says "the
+# victim ran into SPC who testified" 31 times over — and when the box is the
+# last thing on a line, that line ends bare and the paragraph below welds
+# itself on ("B. Victim's Statement to SPC" fused into "Appellant alleges").
+#
+# So the box becomes what it replaced: chars. One block glyph per glyph-width
+# of box, at the box's own place in the line, CLONED FROM THE LINE'S OWN TYPE
+# so every later stage measures it like any other word. The clone keeps the
+# template's top/bottom and size rather than the rect's: the box is drawn a
+# little taller than the type it covers, and a line's band and its measured
+# top are load-bearing (see build_page's topping pass).
+#
+# The size window is what separates a redaction from the other black things a
+# court draws, and it is deliberately SMALL: only a box the size of a word.
+# MEASURED, and the band between the two populations is empty — acca's 31
+# redactions run 14.7-33.2pt wide and 8.4-12.6pt tall (a name), while the
+# black fills of njd 512314.29 and nynd 141588.92 run 124-468pt wide and are
+# NOT redactions at all (the user read those pages, 2026-08-21). The cap sits
+# in the empty band. A wider redaction is therefore MISSED, not misread,
+# which is the safe direction: a bar stamped over a rule would delete a
+# document's furniture boundary. Rules proper never reach this pass —
+# collect_rules takes rects under 2.5pt in one dimension.
+_REDACT_MIN_W = 6.0
+_REDACT_MAX_W = 72.0
+_REDACT_MIN_H = 4.0
+_REDACT_MAX_H = 26.0
+# How far from the box its line's nearest glyph may sit and still make the box
+# INLINE. A redaction stands in a sentence, touching the words on either side;
+# a black square alone in the middle of a figure is not a lost name.
+_REDACT_INLINE_GAP = 24.0
+REDACTION_GLYPH = "█"          # FULL BLOCK — N of them are one solid bar
+
+
+def _is_black_fill(rect) -> bool:
+    if not rect.get("fill"):
+        return False
+    nsc = rect.get("non_stroking_color")
+    if isinstance(nsc, (list, tuple)):
+        return bool(nsc) and all(v == 0 for v in nsc)
+    return nsc in (0, 0.0)
+
+
+def insert_redaction_boxes(rects: list, lines: list, event,
+                           skip: set | None = None) -> None:
+    """Turn each blacked-out box into block glyphs inside its own line.
+
+    ``skip``: rect ids withheld — a drawn table's cell borders and fills are
+    not redactions (see pdfio.tables.row_edge_rects)."""
+    boxes = []
+    for r in rects:
+        if skip and id(r) in skip:
+            continue
+        if not _is_black_fill(r):
+            continue
+        w = r["x1"] - r["x0"]
+        h = r.get("height", r["bottom"] - r["top"])
+        if _REDACT_MIN_W <= w <= _REDACT_MAX_W and _REDACT_MIN_H <= h <= _REDACT_MAX_H:
+            boxes.append(r)
+    if not boxes:
+        return
+    n_boxes = 0
+    for line in lines:
+        chars = line.get("chars") or []
+        ink = [c for c in chars if (c.get("text") or "").strip()]
+        if not ink:
+            continue
+        top = min(c["top"] for c in ink)
+        bottom = max(c["bottom"] for c in ink)
+        # The line's own glyph advance, so a wide box loses more glyphs than a
+        # narrow one and the bar keeps the name's length.
+        widths = sorted((c["x1"] - c["x0"]) for c in ink
+                        if (c.get("text") or "") != " ")
+        glyph_w = widths[len(widths) // 2] if widths else 5.0
+        if glyph_w <= 0.5:
+            glyph_w = 5.0
+        added = []
+        for r in boxes:
+            if r.get("_redaction_used"):
+                continue
+            cy = (r["top"] + r["bottom"]) / 2
+            if not (top - 1.0 <= cy <= bottom + 1.0):
+                continue
+            # REVERSE VIDEO IS NOT A REDACTION: a black box with glyphs of its
+            # own is a highlighted word (its white type is already gone —
+            # drop_white_glyphs ran first), and stamping blocks over it would
+            # delete text the court wrote.
+            if any(r["x0"] - 0.5 <= (c["x0"] + c["x1"]) / 2 <= r["x1"] + 0.5
+                   for c in ink):
+                continue
+            near = min((max(r["x0"] - c["x1"], c["x0"] - r["x1"], 0.0)
+                        for c in ink), default=None)
+            if near is None or near > _REDACT_INLINE_GAP:
+                continue
+            template = min(ink, key=lambda c: max(r["x0"] - c["x1"],
+                                                  c["x0"] - r["x1"], 0.0))
+            n = max(1, int(round((r["x1"] - r["x0"]) / glyph_w)))
+            step = (r["x1"] - r["x0"]) / n
+            for i in range(n):
+                c = dict(template)
+                c["text"] = REDACTION_GLYPH
+                c["x0"] = r["x0"] + i * step
+                c["x1"] = r["x0"] + (i + 1) * step
+                c["width"] = step
+                c["_redaction"] = True
+                c.pop("_underline", None)
+                added.append(c)
+            r["_redaction_used"] = True
+            n_boxes += 1
+        if not added:
+            continue
+        chars.extend(added)
+        chars.sort(key=lambda c: c["x0"])
+        line["chars"] = chars
+        line["x0"] = min(c["x0"] for c in chars)
+        line["x1"] = max(c["x1"] for c in chars)
+        line["text"] = "".join(c.get("text") or "" for c in chars)
+    for r in boxes:
+        r.pop("_redaction_used", None)
+    if n_boxes:
+        event("redaction", f"{n_boxes} blacked-out boxes read as block glyphs")
+
+
+# --------------------------------------------------------------------------
+# glyph rails
+# --------------------------------------------------------------------------
+
+# A COLUMN OF ONE GLYPH IS A RAIL, NOT A RUN OF FOOTNOTE LABELS. A pleading
+# caption is ruled with a stacked glyph — ')' (asbca, ortc, ca6), ':'
+# (njtaxct), '§' (texbizct) — and each glyph is a line of its own beside the
+# party column. Three of those characters are also FOOTNOTE LABELS, so a
+# '§'-only line read as a label opened a note on the caption row beside it:
+# texbizct/energy_founders_fund_v._daskevich published eleven of its own
+# caption rows as headmatter footnotes, '§PHILLIP DASKEVICH and CRIS',
+# '§CURNUTT DASKEVICH, both' … (the user, 2026-08-21).
+#
+# What separates the two is the COLUMN. A label stands once; a rail stacks.
+# The test is therefore three or more single-glyph lines of the SAME character
+# at the SAME x — which no footnote series satisfies, because a court that
+# labels its notes with symbols walks the series ('*', '†', '‡') rather than
+# repeating one glyph, and numbered notes are not one character three times.
+_RAIL_STACK_MIN = 3
+_RAIL_X_WINDOW = 3.0
+
+
+def tag_rail_glyphs(lines: list, event) -> None:
+    """Mark the glyphs of a stacked one-character rail (``_rail=True``)."""
+    stacks: dict = {}
+    for ln in lines:
+        chars = [c for c in (ln.get("chars") or [])
+                 if (c.get("text") or "").strip()]
+        if len(chars) != 1:
+            continue
+        c = chars[0]
+        stacks.setdefault(((c.get("text") or ""),
+                           round(c["x0"] / _RAIL_X_WINDOW)), []).append(c)
+    total = 0
+    glyphs: set = set()
+    for (glyph, _x), cs in stacks.items():
+        if len(cs) < _RAIL_STACK_MIN:
+            continue
+        for c in cs:
+            c["_rail"] = True
+        total += len(cs)
+        glyphs.add(glyph)
+    if total:
+        event("glyph-rail",
+              f"{total} stacked {sorted(glyphs)} glyphs tagged as a rail")

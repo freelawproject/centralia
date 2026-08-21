@@ -6,6 +6,7 @@ There is no second parse of any page, ever.
 """
 
 from .build import build_pdf
-from .model import DrawnRule, Line, PageModel, PdfModel, VRule
+from .model import DrawnRule, Line, PageModel, PdfModel, TableGrid, VRule
 
-__all__ = ["build_pdf", "DrawnRule", "Line", "PageModel", "PdfModel", "VRule"]
+__all__ = ["build_pdf", "DrawnRule", "Line", "PageModel", "PdfModel",
+           "TableGrid", "VRule"]

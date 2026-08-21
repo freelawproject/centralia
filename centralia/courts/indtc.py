@@ -132,6 +132,14 @@ _APPEAR_HEAD = re.compile(
     r"^(?:ATTORNEYS?\s+FOR\b|(?:PETITIONERS?|RESPONDENTS?)\s+APPEARING\b"
     r"|ATTORNEYS?\s+AT\s+LAW\b)", re.I)
 _PIVOT = re.compile(r"^v\.?$|^vs\.?$", re.I)
+
+
+def _IS_CAPS(text: str) -> bool:
+    """The row is set in CAPITALS. The court's titles are; the opinion's
+    prose, which shares the cover's last band with them, is not."""
+    letters = [c for c in text if c.isalpha()]
+    return bool(letters) and all(c.isupper() for c in letters)
+
 _STATUS_WORDS = frozenset(
     ("petitioner", "petitioners", "respondent", "respondents", "appellant",
      "appellants", "appellee", "appellees", "intervenor", "intervenors",
@@ -365,6 +373,8 @@ def read_headmatter_indtc(model, geom, **_):
     caption_rows: list[str] = []
     right_plain: list[str] = []
     origin: list[str] = []
+    origin_band = None
+    title: list[str] = []
     appearing = False
     last_band = None
     for group in rows:
@@ -435,14 +445,16 @@ def read_headmatter_indtc(model, geom, **_):
             continue
         if _ORIGIN.match(text):
             origin.append(text)
+            origin_band = band
             ctx.emit(group, "lower-court", centre=centred)
             continue
-        if origin and centred and not _PUBLICATION.match(text) \
-                and not _DATE.match(text):
+        if origin and centred and band == origin_band \
+                and not _PUBLICATION.match(text) and not _DATE.match(text):
             # THE ORIGIN RUNS ON: 'ON APPEAL FROM A FINAL DETERMINATION OF' /
             # 'THE DEPARTMENT OF LOCAL GOVERNMENT FINANCE'. The wrap names
             # the tribunal and nothing else on this cover stands where it
-            # stands.
+            # stands — IN THE ORIGIN'S OWN BAND. Unbounded, the wrap rule
+            # reached across the next fence and took the TITLE below it.
             origin.append(text)
             ctx.emit(group, "lower-court", centre=centred)
             continue
@@ -456,6 +468,22 @@ def read_headmatter_indtc(model, geom, **_):
         if _DATE.match(text):
             ctx.crit.setdefault("decision_date", text.rstrip("."))
             ctx.emit(group, "date", centre=centred)
+            continue
+        if band and centred and _IS_CAPS(text):
+            # WHAT THE PAPER IS CALLED. Five records set a title over the
+            # writing — 'ORDER ON PARTIES\u2019 CROSS-MOTIONS FOR SUMMARY
+            # JUDGMENT', 'ORDER GRANTING RESPONDENT\u2019S MOTION TO DISMISS',
+            # 'FINAL DECISION ON REHEARING' / 'PURSUANT TO INDIANA APPELLATE
+            # RULE 63(B)' — and no landmark above claimed them, so core
+            # opened the writing THERE and the publication flag and the date
+            # printed BELOW it were carried into the opinion's first
+            # paragraph. Read on three marks the corpus measures together
+            # and nothing else on this cover carries: ALL CAPS, CENTRED, and
+            # INSIDE A FENCED BAND. The band is what keeps it off the
+            # opinion's own centred all-caps headings ('FACTS AND PROCEDURAL
+            # HISTORY'), which stand below the last fence, in band 0.
+            title.append(text)
+            ctx.emit(group, "title", centre=True)
             continue
         # A ROW AT NO POSITION THIS PAPER USES is left to core rather than
         # tinted with a role that would be a guess.
@@ -478,6 +506,8 @@ def read_headmatter_indtc(model, geom, **_):
             ctx.crit["other_dockets"] = numbers[1:]
     if origin:
         ctx.crit.setdefault("lower_court", " ".join(origin)[:2000])
+    if title:
+        ctx.crit.setdefault("title", _norm(" ".join(title)))
     sides = _sides(caption_rows)
     if sides:
         ctx.crit.setdefault("parties", list(sides))

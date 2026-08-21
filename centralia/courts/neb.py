@@ -44,18 +44,28 @@ of them measured over all 50 records:
     11.0    the COURT's own text: caption, origin, counsel, panel, opinion
 
 Nothing here is keyed to a page number or a row ordinal. The DISPATCH is
-the running-head pair, found in the first three non-furniture rows of page
-1 and present on all 50 records: 'Nebraska Supreme Court Advance Sheets'
-over '<volume> Nebraska Reports'. Every role below is anchored to that
-landmark or to the one before it.
+the running head 'Nebraska Supreme Court Advance Sheets', found in the first
+three non-furniture rows of page 1 and present on all 50 records. Every
+role below is anchored to that landmark or to the one before it.
 
-THE PAGE-1 RUNNING HEADS ARE THIS READER'S TO DROP. Core's FurnitureFinder
-identifies the folio, the library stamp and the 8pt heads on every page and
-the 10.5pt pair on pages 2..n — but NOT the 10.5pt pair on page 1, because
-a first page's top rows are where a caption normally lives. Left unclaimed
-they stand immediately above the caption this reader claims, one row from
-the top of the block, which is exactly where an unclaimed row is most
-dangerous. They are dropped as `running-head`.
+THE VOLUME LINE BELOW IT IS CORROBORATION, NOT A REQUIREMENT (2026-08-21).
+This reader was written when core handed page 1 the whole running-head PAIR
+— 'Advance Sheets' over '<volume> Nebraska Reports' — and it dispatched on
+both rows. Core's FurnitureFinder now identifies the volume line as the
+running head it is (it repeats on every page) and drops it before `_rows`
+returns, so the pair arrives as one row: the dispatch failed on ALL 50
+records and this reader returned NOTHING for every one of them while
+looking, and grading, entirely correct. The lesson is in the count that
+proves the fix — `heads` measures how many rows the pair actually occupies
+and every index is taken from it, so the reader reads either vintage.
+
+THE PAGE-1 RUNNING HEADS ARE THIS READER'S TO DROP. Core identifies the
+folio, the library stamp and the 8pt heads on every page — but not the
+10.5pt 'Advance Sheets' row on page 1, because a first page's top rows are
+where a caption normally lives. Left unclaimed it stands immediately above
+the caption this reader claims, one row from the top of the block, which is
+exactly where an unclaimed row is most dangerous. It is dropped as
+`running-head`.
 
 THE CLAIM MUST BE CONTIGUOUS, and here that means the SYLLABUS is claimed.
 Nebraska prints no byline above its numbered points, so a reader that took
@@ -272,16 +282,30 @@ def read_headmatter_neb(model, geom, **_):
     if len(rows) < 6:
         return NOTHING
 
-    # ---- the dispatch: the running-head pair, near the top of page 1 -----
-    head = None
-    for idx in range(min(_HEAD_SEARCH, len(rows) - 1)):
+    # ---- the dispatch: the running head, near the top of page 1 ---------
+    # THE PAIR IS NOW A SINGLE ROW, and this reader read the second half of
+    # it. Core's FurnitureFinder identifies '<vol> Nebraska Reports' as a
+    # running head — it repeats on every page — so by the time `_rows`
+    # returns, page 1 opens on the 'Advance Sheets' row alone and the volume
+    # line is already gone. Requiring the pair failed the dispatch on ALL 50
+    # records and the whole reader returned NOTHING (the third inert-reader
+    # shape after vt's missing import and wyo's premature gate: a landmark
+    # that core learned to drop underneath it).
+    #
+    # The dispatch is therefore the 'Advance Sheets' row, and the volume
+    # line is CORROBORATION WHERE IT SURVIVES, never a requirement: `heads`
+    # counts the rows the pair actually occupies here, and every index below
+    # is taken from that count rather than from a fixed offset.
+    head = heads = None
+    for idx in range(min(_HEAD_SEARCH, len(rows))):
         if rows[idx][0].page != 1:
             break
         if _norm(_text(rows[idx])).lower() != _ADVANCE_SHEETS:
             continue
-        if _VOLUME_HEAD.match(_norm(_text(rows[idx + 1]))):
-            head = idx
-            break
+        head = idx
+        heads = 2 if (idx + 1 < len(rows)
+                      and _VOLUME_HEAD.match(_norm(_text(rows[idx + 1])))) else 1
+        break
     if head is None:
         return NOTHING
 
@@ -290,7 +314,7 @@ def read_headmatter_neb(model, geom, **_):
     # the volume's own furniture. Core drops it on pages 2..n but not here,
     # and an unclaimed row one step above the caption is what opens a
     # phantom writing over the whole block.
-    for idx in range(head + 2):
+    for idx in range(head + heads):
         ctx.drop(rows[idx], "running-head")
 
     # ---- the caption: 11pt, centred on the page axis, 2-6 rows ----------
@@ -298,7 +322,7 @@ def read_headmatter_neb(model, geom, **_):
     # at a row count. Measured: all 151 caption rows in the corpus are
     # 11.0pt and centred on the axis to 0.0pt.
     cap_rows: list[str] = []
-    idx = head + 2
+    idx = head + heads
     while idx < len(rows) and not _VOL_CITE.match(_norm(_text(rows[idx]))):
         group = rows[idx]
         if (group[0].size or 0.0) < _COURT_SIZE_MIN:

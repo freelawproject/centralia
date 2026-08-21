@@ -2449,3 +2449,59 @@ over 'oc: Prothonotary' — and will still, correctly, find no author.)
 
 Wants its own guard run: any court whose document tail carries a 'Name, Judge'
 line is in its blast radius.
+
+## uscgcoca: a judge whose SURNAME is Judge (`resolve/bylines.py:516`)
+
+From the uscgcoca port (32 records, all A, headmatter 572/572 rows read).
+Everything else this court needed was a DATA declaration; this is the one
+thing a court file cannot reach.
+
+`_prose_parse` rejects any byline whose name token is a bench word:
+
+    # A judge's SURNAME is never itself a bench word: a wrapped byline
+    # continuation opening 'Judge, …' must not read as a byline.
+    if name.rstrip(".").lower() in _BENCH_WORDS:
+        return None
+
+The Coast Guard CCA seats a judge named **Judge**. Its roster prints
+`MCCLELLAND, JUDGE & BRUBAKER` on 9 of the 32 records, and
+`united_states_v._reimonenq_1` signs `JUDGE, Judge:` — measured, the ONLY
+signing in the corpus that does not parse. The record comes back typed
+`order` with no author, and it is the last of the 4 remaining `v1diff`
+rows for this court (the other 3 are the ruled orders, which v1 typed
+`opinion` because v1 never read a title on this court and which this
+engine types `order` because the page prints `ORDER` under a rule).
+
+**Proved it is core's, not the reader's** — with the decider popped from
+`_DECIDERS` the record fails identically (`order`, no author).
+
+**Proposed patch**, one line, keeping the trap the guard was written for
+(a WRAPPED byline continuation opening `Judge, …`, which is title-case and
+unterminated):
+
+    if name.rstrip(".").lower() in _BENCH_WORDS and not (
+            is_caps_name(name) and text.rstrip().endswith(":")):
+        return None
+
+Replayed against the three shapes: `JUDGE, Judge:` -> admitted (caps +
+colon); `Judge, and the panel further held that` -> still rejected;
+`Judge, Circuit Judge` -> still rejected. Not applied here — it is a core
+change and wants its own guarded pass.
+
+### Also from this port, for the record
+
+- **`geom.body_x0` is not a rail on a short slip.** uscgcoca sets its
+  measure at 72 and indents paragraphs to 108; on `galliano` (2 pages,
+  mostly indented openers) `geometry.measure` returns `body_x0=108.0`, and
+  every zone offset taken from it named the wrong zone — the reader filed
+  the trial recital and the trial judge as counsel and the counsel as
+  panel. Fixed inside the court file by measuring the rail off the page
+  (the first row the court LABELS), but the general shape is worth a
+  shared measurement: *the measure is the leftmost sustained rail, not the
+  commonest one*. Same family as nmcca's `head_band_max_top` note.
+- **A two-column row has a midpoint too.** `Military Judges: … CAPT
+  Christine N. Cutter, USCG (trial)` runs 108.0-490.7 and centres 6.6pt
+  off a 612pt page's axis, against a caption row (flores's recital) 4.6pt
+  off it. No centring tolerance separates those two. A rail must be asked
+  before the axis, always — recorded here because every court with a label
+  grid will meet it.

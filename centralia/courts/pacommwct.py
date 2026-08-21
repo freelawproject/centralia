@@ -343,18 +343,54 @@ def read_headmatter_pacommwct(model, geom, **_):
             idx += 1
             continue
 
-        # ---- the byline: its DATE is the headmatter's, the byline is the
-        # ---- writing's, and the reader stops here ------------------------
+        # ---- the announcement: THE LAST THING THE HEADMATTER SAYS --------
+        # THIS COURT ANNOUNCES ITS AUTHOR; IT DOES NOT SIGN. The cover closes
+        # on two rows — what the paper is, then who wrote it, with the filing
+        # date flush right beside one of them:
+        #
+        #     OPINION
+        #     PER CURIAM                       FILED: June 26, 2026
+        #     ─────────── end of headmatter ───────────
+        #     Glue Wilkins (Requestor) petitions pro se for review …
+        #
+        # They were left to core as the writing's byline, which put them at
+        # the head of the opinion with the filing date as its first paragraph.
+        # They are the headmatter's last rows, and that is where they now go
+        # (the user, 2026-08-21) — the paper's name as `title`, the judge as
+        # `author`, the date as `date`. `HmLine.role` has carried `author` for
+        # exactly this all along: 'who the caption says WROTE it, where a
+        # court announces its author instead of signing' (model.py).
+        #
+        # THE WRITING STILL OPENS WHERE IT DID: `writing_covers_pacommwct`
+        # declares its start at the body row below, and the ids go to
+        # `anchor_ids` besides, so a record whose cover this reader claims can
+        # never come back with no opinion at all.
         if state == "after" and _is_byline(pieces):
+            # The fold is not part of the paper's name: the court breaks
+            # 'OPINION BY' across the two rows when the judge's name will not
+            # sit beside it, so the trailing 'BY' belongs to neither.
+            _paper = re.sub(r"\s+BY$", "", _pieces_minus_filed(pieces),
+                            flags=re.I)
+            ctx.crit.setdefault("title", _paper)
+            ctx.emit(pieces, "title", centre=False)
             _claim_filed(ctx, pieces)
+            ctx.anchor.extend(p.id for p in pieces)
             # THE PAPER'S NAME AND THE JUDGE'S NAME STAND ON TWO ROWS, and
             # the 'FILED:' piece sits on one of them (the title row on
-            # norman, the name row on the other 41). Both are inspected;
-            # neither byline row is claimed.
+            # norman, the name row on the other 41).
             if idx + 1 < len(rows):
                 nxt = sorted(rows[idx + 1], key=lambda l: l.x0)
                 if _is_signer(nxt):
+                    _said = re.sub(r"^BY\s+", "",
+                                   _pieces_minus_filed(nxt), flags=re.I)
+                    if _said:
+                        ctx.crit.setdefault("author", _said)
+                    _named = [p for p in nxt
+                              if not _FILED.match(_norm(p.plain))]
+                    if _named:
+                        ctx.emit(_named, "author", centre=False)
                     _claim_filed(ctx, nxt)
+                    ctx.anchor.extend(p.id for p in nxt)
             break
 
         # ---- a row at no position this paper uses ------------------------
@@ -683,6 +719,7 @@ class _Ctx:
         self.dropped: list = []
         self.consumed: set[int] = set()
         self.crit: dict = {}
+        self.anchor: list[int] = []
 
     def _line(self, parts: list, role: str, align, rel: float) -> m.HmLine:
         first = parts[0]
@@ -728,7 +765,7 @@ class _Ctx:
     def result(self) -> dict:
         return {"criteria": self.crit, "items": self.items, "attorneys": [],
                 "dropped": self.dropped, "consumed": self.consumed,
-                "anchor_ids": [], "doc_type_final": None}
+                "anchor_ids": self.anchor, "doc_type_final": None}
 
 
 # --------------------------------------------------------------------------
@@ -777,8 +814,12 @@ class _Ctx:
 # judge and may carry it instead. The lead announcement stands on page 1 and
 # every separate writing on page 2 or later, but position is not the test —
 # the printed words are.
+# The kind may carry a SOLIDUS. passhe files both forms — 'CONCURRING AND
+# DISSENTING OPINION BY' on page 24 and 'CONCURRING/DISSENTING OPINION' on
+# page 19 — and a kind class of letters and spaces alone matched the first
+# and missed the second, so Judge Covey's writing was swallowed whole.
 _ANN_HEAD = re.compile(
-    r"^(?P<kind>(?:[A-Z][A-Z ]*\s)?OPINION)\d*(?:\s+BY)?$")
+    r"^(?P<kind>(?:[A-Z][A-Z /\-]*\s)?OPINION)\d*(?:\s+BY)?$")
 _ANN_NAME = re.compile(
     r"^(?:BY\s+)?(?:PRESIDENT\s+|SENIOR\s+|ACTING\s+)?"
     r"(?:JUDGE|JUSTICE)\s+\S.*$|^PER\s+CURIAM$", re.I)
@@ -788,13 +829,83 @@ _ANN_PLAIN = ("opinion", "memorandum opinion")
 _ANN_RAIL_TOL = 10.0
 
 
+# --------------------------------------------------------------------------
+# THE COVER — every paper this court files opens on one
+# --------------------------------------------------------------------------
+# THIS COURT FILES ITS ORDER AS A SEPARATE PAPER, and gives every paper its
+# own front sheet. Measured over all 42 records: each one ENDS with a fresh
+# page carrying the masthead, the caption box and (on 41) the bench roster,
+# and below that a centred bold order title — 'O R D E R' letter-spaced on
+# 35 records, 'ORDER' set solid on 7 — then the 'AND NOW, …' decree and the
+# signing judge. Four records staple further writings behind that, each on
+# its own cover: abdulhay p27, giant_eagle p15, js_technology p51, passhe
+# p19 and p24.
+#
+# WHAT THAT COST, before this: the order was never a writing on ANY of the
+# 42 records — it fell into the last paragraph of whatever came before it —
+# and the repeated cover went with it, so the caption, the docket and the
+# whole bench roster were published a second time inside the body of the
+# opinion (the user, 2026-08-21: 'needs to look at page 51 which is the
+# start of the dissent… its a caption and stuff but most of it should be
+# removed and not added to the prior opinion', and 'there is an order at
+# the bottom of the opinion that should be its own thing it hts headmatter
+# should be rmeoved').
+#
+# THE COVER IS FOUND BY ITS OWN INK, never by wording. The page opens on the
+# masthead; below it stand the box's rows — every one carrying a glyph in
+# the rail's own column, which `_rail` and `_is_rail` already measure for
+# page 1 — and then the roster, which names each judge with the court's own
+# honorific. The paper begins at THE FIRST ROW THAT IS NONE OF THOSE, and
+# everything above it is apparatus already read once from page 1.
+#
+# PAGE 1 IS NOT A REPEAT. Its cover is the document's headmatter and the
+# reader above has claimed it, so nothing is dropped there; only the
+# announcement start applies.
+#
+# THE ORDER'S OWN TITLE IS LETTER-SPACED, which is a fact about the glyphs
+# and not about the words: 'O R D E R' collapses to 'ORDER' once its spaces
+# are shed, and core's `heading_doc_type` already types that row `order`.
+# The declared kind is what makes it one on the records where the title is
+# the first thing under the cover; where the court signs the order PER
+# CURIAM first (g._wilkins p6, the corpus's only per curiam record) that row
+# opens the paper instead, because it names the order's author, and core
+# types the writing from the byline it parses there.
+_ORDER_TITLE = re.compile(r"^ORDER$", re.I)
+# How far below the cover the title may stand before the page is not an
+# order page at all: measured, it is the very next row on 41 of the 42 and
+# the row after 'PER CURIAM' on g._wilkins.
+_ORDER_LOOKAHEAD = 3
+
+
+def _cover_end(pm, rows: list) -> int | None:
+    """Index of the first row BELOW a repeated cover, or None where this
+    page does not carry one."""
+    if not rows or not _MASTHEAD.match(_norm(" ".join(
+            l.plain for l in rows[0]))):
+        return None
+    rail_x = _rail(pm)
+    i = 1
+    while i < len(rows):
+        text = _norm(" ".join(l.plain for l in rows[i]))
+        if rail_x is not None and _is_rail(rows[i], rail_x):
+            i += 1
+            continue
+        if _BEFORE.match(text) or _ROSTER_ROW.match(text):
+            i += 1
+            continue
+        break
+    return i if i < len(rows) else None
+
+
 @decider("writing.covers", court="pacommwct")
 def writing_covers_pacommwct(model=None, geom=None, **_):
-    """Where each writing opens, and the kind its announcement states."""
+    """Where each writing opens, the kind it states, and the cover rows
+    that are the paper's front sheet rather than its text."""
     if model is None:
         return NOTHING
     rail = geom.body_x0 if geom and geom.body_x0 else 72.0
     starts: dict[int, str] = {}
+    drop: list[int] = []
     for pm in model.pages:
         rows: dict = {}
         for line in pm.lines:
@@ -813,6 +924,46 @@ def writing_covers_pacommwct(model=None, geom=None, **_):
             if not _ANN_NAME.match(" ".join(nxt[0].plain.split())):
                 continue
             kind = " ".join(said.group("kind").split()).lower()
-            starts[pieces[0].id] = ("majority" if kind in _ANN_PLAIN
-                                    else kind.replace(" opinion", ""))
-    return {"starts": starts, "drop": []} if starts else NOTHING
+            _kind = ("majority" if kind in _ANN_PLAIN
+                     else kind.replace(" opinion", ""))
+            # THE FIRST ANNOUNCEMENT IS THE HEADMATTER'S, so the writing under
+            # it opens on the BODY row below, not on the announcement itself.
+            # `read_headmatter_pacommwct` claims those two rows — the paper's
+            # name and the judge — and a writing that opened on them would
+            # take them straight back out of the headmatter, which is the
+            # bisection invariant doing exactly what it is for.
+            #
+            # Only the FIRST. Every later paper carries its own announcement
+            # on its own cover page, and that one is its byline: claimed into
+            # the headmatter instead, a four-writing record would list four
+            # authors on one cover and none on the papers themselves.
+            _first = pm.number == 1 and not starts
+            if _first and i + 2 < len(tops):
+                _body = sorted(rows[tops[i + 2]], key=lambda l: l.x0)
+                starts[_body[0].id] = _kind
+            else:
+                starts[pieces[0].id] = _kind
+        # ---- the cover, and the paper that opens under it ---------------
+        if pm.number == 1:
+            continue
+        groups = [sorted(rows[t], key=lambda l: l.x0) for t in tops]
+        end = _cover_end(pm, groups)
+        if end is None:
+            continue
+        head = groups[end]
+        # THE PAPER MUST NAME ITSELF for the cover to be one. An
+        # announcement already declared above, or the order's own title
+        # within reach below — anything else is a page this reader does not
+        # recognise, and it is left whole rather than have its head cut off.
+        titled = any(_ORDER_TITLE.match(_norm(" ".join(
+                         l.plain for l in groups[k])).replace(" ", ""))
+                     for k in range(end, min(end + _ORDER_LOOKAHEAD + 1,
+                                             len(groups))))
+        if head[0].id not in starts:
+            if not titled:
+                continue
+            starts[head[0].id] = "order"
+        drop.extend(l.id for g in groups[:end] for l in g)
+    if not starts and not drop:
+        return NOTHING
+    return {"starts": starts, "drop": drop}

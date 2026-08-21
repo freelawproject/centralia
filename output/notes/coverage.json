@@ -9,12 +9,10 @@
 ]
 },
 "acca/united_states_v._captain_lamario_d._thomas": {
-"miss": 4,
-"ratio": 0.9988,
+"miss": 2,
+"ratio": 0.9994,
 "src": 3262,
 "top": [
-"judge",
-"the",
 "continued",
 "crim"
 ]
@@ -32,32 +30,20 @@
 "top": []
 },
 "acca/united_states_v._major_stephen_l._nelson": {
-"miss": 4,
-"ratio": 0.9988,
+"miss": 3,
+"ratio": 0.9991,
 "src": 3303,
 "top": [
 "evid\u00d72",
-"testimony",
 "emphasis"
 ]
 },
 "acca/united_states_v._master_sergeant_rafael_ayuso": {
-"miss": 108,
-"ratio": 0.9171,
+"miss": 1,
+"ratio": 0.9992,
 "src": 1303,
 "top": [
-"the\u00d713",
-"was\u00d74",
-"and\u00d73",
-"statement\u00d73",
-"appellant\u00d72",
-"ssg\u00d72",
-"unsworn\u00d72",
-"evidence\u00d72",
-"which\u00d72",
-"sentenced\u00d72",
-"reduced\u00d72",
-"grade\u00d72"
+"consequenc"
 ]
 },
 "acca/united_states_v._private_first_class_elijah_t._munn": {
@@ -75,31 +61,30 @@
 "top": []
 },
 "acca/united_states_v._sergeant_anderson_a._antepara": {
-"miss": 2,
-"ratio": 0.9992,
+"miss": 1,
+"ratio": 0.9996,
 "src": 2469,
 "top": [
-"they",
 "quoting"
 ]
 },
 "acca/united_states_v._sergeant_first_class_valentino_g._varlaro": {
-"miss": 21,
-"ratio": 0.9921,
+"miss": 17,
+"ratio": 0.9936,
 "src": 2650,
 "top": [
 "regardless\u00d72",
 "his",
 "willfully",
-"one",
 "ucmj",
-"which",
 "but",
-"with",
 "consideration",
 "legal",
-"who",
-"art"
+"art",
+"transferred",
+"albeit",
+"emphasis",
+"press"
 ]
 },
 "acca/united_states_v._sergeant_grebil_diazjimenez": {
@@ -111,14 +96,11 @@
 ]
 },
 "acca/united_states_v._sergeant_rene_alfaro": {
-"miss": 14,
-"ratio": 0.9977,
+"miss": 9,
+"ratio": 0.9985,
 "src": 6120,
 "top": [
-"the\u00d72",
 "app\u00d72",
-"citation\u00d72",
-"which",
 "crim",
 "denied",
 "confidential",
@@ -129,15 +111,13 @@
 ]
 },
 "acca/united_states_v._sergeant_tyler_a._kindschi": {
-"miss": 8,
-"ratio": 0.996,
+"miss": 3,
+"ratio": 0.9985,
 "src": 1980,
 "top": [
-"the\u00d74",
 "excited",
 "crying",
-"tears",
-"that"
+"tears"
 ]
 },
 "acca/united_states_v._specialist_derek_s._aranzamendi": {
@@ -158,41 +138,33 @@
 ]
 },
 "acca/united_states_v._specialist_isaiah_m._rice": {
-"miss": 22,
-"ratio": 0.9856,
+"miss": 8,
+"ratio": 0.9948,
 "src": 1533,
 "top": [
-"the\u00d79",
 "ucmj\u00d72",
 "stating\u00d72",
-"and",
-"appellant",
-"was",
 "germany",
 "another",
 "point",
-"did",
-"thereby",
-"citation"
+"thereby"
 ]
 },
 "acca/united_states_v._specialist_jaimin_p._prajapati": {
-"miss": 122,
-"ratio": 0.9075,
+"miss": 12,
+"ratio": 0.9909,
 "src": 1319,
 "top": [
-"the\u00d78",
-"and\u00d74",
-"that\u00d74",
-"not\u00d74",
-"sexual\u00d74",
-"nature\u00d73",
-"elicit\u00d73",
-"was\u00d72",
 "after\u00d72",
-"conduct\u00d72",
-"have\u00d72",
-"military\u00d72"
+"ati\u00d72",
+"appellant",
+"trial",
+"your",
+"including",
+"led",
+"otherwise",
+"requires",
+"rajapati"
 ]
 },
 "acca/united_states_v._specialist_jesus_o._navarro": {
@@ -205,33 +177,30 @@
 ]
 },
 "acca/united_states_v._specialist_jonas_c._santaella": {
-"miss": 21,
-"ratio": 0.9871,
+"miss": 15,
+"ratio": 0.9908,
 "src": 1623,
 "top": [
 "appellant\u00d73",
-"the\u00d72",
-"who\u00d72",
 "testified\u00d72",
-"before",
 "this",
-"that",
 "prior",
+"who",
 "including",
 "texting",
-"then",
-"defense"
+"defense",
+"based",
+"non",
+"sant",
+"aella"
 ]
 },
 "acca/united_states_v._specialist_kiashaun_j._williams-clark": {
-"miss": 17,
-"ratio": 0.9948,
+"miss": 13,
+"ratio": 0.996,
 "src": 3268,
 "top": [
-"the\u00d72",
-"which",
 "hen",
-"one",
 "sexual",
 "she",
 "but",
@@ -239,73 +208,60 @@
 "applying",
 "ucm",
 "provided",
-"cleaned"
+"cleaned",
+"occurring",
+"pet",
+"denied"
 ]
 },
 "acca/united_states_v._specialist_kiashaun_j._williams-clark_1": {
-"miss": 106,
-"ratio": 0.7289,
+"miss": 0,
+"ratio": 1.0,
 "src": 391,
-"top": [
-"the\u00d77",
-"and\u00d75",
-"army\u00d74",
-"sexual\u00d73",
-"under\u00d73",
-"that\u00d72",
-"both\u00d72",
-"separate\u00d72",
-"not\u00d72",
-"transaction\u00d72",
-"time\u00d72",
-"each\u00d72"
-]
+"top": []
 },
 "acca/united_states_v._specialist_tayron_d._davis": {
-"miss": 27,
-"ratio": 0.9958,
+"miss": 19,
+"ratio": 0.997,
 "src": 6360,
 "top": [
 "davis\u00d78",
-"the\u00d74",
 "emphasis\u00d72",
-"concurring\u00d72",
 "this",
 "defense",
 "ucmj",
 "crim",
-"review",
 "caaf",
-"which",
-"like"
+"hears",
+"const",
+"amend",
+"concurring"
 ]
 },
 "acca/united_states_v._staff_sergeant_david_m._ingram": {
-"miss": 28,
-"ratio": 0.9975,
+"miss": 24,
+"ratio": 0.9978,
 "src": 11081,
 "top": [
-"the\u00d72",
 "must\u00d72",
 "copyof\u00d72",
 "does",
-"when",
 "despite",
 "upon",
 "emphasis",
-"its",
 "crim",
 "bythe",
-"theymayreveal"
+"theymayreveal",
+"technologynow",
+"worthyof",
+"authorityto"
 ]
 },
 "acca/united_states_v._staff_sergeant_manuel_a._erb": {
-"miss": 8,
-"ratio": 0.9946,
+"miss": 5,
+"ratio": 0.9966,
 "src": 1476,
 "top": [
-"the\u00d72",
-"reply",
 "defense",
 "cleaned",
 "rendering",
@@ -41459,36 +41415,28 @@
 "top": []
 },
 "minn/adrian_dominic_riley_v._state_of_minnesota": {
-"miss": 1,
-"ratio": 0.9997,
+"miss": 0,
+"ratio": 1.0,
 "src": 2919,
-"top": [
-"syllabus"
-]
+"top": []
 },
 "minn/alvin_glay_trustee_for_the_next_of_kin_of_unity_mcgill": {
-"miss": 1,
-"ratio": 0.9999,
+"miss": 0,
+"ratio": 1.0,
 "src": 7673,
-"top": [
-"syllabus"
-]
+"top": []
 },
 "minn/andrew_vernard_glover_v._state_of_minnesota": {
-"miss": 1,
-"ratio": 0.9997,
+"miss": 0,
+"ratio": 1.0,
 "src": 3210,
-"top": [
-"syllabus"
-]
+"top": []
 },
 "minn/benda_for_common-sense_a_minnesota_non-profit_corporation_v._denise": {
-"miss": 1,
-"ratio": 0.9995,
+"miss": 0,
+"ratio": 1.0,
 "src": 2009,
-"top": [
-"syllabus"
-]
+"top": []
 },
 "minn/cedric_lamont_berry_v._state_of_minnesota": {
 "miss": 1,
@@ -41503,7 +41451,7 @@
 "ratio": 0.9996,
 "src": 7051,
 "top": [
-"syllabus",
+"because",
 "provides",
 "reasonableness"
 ]
@@ -41513,7 +41461,7 @@
 "ratio": 0.9997,
 "src": 3825,
 "top": [
-"syllabus"
+"exception"
 ]
 },
 "minn/dennis_walsh_v._city_of_orono_minnesota": {
@@ -41523,93 +41471,74 @@
 "top": []
 },
 "minn/erin_lindsay_v._minneapolis_public_school_district_ssd1_self-insured": {
-"miss": 1,
-"ratio": 0.9998,
+"miss": 0,
+"ratio": 1.0,
 "src": 4456,
-"top": [
-"syllabus"
-]
+"top": []
 },
 "minn/in_re_petition_for_disciplinary_action_against_bradley_j._haddy_a": {
-"miss": 1,
-"ratio": 0.9999,
+"miss": 0,
+"ratio": 1.0,
 "src": 9785,
-"top": [
-"syllabus"
-]
+"top": []
 },
 "minn/in_re_petition_for_disciplinary_action_against_herbert_a._igbanugo_a": {
-"miss": 2,
-"ratio": 0.9996,
+"miss": 1,
+"ratio": 0.9998,
 "src": 5481,
 "top": [
-"syllabus",
 "pjshb"
 ]
 },
 "minn/in_re_petition_for_disciplinary_action_against_samuel_a._mccloud_a": {
-"miss": 1,
-"ratio": 0.9998,
+"miss": 0,
+"ratio": 1.0,
 "src": 4939,
-"top": [
-"syllabus"
-]
+"top": []
 },
 "minn/in_re_petition_for_reinstatement_of_herbert_a._igbanugo_a_minnesota": {
-"miss": 1,
-"ratio": 0.9996,
+"miss": 0,
+"ratio": 1.0,
 "src": 2642,
-"top": [
-"syllabus"
-]
+"top": []
 },
 "minn/in_re_petition_for_reinstatement_of_registration_no._0191139": {
-"miss": 1,
-"ratio": 0.9996,
+"miss": 0,
+"ratio": 1.0,
 "src": 2642,
-"top": [
-"syllabus"
-]
+"top": []
 },
 "minn/in_the_matter_of_a_public_safety_officer_death_benefit_for_eric_william": {
-"miss": 3,
-"ratio": 0.9996,
+"miss": 2,
+"ratio": 0.9997,
 "src": 7691,
 "top": [
-"ofduty\u00d72",
-"syllabus"
+"ofduty\u00d72"
 ]
 },
 "minn/in_the_matter_of_the_civil_commitment_of_leah_christina_graeber": {
-"miss": 1,
-"ratio": 0.9999,
+"miss": 0,
+"ratio": 1.0,
 "src": 7858,
-"top": [
-"syllabus"
-]
+"top": []
 },
 "minn/in_the_matter_of_the_minnesota_racing_commissions_approval_of_running_aces": {
-"miss": 1,
-"ratio": 0.9996,
+"miss": 0,
+"ratio": 1.0,
 "src": 2591,
-"top": [
-"syllabus"
-]
+"top": []
 },
 "minn/in_the_matter_of_the_sirs_appeal_by_best_care_llc": {
+"miss": 0,
+"ratio": 1.0,
+"src": 11723,
+"top": []
+},
+"minn/in_the_matter_of_the_sirs_appeal_by_best_care_llc_1": {
 "miss": 1,
 "ratio": 0.9999,
 "src": 11723,
 "top": [
-"syllabus"
-]
-},
-"minn/in_the_matter_of_the_sirs_appeal_by_best_care_llc_1": {
-"miss": 2,
-"ratio": 0.9998,
-"src": 11723,
-"top": [
-"syllabus",
 "tha"
 ]
 },
@@ -41623,95 +41552,75 @@
 ]
 },
 "minn/james_michael_green_v._state_of_minnesota": {
-"miss": 1,
-"ratio": 0.9998,
+"miss": 0,
+"ratio": 1.0,
 "src": 5947,
-"top": [
-"syllabus"
-]
+"top": []
 },
 "minn/jaycee_cooper_v._usa_powerlifting_usa_powerlifting_minnesota_on_related": {
-"miss": 1,
-"ratio": 0.9999,
+"miss": 0,
+"ratio": 1.0,
 "src": 7086,
-"top": [
-"syllabus"
-]
+"top": []
 },
 "minn/melissa_ann_lorsung_v._commissioner_of_public_safety": {
-"miss": 1,
-"ratio": 0.9998,
+"miss": 0,
+"ratio": 1.0,
 "src": 5139,
-"top": [
-"syllabus"
-]
+"top": []
 },
 "minn/pascp_inc._relator_commissioner_of_revenue": {
-"miss": 3,
-"ratio": 0.9986,
+"miss": 2,
+"ratio": 0.9991,
 "src": 2195,
 "top": [
-"syllabus",
 "record",
 "showing"
 ]
 },
 "minn/petition_of_minnesota_housing_finance_new_certificate_of_title_after": {
-"miss": 1,
-"ratio": 0.9996,
+"miss": 0,
+"ratio": 1.0,
 "src": 2564,
-"top": [
-"syllabus"
-]
+"top": []
 },
 "minn/rebecca_a._niebuhr_v._jacob_sieberg_timothy_sieberg": {
-"miss": 1,
-"ratio": 0.9998,
+"miss": 0,
+"ratio": 1.0,
 "src": 4961,
-"top": [
-"syllabus"
-]
+"top": []
 },
 "minn/state_of_minnesota_appellantcross-respondent_v._seneca_warrior_steeprock": {
-"miss": 1,
-"ratio": 0.9999,
+"miss": 0,
+"ratio": 1.0,
 "src": 8513,
-"top": [
-"syllabus"
-]
+"top": []
 },
 "minn/state_of_minnesota_office_of_the_attorney_general_v._madison_equities_inc.": {
-"miss": 2,
-"ratio": 0.9998,
+"miss": 1,
+"ratio": 0.9999,
 "src": 11050,
 "top": [
-"syllabus",
 "anda"
 ]
 },
 "minn/state_of_minnesota_v._adam_taylor_fravel": {
-"miss": 1,
-"ratio": 0.9999,
+"miss": 0,
+"ratio": 1.0,
 "src": 9348,
-"top": [
-"syllabus"
-]
+"top": []
 },
 "minn/state_of_minnesota_v._alfredo_torrez": {
-"miss": 1,
-"ratio": 0.9997,
+"miss": 0,
+"ratio": 1.0,
 "src": 3225,
-"top": [
-"syllabus"
-]
+"top": []
 },
 "minn/state_of_minnesota_v._anthony_richard_smeby": {
-"miss": 1,
-"ratio": 0.9998,
+"miss": 0,
+"ratio": 1.0,
 "src": 5300,
-"top": [
-"syllabus"
-]
+"top": []
 },
 "minn/state_of_minnesota_v._atravius_joseph_weeks": {
 "miss": 1,
@@ -41722,12 +41631,10 @@
 ]
 },
 "minn/state_of_minnesota_v._brian_russell_lueck": {
-"miss": 1,
-"ratio": 0.9997,
+"miss": 0,
+"ratio": 1.0,
 "src": 2916,
-"top": [
-"syllabus"
-]
+"top": []
 },
 "minn/state_of_minnesota_v._deshon_israel_bonnell": {
 "miss": 0,
@@ -41736,11 +41643,10 @@
 "top": []
 },
 "minn/state_of_minnesota_v._ivan_contreras-sanchez": {
-"miss": 2,
-"ratio": 0.9998,
+"miss": 1,
+"ratio": 0.9999,
 "src": 11573,
 "top": [
-"syllabus",
 "optin"
 ]
 },
@@ -41751,37 +41657,30 @@
 "top": []
 },
 "minn/state_of_minnesota_v._jennifer_lynn_nagle": {
-"miss": 1,
-"ratio": 0.9996,
+"miss": 0,
+"ratio": 1.0,
 "src": 2776,
-"top": [
-"syllabus"
-]
+"top": []
 },
 "minn/state_of_minnesota_v._jeremiah_quan_turner": {
-"miss": 2,
-"ratio": 0.9996,
+"miss": 1,
+"ratio": 0.9998,
 "src": 4648,
 "top": [
-"syllabus",
 "ofcounsel"
 ]
 },
 "minn/state_of_minnesota_v._lisa_dawn_oliver": {
-"miss": 1,
-"ratio": 0.9999,
+"miss": 0,
+"ratio": 1.0,
 "src": 6975,
-"top": [
-"syllabus"
-]
+"top": []
 },
 "minn/state_of_minnesota_v._melissa_madelyne_zielinski": {
-"miss": 1,
-"ratio": 0.9998,
+"miss": 0,
+"ratio": 1.0,
 "src": 4595,
-"top": [
-"syllabus"
-]
+"top": []
 },
 "minn/state_of_minnesota_v._nicholas_james_firkus": {
 "miss": 2,
@@ -41793,76 +41692,58 @@
 ]
 },
 "minn/state_of_minnesota_v._patrick_jay_sullivan": {
-"miss": 1,
-"ratio": 0.9997,
+"miss": 0,
+"ratio": 1.0,
 "src": 3475,
-"top": [
-"syllabus"
-]
+"top": []
 },
 "minn/state_of_minnesota_v._raenard_romalle_douglas": {
-"miss": 1,
-"ratio": 0.9999,
+"miss": 0,
+"ratio": 1.0,
 "src": 6925,
-"top": [
-"syllabus"
-]
+"top": []
 },
 "minn/state_of_minnesota_v._scot_perry_christian": {
-"miss": 1,
-"ratio": 0.9995,
+"miss": 0,
+"ratio": 1.0,
 "src": 2061,
-"top": [
-"syllabus"
-]
+"top": []
 },
 "minn/state_of_minnesota_v._shawn_michael_tillman": {
-"miss": 1,
-"ratio": 0.9999,
+"miss": 0,
+"ratio": 1.0,
 "src": 9069,
-"top": [
-"syllabus"
-]
+"top": []
 },
 "minn/state_of_minnesota_v._shawn_michael_tillman_1": {
-"miss": 1,
-"ratio": 0.9999,
+"miss": 0,
+"ratio": 1.0,
 "src": 9069,
-"top": [
-"syllabus"
-]
+"top": []
 },
 "minn/state_of_minnesota_v._steven_douglas_nelson": {
-"miss": 1,
-"ratio": 0.9996,
+"miss": 0,
+"ratio": 1.0,
 "src": 2461,
-"top": [
-"syllabus"
-]
+"top": []
 },
 "minn/tescil_romalis_mason-kimmons_v._state_of_minnesota": {
-"miss": 1,
-"ratio": 0.9999,
+"miss": 0,
+"ratio": 1.0,
 "src": 6711,
-"top": [
-"syllabus"
-]
+"top": []
 },
 "minn/thaleaha_mcbee_v._team_industries_inc.": {
-"miss": 1,
-"ratio": 0.9997,
+"miss": 0,
+"ratio": 1.0,
 "src": 3529,
-"top": [
-"syllabus"
-]
+"top": []
 },
 "minn/theodore_lockhart_sr._relator_v._hennepin_county": {
-"miss": 1,
-"ratio": 0.9997,
+"miss": 0,
+"ratio": 1.0,
 "src": 3837,
-"top": [
-"syllabus"
-]
+"top": []
 },
 "minnag/op._atty._gen._1001k_1": {
 "miss": 0,
@@ -64652,25 +64533,21 @@
 ]
 },
 "texag/untitled_texas_attorney_general_opinion_kp-0493": {
-"miss": 4,
-"ratio": 0.9983,
+"miss": 2,
+"ratio": 0.9992,
 "src": 2369,
 "top": [
 "gene",
-"itself",
-"out",
-"those"
+"out"
 ]
 },
 "texag/untitled_texas_attorney_general_opinion_kp-0493_1": {
-"miss": 4,
-"ratio": 0.9983,
+"miss": 2,
+"ratio": 0.9992,
 "src": 2369,
 "top": [
 "gene",
-"itself",
-"out",
-"those"
+"out"
 ]
 },
 "texag/untitled_texas_attorney_general_opinion_kp-0494": {
@@ -64751,22 +64628,22 @@
 ]
 },
 "texag/untitled_texas_attorney_general_opinion_kp-0503": {
-"miss": 35,
-"ratio": 0.9765,
+"miss": 26,
+"ratio": 0.9825,
 "src": 1489,
 "top": [
-"for\u00d73",
-"the\u00d72",
 "grade\u00d72",
+"for",
 "whether",
 "tex",
 "subjects",
 "requirement",
 "districts",
-"with",
-"that",
-"each",
-"teks"
+"teks",
+"provide",
+"appropriate",
+"provides",
+"specified"
 ]
 },
 "texag/untitled_texas_attorney_general_opinion_kp-0504": {

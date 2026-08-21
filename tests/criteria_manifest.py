@@ -11,6 +11,82 @@ renamed without breaking the manifest.
 """
 
 MANIFEST = {
+    "nycivct": [
+        # --- STYLE 'ny slip-op cover': the New York State Reporter's
+        # machine-set cover sheet, stamped on the front of the judge's
+        # e-filed decision. Six centred 12pt rows at invariant tops
+        # (38.4/56.2/74.2/92.2/110.2/128.2), the reporter's own number in
+        # the second, and a two-statement caveat below them told apart by
+        # LEADING — 13.5pt within a statement, 18.0pt between.
+        # THE ORDINARY COVER, born-digital: the file:/// footer present, a
+        # full 'Judge: Logan J. Schiff', a dash-ruled decision caption on
+        # page 2 that the reader deliberately leaves to core.
+        "dhansingh_v._hager",
+        # THE SCANNED SUBSTRATE (v1 refused this record as non-born-digital):
+        # no file:/// footer, the court naming itself 'Civil Court of the
+        # STATE of New York' rather than 'of the CITY', and the judge given
+        # by SURNAME ONLY ('Judge: Howard-Algarin') — the hyphen in which
+        # the shared byline grammar cannot yet read (bylines.py:782).
+        "credit_acceptance_corp._v._garcia",
+        # THE NYSCEF SUBSTRATE: the same cover over an e-filed decision
+        # carrying filing stamps, a '[* n]' page mark, an UNRULED
+        # two-column decision caption, and the Civil Court's pre-printed
+        # tick-box disposition form at the foot.
+        "yumi_acupuncture_p.c._v._21st_century_ins._co.",
+    ],
+    "armfor": [
+        # --- STYLE 'armfor masthead ladder': the apex military court's slip
+        # cover. A standing revision notice, then the court NAMING ITSELF in
+        # two centred bold rows, a typed 90pt underscore fence dead on the
+        # 306.0 axis, a single centred caption stack closing on two numbers,
+        # and a ladder of left-indented paragraphs (dates, trial judges,
+        # appearances, the announcement of the writings) shut by a second
+        # fence. The masthead is the dispatch and the LAST fence above the
+        # body rail is the foot.
+        # THE ORDINARY COVER: both dates labelled, one military judge, two
+        # appearance blocks, an announcement naming three writings, both
+        # fences on page 1.
+        "united_states_v._abdullah",
+        # NO OPENING FENCE (1 of 32) — the cover runs straight from 'FOR THE
+        # ARMED FORCES' into 'UNITED STATES'. This is why the dispatch is the
+        # masthead and not nmcca's first fence PAIR: keyed on the pair this
+        # record would be declined.
+        "united_states_v._washington_1",
+        # CONSOLIDATED CROSS-APPEAL: TWO complete caption stacks and two
+        # dockets under one masthead over one shared 'Crim. App. No.',
+        # appearances labelled by PARTY NAME ('For Staff Sergeant Zackery J.
+        # Askins:'), and the only record whose page 2 resumes an appearance
+        # block MID-BLOCK with no label of its own.
+        "united_states_v._zackery",
+        # THE COVER THAT RUNS ONTO PAGE 2 AND REOPENS THERE WITH A LABEL
+        # ('Amicus Curiae: Sean J. Kealy, Esq., Boston') — the other side of
+        # zackery's page turn. Its date row also omits the 'Decided' label,
+        # so the invariant is the DATE PAIR and not the words.
+        "united_states_v._deremer",
+        # PER CURIAM: no announcement block at all, three military judges
+        # with their stages, and an amicus label long enough to WRAP
+        # ('Amicus Curiae on Behalf of E.B. and in Support of' / 'Appellee:
+        # Peter Coote, Esq.') — which is why the appearance opener is the
+        # leading words and not the colon.
+        "united_states_v._jacinto",
+        # THE 11pt TEMPLATE: the whole cover set a point smaller, so the
+        # leading is 14.0 rather than 15.0 and the closing fence is 82.7pt
+        # instead of 90.0. The leading is MEASURED per record for exactly
+        # this reason. Its HEADMATTER is read whole (27/27 rows), which is
+        # what this manifest snapshots — but it is deliberately NOT pinned as
+        # a guard sentinel: rocha sets its running head at 10.6pt against a
+        # 12.0pt body and every sub-body rule in `resolve/furniture.py` uses
+        # a hard `body_size - 1.5`, so the head on pages 14-17 is untagged
+        # and its second row ('Judge MAGGS, concurring in part and in the
+        # judgment', no terminal period) opens four phantom concurrences.
+        # Pin it once that core gap is closed, not before.
+        "united_states_v._rocha",
+        # NEITHER DATE LABEL ('November 18, 2025—April 13, 2026') and a
+        # five-row 'Military Judges:' run is the longest in the corpus
+        # (kershaw); washington carries the bare date pair.
+        "united_states_v._washington",
+        "united_states_v._kershaw",
+    ],
     "bap1": [
         # --- STYLE 'centred ladder': a cover sheet whose every zone the
         # First Circuit's panel clerk fences with a typed underscore rule on
@@ -721,5 +797,348 @@ MANIFEST = {
         # A NUMBERED SYLLABUS whose '1.' pdfio splits from its point at the
         # column gap — the row is read whole.
         "minnesota_nurses_association_v._mcleod_county_relator_public_employment",
+    ],
+    # --- calag: NOT A COURT. An Attorney General opinion series, whose one
+    # layout contract is the COLON-RAIL LETTERHEAD — a publication notice,
+    # the office, the signing officer, a typed divider, then a two-column
+    # table railed with ':' carrying 'OPINION / of / <officer> / <deputy>'
+    # against the opinion number and its date, closed by a full-measure
+    # fence. 42 of 42 records; no second contract.
+    "calag": [
+        # THE ORDINARY COVER (40 of 42): Rob Bonta over one deputy, the
+        # boundary DRAWN as a 468pt rect at y 385.
+        "california_attorney_general_opinion_24-501",
+        # THE ACTING OFFICER, and the only cover that hangs a FOOTNOTE MARK
+        # inside the rail ('Acting Chief Deputy Attorney General1' — the
+        # recusal note): the officer is read positionally, never off a roll
+        # of Attorneys General, and the mark is stripped from the title
+        # without being taken off the printed row.
+        "california_attorney_general_opinion_23-601",
+        # THREE OFFICERS (a Senior Assistant between the AG and the deputy),
+        # so the rail runs two rows longer and the boundary drops 45pt —
+        # proof that the fence is found below the rail and never at a fixed y.
+        "california_attorney_general_opinion_24-802",
+        # THE TYPED BOUNDARY (1998, Lungren): the one record that draws no
+        # rule at all and types its fence as 420pt of underscores, on a
+        # 12pt body at a 42pt rail instead of 13pt at 72pt.
+        "untitled_california_attorney_general_opinion_4",
+    ],
+    # --- acca: the U.S. Army Court of Criminal Appeals. One layout
+    # contract, the ENGRAVED MASTHEAD OVER A CENTRED LADDER — the court's
+    # name cut across the head of page 1 at 16pt over the full measure, then
+    # a whitespace-zoned centred ladder (panel, caption, docket, the
+    # convening command, the appearances at the body rail, the date, the
+    # title bracketed by rules cut to its own width, the publication
+    # statement) closing at the byline. NO fence, NO caption rail: the
+    # old engine's shared military base folds a ')' rail into every service
+    # CCA and page 1 here contains none. 22 of the 32 records; the other 10
+    # lose page 1 (or the whole PDF) to the scanner and are declined.
+    "acca": [
+        # THE ORDINARY COVER (14 of 22): 3-row panel, 4-row caption,
+        # 'MEMORANDUM OPINION' under a single rule, publication statement,
+        # 'MURDOUGH, Judge:'. The lower title rule is lost in the scan and
+        # nothing depends on it.
+        "united_states_v._captain_alex_h._bean",
+        # THE TWO-ROW TITLE, bracketed by a full rule PAIR cut to the
+        # title's own measure, over a four-row origin band naming two
+        # military judges with their stages in parentheses.
+        "united_states_v._master_sergeant_rafael_ayuso",
+        # SITTING EN BANC: one panel row and no bench designation, no
+        # roster to parse, no title rules (the title is set BOLD instead)
+        # and no publication statement — the precedential paper.
+        "united_states_v._sergeant_rene_alfaro",
+        # THE REISSUE: a 'CORRECTED COPY' stamp ABOVE the masthead, and a
+        # footnote mark hung off the date ('15 January 20261').
+        "united_states_v._sergeant_anderson_a._antepara",
+        # PER CURIAM, and the shortest title in the corpus ('DECISION',
+        # 52pt wide with rules cut to 59pt) — proof the title zone is found
+        # by position and the rules are payload.
+        "united_states_v._specialist_derek_s._aranzamendi",
+        # THE SCAN SPLITS THE DOCKET ('ARMY 2024041 7'): the row is kept
+        # verbatim and the space closed only in criteria.docket_number.
+        "united_states_v._sergeant_tyler_a._kindschi",
+        # THE LONGEST TITLE ('MEMORANDUM OPINION ON REMAND ON
+        # RECONSIDERATION', 328pt) and the corpus's only TWO-WRITING
+        # record; its roster carries a trailing footnote digit ('COOPER1')
+        # that the printed panel_line keeps and the parsed panel drops.
+        "united_states_v._specialist_tayron_d._davis",
+    ],
+    # --- afcca: the U.S. Air Force Court of Criminal Appeals. TWO layout
+    # contracts under one masthead, and the split is complementary and total
+    # over all 32 records: the OPINION prints typed underscore fences on the
+    # page axis and no caption rail (15), the ORDER stacks a ')' rail down
+    # the middle of its caption and types no rule anywhere (17). Geometry
+    # dispatches — the fence pair with a docket between it, or the ')'
+    # column — never a title and never a wording.
+    "afcca": [
+        # --- STYLE 'fenced centred stack' (the opinion paper) -------------
+        # THE ORDINARY COVER: six fences, the full ladder (military judge,
+        # sentence, both appearance blocks, roster, attribution recital),
+        # the publication statement, and the byline overleaf.
+        "united_states_v._allen",
+        # PER CURIAM, and the whole paper on page 1: no attribution recital
+        # at all, so the ladder ends at the roster and the byline follows
+        # the closing fence two rows down.
+        "united_states_v._carey",
+        # THE ORIGIN THAT WRAPS: 'On Remand from' over 'the United States
+        # Court of Appeals for the Armed Forces', two centred rows where
+        # every other record sets one — the run is closed by the axis, not
+        # by a word.
+        "united_states_v._harrington",
+        # THE LADDER THAT SPILLS: four fences on page 1 and two on page 2,
+        # the appearances continuing under a BODY-SIZE running head, two
+        # amicus rosters from a law school, and a page-1 footnote zone the
+        # reader must not consume. Also a footnote marker glued to both the
+        # origin and the date ('Trial Judiciary1', 'Decided 18 June 20262').
+        "united_states_v._reese",
+        # THE ROSTER THAT WRAPS ('…, Appellate Military' / 'Judges.') and a
+        # posture suffix on the docket ('No. ACM 24057 (rem)').
+        "united_states_v._banks",
+        # A FOOTNOTE HUNG OFF THE ATTRIBUTION RECITAL, inside the block, and
+        # the publication statement fenced on page 2 — the fence count is 4
+        # on page 1, which is why the dispatch is the first PAIR.
+        "united_states_v._cunningham",
+        # --- STYLE 'parenthetical box' (the order paper) ------------------
+        # THE ORDINARY ORDER: a nine-glyph ')' column, the parties at the
+        # column rail with their statuses indented from it, and the docket,
+        # 'ORDER' and 'Panel 1' in the right column.
+        "united_states_v._byington",
+        # THE WRIT PETITION: no pivot at all ('In re Chantay P. WHITE'), a
+        # status printed on the same row as the rank, a 'Misc. Dkt.' docket,
+        # 'Special Panel', and a stray ')' in the body 111pt below the
+        # column — which is why the rail is a contiguous RUN, not a stack.
+        "in_re_white",
+    ],
+    # --- STYLE 'ag-letterhead': not a court's paper at all. The Texas
+    # Attorney General writes back to the official who asked him a
+    # question, on the office's letterhead. Everything the letter says TO
+    # its addressee sits flush at the body rail; everything that identifies
+    # the OPINION — its number and the question it answers, wraps included
+    # — is set in 36pt from that rail (x0 = 108.0 against a 72.0 rail on 41
+    # of 42 records). That LEDGER INDENT is the contract; the cover's
+    # elements are separated by a stand-off of 1.6-3.0 leadings against the
+    # 1.0 inside a block, so the reader never looks for a word.
+    "texag": [
+        # THE ORDINARY LETTER: typed letterhead, centred date, five-row
+        # requestor address, opinion number, a four-row question closing on
+        # its request number, salutation. Its last page also carries the
+        # handwritten signature's ink as three text rows ('~ •. .', 't',
+        # '[.'), one of which rendered as a section heading.
+        "untitled_texas_attorney_general_opinion_kp-0480",
+        # THE LETTERHEAD DRAWN AS RASTER (28 of 42; only 14 set it in
+        # type): no 'KEN PAXTON' in the text layer at all, so the cover
+        # opens on the date.
+        "untitled_texas_attorney_general_opinion_kp-0496",
+        # ISSUED ON THE ATTORNEY GENERAL'S OWN MOTION: no addressee, no
+        # salutation and no request number — the question block is one row
+        # and the body opens straight under it. Also the longest record
+        # (74pp) and the one whose extra 'Deputy First Assistant' pair
+        # pushes the signer out of core's signature window.
+        "untitled_texas_attorney_general_opinion_kp-0505",
+        # A SALUTATION WITH NO 'Dear', carrying a footnote mark
+        # ('Director Martin:1') — proof the cover ends on the gap below the
+        # question and not on the greeting.
+        "untitled_texas_attorney_general_opinion_kp-0489",
+        # PAGE ONE IS A RASTER: there is no cover to read, so the reader
+        # declines it and claims only the closing band.
+        "untitled_texas_attorney_general_opinion_kp-0506",
+    ],
+    "uscgcoca": [
+        # --- STYLE 'banner cover' (29 of 32): a bold masthead row, a
+        # centred all-bold caption stack, then a LABEL GRID that is a cover
+        # OF COUNSEL, then BEFORE/roster/bench. No rule of any kind is
+        # drawn or typed; the zones are entered by their own RAILS (the
+        # body rail, the label rail at body_x0+36) and only then by the
+        # page axis — a two-column grid row has a midpoint too.
+        # THE ORDINARY COVER: one value per label, a one-row trial recital,
+        # per curiam, and the two numbers (CGCMG 0373 = the court below's,
+        # Docket No. 1467 = this court's).
+        "united_states_v._angel",
+        # THE GRID AT ITS LARGEST: four labels and eight continuation rows
+        # in the value column, with '(argued)' flags — proof the run is
+        # closed by the axis and not by leading.
+        "united_states_v._woods_p",
+        # NO RECITAL AT ALL, and the grid row that broke the first reading:
+        # 'Military Judges: … CAPT Christine N. Cutter, USCG (trial)' runs
+        # 108.0-490.7 and centres 6.6pt off the axis, so the caption zone
+        # has to be closed by the LABEL RAIL, not by centring.
+        "united_states_v._harpole",
+        # THE TWO-ROW RECITAL whose first row centres 4.6pt off the axis —
+        # the same trap from the other side, plus a docket the court sets
+        # with a double space ('Docket No.  001-62-20').
+        "united_states_v._flores",
+        # NO PIVOT: an extraordinary-writ caption read by the STATUS
+        # vocabulary alone (Petitioner / Real Party in Interest), a
+        # 'Misc. Docket No.', and a posture row instead of a court-martial.
+        "united_states_v._richard_opinion.pdf",
+        # THE UNSPLIT LABEL ROW ("Appellate Special Victims’ Counsel: LCDR
+        # Elizabeth A. Hutton, USCG" arrives as ONE line), nine counsel
+        # rows, and a separate writing (concurring in part / dissenting in
+        # part) that the profile's byline grammar has to reach.
+        "united_states_v._livingstone",
+        # --- STYLE 'ruled two-column order' (3 of 32): a two-row centred
+        # masthead over a caption divided by ONE DRAWN VERTICAL RULE at
+        # x=292 on a 612pt page, the rule's own band being the block.
+        # THREE PARTIES (petitioner, the United States and the accused,
+        # both real parties in interest), a right column whose paper-under-
+        # review runs over three rows, and a roster wrapped over two.
+        "in_re_a.h.",
+        # THE ORDER THAT SIGNS NOTHING, and prints its own name ('ORDER',
+        # underlined) BELOW the roster instead of above it — which is why
+        # the claim ends at the drawn rule's bottom and never at a byline.
+        "in_re_tucker",
+    ],
+    # --- minnag: NOT A COURT. The Minnesota Attorney General's opinion
+    # series — a LETTER answering a question a named public official put to
+    # the office under Minn. Stat. § 8.07, under the reporter's INDEX SLIP.
+    # One layout contract, 'index slip and letter', hinged on the DATELINE:
+    # above it the slip (topic headnote + opinion number + cross-references),
+    # below it the letter's cover (delivery notation, addressee, 'Re:'),
+    # ending at the salutation, which is the letter's own first line and is
+    # left for the writing to open on. 41 of 41 records.
+    "minnag": [
+        # THE ORDINARY COVER (17 of 41): headnote at the slip rail, number
+        # flush right, centred dateline, four-row addressee, no 'Re:'.
+        "op._atty._gen._1001k_1",
+        # THE 'Re:' SUBJECT LINE set BOLD and split by pdfio into the label
+        # and its text on one row — the two pieces stand 12pt apart and are
+        # one row, not two.
+        "op._atty._gen._1035",
+        # THE OFFICE LETTERHEAD (2 of 41): 'STATE OF MINNESOTA' at 24pt over
+        # a 12pt body, opening a banner that runs to the dateline.
+        "op._atty._gen_169j",
+        # THE LETTERHEAD WHOSE DATE SHARES ITS ROW WITH THE TELEPHONE, and
+        # whose addressee shares its row with 'Via Email and U.S. Mail' —
+        # three roles on two rows, split at the 24pt gap.
+        "op._atty._gen_280k",
+        # STYLE 'index slip': page 1 is the reporter's slip ALONE and the
+        # letter's own first page is not in the scan. No dateline to hinge
+        # on, so the slip is claimed only because page 1 is nothing but slip.
+        "op._atty._gen_624c-4",
+        # THE SLIP ON PAGE 1 AND THE LETTER'S COVER ON PAGE 2, with the
+        # number repeated as page 2's running head (core's, not claimed).
+        "op._atty._gen_185a-5",
+        # THE NUMBER IN THE RIGHT MARGIN, printed beside the first two
+        # addressee rows — and the worst OCR in the corpus, which is why
+        # nothing here is read by wording.
+        "op._atty._gen._159a-3_1",
+        # TWO ADDRESSEES IN TWO COLUMNS, 141pt apart: each column keeps its
+        # own offset from the rail instead of being run together.
+        "op._atty._gen._484e-1_cr._ref._185b-2_1",
+        # THE NUMBER AT THE LEFT MARGIN, under the headnote across a blank
+        # line — the one record where position cannot find it and the
+        # broken headnote RUN must.
+        "op._atty._gen._125a-28_cr._ref._59a-25_161b-7_1",
+        # 'Index No. 622-i-11' AT THE RAIL: the one labelled number, under a
+        # nine-row headnote that cites eight superseded opinions by date.
+        "op._atty._gen._622i-11",
+        # THE DELIVERY NOTATION ('VIA EMAIL: …') above the addressee and a
+        # subject line typed 'RE:' — and a salutation with no 'Dear' in it
+        # ('Ms. Manderschied:'), which is what ends the claim.
+        "op._atty._gen_355a_cr._ref._159a3_442a20",
+        # THE BARE SLIP whose letter resumes mid-sentence on page 2: proof
+        # that a claim over the whole of page 1 still leaves a writing.
+        "op._atty._gen_280l-1_cr._ref._86a-16",
+    ],
+    # olc — THE OFFICE OF LEGAL COUNSEL'S MEMORANDUM COVER, which is not a
+    # court's paper at all: no caption, no docket, no panel, no counsel. One
+    # format in all 32 records — a 12pt bold TITLE stating the question, a
+    # 9pt HEADNOTE set with a hanging indent, a 9pt DATE flush right, and an
+    # 11pt ADDRESSEE in capitals centred on the measure axis ('MEMORANDUM
+    # OPINION FOR THE …'), which is the landmark the reader dispatches on.
+    # The stems below are the shapes of that one cover, not six formats.
+    "olc": [
+        # THE ORDINARY COVER: one title row, a two-paragraph headnote, a
+        # one-row addressee, and a signature that closes the document.
+        "revocation_of_prior_monument_designations",
+        # THE ADDRESSEE THAT WRAPS TO THREE ROWS ('MEMORANDUM OPINION FOR
+        # THE SENIOR' / 'COUNSEL TO THE DIRECTOR' / 'OFFICE OF PERSONNEL
+        # MANAGEMENT') — the band is taken whole and its last row was being
+        # emitted twice before the walk learned to stop at the band's end.
+        "application_of_18_u.s.c.__209_to_continued_receipt_of_standardized",
+        # THE LONGEST TITLE IN THE CORPUS, four bold rows, over a single
+        # eight-row headnote paragraph.
+        "whether_the_consumer_financial_protection_bureau_may_continue_to_draw_funds",
+        # THE ADDRESSEE NAMED AS A PERSON ('MEMORANDUM OPINION FOR BRENDAN
+        # CARR' / 'CHAIRMAN' / 'FEDERAL COMMUNICATIONS COMMISSION') — proof
+        # the band is read by type, capitals and axis and never by wording.
+        "whether_fccs_lifeline_program_is_a_benefit_subject_to_the_personal",
+        # TWO SIGNERS: the closing band is a three-row block printed twice,
+        # so the signature is a RUN on its own axis (264.1) and not a fixed
+        # three rows.
+        "constitutionality_of_disparate-impact_liability_under_title_vii",
+        # SIGNED IN THE MIDDLE: the memorandum ends and is signed on page 25
+        # of 44 and a 19-page Appendix follows, so the signature is NOT
+        # lifted — a band taken out of the middle would print after the
+        # Appendix that follows it on the page.
+        "department_of_agriculture_preferences_for_socially_disadvantaged_groups",
+    ],
+    "cit": [
+        # STYLE 'ruled caption box': a drawn vertical with a drawn horizontal
+        # across its head and another across its foot — a backwards C whose
+        # right-hand column carries the bench and the court number. THE
+        # ORDINARY COVER: one case, one judge, a bracketed disposition, the
+        # date, and the appearances under it.
+        "aloha_pencil_co._v._united_states",
+        # THE SAME BOX SHELVED: two consolidated cases stacked inside one
+        # vertical and parted by a third horizontal at the same measure, each
+        # with its own court number and the SAME three-judge bench — which is
+        # why one roster printed twice is still one roster.
+        "oregon_v._united_states",
+        # THE CAPTION THAT FILLS THREE PAGES: forty Canadian lumber producers,
+        # so the box is re-drawn at the head of the measure on pages 2 and 3
+        # and the appearances run to page 4 before the byline.
+        "govt_of_canada_v._united_states",
+        # STYLE 'typed colon rail': the same cover typed rather than drawn —
+        # underscores open the caption, a ':' column stands where the vertical
+        # would be, and 'Before:' keeps its own colon because the rail is
+        # stripped by POSITION, not by glyph.
+        "ban_me_thuot_honeybee_jsc_v._united_states",
+        # STYLE "reporter's measure": the bound-volume setting — a 4.5in
+        # measure centred on the page and three 145pt fences on the axis
+        # zoning the banner, the court number and the caption.
+        "green_garden_produce_llc_v._united_states",
+        # THE JUDGMENT: no date, therefore no appearances, and no byline at
+        # all. Its title is the only thing an unsigned writing can open on,
+        # so the row is claimed AND offered back through `anchor_ids`.
+        "neimenggu_fufeng_biotechnologies_co._ltd._v._united_states",
+    ],
+    # --- mdag: NOT A COURT. Opinions of the Attorney General of Maryland,
+    # printed as they stand in the bound volume. One layout contract,
+    # 'volume cover': a centred bold TOPIC standing clear right of the text
+    # rail, a bold CATCHLINE under it whose first row is AT the rail (the
+    # subject terms and the question, 'WHETHER …'), a centred DATE, and the
+    # REQUESTING OFFICIAL'S name over the office, at the rail, ending where
+    # the body's indented first line begins. No caption, no docket, no
+    # panel, no counsel, no `v.` — `case_name` carries the officials who
+    # asked and nothing is joined into an adversity. 42 of 42 records.
+    "mdag": [
+        # THE ORDINARY COVER (612pt sheet, 13pt body, 133pt rail), and the
+        # one record whose recto running head sinks onto the first row of a
+        # display list on page 7 ('Gen. 3] 3. chocolate;') — a glued row is
+        # deliberately NOT claimed, because half a line cannot be given back.
+        "108oag3",
+        # THE PAGE-1 RUNNING HEAD SET AT THE RAIL, in bold ('Gen. 21]'),
+        # standing exactly where the catchline's first row stands: proof the
+        # topic is found by the head BAND and the axis, not by being first.
+        "108oag21",
+        # NO DATE ROW AT ALL — the volume printed none, and its reduced-scale
+        # twin prints 'September 21, 2023' in the same place. The walk steps
+        # over the gap instead of failing.
+        "108oag108",
+        # TWO ADDRESSEES, grouped by the block's own leading: one leading
+        # continues an official, two open the next.
+        "109oag32",
+        # THE CATCHLINE JUSTIFIED INTO PIECES — pdfio returns 'INTERSTATE ' /
+        # 'MEDICAL ' / 'LICENSURE ' / 'COMPACT' as four pieces of one row,
+        # so the walk reads ROWS and never lines.
+        "109oag73",
+        # THE REDUCED SHEET: the same series set 432x648 at 10.6pt on a
+        # 74.6pt rail. Every measurement is taken off the page.
+        "maryland_attorney_general_opinion_104oag003",
+        # THREE ADDRESSEES, three boards — and the record that proved
+        # `criteria.parties` must not be used here: the render joins it with
+        # ' v. ' and made a three-way suit out of three chairs.
+        "maryland_attorney_general_opinion_110oag82",
     ],
 }

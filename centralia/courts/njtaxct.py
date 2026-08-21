@@ -104,6 +104,27 @@ _MGMT_OFFICE = "TAX COURT MANAGEMENT OFFICE"
 _NOT_FOR_PUB = re.compile(r"^NOT FOR PUBLICATION\b", re.I)
 _COMMITTEE = "TAX COURT COMMITTEE ON OPINIONS"
 _REPORTER_STAMP = "TAX COURT REPORTS"
+# THE REPORTER'S STAMP IS PULLED OUT OF THE BOX (the user, 2026-08-21). It is
+# not the court's caption — it is the Committee's mark dropped on top of one,
+# and it overprints the pleading box rather than occupying a rung of it. Its
+# FACT is still read (`publication_status` becomes 'published'); only the rows
+# are removed, and they are attested as `stamp` in Removed rather than
+# discarded.
+#
+# TYPE SIZE FINDS IT, not wording, because the wording is not reliably there.
+# The stamp's glyphs interleave with the line beside them, so
+# one_main_st_edgewater reads 'Appro:v ed for :P u:blication' and
+# 'TIna xth Ceo Nuret w R eJeprosretys' — which is 'In the New Jersey' and
+# 'Tax Court Reports' printed on one shared baseline and read alternately.
+# zivkovic prints the same three lines cleanly, which is what proves the
+# de-interleaving. No phrase test survives that; the SIZE does.
+#
+# MEASURED over all 42 records: exactly 3 carry any row inside the caption
+# band whose size differs from the band's own dominant size, and in all three
+# those rows are this stamp (10.0/11.0/23.0 against a 14.0 box). Every other
+# record's box is one size throughout, so the test cannot fire where there is
+# no stamp.
+_STAMP_SIZE_TOL = 1.0
 _COVER_TITLE = "corrected opinion notice"
 # 'Opinion corrected 1/28/25 – pg. 3 …' / 'Corrected February 28, 2025-
 # judges not participating.' — the correction note the corrected opinion
@@ -283,6 +304,18 @@ class _Ctx:
             bold=all(bool(p.all_bold) for p in parts), role=role))
         self.consumed.update(p.id for p in parts)
 
+    def drop(self, group, kind: str) -> None:
+        """Removed, and ATTESTED — the Removed box shows it, so a reader can
+        see what came out and disagree."""
+        parts = sorted(group, key=lambda l: l.x0)
+        if not parts:
+            return
+        self.dropped.append(m.Dropped(
+            text=_norm(" ".join(p.plain for p in parts))[:400],
+            prov=m.Prov(parts[0].page, tuple(p.id for p in parts)),
+            kind=kind or "furniture"))
+        self.consumed.update(p.id for p in parts)
+
     def rule(self, group):
         parts = sorted(group, key=lambda l: l.x0)
         self.items.append(m.Rule(
@@ -424,6 +457,14 @@ def _read_box(ctx, stream, start, box_at, band, geom):
             byline_at = i
             break
 
+    # The box's OWN dominant type size, measured from the box itself — the
+    # cover sets 14.0 where `geom.body_size` reports the opinion's 12.0.
+    _box_sizes = Counter(
+        round(l.size, 1)
+        for i in range(box_at, byline_at if byline_at is not None else len(stream))
+        for l in stream[i][1] if l.plain.strip() and l.size)
+    box_size = _box_sizes.most_common(1)[0][0] if _box_sizes else body_size
+
     left, right, caption_rows, rail_rows = [], [], [], 0
     box_ids: set[int] = set()
     state = "head"
@@ -475,8 +516,21 @@ def _read_box(ctx, stream, start, box_at, band, geom):
             ctx.rule(group)
             continue
         state = "box"
+        # THE STAMP COMES OUT FIRST. Right of the divider and off the box's
+        # own type size — see _STAMP_SIZE_TOL. Read the fact, remove the rows.
+        _stamp = [l for l in group
+                  if l.size and abs(l.size - box_size) > _STAMP_SIZE_TOL
+                  and _ink_x0(l) >= div]
+        if _stamp and len(_stamp) == len([l for l in group if l.plain.strip()]):
+            published = True
+            ctx.drop(group, "stamp")
+            continue
         lcell, rcell, rail_hit = [], [], False
         for line in group:
+            if any(l is line for l in _stamp):
+                published = True
+                ctx.drop([line], "stamp")
+                continue
             shed = _shed_rail(line, band)
             if shed is None:
                 rail_hit = True

@@ -263,6 +263,13 @@ class Criteria:
     # 25-1830-cv' / six defendant entities — joined wholesale that reads
     # 'AMANDA BROOKS, Plaintiff-Appellant, BRIGHT HORIZONS …'.)
     title: str | None = None            # 'SUMMARY ORDER' — the paper's name
+    # WHO THE HEADMATTER SAYS WROTE IT. Some courts do not sign their
+    # opinions; they ANNOUNCE the author on the cover, over the body — 'OPINION
+    # BY / PRESIDENT JUDGE COHN JUBELIRER   FILED: May 19, 2026' (pacommwct).
+    # `HmLine.role` has carried an `author` role for that row all along; this
+    # is where its value goes, so the name survives even though the writing
+    # itself is unsigned and has no byline of its own.
+    author: str | None = None
     court: str | None = None            # the deciding court, as printed
     short_case_name: str | None = None  # the running head's own short form
     case_name: str | None = None        # 'X v. Y', built from party names
@@ -303,6 +310,16 @@ class Meta:
     doc_style: str | None = None   # named layout contract that matched
     n_pages: int = 0
     source_path: str = ""
+    # WHAT THE PAPER IS, as a value rather than a sentence. `doc.warnings`
+    # already says it in prose, but a consumer that must DECIDE something —
+    # the review banner, the casebody projection, whatever ingests this
+    # downstream — should not have to match on the wording of a warning.
+    #   ""          born-digital: the text is the court's own type
+    #   "ocr-scan"  a scan with an OCR text layer. The content is real and
+    #               usable, but every coordinate is the scanner's guess and
+    #               the glyphs are a machine's reading of an image.
+    #   "scan"      a scan with no usable text layer; not parsed.
+    source_kind: str = ""
 
 
 # --------------------------------------------------------------------------

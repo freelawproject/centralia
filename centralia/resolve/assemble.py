@@ -69,6 +69,11 @@ def _join(lines: list[Line], vocab: set[str] | None) -> str:
 _SEAM = re.compile(r"(\s*)</(strong|em|u)>(\s*)<\2>(\s*)")
 
 
+# THE PAPER NAMING ITSELF, in the closed set core already uses to find
+# where an announcement byline's writing begins.
+_DOC_BANNERS = ("OPINION", "ORDER", "MEMORANDUMOPINION")
+
+
 def _mend_seams(markup: str) -> str:
     """Adjacent identical emphasis runs re-form as ONE run, keeping at most
     the single space the join put between them. A heading set as a
@@ -190,6 +195,141 @@ def _mode_x0(lines) -> float | None:
     return max(xs.items(), key=lambda kv: (kv[1], -kv[0]))[0]
 
 
+# A LEADER TABLE IS A TABLE DRAWN WITH DOTS. A contents list, or the New
+# York Surrogate's list of papers read, sets a label at the rail, a run of
+# leader dots, and a number flush right — a two-column row whose rule is
+# punctuation. `find_grids` cannot see it (nysurct/matter_of_levine_calleo
+# reports 0 tables on the page that carries two of these lists), and because
+# every row sits AT the rail with no indent, the paragraph builder read the
+# whole list as one continuation: eleven rows and 1,100 leader dots welded
+# into a single paragraph, and the court's own next sentence — 'The following
+# papers were read in determining petitioner's motion filed on November 18,
+# 2025:' — welded onto the end of it (the user, 2026-08-21).
+#
+# THE TRAILING NUMBER IS WHAT MAKES IT A ROW, not the dots. Measured over the
+# corpus: 75 leader runs in 9 files, and they are two different things. Six
+# files set label/dots/number — cadc's 'I. Background ……… 5', utd and iand's
+# brief contents, nysupct's identical PAPERS list, sd's 'JENSEN, Chief Justice
+# ……… 1'. The other two are not tables at all and MUST NOT be touched:
+# fla/in_re_amendments prints leaders as a FILL-IN BLANK inside a form it is
+# amending ('Florida Bar No. ....................', nothing after the dots),
+# and prsupreme/de_la_cruz uses them as an ELLIPSIS OF OMITTED STATUTORY TEXT
+# inside a quotation ('… debe responder. ........ Lo son igualmente'), where
+# prose follows. Requiring a bare number after the dots admits the six and
+# refuses the two.
+#
+# THE DOTS MAY BE SPACED. nj sets its Tables of Contents '. . . . . . . 5' and
+# a solid-run pattern never saw them, so the majority of
+# state_v._darryl_nieves opened on its own contents (the user, 2026-08-21).
+# Widening to a spaced run is safe for the same reason the solid one was:
+# measured, 82 spaced runs of 8+ dots live in 30 files, and outside nj's two
+# contents pages NONE is a table — ohioctapp closes 16 opinions with
+# '. . . . . . .' as an ornament after the disposition, pamd draws its
+# pleading rail in dots, kanctapp's is a quotation ellipsis. Not one carries a
+# trailing number, so the number test refuses them all. The 8-DOT FLOOR is
+# what keeps a spaced ELLIPSIS ('. . .', which this very opinion uses) out.
+# The same row found ANYWHERE in a joined string, so a paragraph that welded
+# several of them can be taken apart. Two or more are required before a
+# paragraph is split (see _leader_split): prsupreme's ellipsis produces
+# exactly one match and must stay prose.
+_LEADER_SCAN = re.compile(
+    r"(?P<label>\S[^.]*?(?:\.[^.]+?)*?)\s*(?:\.[  ]?){8,}\s*"
+    r"(?P<num>[0-9IVXivx]+(?:\s*[-–—]\s*[0-9IVXivx]+)?)(?=\s|$)")
+_LEADER_ROW = re.compile(
+    r"^(?P<label>.*?\S)\s*(?:\.[  ]?){8,}\s*"
+    # The number may be a range ('3-4', '223-251') and it may be OCR'd:
+    # levine_calleo's page 2 reads 'Petition ……… I' for 1, so a roman-looking
+    # token counts. Bounded to 12 characters, which no sentence opener is.
+    r"(?P<num>[0-9IVXivx]+(?:\s*[-–—]\s*[0-9IVXivx]+)?)\.?$")
+
+
+def _leader_text_cells(text: str) -> tuple[str, str] | None:
+    """``(label, number)`` when a string is one row of a leader table."""
+    text = " ".join((text or "").split())
+    got = _LEADER_ROW.match(text)
+    if not got or len(got.group("num")) > 12:
+        return None
+    label = got.group("label").rstrip(".-– ")
+    return (label, got.group("num")) if label else None
+
+
+def _leader_split(text: str) -> tuple[list[tuple[str, str]], str] | None:
+    """A paragraph that WELDED several leader rows -> its rows, plus whatever
+    prose was welded on after them.
+
+    Required because the leader rows of one list do not all reach the same
+    builder: utd's brief contents folded 1 row of 14 and iand's 3 of 13 from
+    the single-row test alone, the rest arriving already joined. Two or more
+    rows must be found before a paragraph is taken apart — prsupreme's
+    quotation ellipsis matches exactly once and stays prose — and the rows
+    must account for most of the text, so a sentence that merely contains a
+    leader run is never shredded."""
+    text = " ".join((text or "").split())
+    hits = [mm for mm in _LEADER_SCAN.finditer(text)
+            if len(mm.group("num")) <= 12]
+    if len(hits) < 2:
+        return None
+    covered = sum(mm.end() - mm.start() for mm in hits)
+    if covered < 0.6 * len(text):
+        return None
+    # EVERY CHARACTER SURVIVES, BY CONSTRUCTION. Taking only the matched
+    # spans would silently drop whatever sat BETWEEN two rows, and nothing
+    # downstream could see it: the pieces inherit the parent's prov, so the
+    # residual worklist still counts those lines as placed. So the text is
+    # walked, and the gaps are emitted as pieces of their own.
+    pieces: list[str] = []
+    pos = 0
+    for mm in hits:
+        gap = text[pos:mm.start()].strip()
+        if gap:
+            pieces.append(gap)
+        row = text[mm.start():mm.end()].strip()
+        if not row:
+            return None
+        pieces.append(row)
+        pos = mm.end()
+    return pieces, text[pos:].strip()
+
+
+def _leader_cells(line) -> tuple[str, str] | None:
+    """``(label, number)`` when a LINE is one row of a leader table."""
+    return _leader_text_cells(line.plain or "")
+
+
+def _split_leader_rows(blocks: list) -> list:
+    """A Paragraph that WELDED several leader rows -> one Paragraph per row.
+
+    THE LEADER DOTS STAY. An earlier cut of this pass folded the rows into a
+    TableBlock; that was invention (the user, 2026-08-21). The page prints
+    prose with leader dots, declares no table, and a TableBlock — which also
+    reaches the casebody XML — asserts a two-column structure the document
+    never made, on a guess about where the label ends and the number begins.
+    The dots are the page's own ink and they say what the leader says: this
+    label goes with that number. They are reproduced as printed.
+
+    What was actually broken was WELDING, and that is all this fixes.
+    nysurct/matter_of_levine_calleo ran eleven rows and some 1,100 leader dots
+    into one paragraph and swallowed the court's own next sentence — 'The
+    following papers were read in determining petitioner's motion filed on
+    November 18, 2025:' — at the end of it. `_paragraph_blocks` keeps a leader
+    row from joining its neighbours; this pass exists because the segmenter is
+    not the only builder, and a row that stands alone between two zones
+    arrives here already joined to its siblings."""
+    out: list = []
+    for b in blocks:
+        if isinstance(b, m.Paragraph):
+            split = _leader_split(getattr(b, "text", "") or "")
+            if split is not None:
+                rows, tail = split
+                for row in rows:
+                    out.append(m.Paragraph(text=row, prov=b.prov))
+                if tail:
+                    out.append(m.Paragraph(text=tail, prov=b.prov))
+                continue
+        out.append(b)
+    return out
+
+
 def _paragraph_blocks(seg: Segment, segmenter: Segmenter,
                       vocab: set[str] | None) -> list:
     """A body segment -> Paragraphs, split where a line leaves the RUNOVER
@@ -233,6 +373,16 @@ def _paragraph_blocks(seg: Segment, segmenter: Segmenter,
             prev = line
             after_label = True
             continue
+        # A LEADER ROW OPENS ITS OWN BLOCK and closes it: it is a table row,
+        # so nothing continues it and it continues nothing. See _LEADER_ROW.
+        _leader = _leader_cells(line)
+        if _leader is not None or (paras and paras[-1]
+                                   and _leader_cells(paras[-1][-1])):
+            paras.append([])
+            paras[-1].append(line)
+            prev = line
+            after_label = False
+            continue
         opens = bool(paras) and not same_row and (
             _is_para_mark(line)
             or _is_list_marker(line, seg.lines, i,
@@ -259,6 +409,75 @@ def _paragraph_blocks(seg: Segment, segmenter: Segmenter,
         if text:
             out.append(m.Paragraph(text=text, prov=_prov(lines)))
     return out
+
+
+def _grid_table(grid, lines: list[Line],
+                vocab: set[str] | None) -> list:
+    """The lines inside one drawn grid -> one TableBlock, cell by drawn cell.
+
+    The cells are the court's own, blank ones included: the spacer rows
+    ncctapp rules between its asset groups are part of how the table reads.
+    A cell holding several lines is joined the way a paragraph is joined —
+    a cell wraps. Row 0 is a header only when the page SETS it as one (all
+    bold, all caps, or centred over its column): a table CONTINUED at the
+    top of the next page opens mid-body, and calling its first row a header
+    invents a heading the page never printed."""
+    cells: dict[tuple[int, int], list[Line]] = {}
+    for line in lines:
+        mid_y = (line.top + line.bottom) / 2
+        row = next((i for i, (a, b) in enumerate(
+            zip(grid.row_edges, grid.row_edges[1:])) if a - 2.0 <= mid_y < b),
+            None)
+        col = next((i for i, (a, b) in enumerate(
+            zip(grid.col_edges, grid.col_edges[1:]))
+            if a <= line.x0 + 1.0 < b), None)
+        if row is None or col is None:
+            continue
+        cells.setdefault((row, col), []).append(line)
+    rows: list[list[str]] = []
+    for r in range(grid.n_rows):
+        row_cells = []
+        for c in range(grid.n_cols):
+            ls = sorted(cells.get((r, c), ()), key=lambda l: (l.top, l.x0))
+            row_cells.append(_join(ls, vocab) if ls else "")
+        rows.append(row_cells)
+    while rows and not any(c.strip() for c in rows[-1]):
+        rows.pop()
+    if not rows:
+        return []
+    head = [l for l in lines if (l.top + l.bottom) / 2 < grid.row_edges[1]]
+    letters = [ch for l in head for ch in l.plain if ch.isalpha()]
+
+    def _centred(line) -> bool:
+        """Set to the middle of its own cell — how a column head is set
+        (delch centres 'Cruel Punishment Clause' over its column; the cell
+        below it is justified to the cell's full measure)."""
+        for a, b in zip(grid.col_edges, grid.col_edges[1:]):
+            if a <= line.x0 + 1.0 < b:
+                return (abs((line.x0 + line.x1) / 2 - (a + b) / 2) <= 8.0
+                        and (line.x1 - line.x0) < 0.85 * (b - a))
+        return False
+
+    has_header = bool(head) and bool(letters) and (
+        all(l.all_bold for l in head) or all(ch.isupper() for ch in letters)
+        or (len([c for c in rows[0] if c.strip()]) >= 2
+            and all(_centred(l) for l in head)))
+    return [m.TableBlock(rows=rows, prov=_prov(lines),
+                         has_header=has_header)]
+
+
+def _table_blocks(seg: Segment, segmenter: Segmenter,
+                  vocab: set[str] | None) -> list:
+    """A drawn table segment -> its TableBlock.
+
+    The grid comes from the page — pdfio read it off the drawn rules — so
+    the segment carries no geometry of its own and cannot lose it to a
+    later pass over the stream."""
+    grid = next((g for g in (segmenter.tables.get(seg.page) or ())
+                 if any(g.holds(l) for l in seg.lines)), None)
+    if grid is None:                      # geometry lost: read it as prose
+        return _paragraph_blocks(seg, segmenter, vocab)
+    return _grid_table(grid, seg.lines, vocab)
 
 
 def _is_dinkus_seg(seg: Segment) -> bool:
@@ -289,10 +508,29 @@ def _segment_blocks(seg: Segment, segmenter: Segmenter,
     WITHIN that measure. Typing the whole run as one quote loses every
     paragraph the page prints (scotus sets a 27-line syllabus page as a
     single inset run; conn sets its entire syllabus that way)."""
+    # THE PAPER'S OWN NAME IS A BLOCK OF ITS OWN. A court that leads its
+    # opinion with 'OPINION' and sets the first section heading one leading
+    # under it hands the segmenter two rows of one weight, and whichever
+    # path took them printed the two as one — 'OPINION I. Facts', a
+    # PARAGRAPH, on 9 of tenncrimapp's 42 records (the user, 2026-08-21:
+    # 'opinion should be its own line'). Split before the typing runs, so
+    # every path below sees the banner alone; the whole first row must BE
+    # the banner, so a heading that merely contains the word is untouched.
+    if (len(seg.lines) > 1
+            and "".join(seg.lines[0].plain.split()).upper() in _DOC_BANNERS):
+        # The banner is the writing's own HEADING, the way the 33 records
+        # that segment it alone already render it — not a paragraph of one
+        # word.
+        rest = Segment(seg.page, seg.lines[1:], seg.kind)
+        return ([m.Heading(text=" ".join(seg.lines[0].plain.split()),
+                           prov=_prov(seg.lines[:1]))]
+                + _segment_blocks(rest, segmenter, vocab, inset_flow))
     # A label alone in its own segment never reaches the paragraph walk,
     # and the 'single' path types it by its LETTERS — so a lettered label
     # ('B') came out a heading while a numbered one ('1') came out a stray
     # digit paragraph beside it. Geometry, not case, decides.
+    if seg.kind == "table":
+        return _table_blocks(seg, segmenter, vocab)
     if len(seg.lines) == 1 and _is_outline_label(seg.lines[0], segmenter):
         return [m.Heading(text=" ".join(seg.lines[0].plain.split()),
                           prov=_prov(seg.lines))]
@@ -315,6 +553,23 @@ def _segment_blocks(seg: Segment, segmenter: Segmenter,
         if (len(seg.lines) <= 2 and len(plain) < 80 and letters
                 and (all(l.all_bold for l in seg.lines)
                      or all(c.isupper() for c in letters))):
+            # THE PAPER'S OWN NAME IS A HEADING OF ITS OWN. A court that
+            # leads its opinion with 'OPINION' and sets the first section
+            # heading one leading under it gives the segmenter two rows of
+            # the same weight, and joining them printed the two as one
+            # ('OPINION I. Facts' — 9 of tenncrimapp's 42; the user,
+            # 2026-08-21: 'opinion should be its own line'). The banner is
+            # matched as the WHOLE first row, so a heading that merely
+            # contains the word is untouched.
+            if (len(seg.lines) == 2
+                    and "".join(seg.lines[0].plain.split()).upper()
+                    in _DOC_BANNERS):
+                return [m.Heading(text=_mend_seams(
+                            " ".join(seg.lines[0].plain.split())),
+                            prov=_prov(seg.lines[:1])),
+                        m.Heading(text=_mend_seams(
+                            " ".join(seg.lines[1].plain.split())),
+                            prov=_prov(seg.lines[1:]))]
             return [m.Heading(text=_mend_seams(text), prov=_prov(seg.lines))]
         # A QUOTATION SETS ITS OWN PARAGRAPHS, and it sets them the way the
         # page sets any paragraph: by indenting the first line off the
@@ -371,8 +626,15 @@ def _segment_blocks(seg: Segment, segmenter: Segmenter,
 
 
 def _group_footnotes(zone_lines: list[Line], flush: dict[int, str],
-                     vocab: set[str] | None) -> list[m.Footnote]:
-    """Zone lines -> Footnote objects, split where a label opens a note."""
+                     vocab: set[str] | None,
+                     grids: list | None = None) -> list[m.Footnote]:
+    """Zone lines -> Footnote objects, split where a label opens a note.
+
+    ``grids``: the drawn tables of this page. A NOTE MAY PRINT A TABLE —
+    ind footnotes its lien chronology as a two-column ruled table that
+    continues onto the next page (edgerock, p27) — and a note's zone lines
+    are read the same way a writing's are: the lines inside a grid are its
+    cells, the rest is the note's prose."""
     notes: list[tuple[str, list[Line]]] = []
     for line in zone_lines:
         lab = detect_label(line) or flush.get(line.id)
@@ -384,6 +646,12 @@ def _group_footnotes(zone_lines: list[Line], flush: dict[int, str],
             notes.append(("?", [line]))   # carried tail with no home yet
     out = []
     for lab, lines in notes:
+        held = [g for g in (grids or ())
+                if any(g.holds(l) for l in lines)]
+        if held:
+            out.append(m.Footnote(label=lab, blocks=_note_with_tables(
+                lab, lines, held, vocab)))
+            continue
         # Strip the label glyphs off the note's own first line.
         first = lines[0].plain.strip()
         if lab != "?" and first.startswith(lab):
@@ -411,9 +679,60 @@ def _group_footnotes(zone_lines: list[Line], flush: dict[int, str],
                 text = first + rest
         else:
             text = " ".join(x for x in (first, rest) if x)
-        out.append(m.Footnote(label=lab, blocks=[
-            m.Paragraph(text=text, prov=_prov(lines))] if text else []))
+        out.append(m.Footnote(label=lab, blocks=_note_prose(lab, lines,
+                                                             vocab)))
     return out
+
+
+def _note_prose(lab: str, lines: list[Line],
+                vocab: set[str] | None) -> list:
+    """A note's prose run -> one Paragraph, its label glyphs stripped."""
+    if not lines:
+        return []
+    first = lines[0].plain.strip()
+    if lab != "?" and first.startswith(lab):
+        first = first[len(lab):].lstrip(". ")
+    elif lab != "?" and len(first) <= 3:
+        first = ""
+    rest = _join(lines[1:], vocab)
+    if first.endswith("-") and rest:
+        head_word = []
+        for ch in reversed(first[:-1]):
+            if ch.isalpha() or ch in "’'":
+                head_word.append(ch)
+            else:
+                break
+        first_tok = rest.split()[0] if rest.split() else ""
+        probe = ("".join(reversed(head_word))
+                 + first_tok.strip("“”\"'’‘()[]{}.,;:!?")).lower()
+        text = (first[:-1] + rest) if (head_word and vocab and probe in vocab)\
+            else (first + rest)
+    else:
+        text = " ".join(x for x in (first, rest) if x)
+    return [m.Paragraph(text=text, prov=_prov(lines))] if text else []
+
+
+def _note_with_tables(lab: str, lines: list[Line], grids: list,
+                      vocab: set[str] | None) -> list:
+    """A note that prints a drawn table: prose, table and prose in the
+    order the note sets them, the label stripped off the first run only."""
+    runs: list[tuple[object, list[Line]]] = []
+    for line in lines:
+        owner = next((g for g in grids if g.holds(line)), None)
+        if runs and runs[-1][0] is owner:
+            runs[-1][1].append(line)
+        else:
+            runs.append((owner, [line]))
+    blocks: list = []
+    first_prose = True
+    for owner, run in runs:
+        if owner is None:
+            blocks.extend(_note_prose(lab if first_prose else "?", run,
+                                      vocab))
+            first_prose = False
+        else:
+            blocks.extend(_grid_table(owner, run, vocab))
+    return blocks
 
 
 # A STANDALONE DISPOSITION: the court's whole ruling in one printed line.
@@ -513,8 +832,14 @@ def assemble(model, geom: DocGeometry | None, segments_by_page: dict,
              front_matter: tuple = (),
              para_indent_min: float = 12.0,
              headmatter_claimed: bool = False,
-             writing_starts: dict[int, str] | None = None) -> Assembled:
+             writing_starts: dict[int, str] | None = None,
+             tables: dict[int, list] | None = None) -> Assembled:
     result = Assembled()
+    # The drawn tables of each page, as the caller resolved them (a caption
+    # box is withheld upstream — it is headmatter, not a table).
+    _tables: dict[int, list] = (tables if tables is not None
+                                else {pm.number: pm.tables
+                                      for pm in model.pages})
 
     # A byline can be column-split by pdfio ('LYNCH,' | 'Circuit Judge.  …');
     # byline tests read the rejoined VISUAL ROW, keyed to the row's first
@@ -684,6 +1009,9 @@ def assemble(model, geom: DocGeometry | None, segments_by_page: dict,
     # Split any segment at an interior byline so each writing opens cleanly.
     split_stream: list[Segment] = []
     for seg in stream:
+        if seg.kind == "table":
+            split_stream.append(seg)
+            continue
         cuts = [j for j in range(1, len(seg.lines))
                 if _line_opens_byline(seg.lines, j)
                 and not _midsentence_tail(seg.lines[j - 1].plain)]
@@ -721,6 +1049,58 @@ def assemble(model, geom: DocGeometry | None, segments_by_page: dict,
         mid = (line.x0 + line.x1) / 2
         return mid > model.pages[0].width / 2 + _SIG_OFF_AXIS
 
+    def _under_signature_rule(seg, i: int = -1) -> bool:
+        """Is this row printed under a TYPED SIGNATURE RULE?
+
+        A court that signs its order conformed draws the rule and sets the
+        name beneath it:
+
+            FOR THE COURT:
+            _______________________________________
+                        MAXA, J.
+
+        The name is a byline in every grammar, and nothing follows it, so it
+        opened a writing with no body at all — washctapp/aiden_asbach's order
+        came back as two writings, an order and an empty majority, beside the
+        opinion stapled behind it (the user, 2026-08-21: 'it has two … but im
+        getting three'). The position test above cannot see it: the name is
+        set INSIDE the rule's span, 19pt off the axis against a 40pt bound.
+        The rule itself is the evidence, and only a signature is written
+        under one.
+        """
+        if not seg.lines:
+            return False
+        # …AND A SIGNATURE HAS NOTHING AFTER IT. The rule alone is far too
+        # weak: a court signs the lead opinion and the SEPARATE WRITING'S
+        # byline follows a few points under that signature's rule, so the
+        # test caught real openings — ca6 lost its concurrences and dissents
+        # outright ('majority, concurrence, dissent' -> 'majority') and
+        # cadc's 'Per Curiam', which its judgments print near the end over a
+        # rule, stopped being demoted to `terminal_author` and the lead came
+        # back unbylined. What makes washctapp's 'MAXA, J.' a signature is
+        # that the order ENDS there. Bounded to the same tail the terminal-
+        # byline rule below uses.
+        if i >= 0:
+            after = sum(len(t.lines) for t in split_stream[i + 1:])
+            if after > 8:
+                return False
+        line = seg.lines[0]
+        pm = next((q for q in model.pages if q.number == seg.page), None)
+        if pm is None:
+            return False
+        for other in pm.lines:
+            txt = "".join((other.plain or "").split())
+            if not (txt.count("_") >= 6 and set(txt) <= set("_/")):
+                continue
+            if not (0 < line.top - other.top <= 40.0):
+                continue
+            # …and nothing but the signature's own rows in between.
+            if any(other.top < q.top < line.top and " ".join((q.plain or ""
+                   ).split()) for q in pm.lines):
+                continue
+            return True
+        return False
+
     # …AND A BYLINE THAT SIGNS OFF IS A SIGNATURE TOO. nm sets the author's
     # conformed name at the rail on some records and flushed right on others,
     # but either way an ATTESTATION follows it — 'WE CONCUR:' over the roster
@@ -737,9 +1117,21 @@ def assemble(model, geom: DocGeometry | None, segments_by_page: dict,
     # Measured over nm, nmctapp, idaho and idahoctapp: the attestation is the
     # 10-character 'WE CONCUR:' on all 71 occurrences, and that sentence is
     # the only other row the unanchored pattern matched.
+    # …AND THE CLERK'S ATTESTATION IS THE OTHER FORM OF IT. 'FOR THE
+    # COURT:' over the clerk's name is what a federal appellate clerk prints
+    # to certify a paper, and the byline above it — cadc centres 'Per
+    # Curiam' there — is that paper's attribution, not the opening of a new
+    # one. Measured: the row occurs in 11 courts (vt 42, cadc 37, nmcca 36,
+    # afcca 32, cafc 29, acca 13, ca2 8, lactapp 5, ilcd 2, washctapp 2,
+    # nj 1) and it is a LABEL, never a sentence, so it is anchored whole
+    # exactly as 'WE CONCUR:' is. On cadc it cost 7 of the 100 records a
+    # phantom writing holding nothing but the clerk's signature block
+    # (the user, 2026-08-21, on in_re_donald_trump_1: 'not tow opinions',
+    # and on joe_neguse: 'too many opinions').
     _ATTEST = re.compile(
         r"^(?:WE|I)\s+(?:CONCUR|CONCURRED|DISSENT|DISSENTED)\s*[:.]?$"
-        r"|^CONCUR(?:RED)?\s*:\s*$", re.I)
+        r"|^CONCUR(?:RED)?\s*:\s*$"
+        r"|^FOR\s+THE\s+COURT\s*:$", re.I)
 
     def _signs_off(i: int) -> bool:
         """Is the byline at `i` followed by an attestation?
@@ -767,9 +1159,73 @@ def assemble(model, geom: DocGeometry | None, segments_by_page: dict,
               and not _signs_off(i)
               # a caption RUN-ON page carries no writing (ca9 devas)
               and seg.page not in _runon
+              # …AND NEITHER DOES A SYLLABUS PAGE. The Clerk closes a
+              # syllabus by naming who joined and who wrote separately —
+              # 'CHIEF JUSTICE RABNER and JUSTICES PIERRE-LOUIS, WAINER
+              # APTER, NORIEGA, and HOFFMAN join in JUSTICE PATTERSON's
+              # opinion.' / 'JUSTICE FASCIALE filed a dissent.' — and both
+              # rows parse as bylines in the reversed grammar. Anchored on,
+              # they opened phantom writings at the foot of the syllabus and
+              # the second of them ran on over the COVER, so the invariant
+              # that a writing is never bisected then moved the whole
+              # claimed headmatter inside it: nj's two 127- and 157-page
+              # consolidated releases rendered four writings and NOT ONE
+              # headmatter row. A page the court named as syllabus is not
+              # where a writing opens -- the boundary rule below already
+              # says so for the first segment; it holds for every anchor.
+              and seg.page not in (syl_pages or ())
               and not (i > 0 and split_stream[i - 1].lines
                        and _midsentence_tail(
                            split_stream[i - 1].lines[-1].plain))]
+
+    # A BYLINE UNDER A SIGNATURE RULE, WITH A WRITING ALREADY OPEN ABOVE IT,
+    # SIGNS THAT WRITING. Applied to the FIRST start it would take the only
+    # byline the paper has: cadc prints its judgments as caption > JUDGMENT
+    # heading > body > 'Per Curiam' over a rule, and the terminal-byline rule
+    # below is what demotes that one — it needs the start to reach it.
+    if len(starts) > 1:
+        starts = [i for k, i in enumerate(starts)
+                  if k == 0 or not _under_signature_rule(split_stream[i], i)]
+
+    # THE VOTE BLOCK REPORTS THE WRITINGS; IT DOES NOT OPEN THEM. Texas's
+    # Court of Criminal Appeals prints its whole vote under the caption:
+    #
+    #     PARKER, J., delivered the opinion of the Court in which
+    #     RICHARDSON, NEWELL, WALKER, and MCCLURE, JJ., joined.
+    #     MCCLURE, J., filed a concurring opinion in which WALKER, J.,
+    #     joined.  KEEL, J., concurred.  YEARY, J., filed a dissenting
+    #     opinion in which FINLEY, J., joined …
+    #
+    # Every clause parses as a byline. Anchored on the last of them, Yeary's
+    # ANNOUNCEMENT took all 102 blocks of the opinion of the Court and
+    # Parker's real byline kept none (texcrimapp/cuevas_2).
+    #
+    # The announcement cannot be refused in the grammar, because this court
+    # issues each separate writing as its OWN slip and there the same
+    # sentence IS that document's byline — 12 of its 42 records take their
+    # author from one, and refusing it cost every one of them its author.
+    # What tells the two apart is a judge already named as DELIVERING the
+    # opinion: after that, the block is reporting the vote. Bounded to the
+    # delivering byline's own page and the four segments following it, which
+    # is as far as a vote block runs.
+    def _announced_head(i: int) -> bool:
+        head = " ".join((byline_text(split_stream[i].lines[0]) or ""
+                         ).split()).lower()
+        return any(f" {v} a " in head or f" {v} an " in head
+                   for v in ("filed", "authored", "issued", "wrote"))
+
+    if len(starts) > 1:
+        _delivers = next(
+            (i for i in starts
+             if any(f" {v} the opinion" in " ".join(
+                 (byline_text(split_stream[i].lines[0]) or "").split()).lower()
+                 for v in _DELIVER_VERBS)), None)
+        if _delivers is not None:
+            starts = [i for i in starts
+                      if not (_delivers < i <= _delivers + 4
+                              and split_stream[i].page
+                              == split_stream[_delivers].page
+                              and _announced_head(i))]
 
     # A PANEL ROSTER set one judge per row (ca7's order form: 'FRANK H.
     # EASTERBROOK, Circuit Judge' × 3) is byline-shaped, row after row. Two
@@ -1084,7 +1540,22 @@ def assemble(model, geom: DocGeometry | None, segments_by_page: dict,
             # ca9's 'MEMORANDUM*' — both in the caption's right column)
             # names the document but does not start its body — the body is
             # the first segment BELOW the caption.
-            if (caption_band and line.page == 1
+            #
+            # …UNLESS A COURT READER ALREADY TOOK THE BAND. Both examples
+            # are caption CELLS: the heading is a cell of a caption still
+            # standing in the stream, which is why the body must be sought
+            # below it. Where a reader has claimed the headmatter those rows
+            # are gone, so a doc-type heading that SURVIVES inside the band's
+            # coordinates is not a cell — it is the writing's own title, and
+            # pushing past it walks over the writing. pacommwct measures its
+            # band down to the announcement, so 'MEMORANDUM OPINION BY' was
+            # read as a caption cell and the anchor moved to the first
+            # segment of page 2: city_of_lancaster came back as a 3-block
+            # 'majority' holding the announcement and one paragraph, with
+            # the whole opinion following it as an 82-block 'order' opening
+            # on 'I. BACKGROUND' (the user, 2026-08-21: 'splitting into tweo
+            # opnions when it really shouldnt').
+            if (caption_band and line.page == 1 and not headmatter_claimed
                     and caption_band[0] - 4 <= line.top <= caption_band[1] + 4):
                 _j0 = next(
                     (j for j, s in enumerate(split_stream)
@@ -1100,7 +1571,7 @@ def assemble(model, geom: DocGeometry | None, segments_by_page: dict,
             # A COVER banner heading ABOVE the caption ('CERTIFIED FOR
             # PUBLICATION' — calctapp) names the document too; the body is
             # the first PROSE below the caption, past appeal-from/counsel.
-            elif (caption_band and line.page == 1
+            elif (caption_band and line.page == 1 and not headmatter_claimed
                     and line.top < caption_band[0] - 4):
                 j0 = next(
                     (j for j, s in enumerate(split_stream)
@@ -1532,8 +2003,20 @@ def assemble(model, geom: DocGeometry | None, segments_by_page: dict,
             _i = _seg_of.get(_lid)
             # never BEFORE the first writing: a declaration is for a paper
             # stapled behind one, and an earlier index would take the
-            # headmatter with it.
-            if _i is None or (starts and _i <= starts[0]) or _i == 0:
+            # headmatter with it. AT the first writing is not before it —
+            # the boundary does not move, and the court is naming the kind
+            # of the paper that already opens there. Refusing that cost
+            # pacommwct's passhe its type: the announcement is 'OPINION1'
+            # (the court hangs a footnote mark on the paper's own name), so
+            # `heading_doc_type` does not recognise it, the head goes
+            # unsigned and an unsigned head types `order` — the lead
+            # opinion of a 31-page en banc case came back an order.
+            # …and index 0 is only 'before the first writing' while the
+            # caption still stands there. Under a CLAIMED headmatter the
+            # stream is body-only and segment 0 IS the first writing, which
+            # is where passhe's announcement stands.
+            if (_i is None or (starts and _i < starts[0])
+                    or (_i == 0 and not headmatter_claimed)):
                 continue
             starts.append(_i)
             _declared[id(split_stream[_i])] = _kind
@@ -1590,7 +2073,8 @@ def assemble(model, geom: DocGeometry | None, segments_by_page: dict,
     # body is split by the same fact as the front matter, or a court whose
     # indent is narrower than the default loses every break in its opinions.
     segmenter = Segmenter(geom, model.pages[0].width,
-                          para_indent_min=para_indent_min)
+                          para_indent_min=para_indent_min,
+                          tables=_tables)
     all_lines_text = [l.plain for pm in model.pages for l in pm.lines]
     for a, b in zip(bounds[:-1], bounds[1:]):
         head_seg = split_stream[a]
@@ -1626,12 +2110,24 @@ def assemble(model, geom: DocGeometry | None, segments_by_page: dict,
             head_text = byline_text(head_line) or head_line.plain.strip()
         if byline is not None:
             author_text = head_text[:byline.end].strip()
-            byline_ids = [l.id for l in head_seg.lines[:max(consumed, 1)]]
+            _taken = head_seg.lines[:max(consumed, 1)]
+            byline_ids = [l.id for l in _taken]
             if head_line.row is not None:
                 byline_ids += [l.id for l in head_seg.lines
                                if l.row == head_line.row
                                and l.page == head_line.page
                                and l.id not in byline_ids]
+            # A WRAPPED HEADING'S ROW-MATE IS ON ITS LAST LINE, not its first.
+            # pacommwct folds the heading over two rows and sets the filing
+            # date flush right beside the SECOND — 'CONCURRING/DISSENTING
+            # OPINION' / 'BY JUDGE COVEY   FILED: May 13, 2026'. The head
+            # line's own row is None there, so the date was left behind and
+            # opened the dissent as its first paragraph.
+            _last = _taken[-1] if _taken else head_line
+            byline_ids += [l.id for l in head_seg.lines
+                           if l.page == _last.page
+                           and abs(l.top - _last.top) < 2.0
+                           and l.id not in byline_ids]
             op = m.Opinion(type=normalize_opinion_type(
                                byline.kind if byline.name != "PER CURIAM"
                                else "per curiam"),
@@ -1724,13 +2220,28 @@ def assemble(model, geom: DocGeometry | None, segments_by_page: dict,
         # counsel paragraphs between them are front matter.
         if (byline is not None and parser.g.accept_delivered
                 and byline.kind is None):
+            # THE BANNER IS A LINE, NOT NECESSARILY A SEGMENT. Requiring
+            # the segment to hold exactly one line missed every record whose
+            # banner is tightly leaded above the heading under it: the two
+            # rows segment TOGETHER, so the banner was neither isolated nor
+            # found, and the writing opened on 'OPINION I. Facts' as one
+            # welded heading — 9 of tenncrimapp's 42 (the user, 2026-08-21:
+            # 'opinion should be its own line'). The test now reads the
+            # segment's FIRST line and splits the segment there, which keeps
+            # it just as tight: the line itself must be exactly the banner.
             banner_at = next(
                 (k for k, s in enumerate(writing_segs[:12])
-                 if len(s.lines) == 1
+                 if s.lines
                  and s.lines[0].plain.strip().upper().replace(" ", "")
                      in ("OPINION", "ORDER", "MEMORANDUMOPINION")),
                 None)
             if banner_at is not None:
+                _bs = writing_segs[banner_at]
+                if len(_bs.lines) > 1:
+                    from .segments import Segment as _SegB
+                    writing_segs[banner_at:banner_at + 1] = [
+                        _SegB(_bs.page, _bs.lines[:1], _bs.kind),
+                        _SegB(_bs.page, _bs.lines[1:], _bs.kind)]
                 result.headmatter_segments.extend(writing_segs[:banner_at])
                 # The banner itself is the writing's HEADING — keep it.
                 writing_segs = writing_segs[banner_at:]
@@ -1943,7 +2454,8 @@ def assemble(model, geom: DocGeometry | None, segments_by_page: dict,
         zlines = zone_lines_by_page.get(pm.number, [])
         if not zlines:
             continue
-        notes = _group_footnotes(zlines, flush, vocab)
+        notes = _group_footnotes(zlines, flush, vocab,
+                                 grids=_tables.get(pm.number))
         if pm.number < first_op_page:
             result.headmatter_footnotes.extend(notes)
             continue
@@ -2052,13 +2564,98 @@ def assemble(model, geom: DocGeometry | None, segments_by_page: dict,
         # A WELDED RUN CANNOT BE LIFTED: the scan below reads the head of a
         # block, so a signature that is sitting inside a body paragraph is
         # invisible to it. Unweld first.
-        op.blocks = _unweld_conformed(op.blocks, _by_id, vocab)
+        op.blocks = _split_leader_rows(
+            _unweld_conformed(op.blocks, _by_id, vocab))
         cut = None
 
         def _is_sig(b):
             t = (getattr(b, "text", "") or "")
             t = t.replace("<strong>", "").replace("</strong>", "")
             return "/s/" in t[:20] or t.lower().startswith("/s ")
+
+        # A COURT MAY SIGN WITH ITS HAND. Washington scans the justices'
+        # actual signatures into the page and sets the typed name under each
+        # one, over a rule of underscores in the right half of the sheet:
+        #
+        #     [signature image]
+        #                          Johnson, J.
+        #     WE CONCUR:
+        #     [signature image] [signature image] …
+        #                          Yu, J.P.T.
+        #
+        # There is no '/s/' anywhere, so the lift above saw nothing and the
+        # whole block stayed in the body — 36 of wash's 50 records end on a
+        # run of dangling one-name paragraphs with the signature graphics
+        # loose between them (the user, 2026-08-21: 'wash should remove the
+        # signatures … its too many and everywhere at the end of opinions',
+        # 'its signed with signature images'). The run is read by what it is
+        # MADE OF, and it must contain a graphic to be read at all: a short
+        # right-set line on its own proves nothing.
+        _ATTEST = ("WE CONCUR", "I CONCUR", "WE DISSENT",
+                   "BY THE COURT", "FOR THE COURT")
+
+        def _sig_member(b) -> bool:
+            if isinstance(b, m.ImageBlock):
+                return True
+            t = " ".join(((getattr(b, "text", "") or "")
+                          .replace("<strong>", "")
+                          .replace("</strong>", "")).split())
+            if not t:
+                return True
+            if t.upper().rstrip(":.") in _ATTEST:
+                return True
+            if len(t) > 60:
+                return False
+            ids = getattr(getattr(b, "prov", None), "line_ids", ())
+            xs = [_by_id[i].x0 for i in ids if i in _by_id]
+            return bool(xs) and min(xs) > model.pages[0].width * 0.42
+
+        def _signed_over(b) -> bool:
+            """Is this row printed under a SIGNATURE — a typed rule of
+            underscores, or the scan of a hand?
+
+            Washington's justices sign twice over: the lead opinion's page
+            carries the graphics with the typed name under each, and the
+            separate writings close on a rule of underscores with the name
+            beneath. Both are the same mark — a signature line — and the row
+            under one is a signature, not the writing's last paragraph.
+            """
+            ids = getattr(getattr(b, "prov", None), "line_ids", ())
+            here = [_by_id[i] for i in ids if i in _by_id]
+            if not here:
+                return False
+            pgno, top = here[0].page, min(l.top for l in here)
+            pm = next((q for q in model.pages if q.number == pgno), None)
+            if pm is None:
+                return False
+            # The mark stands ABOVE the name, and the two are BOUNDED BY
+            # NOTHING ELSE. A fixed window cannot do it — the graphic sits
+            # 10pt above its typed name on one page and 77pt above it on
+            # another, because the justice signs into whatever space the
+            # page left. What makes the mark this row's is that no writing
+            # stands between them: prose in the gap would make the image a
+            # figure the opinion discusses, not a signature under it.
+            def _clear(above: float) -> bool:
+                for line in pm.lines:
+                    if not (above < line.top < top):
+                        continue
+                    txt = " ".join((line.plain or "").split())
+                    if not txt or set(txt) <= set("_/"):
+                        continue
+                    if txt.upper().rstrip(":.") in _ATTEST:
+                        continue
+                    if len(txt) <= 60 and line.x0 > pm.width * 0.42:
+                        continue          # another signer's name
+                    return False
+                return True
+
+            for line in pm.lines:
+                txt = "".join((line.plain or "").split())
+                if txt.count("_") >= 6 and set(txt) <= set("_/") \
+                        and line.top < top and _clear(line.top):
+                    return True
+            return any(_i.bottom < top and _clear(_i.bottom)
+                       for _i in getattr(pm, "images", ()))
 
         # A COURT THAT SIGNS EN BANC SIGNS ONCE PER JUSTICE. Scanning back
         # from the end and stopping at the first '/s/' takes only the LAST
@@ -2083,12 +2680,35 @@ def assemble(model, geom: DocGeometry | None, segments_by_page: dict,
                 # dangling last paragraph of the opinion.
                 if cut > 0:
                     above = (getattr(op.blocks[cut - 1], "text", "") or "")
-                    _ab = " ".join(above.split()).upper().rstrip(":")
+                    _ab = " ".join(above.split()).upper().rstrip(":.")
                     if len(above) < 120 and (
                             _ab.startswith("DATED")
                             or _ab in ("BY THE COURT", "FOR THE COURT")):
                         cut = cut - 1
                 break
+        if cut is None and op.blocks:
+            # …the HAND-SIGNED run, walked back from the last block.
+            j = len(op.blocks)
+            while j > 0 and _sig_member(op.blocks[j - 1]):
+                j -= 1
+            run = op.blocks[j:]
+            named = [b for b in run if not isinstance(b, m.ImageBlock)
+                     and (getattr(b, "text", "") or "").strip()]
+            if j < len(op.blocks) and named \
+                    and any(_signed_over(b) for b in named):
+                # THE ATTESTATION THAT OPENS THE BLOCK COMES WITH IT. 'WE
+                # CONCUR:' is set at the RAIL, not in the signers' column,
+                # so the walk back stops on the row above it and leaves it
+                # behind as the writing's last paragraph.
+                while j > 0:
+                    _a = " ".join(((getattr(op.blocks[j - 1], "text", "")
+                                    or "").replace("<strong>", "")
+                                   .replace("</strong>", "")
+                                   ).split()).upper().rstrip(":.")
+                    if _a not in _ATTEST:
+                        break
+                    j -= 1
+                cut = j
         if cut is not None:
             tail = op.blocks[cut:]
             # Only short lines follow a signature (name, title, court).

@@ -65,13 +65,25 @@ THE TYPE LADDER SAYS WHOSE WORDS A ROW IS, measured over all 37 records:
     10.5    the running-head pair
     11.0    the COURT's own text: caption, origin, counsel, panel, opinion
 
-THE DISPATCH is the running-head pair, in the first three non-furniture
-rows of page 1 and present on all 37: 'Nebraska Court of Appeals Advance
-Sheets' over '<volume> Nebraska Appellate Reports'. Core's FurnitureFinder
-drops that pair on pages 2..n but NOT on page 1, because a first page's top
-rows are where a caption normally lives; left unclaimed they stand one row
-above the caption this reader claims, which is exactly where an unclaimed
-row is most dangerous. They are dropped here as `running-head`.
+THE DISPATCH is the 'Nebraska Court of Appeals Advance Sheets' running
+head, in the first three non-furniture rows of page 1 and present on all 37.
+Core's FurnitureFinder drops the running heads on pages 2..n but not all of
+them on page 1, because a first page's top rows are where a caption normally
+lives; whatever survives stands one row above the caption this reader
+claims, which is exactly where an unclaimed row is most dangerous. What
+survives is dropped here as `running-head`.
+
+THE VOLUME LINE BELOW IT IS CORROBORATION, NOT A REQUIREMENT (2026-08-21).
+This reader dispatched on the whole PAIR — 'Advance Sheets' over '<volume>
+Nebraska Appellate Reports' — which was true of the rows core handed it when
+it was written. Core now identifies the volume line as the running head it
+is and drops it, so the pair arrives as one row, the dispatch failed on all
+37, and this reader returned NOTHING for every record while looking and
+grading entirely correct: it claimed 0 syllabus rows where neb claimed
+2,339. `heads` counts the rows the pair actually occupies, so the reader
+reads either vintage. The lesson is neb's, and it is the same one twice: a
+reader keyed to a row core also owns is one core fix away from silence, and
+silence here is invisible.
 
 'Cite as 34 Neb. App. 126' IS THE REPORTER CITATION, and it is READ, NOT
 CLAIMED: core has already identified it as a running head (it repeats on
@@ -452,16 +464,31 @@ def _read_reporter(model, geom, page1):
     if len(rows) < 6:
         return NOTHING
 
-    # ---- the dispatch: the running-head pair, near the top of page 1 -----
-    head = None
-    for idx in range(min(_A_HEAD_SEARCH, len(rows) - 1)):
+    # ---- the dispatch: the 'Advance Sheets' row, near the top of page 1 ---
+    # THE VOLUME LINE BELOW IT IS CORROBORATION, NOT A REQUIREMENT
+    # (2026-08-21). This branch was written when core handed page 1 the whole
+    # running-head PAIR — 'Nebraska Court of Appeals Advance Sheets' over
+    # '<vol> Nebraska Appellate Reports' — and it dispatched on both rows.
+    # Core's FurnitureFinder now identifies the volume line as the running
+    # head it is (it repeats on every page) and drops it before `_rows`
+    # returns, so the pair arrives as ONE row: measured just now, the volume
+    # line survives on 0 of the 37 and the row below 'Advance Sheets' is the
+    # first caption row ('Justin Avery, appellant, v.'). The dispatch failed
+    # on all 37 and this reader returned NOTHING for every one of them while
+    # looking, and grading, entirely correct — nebctapp claimed 0 syllabus
+    # rows where neb claimed 2,339. Same regression, same fix as neb.py:
+    # `heads` counts the rows the pair actually occupies here, and every
+    # index below is taken from that count rather than a fixed offset.
+    head = heads = None
+    for idx in range(min(_A_HEAD_SEARCH, len(rows))):
         if rows[idx][0].page != 1:
             break
         if _norm(_text(rows[idx])).lower() != _A_ADVANCE_SHEETS:
             continue
-        if _A_VOLUME_HEAD.match(_norm(_text(rows[idx + 1]))):
-            head = idx
-            break
+        head = idx
+        heads = 2 if (idx + 1 < len(rows)
+                      and _A_VOLUME_HEAD.match(_norm(_text(rows[idx + 1])))) else 1
+        break
     if head is None:
         return NOTHING
 
@@ -470,7 +497,7 @@ def _read_reporter(model, geom, page1):
     # the volume's own furniture. Core drops it on pages 2..n but not here,
     # and an unclaimed row one step above the caption is what opens a
     # phantom writing over the whole block.
-    for idx in range(head + 2):
+    for idx in range(head + heads):
         ctx.drop(rows[idx], "running-head")
 
     # ---- the caption: 11pt, centred on the page axis, 2-6 rows ----------
@@ -478,7 +505,7 @@ def _read_reporter(model, geom, page1):
     # count. Measured: every caption row in the 37 records is 11.0pt and
     # centred on the axis to 0.01pt.
     cap_rows: list[str] = []
-    idx = head + 2
+    idx = head + heads
     while idx < len(rows) and not _A_VOL_CITE.match(_norm(_text(rows[idx]))):
         group = rows[idx]
         if (group[0].size or 0.0) < _A_COURT_SIZE_MIN:

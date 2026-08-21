@@ -40,8 +40,15 @@ DEFAULT_ABBREV = (
 # body and credited the majority to the wrong justice — 13 of tex's 50
 # records, and utah/state_v._jennings. Replayed over all 7,823 bylines the
 # corpus renders: those are the only two courts it moves, both fixes.
+# …AND THE ANNOUNCEMENT MAY NAME THE WRITING BY ITS KIND INSTEAD OF BY THE
+# WORD 'OPINION'. nj closes both its syllabus and its majority with 'JUSTICE
+# FASCIALE filed a dissent.' — the same filing verb over the same indefinite
+# article, naming the writing by what it is. Spelled only as 'opinion', the
+# row fell through to the filing-verb branch below and opened a phantom
+# writing between the majority and the dissent it was announcing.
 _ANNOUNCED_WRITING = re.compile(
-    r"^(?:filed|authored|issued|wrote)\s+an?\s+(?:[a-z]+\s+){0,4}opinions?\b")
+    r"^(?:filed|authored|issued|wrote)\s+an?\s+(?:[a-z]+\s+){0,4}"
+    r"(?:opinion|dissent|concurrence)s?\b")
 
 _KIND_WORDS = ("concur", "dissent")
 # A row closing on a THIRD-PERSON concur/dissent — 'concur.',
@@ -51,6 +58,22 @@ _KIND_WORDS = ("concur", "dissent")
 _JOINER_ROW = re.compile(r"\b(?:concur|dissent)(?:s|red|ted)?\s*\.?$", re.I)
 # Only the PARTICIPLES vouch for a titlecase surname; see _prose_parse.
 _KIND_PARTICIPLES = ("concurring", "dissenting")
+# A PARTICIPATION NOTE NAMES A JUDGE WHO DID NOT WRITE, and it looks like a
+# byline in every particular: a surname, a title, and a participial clause
+# after the comma. 'Pirtle, Judge, participating on briefs.'
+# (nebctapp/state_v._hearnes) and 'Vaughn, J., not participating.' are the
+# bench's own bookkeeping about who sat and how — printed at the foot of the
+# opinion, and nothing is ever written under them. hearnes rendered as TWO
+# writings where the page sets one, the second holding its byline and no body
+# at all (the user, 2026-08-21).
+#
+# The courts that refuse a titlecase surname already reject these, but for an
+# unrelated reason: their guard wants a _KIND_PARTICIPLES word and
+# 'participating' is not one, so alaska drops 'Henderson, Justice, not
+# participating.' while nebctapp — which MUST allow titlecase, it signs
+# 'Freeman, Judge.' — keeps it. 28 courts allow titlecase, so the test
+# belongs at the parse funnel and is about the CLAUSE, not the letterform.
+_PARTICIPATION = re.compile(r"^(?:not\s+)?participating\b", re.I)
 _DELIVER_VERBS = ("delivered", "filed", "authored", "announced", "wrote")
 _NAME_PREFIXES = ("Mc", "Mac", "De", "Van", "O", "D", "La", "Le", "St")
 
@@ -421,15 +444,37 @@ class BylineParser:
                 return alt
         if got is None:
             return None
+        # WHO SAT IS NOT WHO WROTE — see _PARTICIPATION.
+        if got.kind and _PARTICIPATION.match(got.kind.strip()):
+            return None
         return Byline(got.name, got.title, got.kind, _back(got.end) + offset)
 
     # ---- 'OPINION BY' headings ---------------------------------------------
 
+    # A FOOTNOTE MARK MAY HANG ON THE PAPER'S NAME. pacommwct/passhe_v._plrb
+    # sets 'OPINION1 BY JUDGE FIZZANO CANNON' — the court's note about how the
+    # panel was constituted, hung on the word 'OPINION' — and with '\s+BY'
+    # demanded straight after the noun the heading matched nothing, so the
+    # whole byline row stayed in the writing as its first paragraph.
     _OPINION_BY = re.compile(
-        r"^(?P<kind>CONCURRING|DISSENTING)?\s*"
+        r"^(?P<kind>CONCURRING(?:\s*(?:/|AND|&)\s*DISSENTING)?"
+        r"|DISSENTING(?:\s*(?:/|AND|&)\s*CONCURRING)?)?\s*"
         r"(?:MEMORANDUM(?:\s+OPINION)?|OPINION|ORDER)"
+        r"\s*[\d*†‡]{0,3}"
         r"(?:\s+OF\s+THE\s+COURT)?\s+BY[:\s]\s*"
         r"(?P<rest>.+?)\s*:?$", re.IGNORECASE)
+
+    # 'OPINION' OVER 'PER CURIAM' — the heading with no 'BY' in it, because an
+    # unsigned paper has no one to name. pacommwct/g._wilkins_v._pa_oag_oor
+    # folds it over two rows, so the joined heading reads 'OPINION PER CURIAM'
+    # and the BY-form could not match it: core took 'PER CURIAM' off the second
+    # row alone and left the first, so the writing opened on
+    # 'OPINION FILED: June 26, 2026 Glue Wilkins…'. Bounded to the whole row,
+    # so prose that merely mentions a per curiam opinion cannot match.
+    _OPINION_PER_CURIAM = re.compile(
+        r"^(?:MEMORANDUM\s+|CONCURRING\s+|DISSENTING\s+)*"
+        r"(?:OPINION|MEMORANDUM|ORDER)\s*[\d*†‡]{0,3}"
+        r"\s+PER\s+CURIAM\.?$", re.IGNORECASE)
 
     _OPINION_BY_ES = re.compile(
         r"^Opini[oó]n\s+(?P<kind>disidente|concurrente|de conformidad)?\s*"
@@ -462,15 +507,28 @@ class BylineParser:
                         "de conformidad": "concurring"}[
                     (es.group("kind") or "").lower() or None]
                 return Byline(" ".join(toks[:4]), "Juez", kind, len(text))
+        if self._OPINION_PER_CURIAM.match(text):
+            return Byline("PER CURIAM", "per curiam", None, len(text))
         m = self._OPINION_BY.match(text)
         if m is None or len(text) > 90:
             return None
         rest = m.group("rest").strip()
         kind = (m.group("kind") or "").lower() or None
+        # 'OPINION BY PER CURIAM' — the announcement form of an unsigned
+        # paper, which names no judge because none signed it.
+        if is_per_curiam(rest) or rest.upper().rstrip(".") == "PER CURIAM":
+            return Byline("PER CURIAM", "per curiam", kind, len(text))
         # Title-led ('JUDGE McCULLOUGH', 'JUSTICE KELLER', 'SENIOR JUDGE X')
         # or name-led ('GINOZA, J.', 'Arthur, J.').
+        # 'PRESIDENT JUDGE' IS A BENCH TITLE. Pennsylvania's Commonwealth and
+        # Superior Courts are led by a President Judge, and without the word
+        # the title-led branch failed on 'OPINION BY PRESIDENT JUDGE COHN
+        # JUBELIRER' — pacommwct/z._leger_v._g.l._martin came back with NO
+        # author and its heading, its judge and its FILED date all rendered as
+        # the opinion's opening paragraph.
         tl = re.match(
-            r"(?:THE\s+)?(?P<title>(?:VICE\s+)?(?:CHIEF\s+|SENIOR\s+|PRESIDING\s+)?"
+            r"(?:THE\s+)?(?P<title>(?:VICE\s+)?"
+            r"(?:CHIEF\s+|SENIOR\s+|PRESIDING\s+|PRESIDENT\s+)?"
             r"(?:JUSTICE|JUDGE))\s+(?P<name>.+)$", rest, re.IGNORECASE)
         if tl:
             name = tl.group("name").strip().rstrip(".,:")
@@ -695,12 +753,30 @@ class BylineParser:
             # 'respectfully dissenting', 'partially concurring' are ordinary
             # opinion grammar, not a court's local dialect. Step over one so
             # the clause underneath is read normally.
+            # A SEMICOLON PUNCTUATES A VOTE LINE. Stripping only '.' and ','
+            # left 'concurred;' as the first word, so the third-person guard
+            # below could never match the form New Hampshire prints
+            # ('DONOVAN, J., concurred; ABRAMSON, J., …').
             _bare = head
-            _w0 = _bare.split()[0].rstrip(".,") if _bare.split() else ""
+            _PUNCT = ".,;:"
+            _w0 = _bare.split()[0].rstrip(_PUNCT) if _bare.split() else ""
             if _w0.endswith("ly") and len(_bare.split()) > 1:
                 _bare = _bare.split(None, 1)[1]
-            first_word = _bare.split()[0].rstrip(".,") if _bare.split() else ""
-            if first_word in ("concurs", "dissents"):
+            first_word = (_bare.split()[0].rstrip(_PUNCT)
+                          if _bare.split() else "")
+            # THE PAST TENSE IS AS THIRD-PERSON AS THE PRESENT. New
+            # Hampshire closes its opinions with a vote line in the preterite
+            # — 'DONOVAN, J., concurred; ABRAMSON, J., retired superior court
+            # justice, specially assigned under RSA 490:3, II, concurred.' —
+            # and listing only 'concurs'/'dissents' here read the first name
+            # as a byline and opened a phantom concurrence whose whole body
+            # was the rest of the sentence (nh/atl._anesthesia). The
+            # vocabulary was already right in `_JOINER_ROW`, which accepts
+            # '(?:s|red|ted)?'; only this guard was short of it. The
+            # PARTICIPLES are deliberately absent: 'concurring' IS that
+            # writer's own byline.
+            if first_word in ("concurs", "dissents",
+                              "concurred", "dissented"):
                 return None    # third-person: an ANNOUNCEMENT, not a byline
             # 'Brown, J. and DeBoer, J., concur.' — a JOINER ROW, not a
             # byline. The row names the judges who joined the writing above

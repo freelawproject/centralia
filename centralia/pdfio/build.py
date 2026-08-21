@@ -17,6 +17,7 @@ import pdfplumber
 from . import quirks
 from .model import ImageRef, Line, PageModel, PdfModel
 from .rules import collect_rules
+from .tables import find_grids, row_edge_rects
 from .text import inferred_space_gap
 
 # A vertical rule must be at least this tall to split a line into columns —
@@ -186,7 +187,27 @@ def build_page(page, page_no: int, id_start: int) -> PageModel:
     raw = quirks.merge_interleaved(raw, pm.event)
     raw = _split_at_vrules(raw, pm.v_rules, pm.event)
     raw = _split_wide_gaps(raw, pm.event)
-    quirks.tag_underlined_chars(page.rects, raw)
+
+    # A DRAWN table is read here, in the one pass, because its own rules
+    # change how the page reads twice over: the lines inside it are cells
+    # rather than paragraphs, and its cell borders are not underlines.
+    pm.tables = find_grids(pm.h_rules, pm.v_rules, raw, page_no)
+    if pm.tables:
+        pm.event("table", ", ".join(
+            f"{g.n_rows}x{g.n_cols} at y{g.top:.0f}" for g in pm.tables))
+    _cell_rects = row_edge_rects(pm.tables, page.rects)
+    quirks.tag_underlined_chars(page.rects, raw, skip=_cell_rects)
+
+    # A REDACTION is drawn, not written — read it back into its line. Runs
+    # after the splits on purpose: a blacked-out name always touches the words
+    # beside it, so it never needs to make a column, and injecting it earlier
+    # could only ever invent one.
+    quirks.insert_redaction_boxes(page.rects, raw, pm.event, skip=_cell_rects)
+
+    # A stacked one-glyph column is a RAIL. Tagged here so nothing downstream
+    # has to re-measure it — the footnote resolver in particular, which would
+    # otherwise read a '§' rail glyph as a note's label.
+    quirks.tag_rail_glyphs(raw, pm.event)
 
     # A superscript footnote marker raises a line's measured top (~1.5pt at
     # 13pt leading), which shrinks the gap above it below the tight band and
@@ -238,6 +259,7 @@ def build_page(page, page_no: int, id_start: int) -> PageModel:
 
     upright = [c for c in chars if c.get("upright", True) is not False]
     pm.ink_chars = sum(1 for c in upright if (c.get("text") or "").strip())
+    pm.fonts = {c.get("fontname") or "" for c in upright}
     pm.cid_chars = sum(1 for c in upright
                        if (c.get("text") or "").startswith("(cid:"))
     area = pm.width * pm.height or 1.0

@@ -65,6 +65,32 @@ left over):
 A record printing neither a masthead nor a rail is not this paper and gets
 NOTHING.
 
+A SYLLABUS IS A SECTION OF ITS OWN, AND NINE RECORDS PRINT ONE (revised
+2026-08-21, the user: 'it has a syllabus that should be identified').
+Court staff write a precis, the court hangs a footnote on it disclaiming it
+('This syllabus is provided for the convenience of the reader; it is not part
+of the opinion and should not be cited or relied upon as legal authority'),
+and it is headmatter — role `syllabus` — not the opinion's opening words.
+
+The word stands in one of two places, and both are read:
+
+    the FENCED TITLE       4   bnsf, brown, dk_trading, gosecure
+    a heading BELOW it     5   enosis, jeremiah, kampmann, mesquite, pradera
+                               (the fence holds 'OPINION' or 'OPINION & ORDER'
+                               and 'Syllabus' is set italic under it)
+
+Unclaimed, the precis did far more damage than one untinted block: it is the
+first unclaimed prose in the document, so assembly opened the WRITING on it,
+the writing's span then began on page 1, and core's 'a writing is never
+bisected' invariant reunited everything this reader had claimed on page 2 —
+the second cover's citation, masthead and title — into that writing.
+bnsf_railway rendered '2026 Tex. Bus. 8 / The Business Court of Texas, /
+First Division / Opinion and Order Entering Final Judgment' as body prose in
+the middle of its own opinion, and carried two footnotes both labelled 1.
+Claimed, the writing's first line moves to page 2, the second cover survives
+by itself, and the syllabus's note becomes a headmatter footnote because
+core attaches notes by page ownership.
+
 THE COVER IS PER-WRITING, NOT PER-DOCUMENT. Six records print the cover
 TWICE: once over a staff-written 'Syllabus' and again, overleaf, over the
 opinion the syllabus describes (brown_v._exxon_mobil, bnsf_railway,
@@ -100,8 +126,8 @@ is the only thing lost, and nothing is mis-tagged to gain it.
 WHAT IS NOT HERE. No counsel block: this court does not print appearances on
 the cover at all (checked over all 42). No panel: a single judge signs. No
 dates in the front matter: the clerk's stamp carries the filing date and it
-is furniture. So this reader emits exactly five roles — `citation`, `court`,
-`caption`/`docket` (inside the block), and `title` — and drops the stamp.
+is furniture. So this reader emits six roles — `citation`, `court`, `caption`/`docket`
+(inside the block), `title` and `syllabus` — and drops the stamp.
 """
 
 from __future__ import annotations
@@ -158,13 +184,24 @@ _DIVISION = re.compile(
     r"^(First|Second|Third|Fourth|Fifth|Sixth|Seventh|Eighth|Ninth|Tenth"
     r"|Eleventh|\d{1,2}(?:st|nd|rd|th))\s+Division\s*,?$", re.I)
 # The court's own public-domain citation. The reporter's abbreviation is
-# still settling: 36 records print '2026 Tex. Bus. 35' and two print
+# still settling: most records print '2026 Tex. Bus. 35' and two print
 # '2026 Tex. Bus. Ct. 47' (both synergy_thermogen records), so the 'Ct.' is
-# optional. Four records print no citation at all
-# (plains_pipeline_v._arrowhead, dallas_sports_group_v._dse_hockey_club, and
-# the two the clerk stamped over) — no citation read is not an error.
+# optional.
+#
+# THE YEAR MAY BE TWO DIGITS. Re-measured over all 42 (2026-08-21): 41 print a
+# citation in the top rows of page 1 and exactly ONE abbreviates the year —
+# dallas_sports_group_v._dse_hockey_club prints '26 Tex. Bus. 36'. (The older
+# note here said four records printed no citation at all and named this one
+# among them; that was wrong.) Requiring four digits was not a missing
+# criterion but a missing CLAIM, and the cost was the whole cover: the
+# citation is the first row of page 1, so unclaimed it was the document's
+# first unclaimed prose, assembly opened the writing ON it, and the
+# 'a writing is never bisected' invariant then pulled this reader's masthead,
+# caption box, title AND the syllabus band into that writing as body prose —
+# the same damage this file already records for an unclaimed syllabus, from a
+# different row.
 _CITATION = re.compile(
-    r"^(\d{4}\s+Tex\.\s*Bus\.(?:\s*Ct\.)?\s*\d+)\s*$", re.I)
+    r"^(\d{2,4}\s+Tex\.\s*Bus\.(?:\s*Ct\.)?\s*\d+)\s*$", re.I)
 # The clerk's FILED stamp. Two cues, and it is a RUN: the run opens on
 # 'FILED IN' and the rows under it name the court, the clerk, the action and
 # the date. Identified as a run in the TOP BAND, never row by row — 'BUSINESS
@@ -195,6 +232,35 @@ _STATUS = re.compile(
 # The paragraph mark the body opens on. This court numbers every paragraph,
 # so the first '¶' is the end of the cover as surely as a byline is.
 _PARA = re.compile(r"^¶\s*\d+")
+# …AND ON A SCAN THE GLYPH IS GONE. The four rastered records set the same
+# mark and the OCR renders it a different way every time — '<jf 1', 'ljf2',
+# '9[4', 'Cj[l', '912' — so a pattern that reads the CHARACTER cannot stop the
+# walk on them. What is invariant is the POSITION: this court hangs the number
+# in the left margin, and measured over all 42 records only 20 rows on pages
+# 1-3 stand at x0 < 50 — every single one of them a paragraph mark, on the
+# four scans and on dk_trading. The cover itself never reaches out there; its
+# party column starts at 66 and its body rail at 65.
+#
+# Both existing guards missed these. `_PARA` cannot match '<jf'; and the mark
+# shares a BASELINE with the first line of its paragraph, so `_rows` groups
+# the two and the group — x0 29.5 out to 540 — has its centre within 21pt of
+# the page axis and reads as CENTRED. local_marketing_v._bennett therefore ran
+# the walk on past its title and published the opinion's whole opening
+# paragraph as title rows, leaving the writing to begin mid-sentence at
+# "parties' briefing and oral argument" (the user, 2026-08-21).
+_MARGIN_X_MAX = 50.0
+_MARGIN_MARK = re.compile(r"^\S{0,6}?[\dlIiO]{1,3}$")
+
+
+def _opens_margin_mark(pieces: list) -> bool:
+    """True when a row's leftmost piece is a margin paragraph number."""
+    lead = pieces[0]
+    if lead.x0 >= _MARGIN_X_MAX:
+        return False
+    # The OCR puts a space inside the mark as readily as not ('<jf 1' beside
+    # 'ljf2'), so the glyphs are closed up before the shape is read.
+    text = "".join((lead.plain or "").split())
+    return bool(text) and len(text) <= 8 and bool(_MARGIN_MARK.match(text))
 
 _RAIL_GLYPH = "§"
 _RAIL_WINDOW = 8.0        # a glyph this close to the rail's x IS the rail
@@ -204,6 +270,12 @@ _AXIS_TOL = 26.0          # centred on the page axis, at this court's measure
 _COVER_PAGES = 3          # the second cover is never later than page 3
 _TOP_BAND = 110.0         # the stamp's band, in points from the sheet's head
 _TITLE_ROWS_MAX = 6       # the longest title the court prints is four rows
+# THE TITLE THAT NAMES A PRECIS. 6 of the 42 records print a 'Syllabus' cover
+# over the opinion's own; the footnote mark the court hangs on the word is
+# part of the row, so the match is on its opening.
+# No \b after the word: the footnote mark is a DIGIT welded to it
+# ('Syllabus1'), and a word boundary between 's' and '1' does not exist.
+_SYLLABUS_TITLE = re.compile(r"^Syllabus", re.I)
 
 
 def _norm(text: str) -> str:
@@ -447,8 +519,229 @@ def read_headmatter_texbizct(model, geom, **_):
         read_any = True
     if not read_any:
         return NOTHING
+    # THE TITLE MAY STAND OVERLEAF, and now it is followed there.
+    #
+    # This reader used to decline it: where the party list fills page 1 by
+    # itself the caption box runs to the foot of the sheet and the title band
+    # is printed on the next page, with no masthead above it to say it is a
+    # cover, and 'the title band's own fence is not enough to tell a title
+    # from a section heading on a page that prints no cover'. True of a fence
+    # found anywhere — but not of a fence that OPENS the page: measured over
+    # all 42 records, fischer_v._fischer is the ONLY one whose page 2 opens on
+    # a typed rule, and its band holds exactly the title ('MEMORANDUM OPINION
+    # AND ORDER GRANTING IN PART AND DENYING IN PART RECEIVER PARTIES' AMENDED
+    # RULE 91a MOTION TO DISMISS'). A section heading never opens a page under
+    # a rule, because the rule would have closed the section above it.
+    #
+    # Gated on the cover having found NO title of its own, so it can only ever
+    # fill a hole the walk already left. may_v._ineos runs its twenty-defendant
+    # list over the same way, but its page 2 does not open on a rule — the OCR
+    # broke the '═' run — so it keeps no title, which is the honest answer for
+    # a scan (the user's note, 2026-08-21).
+    if not ctx.crit.get("title") and len(model.pages) > 1:
+        if not _read_box_overleaf(model.pages[0], model.pages[1], ctx, finder):
+            _read_overleaf_title(model.pages[1], ctx, finder)
     ctx.crit.setdefault("headmatter_style", styles[0])
     return ctx.result()
+
+
+def _read_box_overleaf(p1, pm, ctx: _Ctx, finder) -> bool:
+    """The caption box CONTINUED on the next page. True when it read one.
+
+    A party list long enough to fill page 1 does not end there: the box runs
+    over, and the rows overleaf still carry the rail. may_v._ineos_usa_oil__gas
+    names twenty defendants and page 2 opens
+    'EXECUTOR OF THE ESTATE OF MARK A. §' / 'DOPPS, DECEASED, §' /
+    'Defendants §' before its title — the closing rows of the caption, and the
+    party status that ends it. Left behind they went to the writing, which then
+    opened on 'DOPPS, DECEASED, § Defendants § MEMORANDUM OPINION AND ORDER'
+    (the user, 2026-08-21: "defendants is part of the case caption").
+
+    THE RAIL IS WHAT CARRIES OVER, and it is the whole test: the continuation
+    is claimed only when page 2 stacks the same glyph in the SAME COLUMN as
+    page 1's box (within the rail window) and page 1's own box ran to the foot
+    of its sheet. A page that merely prints a '§' somewhere cannot qualify,
+    and neither can a second COVER — that has a masthead of its own, which
+    `_read_cover` has already claimed by the time this is asked.
+    """
+    r1, r2 = _rail(p1), _rail(pm)
+    if r1 is None or r2 is None:
+        return False
+    if abs(r2["x"] - r1["x"]) > _RAIL_WINDOW:
+        return False
+    # Page 1's box must actually have run out of sheet: its rail reaches the
+    # foot. Measured on may_v._ineos the last glyph sits at 0.86 of the page.
+    if r1["bottom"] < p1.height * 0.80:
+        return False
+    # THE BOX'S OWN ROWS COME FROM THE PAGE, NOT FROM `_rows`. A row the rail
+    # spans is inside the caption and cannot be a page head — but it is the
+    # TOPMOST row of the sheet, so core reads it as one: 'EXECUTOR OF THE
+    # ESTATE OF MARK A. §' at top 52.4 is classified `running-head` and never
+    # reached this reader, which claimed the two rows under it and left the
+    # party's name behind. Inside the rail's band the rail is the authority.
+    band_rows: dict = {}
+    for line in pm.lines:
+        if not line.plain.strip():
+            continue
+        if r2["top"] - 1.0 <= line.top <= r2["bottom"] + 1.0:
+            band_rows.setdefault(round(line.top, 1), []).append(line)
+    rows = [sorted(band_rows[k], key=lambda l: l.x0) for k in sorted(band_rows)]
+    rows += [g for g in _rows(pm, finder)
+             if g[0].top > r2["bottom"] + 1.0]
+    if not rows:
+        return False
+    mid = r2["x"]
+    box_bottom, pitch = _box_close(rows, r2)
+    left: list = []
+    right: list = []
+    box_ids: set[int] = set()
+    parties: list[str] = []
+    title_rows: list[list] = []
+    band = "box"
+    for group in rows:
+        pieces = sorted(group, key=lambda l: l.x0)
+        text = _norm(" ".join(l.plain for l in pieces))
+        if not text:
+            continue
+        top = pieces[0].top
+        span0, span1 = pieces[0].x0, max(l.x1 for l in pieces)
+        centred = abs((span0 + span1) / 2 - pm.width / 2) <= _AXIS_TOL
+        if band == "box" and top <= box_bottom + 1.0:
+            l_parts, r_parts = [], []
+            for line in pieces:
+                bare = _shed(line, r2)
+                if bare is None:
+                    continue
+                for want, bucket in (("L", l_parts), ("R", r_parts)):
+                    part = _side(bare, mid, want)
+                    if part is not None:
+                        bucket.append(part)
+            if not l_parts and not r_parts:
+                box_ids.update(l.id for l in pieces)
+                continue
+            left.append(_row(l_parts, "caption"))
+            right.append(_row(r_parts, "caption"))
+            box_ids.update(l.id for l in pieces)
+            for part in l_parts:
+                one = _norm(part.plain).rstrip(",")
+                if one and not _PIVOT.match(one) and not _STATUS.match(one):
+                    parties.append(one)
+            continue
+        band = "title"
+        # the title band, on the same terms the cover reads its own
+        if _TYPED_RULE.match(text):
+            ctx.rule(pieces)
+            if title_rows:
+                break
+            continue
+        if _PARA.match(text) or _opens_margin_mark(pieces) or not centred:
+            break
+        title_rows.append(pieces)
+        if len(title_rows) >= _TITLE_ROWS_MAX:
+            break
+    if not left:
+        return False
+    while left and not _text_of(left[-1]) and not _text_of(right[-1]):
+        left.pop()
+        right.pop()
+    if not left:
+        return False
+    ctx.items.append(m.CaptionBlock(
+        left=left, right=right, rail=_RAIL_GLYPH, rail_rows=len(left),
+        style_id="section-rail",
+        fp={"rail": _RAIL_GLYPH, "mid_x": round(mid, 1)},
+        prov=m.Prov(pm.number, tuple(sorted(box_ids)))))
+    ctx.consumed.update(box_ids)
+    if parties:
+        ctx.crit.setdefault("parties", [])
+        ctx.crit["parties"] = list(ctx.crit["parties"]) + parties
+    for pieces in title_rows:
+        ctx.emit(pieces, "title")
+        ctx.anchor.extend(p.id for p in pieces)
+    if title_rows:
+        ctx.crit.setdefault("title", _norm(" ".join(
+            _norm(" ".join(l.plain for l in sorted(g, key=lambda l: l.x0)))
+            for g in title_rows)))
+    return True
+
+
+def _read_overleaf_title(pm, ctx: _Ctx, finder) -> None:
+    """The title band on a page that opens on a typed rule. See the caller."""
+    rows = _rows(pm, finder)
+    if not rows:
+        return
+    flat = [_norm(" ".join(l.plain for l in g)) for g in rows]
+    if not _TYPED_RULE.match(flat[0]):
+        return
+    title_rows: list = []
+    closed = None
+    for i in range(1, min(len(rows), _TITLE_ROWS_MAX + 3)):
+        text = flat[i]
+        if not text:
+            continue
+        if _TYPED_RULE.match(text):
+            closed = rows[i]
+            break
+        if _PARA.match(text):
+            break
+        title_rows.append(rows[i])
+    # BOTH RULES OR NOTHING. An unclosed band is not a fence, and claiming it
+    # would take the writing's first paragraphs for a title.
+    if closed is None or not title_rows:
+        return
+    ctx.rule(rows[0])
+    for pieces in title_rows:
+        ctx.emit(pieces, "title")
+        ctx.anchor.extend(p.id for p in pieces)
+    # BOTH RULES ARE THE BAND'S. Claiming only the opening one left the
+    # closing '═' run as the writing's first paragraph.
+    ctx.rule(closed)
+    ctx.crit.setdefault("title", _norm(" ".join(
+        _norm(" ".join(l.plain for l in sorted(g, key=lambda l: l.x0)))
+        for g in title_rows)))
+
+
+def _read_syllabus(pm, ctx: _Ctx, rows: list, at: int, titled: bool) -> None:
+    """The precis, and where it ends.
+
+    WHERE THE WORD 'SYLLABUS' STANDS IS NOT FIXED. On four records it IS the
+    fenced title, so the band opens the moment the fence closes. On
+    jeremiah_counsel the fence holds 'OPINION AND ORDER' and the word stands
+    BELOW it as the section's own heading, with the precis under that — so
+    `titled` says whether the fence already named it, and a 'Syllabus' row
+    found here names it too. Keyed to the fenced title alone, that record's
+    syllabus stayed in the writing.
+
+    WHAT ENDS THE BAND IS THE COURT'S NOTE ABOUT IT, and the note is told
+    from the precis by TYPE SIZE — measured against the precis's OWN first
+    row, never the page's commonest size. The cover, the precis and the note
+    are three sizes, and they are not the same three on every record:
+    bnsf sets 13.8 / 13.8 / 12.0, dk_trading 13.0 / 12.0 / 11.0. Measured
+    against the page's modal size, dk_trading's precis read as the note and
+    the whole band was refused.
+
+    The note itself is left alone: it sits in the page's footnote zone, which
+    is core's, and claiming it here would publish it twice.
+    """
+    band: float | None = None
+    for group in rows[at:]:
+        pieces = sorted(group, key=lambda l: l.x0)
+        text = _norm(" ".join(l.plain for l in pieces))
+        if not text or _TYPED_RULE.match(text):
+            continue                    # the title band's own closing rule
+        size = round(pieces[0].size or 0.0, 1)
+        if band is None:
+            if _SYLLABUS_TITLE.match(text):
+                # The section names itself here rather than in the fence.
+                ctx.emit(pieces, "title")
+                titled = True
+                continue
+            if not titled:
+                return                  # this cover carries no syllabus
+            band = size
+        elif size < band - 0.5:
+            break                       # the court's note about it: core's
+        ctx.emit(pieces, "syllabus", centre=False)
 
 
 def _read_cover(pm, ctx: _Ctx, finder, first: bool) -> str | None:
@@ -573,11 +866,13 @@ def _read_cover(pm, ctx: _Ctx, finder, first: bool) -> str | None:
             if title_rows:
                 break
             continue
-        if _PARA.match(text) or not centred:
+        if _PARA.match(text) or _opens_margin_mark(pieces) or not centred:
             break               # the writing has begun
         title_rows.append(pieces)
         if len(title_rows) >= _TITLE_ROWS_MAX:
             break
+    else:
+        idx = len(rows)
 
     if not left:
         return None
@@ -609,6 +904,26 @@ def _read_cover(pm, ctx: _Ctx, finder, first: bool) -> str | None:
     for pieces in title_rows:
         ctx.emit(pieces, "title")
         ctx.anchor.extend(p.id for p in pieces)
+    # A SYLLABUS IS NOT THE OPINION, AND THE TITLE BAND SAYS WHICH PAPER THIS
+    # IS. Where the fenced title reads 'Syllabus' the prose under it is court
+    # staff's precis — it says so in its own footnote ('This syllabus is
+    # provided for the convenience of the reader; it is not part of the
+    # opinion and should not be cited or relied upon as legal authority') —
+    # and it belongs to the headmatter, tagged, not to the writing.
+    #
+    # Unclaimed it did far more damage than one untinted block. The syllabus
+    # is the first unclaimed prose in the document, so assembly opened the
+    # writing ON it; the writing's span then started on page 1, and core's
+    # 'a writing is never bisected' invariant reunited everything this reader
+    # had claimed on page 2 — the SECOND cover's citation, masthead and title
+    # — into that writing as paragraphs. bnsf_railway rendered '2026 Tex.
+    # Bus. 8 / The Business Court of Texas, / First Division / Opinion and
+    # Order Entering Final Judgment' as body prose in the middle of its own
+    # opinion. Claiming the syllabus moves the writing's first line to page
+    # 2 and the second cover survives by itself.
+    _read_syllabus(pm, ctx, rows, idx, titled=bool(title_rows) and bool(
+        _SYLLABUS_TITLE.match(_norm(" ".join(
+            l.plain for g in title_rows for l in g)))))
     if title_rows and first:
         ctx.crit.setdefault("title", _norm(" ".join(
             _norm(" ".join(l.plain for l in sorted(g, key=lambda l: l.x0)))

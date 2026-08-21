@@ -145,6 +145,48 @@ class VRule:
 
 
 @dataclass(frozen=True)
+class TableGrid:
+    """A table the page DRAWS: the edges of a ruled box and of the rules
+    inside it. ``col_edges``/``row_edges`` are the drawn rules themselves, so
+    n edges bound n-1 cells; the cell text is read off the lines that sit
+    inside each one (see pdfio.tables)."""
+
+    page: int
+    col_edges: tuple[float, ...]     # vertical rule x, left -> right
+    row_edges: tuple[float, ...]     # horizontal rule top, top -> bottom
+
+    @property
+    def x0(self) -> float:
+        return self.col_edges[0]
+
+    @property
+    def x1(self) -> float:
+        return self.col_edges[-1]
+
+    @property
+    def top(self) -> float:
+        return self.row_edges[0]
+
+    @property
+    def bottom(self) -> float:
+        return self.row_edges[-1]
+
+    @property
+    def n_cols(self) -> int:
+        return len(self.col_edges) - 1
+
+    @property
+    def n_rows(self) -> int:
+        return len(self.row_edges) - 1
+
+    def holds(self, line) -> bool:
+        """True if this text line sits inside the box."""
+        mid_y = (line.top + line.bottom) / 2
+        return (self.top - 2.0 <= mid_y < self.bottom
+                and self.x0 - 6.0 <= line.x0 <= self.x1 + 6.0)
+
+
+@dataclass(frozen=True)
 class ImageRef:
     page: int
     x0: float
@@ -162,12 +204,21 @@ class PageModel:
     lines: list[Line] = field(default_factory=list)
     h_rules: list[DrawnRule] = field(default_factory=list)
     v_rules: list[VRule] = field(default_factory=list)
+    tables: list[TableGrid] = field(default_factory=list)
     images: list[ImageRef] = field(default_factory=list)
     has_diagonal: bool = False  # diagonal strokes (X-capped pleading boxes)
     rotated_text: str = ""      # sideways glyphs, in PDF char order (furniture)
     ink_chars: int = 0          # printable upright glyph count (scan triage)
     cid_chars: int = 0          # unmapped (cid:N) glyph count
     image_area: float = 0.0     # summed image area / page area, 0..1
+    # Every distinct /BaseFont the page's glyphs name, kept WHOLE — with the
+    # subset tag that `Line.font` strips off. The tag is the evidence: a
+    # born-digital page embeds its faces and pdfminer reports them subsetted
+    # ('BCDEEE+TimesNewRomanPSMT'), while an OCR text layer names the
+    # non-embedded standard faces or Tesseract's own 'GlyphLessFont'. That is
+    # what tells a scan from a page merely printed over a background image —
+    # see classify.ocr_text_layer.
+    fonts: set = field(default_factory=set)
     events: list = field(default_factory=list)  # (quirk, detail) trace events
 
     def event(self, quirk: str, detail: str) -> None:

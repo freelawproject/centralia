@@ -50,7 +50,27 @@ PIPELINE_VERSION = "2.0.0a0"
 SOURCE_WARNINGS = (
     "scan with OCR text layer",
     "image-only page",
+    "text missing from",
+    # A PAGE-IMAGE DOCUMENT IS THE SAME COMPLAINT AS THE REST OF THIS LIST.
+    # Left out, the stub a pure scan returns read as a PARSE failure: 7 of
+    # nevapp's 31 records -- every one of them a bilevel raster with no text
+    # layer at all -- graded D on 'no-opinions' plus a parse warning, as
+    # though a reader could be written for them.
+    "non-born-digital",
 )
+
+
+def _page_list(pages: list[int]) -> str:
+    """'p 4', 'pp 4, 11', 'pp 4-6, 11' — contiguous runs collapsed, the rest
+    named. A warning that names its pages has to name the RIGHT ones."""
+    runs: list[list[int]] = []
+    for n in sorted(pages):
+        if runs and n == runs[-1][-1] + 1:
+            runs[-1].append(n)
+        else:
+            runs.append([n])
+    parts = [str(r[0]) if len(r) == 1 else f"{r[0]}-{r[-1]}" for r in runs]
+    return ("p " if len(pages) == 1 else "pp ") + ", ".join(parts)
 
 
 def _column_order(lines: list) -> list:
@@ -97,6 +117,41 @@ class ExtractionResult:
 # A FILING STAMP IN THE COURT'S OWN FORM: 'Filed 7/20/26'. Prose cannot
 # match it, which is what lets the length bound below be waived.
 _FILED_STAMP = _re.compile(r"^Filed\s+\d{1,2}/\d{1,2}/\d{2,4}\b", _re.I)
+# THE ECF PAGE OVERLAY IS NOT A COVER STAMP. Every page of a federal
+# district filing carries the same one-row stamp, and it opens on the same
+# word a cover stamp does: 'Filed 07/06/26     Page 4 of 5 PageID #: 926'.
+# Counted as a filing stamp it made the strict test true on EVERY page,
+# which widened the banner window to eight rows, and eight rows down an
+# opinion some sentence carries two court words — so arwd/75862 was cut in
+# two at page 4 and rendered as two writings. What tells the overlay from a
+# cover is that the overlay NAMES ITS OWN PAGE: a stamp reading 'Page 4 of
+# 5' is that page's furniture, whatever else stands beside it.
+# 'of M' IS OPTIONAL. waed's stamp wraps its own total onto the next line
+# ('… PageID.1504     Page 19' / '19'), so the row never says 'of 19' at all.
+# What identifies the overlay is the page it NAMES, not the total.
+_PAGE_OF = _re.compile(r"\bPage\s+(\d+)(?:\s+of\s+\d+)?\b", _re.I)
+
+
+def _is_page_overlay(text: str, page_number: int) -> bool:
+    for mm in _PAGE_OF.finditer(text):
+        if int(mm.group(1)) == page_number:
+            return True
+    return False
+
+
+def _stamp_row(pm, line) -> str:
+    """The line's whole VISUAL ROW. The ECF stamp is one typed row, but pdfio
+    splits it at its column gaps, and half a stamp does not look like one:
+    waed's pieces are 'Case 2:26-cv-00160-TOR', 'ECF No. 7',
+    'filed 07/06/26', 'PageID.29     Page 9 of 9'. Read piece by piece, the
+    third IS a filing stamp and the fourth is where the page number lives —
+    so every page of every waed record looked like a fresh cover, and
+    waed/114266 was cut at page 19 and rendered with its own signature block
+    inside the caption."""
+    if line.row is None:
+        return line.plain.strip()
+    return " ".join(l.plain.strip() for l in pm.lines
+                    if l.row == line.row).strip()
 
 
 def _attached_documents(model) -> list[tuple[int, int]]:
@@ -122,7 +177,10 @@ def _attached_documents(model) -> list[tuple[int, int]]:
         # and the majority lost half its blocks. So the window only opens
         # where the page carries a stamp in the court's exact form, which a
         # clerk's 'FILED' / date / 'MOLLY C. DWYER, CLERK' block does not.
-        _strict = any(_FILED_STAMP.match(l.plain.strip()) for l in tops)
+        _rows = {id(l): _stamp_row(pm, l) for l in tops}
+        _strict = any(_FILED_STAMP.match(_rows[id(l)])
+                      and not _is_page_overlay(_rows[id(l)], pm.number)
+                      for l in tops)
         has_banner = any(_is_banner_row(l.plain) for l in
                          (sorted((l for l in pm.lines if l.plain.strip()),
                                  key=lambda l: l.top)[:8] if _strict
@@ -146,10 +204,11 @@ def _attached_documents(model) -> list[tuple[int, int]]:
         # reprinted cover and its 26 pages of body, 105 blocks under one
         # empty byline (the user's call, 2026-08-20).
         has_filed = any(
-            (l.plain.strip().lower().startswith("filed ")
-             and len(l.plain.strip()) <= 40)
-            or _FILED_STAMP.match(l.plain.strip())
-            or l.plain.strip().rstrip(":").upper() == "FILED"
+            not _is_page_overlay(_rows[id(l)], pm.number)
+            and ((_rows[id(l)].lower().startswith("filed ")
+                  and len(_rows[id(l)]) <= 40)
+                 or _FILED_STAMP.match(_rows[id(l)])
+                 or _rows[id(l)].rstrip(":").upper() == "FILED")
             for l in tops)
         if has_banner and has_filed:
             cuts.append(i)
@@ -254,16 +313,47 @@ def _extract_model(model, court_id: str, pdf_path) -> ExtractionResult:
     # and flag REVIEW — the geometry is untrusted, the words are not lost.
     verdict = triage(model)
     if verdict == "scan":
-        ink = sum(p.ink_chars for p in model.pages)
+        # THE RICHEST PAGE, not the sum. A stamp-only overlay is ~50-70
+        # characters PER PAGE, so a scan long enough accumulates past any
+        # total-ink floor and is handed to the readers as though it held an
+        # opinion: 44 records — ded's 10, mtd's 10, and one to three each
+        # from 20 more district courts — came back with a document type of
+        # 'unknown', no headmatter, no caption and no writing, because the
+        # only text in them was the CM/ECF header repeated down the file.
+        # ded/…67860.423.0 is 8 pages carrying 528 characters, 66 of them on
+        # its fullest page. Measured on the single fullest page the two
+        # families separate with nothing in between: every stamp-only scan
+        # in the corpus tops out at 141 characters, and the lowest page of
+        # any scan that really does carry a cover — delctcompl's
+        # vrns_ii_llc, which renders 33 headmatter rows — carries 401.
         # 250, not 500: a one-page writ disposition's WHOLE text is ~350
-        # chars (lactapp — 'writ dismissed' orders were stubbed empty);
-        # a stamp-only overlay (CM/ECF header, ~80 chars) still stubs.
+        # chars (lactapp — 'writ dismissed' orders were stubbed empty), and
+        # on one page the fullest page IS the whole document.
+        ink = max((p.ink_chars for p in model.pages), default=0)
         if ink < 250:
             meta.doc_type = m.DocType.SCAN
+            meta.source_kind = "scan"
             doc.warnings.append("non-born-digital (scan); not parsed")
             return ExtractionResult(doc, trace, status="valid")
+        meta.source_kind = "ocr-scan"
         doc.warnings.append(
             "scan with OCR text layer; extracted, geometry untrusted")
+    else:
+        # A SCAN WHOSE OCR LAYER IS TOO GOOD TO TRIAGE. `triage` calls a page
+        # a scan only when its image covers the sheet AND it carries almost no
+        # text, so a scan that OCR'd cleanly is the one kind of scan nothing
+        # reported: nevapp/ccmsi_v._odell is a bilevel 200dpi raster on all
+        # ten pages with 761-1,680 characters each, and it rendered as
+        # ordinary born-digital paper with no flag at all (the user,
+        # 2026-08-21). The reading is good and must go on — what was missing
+        # was saying whose geometry it is. `ocr_text_layer` answers that from
+        # the type rather than the text volume, and it is asked HERE, outside
+        # the triage verdict, so it can never reach the refusal above.
+        from .classify import ocr_text_layer
+        if ocr_text_layer(model):
+            meta.source_kind = "ocr-scan"
+            doc.warnings.append(
+                "scan with OCR text layer; extracted, geometry untrusted")
     # A HYBRID document: born-digital cover + scanned appendix pages that
     # carry no text layer at all (wis reprints an order as page images).
     # Nothing text-based is lost, but the reader must know pages are
@@ -272,9 +362,17 @@ def _extract_model(model, court_id: str, pdf_path) -> ExtractionResult:
     _img_only = [pm.number for pm in model.pages
                  if pm.image_area > SCAN_IMAGE_AREA and pm.ink_chars < 120]
     if _img_only and verdict != "scan" and len(_img_only) < model.n_pages:
+        # NAME THE PAGES, AND SAY WHAT IS LOST. Printed as first-to-last the
+        # note read as a RANGE — nev/engle_julie_2 carries no text on pages 4
+        # and 11 and the warning said '2 image-only page(s), no text layer
+        # (pp 4-11)', which states eight (the user, 2026-08-21: 'says no text
+        # on pages 4-11 maybe that should be a better banner? like missing
+        # pages of text'). What the reader needs to know is not that the
+        # pages hold an image — it is that their TEXT IS NOT IN THIS
+        # DOCUMENT, and exactly which pages those are.
         doc.warnings.append(
-            f"{len(_img_only)} image-only page(s), no text layer "
-            f"(pp {_img_only[0]}–{_img_only[-1]})")
+            f"text missing from {len(_img_only)} of {model.n_pages} page(s) "
+            f"({_page_list(_img_only)}): image only, no text layer")
     if verdict == "unreadable":
         meta.doc_type = m.DocType.UNKNOWN
         doc.warnings.append("text layer unreadable (unmapped CID glyphs)")
@@ -301,6 +399,26 @@ def _extract_model(model, court_id: str, pdf_path) -> ExtractionResult:
                     and _b0[0] < _l.top < _b0[1]:
                 sig["band"] = (_b0[0], _l.top - 2)
                 break
+    # A CAPTION BOX IS NOT A TABLE. pdfio reads a ruled grid off the drawn
+    # rules alone, and a federal caption fenced in the ECF manner is exactly
+    # that shape — a two-column box, parties left, docket right, ruled row
+    # by row (gand/daye reads 5x2). It is headmatter, already read as
+    # headmatter, so a grid overlapping the measured caption band is
+    # withheld from the body reading.
+    _cap_band = sig.get("band")
+    _tables: dict[int, list] = {}
+    for pm in model.pages:
+        _keep = []
+        for _g in pm.tables:
+            if (pm.number == 1 and _cap_band
+                    and _g.top < _cap_band[1] and _g.bottom > _cap_band[0]):
+                trace.event("table.caption-box",
+                            f"p{pm.number} {_g.n_rows}x{_g.n_cols} "
+                            f"at y{_g.top:.0f}")
+                continue
+            _keep.append(_g)
+        _tables[pm.number] = _keep
+
     doc_type, heading = classify_doc_type(model, geom)
     meta.doc_type = doc_type
     if heading:
@@ -356,8 +474,22 @@ def _extract_model(model, court_id: str, pdf_path) -> ExtractionResult:
     from .resolve.headmatter import looks_like_docket as _slug_ld
     for pm in model.pages:
         keep = []
+        _grids = _tables.get(pm.number) or ()
         for line in pm.lines:
             kind = ff.kind(pm, line)
+            # A CELL IS NOT A STAMP. Every furniture test reads a line's
+            # shape and position, and a table's cells are exactly the shape
+            # furniture has — short, isolated, off the measure, at a margin.
+            # njtaxct's property table lost 'Property', 'Percentage of',
+            # 'Retail' and 'Class' from its header row that way (dropped as
+            # stamps and a running head), and its second table lost nine
+            # more cells. A line inside a DRAWN cell is the court's own
+            # tabulation, whatever its shape.
+            if kind is not None and any(g.holds(line) for g in _grids):
+                trace.event("furniture.in-cell",
+                            f"p{pm.number}: {line.plain.strip()[:40]!r} "
+                            f"kept ({kind})")
+                kind = None
             if kind is None:
                 keep.append(line)
             else:
@@ -435,15 +567,41 @@ def _extract_model(model, court_id: str, pdf_path) -> ExtractionResult:
             # letterhead is centred or set at the left margin, never flush
             # to the far edge, so the graphic's centre must fall in the
             # middle of the page.
+            # …AND A SEAL NEED NOT STAND ABOVE THE TYPE AT ALL. 'Above the
+            # first text row' is a proxy for 'in the letterhead band', and it
+            # fails on a court that prints anything before its device:
+            # texbizct sets the clerk's FILED stamp in the top corner and its
+            # own public-domain cite ('2026 Tex. Bus. 23') centred above the
+            # seal, so the seal stands at top 104 of 792 with two text rows
+            # over it — not a masthead by that test, and 37 of its 42 records
+            # opened the opinion with the court's seal in it. What the band
+            # actually is, is the TOP THIRD of page 1: caption and letterhead
+            # live there and an opinion's own figure does not.
             _imid = (_im.x0 + _im.x1) / 2
-            _is_masthead = (pm.number == 1 and _im.top <= _first_text
+            _is_masthead = (pm.number == 1
+                            and (_im.top <= _first_text
+                                 or _im.bottom <= pm.height * 0.33)
                             and _w <= pm.width * 0.55
                             and _h <= pm.height * 0.25
                             and abs(_imid - pm.width / 2) <= pm.width * 0.35
                             and not _is_stationery(_im))
+            # THE COURT'S DEVICE, PRINTED AGAIN, IS STILL THE DEVICE. A
+            # court that repeats its seal on the second page draws the SAME
+            # image at the SAME place, and two pages is one short of the
+            # stationery rule's three — so the repeat fell through to the
+            # figure test and 5 texbizct records carried the seal inside the
+            # opinion after page 1's copy had been lifted out of it.
+            # Matched to 2pt, not exactly: the same device rasterized on two
+            # pages comes back 93.7x93.7 on one and 95.0x95.0 on the other.
+            _same_as_seal = any(
+                abs((_m.x1 - _m.x0) - _w) <= 2
+                and abs((_m.bottom - _m.top) - _h) <= 2
+                and abs(_m.x0 - _im.x0) <= 6
+                for _m in _mastheads)
             _is_figure = (
                 _w >= 60 and _h >= 40
                 and not _is_masthead
+                and not _same_as_seal
                 and not _is_stationery(_im)
                 and pm.number not in _scan_pages
                 and _im.top > pm.height * 0.08
@@ -452,6 +610,11 @@ def _extract_model(model, court_id: str, pdf_path) -> ExtractionResult:
                          and _im.top > pm.height * 0.55))
             if _is_masthead and _w >= 20 and _h >= 20:
                 _mastheads.append(_im)
+                continue
+            if _same_as_seal:
+                doc.dropped.append(m.Dropped(
+                    text=f"seal {_w:.0f}\u00d7{_h:.0f}pt (repeated)",
+                    prov=m.Prov(pm.number), kind="image"))
                 continue
             # …and the mirror at the foot of the LAST page: an image below
             # every text row there is the court's signature stamp.
@@ -477,6 +640,29 @@ def _extract_model(model, court_id: str, pdf_path) -> ExtractionResult:
                     and _im.bottom > _sig_floor
                     and _im.top > _sig_floor - 30.0):
                 _sig_imgs.append(_im)
+                continue
+            # A CLERK'S STAMP IS NOT A FIGURE OF THE OPINION. The masthead
+            # rule above already states the discriminator — 'a device the
+            # court prints as its own letterhead is centred or set at the
+            # left margin, never flush to the far edge' — and its mirror
+            # holds: a graphic set FLUSH RIGHT in the head band of a caption
+            # page is the clerk's, not the court's argument.
+            # njtaxct/g_s_realty_corp_v._brick_township_1 is the case that
+            # named it: the record IS a corrected opinion, and the notice
+            # bound in front of it says what was corrected — 'Page 1, to add
+            # the stamp' — so the 140x53pt graphic the clerk added, sitting
+            # inside the caption's own band at x0=400 of 612, was published
+            # as the second block of the opinion.
+            # Bounded to the caption pages and the upper half of the sheet,
+            # so a figure the opinion actually discusses (that court's other
+            # record prints a 468x311pt exhibit on page 6) is untouched.
+            if (_is_figure and pm.number <= 2
+                    and _imid > pm.width * 0.6
+                    and _im.bottom <= pm.height * 0.5
+                    and _h <= pm.height * 0.25):
+                doc.dropped.append(m.Dropped(
+                    text=f"stamp {_w:.0f}\u00d7{_h:.0f}pt (clerk's, flush right)",
+                    prov=m.Prov(pm.number), kind="image"))
                 continue
             if _is_figure:
                 _figures.append(_im)
@@ -522,7 +708,8 @@ def _extract_model(model, court_id: str, pdf_path) -> ExtractionResult:
     segmenter = Segmenter(geom, model.pages[0].width,
                           is_author_line=lambda t: bool(
                               BylineParser(profile.byline).parse(t)),
-                          para_indent_min=profile.para_indent_min)
+                          para_indent_min=profile.para_indent_min,
+                          tables=_tables)
     segments_by_page = {}
     for pm in model.pages:
         cut = zone_tops.get(pm.number)
@@ -686,7 +873,8 @@ def _extract_model(model, court_id: str, pdf_path) -> ExtractionResult:
                         front_matter=profile.front_matter,
                         para_indent_min=profile.para_indent_min,
                         headmatter_claimed=bool(_court_hm),
-                        writing_starts=_writing_starts)
+                        writing_starts=_writing_starts,
+                        tables=_tables)
 
     assembled = _assemble_with(segments_by_page)
     if _court_hm and not assembled.opinions:
@@ -1735,6 +1923,33 @@ def _extract_model(model, court_id: str, pdf_path) -> ExtractionResult:
         import io as _sio
         import pdfplumber as _spp
         _last = doc.opinions[-1]
+        # THE ATTESTATION BELONGS TO THE BLOCK IT OPENS. Where the bench
+        # signs with graphics alone and types no names under them, 'WE
+        # CONCUR:' is the writing's last block and the signatures follow it
+        # — so the attestation reads as a dangling one-line paragraph at the
+        # foot of the opinion (wash/in_re_det._of_m.e., 8 graphics).
+        _sig_x0 = {l.id: l.x0 for _pm3 in model.pages for l in _pm3.lines}
+
+        def _signer_row(_b) -> bool:
+            _t = " ".join(((getattr(_b, "text", "") or "")
+                           .replace("<strong>", "").replace("</strong>", "")
+                           ).split())
+            if _t.upper().rstrip(":.") in ("WE CONCUR", "I CONCUR",
+                                          "WE DISSENT", "BY THE COURT",
+                                          "FOR THE COURT"):
+                return True
+            if not _t or len(_t) > 60:
+                return False
+            # …and the typed NAME beside a graphic, set in the signers'
+            # column. Only reached where this writing was signed by hand,
+            # so a short right-set line here is a signer and nothing else.
+            _xs = [_sig_x0[i] for i in
+                   getattr(getattr(_b, "prov", None), "line_ids", ())
+                   if i in _sig_x0]
+            return bool(_xs) and min(_xs) > model.pages[0].width * 0.42
+
+        while _last.blocks and _signer_row(_last.blocks[-1]):
+            _last.signature.insert(0, _last.blocks.pop())
         try:
             with _spp.open(str(pdf_path)) as _spdf:
                 for _im in _sig_imgs:
@@ -1756,6 +1971,52 @@ def _extract_model(model, court_id: str, pdf_path) -> ExtractionResult:
                     text=(f"signature graphic {_im.x1 - _im.x0:.0f}×"
                           f"{_im.bottom - _im.top:.0f}pt (uncropped)"),
                     prov=m.Prov(_im.page), kind="signature"))
+
+    # WHERE THE COURT SAYS ITS SIGNATURE BEGINS. Most papers sign with a
+    # '/s/' or a drawn line and the shared lift below finds them; a few close
+    # on a DATE LINE with the names typed under it and an attestation after,
+    # and nothing in the shape says where the decision stopped and the
+    # signing started. A court that can point at the row says so here, and
+    # everything from that row to the end of the writing is its signature —
+    # the block itself, the concurrences, and the clerk's certificate.
+    _sig_at = court_decides("signature.opens", court_id, trace,
+                            model=model, geom=geom)
+    if _sig_at is not NOTHING and _sig_at and doc.opinions:
+        _sig_pos = {l.id: (pm.number, l.top)
+                    for pm in model.pages for l in pm.lines}
+
+        def _blk_at(b):
+            pts = [_sig_pos[i] for i in
+                   getattr(getattr(b, "prov", None), "line_ids", ())
+                   if i in _sig_pos]
+            return min(pts) if pts else None
+
+        for _op in doc.opinions:
+            _cut = None
+            for _k, _b in enumerate(_op.blocks):
+                _at = _blk_at(_b)
+                if _at is not None and _at >= tuple(_sig_at):
+                    _cut = _k
+                    break
+            if _cut is not None:
+                _op.signature = _op.blocks[_cut:] + list(_op.signature)
+                _op.blocks = _op.blocks[:_cut]
+
+    # A GRAPHIC AT THE END OF A WRITING IS ITS SIGNATURE. The last-page rule
+    # above cannot see the others: a court that signs EVERY writing signs the
+    # lead opinion in the middle of the file, so those graphics fall to the
+    # figure placement and are planted as the writing's last blocks. What
+    # tells them apart is what follows them — a figure the opinion discusses
+    # has text after it, and a signature has nothing. Measured on wash, whose
+    # justices sign each writing by hand.
+    for _op in doc.opinions:
+        _moved = []
+        while _op.blocks and isinstance(_op.blocks[-1], m.ImageBlock):
+            _blk2 = _op.blocks.pop()
+            _blk2.role = "signature-graphic"
+            _moved.insert(0, _blk2)
+        if _moved:
+            _op.signature = _moved + list(_op.signature)
 
     # SIGNATURE GRAPHIC: pasuperct closes with 'Judgment Entered.' as an
     # IMAGE (prothonotary stamp + signature) over a bare typed date. The
@@ -2055,7 +2316,23 @@ def _extract_model(model, court_id: str, pdf_path) -> ExtractionResult:
             _lead.author = _ann
             _lead.author_name = _by.name
             _lead.author_title = _by.title
-            if _lead.type in ("order", "opinion"):
+            # …BUT A COURT THAT PRINTS ONE WRITING HAS NO MAJORITY. Where
+            # the court declares `single_writing` — a judge ruling alone, the
+            # whole federal district lane and a few state trial courts — the
+            # paper's own name for itself stands. An ORDER credited to the
+            # judge who wrote it is still an order, and 'majority' would
+            # invent a bench for it to be the majority of. The flip is for
+            # the appellate case this clause was written for, where an
+            # announced author IS the court speaking (va, tenn).
+            # …AND A COURT THAT ANNOUNCES 'PER CURIAM' HAS NAMED THE
+            # WRITING, not a judge. Flipped to 'majority' the paper lost the
+            # one thing its byline actually said (texcrimapp/wenzel_1, whose
+            # vote row opens 'Per curiam.').
+            from .resolve.bylines import is_per_curiam as _ipc
+            if _ipc(_ann.split(".")[0].upper() + "."):
+                _lead.type = "per-curiam"
+            elif _lead.type in ("order", "opinion") \
+                    and not getattr(profile, "single_writing", False):
                 _lead.type = "majority"
 
     # HEADMATTER KEEPS THE PAGE'S ORDER. A court reader claims some rows
@@ -2141,6 +2418,31 @@ def _extract_model(model, court_id: str, pdf_path) -> ExtractionResult:
     for _o in _empty:
         doc.headmatter_footnotes.extend(_o.footnotes)
     doc.opinions = [o for o in doc.opinions if o.blocks or o.author_name]
+
+    # AN ANNOUNCED AUTHOR NAMES THE PAPER IT STANDS OVER. A court that does
+    # not sign its opinions says who wrote them on the cover instead — 'OPINION
+    # BY / PRESIDENT JUDGE COHN JUBELIRER' — and a reader that claims that row
+    # into the headmatter (which is where the page prints it) leaves the
+    # writing beneath it unsigned. `Criteria.author` carries the name; this
+    # gives it to the LEAD writing, which is the paper the announcement heads.
+    # Only where that writing has no author of its own: a signature it really
+    # printed always wins, and every later paper carries its own byline.
+    if doc.criteria.author and doc.opinions:
+        _lead0 = doc.opinions[0]
+        if not (_lead0.author or _lead0.author_name):
+            _said = doc.criteria.author
+            _lead0.author = _said
+            # Reuse the heading parser rather than a second grammar: the form
+            # is the tail of the row it came from.
+            _pb = BylineParser(profile.byline).parse(f"OPINION BY {_said}")
+            if _pb is not None:
+                _lead0.author_name = _pb.name
+                _lead0.author_title = _pb.title
+                if _pb.name == "PER CURIAM":
+                    from .resolve.bylines import normalize_opinion_type as _nt2
+                    _lead0.type = _nt2("per curiam")
+            trace.event("criteria.author_to_lead",
+                        f"announced author {_said!r} named the lead writing")
 
     # …and NEITHER IS A FENCE ON ITS OWN. A court that heads its opinion
     # with its own name ('OPINION OF THE COURT', 'ORDER') prints that name

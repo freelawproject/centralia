@@ -65,7 +65,14 @@ def _footnotes_xml(fns: list, out: list) -> None:
 def render_casebody(doc: m.Document) -> str:
     out: list[str] = []
     c = doc.criteria
-    out.append(f'<casebody firstpage="1" lastpage="{doc.meta.n_pages}" '
+    # THE SOURCE FLAG RIDES ON THE ROOT, and only when there is something to
+    # say. A scan's OCR text is indistinguishable from a court's own type once
+    # it is in this XML, so anything ingesting the projection needs to be able
+    # to refuse it without re-opening the PDF. Absent on born-digital paper,
+    # so ordinary output is unchanged byte for byte.
+    _src = (f' source="{escape(doc.meta.source_kind, quote=True)}"'
+            if doc.meta.source_kind else "")
+    out.append(f'<casebody firstpage="1" lastpage="{doc.meta.n_pages}"{_src} '
                f'xmlns="http://nrs.harvard.edu/urn-3:HLS.Libr.US_Case_Law.Schema.Case_Body:v1">')
     for p in c.parties:
         out.append(f"<parties>{escape(p)}</parties>")

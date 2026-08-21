@@ -79,6 +79,8 @@ body { margin:0; font:13px system-ui,sans-serif; color:var(--ink);
 #bar button { font:12px system-ui; border:1px solid var(--line); background:#fff;
   border-radius:4px; padding:2px 9px; cursor:pointer }
 #bar button.on { background:var(--accent); color:#fff; border-color:var(--accent) }
+#files .allclear { color:#888; font:11px system-ui; padding:6px 8px;
+  cursor:default }
 #panes { flex:1; display:flex; min-height:0 }
 #panes iframe { flex:1; border:0; width:100%; height:100% }
 #pdfpane { display:none; flex:1; overflow-y:auto; border-left:2px solid var(--line);
@@ -122,11 +124,12 @@ body { margin:0; font:13px system-ui,sans-serif; color:var(--ink);
 <div id="main">
   <div id="bar">
     <b id="title">—</b>
-    <span id="help">↓/↑ file · →/← court · 1–5 mark · 0 clear · n note · a old/new · p pdf · r re-run · R court</span>
+    <span id="help">↓/↑ file · →/← court · 1–5 mark · 0 clear · n note · a old/new · h hide ✅ · p pdf · r re-run · R court</span>
     <button data-t="nay">✗ nay</button><button data-t="some">◔ some</button>
     <button data-t="good">◑ good</button><button data-t="almost">~ almost</button>
     <button data-t="yay">✅ yay</button>
     <button id="donebtn" title="Mark this whole court complete">✓ court done</button>
+    <button id="hidedone" title="Hide the files you marked ✅ yay (h)">⊘ hide ✅</button>
     <button id="ab">A/B: new</button>
     <button id="pdfbtn">PDF</button>
     <button id="syncbtn" class="on" title="PDF pane follows your scroll">sync</button>
@@ -290,13 +293,51 @@ function drawCourts() {
   $("#courts").innerHTML = rows.join("");
   const on = $("#courts .on"); if (on) on.scrollIntoView({block:"nearest"});
 }
+// HIDE WHAT YOU HAVE ALREADY PASSED. With 6,588 files marked ✅ the list is
+// mostly finished work, and the nays — the ones with something to fix — are
+// scattered through it. This hides the ✅ tier only: 'good', 'almost' and
+// 'some' all mean something is still wrong, so they stay in the list.
+// The FILTER IS A VIEW, never a change to MAN: `fi` stays an index into the
+// court's full manifest, so a hidden file is still reachable by URL and the
+// mark you set on the current file cannot move the selection under you.
+let HIDEDONE = localStorage.getItem("hideDone") === "1";
+const hidden = k => HIDEDONE && MARKS[k] === "yay";
+function visibleFiles(c) {
+  return (MAN[c] || []).map((s, i) => [s, i]).filter(([s]) => !hidden(c + "/" + s));
+}
+function toggleHideDone() {
+  HIDEDONE = !HIDEDONE;
+  localStorage.setItem("hideDone", HIDEDONE ? "1" : "0");
+  drawFiles(); show();
+}
 function drawFiles() {
   const c = courts[ci] || "";
-  $("#files").innerHTML = (MAN[c]||[]).map((s, i) =>
+  const vis = visibleFiles(c);
+  const total = (MAN[c] || []).length;
+  if (!vis.length && total) {
+    $("#files").innerHTML =
+      `<div class="allclear">all ${total} file${total === 1 ? "" : "s"} ✅ — ` +
+      `press h to show them</div>`;
+    return;
+  }
+  $("#files").innerHTML = vis.map(([s, i]) =>
     `<div class="${i===fi?"on":""}" onclick="pick(${ci},${i})">` +
     `${opChip(QUAL.files[c+"/"+s])}${gradeChip((QUAL.files[c+"/"+s]||{}).g)}` +
     `${tierGlyph(MARKS[c+"/"+s])}${staleGlyph(c+"/"+s)}${noteGlyph(c+"/"+s)} ${s}</div>`).join("");
   const on = $("#files .on"); if (on) on.scrollIntoView({block:"nearest"});
+}
+// ↓/↑ WALK WHAT YOU CAN SEE. Stepping `fi` by one would stop on every hidden
+// file — the list would stand still while the pane changed.
+function stepFile(delta) {
+  const c = courts[ci] || "", vis = visibleFiles(c);
+  if (!vis.length) return pick(ci, fi + delta);
+  const at = vis.findIndex(([, i]) => i === fi);
+  if (at < 0) {              // the current file is hidden: enter the visible list
+    const fwd = vis.find(([, i]) => i > fi), back = [...vis].reverse().find(([, i]) => i < fi);
+    const nxt = delta > 0 ? (fwd || vis[0]) : (back || vis[vis.length - 1]);
+    return pick(ci, nxt[1]);
+  }
+  return pick(ci, vis[(at + delta + vis.length) % vis.length][1]);
 }
 function pick(c, f) {
   if (!courts.length) return;
@@ -420,6 +461,7 @@ function show() {
     b.classList.toggle("on", MARKS[k] === b.dataset.t));
   const done = (CMETA[courts[ci]] || {}).status === "complete";
   $("#donebtn").classList.toggle("on", done);
+  $("#hidedone").classList.toggle("on", HIDEDONE);
   $("#donebtn").textContent = done ? "✓ court done" : "mark court done";
   drawNote(k);
 }
@@ -501,7 +543,15 @@ async function toggleDone() {
   CMETA[c] = Object.assign({}, CMETA[c] || {}, {status: now});
   drawCourts(); show();
 }
+// A COURT'S FIRST FILE, as the filter leaves it — landing on a hidden one
+// showed an unhighlighted list.
+function pickCourt(c) {
+  const cc = (c + courts.length) % courts.length;
+  const vis = visibleFiles(courts[cc]);
+  return pick(cc, vis.length ? vis[0][1] : 0);
+}
 $("#donebtn").onclick = toggleDone;
+$("#hidedone").onclick = toggleHideDone;
 $("#ab").onclick = () => { old = !old; show(); };
 $("#runfile").onclick = () => rerun(false);
 $("#runcourt").onclick = () => rerun(true);
@@ -529,10 +579,11 @@ document.onkeydown = e => {
   if (e.key === "0") return mark(null);
   if (e.key === "r") { e.preventDefault(); return rerun(false); }
   if (e.key === "R") { e.preventDefault(); return rerun(true); }
-  if (e.key === "j" || e.key === "ArrowDown") { e.preventDefault(); return pick(ci, fi + 1); }
-  if (e.key === "k" || e.key === "ArrowUp") { e.preventDefault(); return pick(ci, fi - 1); }
-  if (e.key === "J" || e.key === "ArrowRight") { e.preventDefault(); return pick(ci + 1, 0); }
-  if (e.key === "K" || e.key === "ArrowLeft") { e.preventDefault(); return pick(ci - 1, 0); }
+  if (e.key === "j" || e.key === "ArrowDown") { e.preventDefault(); return stepFile(1); }
+  if (e.key === "k" || e.key === "ArrowUp") { e.preventDefault(); return stepFile(-1); }
+  if (e.key === "J" || e.key === "ArrowRight") { e.preventDefault(); return pickCourt(ci + 1); }
+  if (e.key === "K" || e.key === "ArrowLeft") { e.preventDefault(); return pickCourt(ci - 1); }
+  if (e.key === "h") { e.preventDefault(); return toggleHideDone(); }
   if (e.key === "a") { old = !old; show(); }
   if (e.key === "p") togglePdf();
 };

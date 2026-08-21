@@ -146,6 +146,20 @@ _NOT_A_NAME = {"EN", "BANC", "J", "JJ", "C.J", "CJ", "THE", "AND", "COURT",
 _TITLE = re.compile(r"^OPINI\S{0,4}\.?$", re.I)
 # 'By the Court, BELL, J.:' — the signature, and the end of the block.
 _BYLINE = re.compile(r"^By\s+the\s+Co\S+\b|^PER\s+CURIAM", re.I)
+# THE FILED PAPER'S OWN MARKS (the second contract, below).
+# The caption closes on a TYPED RULE the form draws with underscores and
+# ends with a solidus — '______________________________________/'. It is the
+# only thing on the sheet that says where the caption stops, there being no
+# origin recital under it.
+_TYPED_CLOSER = re.compile(r"^_{6,}\s*/?\s*$")
+# THE CLERK'S E-FILING STAMP, in the right column above the docket. Four
+# rows, and none of them is anything this court wrote.
+_EFILED = re.compile(
+    r"^Electronically\s+Filed\b|^Clerk\s+of\s+(?:the\s+)?Supreme\s+Court\b"
+    r"|^\w{3}\s+\d{1,2}\s+\d{4}\s+\d{1,2}:\d{2}\s*[AP]M\b", re.I)
+# WHAT THE FILER CALLS THE PAPER: a centred all-caps row above the text.
+_FILED_TITLE = re.compile(
+    r"^(?:NOTICE|MOTION|PETITION|RETURN|RESPONSE|REPLY|STIPULATION)\b[A-Z ,.'()/-]*$")
 
 # A row 40pt right of the measured rail opens a paragraph. Measured: the
 # origin/disposition indent runs 70-73pt over the rail; the deepest caption
@@ -212,7 +226,7 @@ def read_headmatter_nev(model, geom, **_):
     # the masthead and never signs is not this contract (a party's notice of
     # service, filed under the same caption) and is left to core.
     if not any(_BYLINE.match(t) for t in texts[mast + 1:]):
-        return NOTHING
+        return _read_filed_paper(rows, texts, mast, page1, body_x0)
 
     ctx = _Ctx()
     caption: list[str] = []
@@ -500,6 +514,43 @@ class _Ctx:
             bold=all(bool(p.all_bold) for p in parts), role=role))
         self.consumed.update(p.id for p in parts)
 
+    def cell(self, parts: list, role: str, page: int):
+        parts = sorted(parts, key=lambda l: l.x0)
+        if not parts:
+            return m.HmLine(text="", prov=m.Prov(page), align=m.Align.LEFT,
+                            role=role)
+        text = ""
+        for part in parts:
+            piece = line_markup(part)
+            text = (text.rstrip() + " " + piece.lstrip()) if text.strip() \
+                else piece
+        return m.HmLine(
+            text=text, prov=m.Prov(parts[0].page, tuple(p.id for p in parts)),
+            align=m.Align.LEFT, x0=parts[0].x0, size=parts[0].size or 0.0,
+            bold=all(bool(p.all_bold) for p in parts), role=role)
+
+    def box(self, rows: list) -> None:
+        """The caption, as the clerk's form sets it: two columns paired by
+        the printed row, over the whitespace gutter documented above."""
+        left, right = [], []
+        ids: set[int] = set()
+        for pg, l_cells, r_cells in rows:
+            left.append(self.cell(l_cells, "caption", pg))
+            right.append(self.cell(r_cells, "docket" if r_cells
+                                   else "caption", pg))
+            ids.update(c.id for c in l_cells + r_cells)
+        while left and not (left[-1].text or "").strip() \
+                and not (right[-1].text or "").strip():
+            left.pop()
+            right.pop()
+        if not left:
+            return
+        self.items.append(m.CaptionBlock(
+            left=left, right=right, rail=None, rail_rows=len(left),
+            style_id="open-gutter", fp={"rail": None},
+            prov=m.Prov(rows[0][0], tuple(sorted(ids)))))
+        self.consumed.update(ids)
+
     def drop(self, group: list, kind: str) -> None:
         parts = sorted(group, key=lambda l: l.x0)
         self.dropped.append(m.Dropped(
@@ -512,3 +563,97 @@ class _Ctx:
         return {"criteria": self.crit, "items": self.items, "attorneys": [],
                 "dropped": self.dropped, "consumed": self.consumed,
                 "anchor_ids": [], "doc_type_final": None}
+
+
+# --------------------------------------------------------------------------
+# THE SECOND CONTRACT — THE FILED PAPER
+# --------------------------------------------------------------------------
+#
+#     IN THE SUPREME COURT OF THE STATE OF NEVADA        the masthead
+#     JULIE ENGLE,                    │ Electronically Filed   the clerk's
+#          Petitioner,                │ Apr 24 2026 04:04 PM   e-filing
+#          vs.                        │ Elizabeth A. Brown     stamp —
+#     THE SECOND JUDICIAL DISTRICT    │ Clerk of Supreme Court dropped
+#     COURT, IN AND FOR THE           │
+#     COUNTY OF WASHOE; THE           │
+#     HONORABLE DAVID HARDY,          │
+#          Respondents,               │
+#     and,                            │ No. 89183       the docket
+#     THE STATE OF NEVADA,            │
+#          Real Party In Interest.    │
+#     ______________________________________/   the caption's own closer
+#          NOTICE OF SERVICE OF WRIT AND OPINION AND RETURN   the title
+#
+# A PAPER FILED IN THIS COURT, under this court's caption, by a party rather
+# than by the bench: engle_julie_..._2 serves the writ and opinion issued in
+# engle_julie_..._1 and attaches them as scanned exhibits. It prints the
+# masthead and the court's own docket, so the caption IS readable and there
+# is no reason to leave it unread — but it signs nothing, recites no origin,
+# names no bench and states no disposition, so the first contract above
+# rightly refuses it and this one takes it instead.
+#
+# THE GATE IS THE CLOSER. A typed rule of underscores ending in a solidus is
+# what this form draws where the opinion draws its origin recital, and
+# nothing in the 33 records of the first contract draws one. Without it a
+# masthead alone would let any unsigned page through.
+
+
+def _read_filed_paper(rows, texts, mast, page1, body_x0):
+    """Read a party's filing on this court's caption, or NOTHING."""
+    closer = next((i for i, t in enumerate(texts[mast + 1:], mast + 1)
+                   if _TYPED_CLOSER.match(t)), None)
+    if closer is None:
+        return NOTHING
+    ctx = _Ctx()
+    caption: list[str] = []
+    dockets: list[str] = []
+    box_left: list = []
+    box_right: dict = {}
+    for i in range(mast, closer + 1):
+        group, text = rows[i], texts[i]
+        pieces = sorted(group, key=lambda l: l.x0)
+        if not text:
+            continue
+        first = pieces[0]
+        if i == mast:
+            ctx.crit.setdefault("court", _COURT_NAME)
+            ctx.emit(pieces, "court")
+            continue
+        if _TYPED_CLOSER.match(text):
+            # The form's own rule, claimed so no hole is left in the block.
+            ctx.drop(pieces, "rule")
+            continue
+        if first.x0 >= page1.width * _RIGHT_COL:
+            docket = _DOCKET.match(text)
+            if docket:
+                dockets.append(docket.group(1))
+                box_right.setdefault(round(first.top, 1), []).extend(pieces)
+            else:
+                ctx.drop(pieces, "stamp")     # the clerk's e-filing stamp
+            continue
+        caption.append(text)
+        box_left.append((first.page, round(first.top, 1), pieces))
+    if not box_left or not dockets:
+        return NOTHING
+    ctx.box([(pg, pieces, box_right.get(top, []))
+             for pg, top, pieces in box_left])
+    # WHAT THE FILER CALLS THE PAPER, the first centred all-caps row under
+    # the closer. It is the only thing below the caption this contract reads.
+    for i in range(closer + 1, min(closer + 4, len(rows))):
+        text = texts[i]
+        if text and _FILED_TITLE.match(text):
+            ctx.crit.setdefault("title", text)
+            ctx.emit(rows[i], "title")
+        break
+    ctx.crit["docket_number"] = dockets[0]
+    if dockets[1:]:
+        ctx.crit["other_dockets"] = dockets[1:]
+    # THE PARTIES ARE THE CAPS ROWS, as in the first contract above: the
+    # court sets a party name in capitals and its status in caps-and-lower.
+    parties = [t for t in caption if t and t.upper() == t
+               and not _TYPED_CLOSER.match(t)]
+    if parties:
+        ctx.crit.setdefault("parties", parties[:8])
+    ctx.crit.setdefault("caption", [c for c in caption if c])
+    ctx.crit["headmatter_style"] = "filed paper"
+    return ctx.result()

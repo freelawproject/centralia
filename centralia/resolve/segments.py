@@ -61,13 +61,20 @@ def gap_bands(geom: DocGeometry | None) -> GapBands:
 class Segment:
     page: int
     lines: list[Line]
-    kind: str        # notice | blockquote | body | single | spaced | separator
+    kind: str        # notice | blockquote | body | single | spaced |
+                     # separator | table
 
 
 class Segmenter:
     def __init__(self, geom: DocGeometry | None, page_width: float,
                  is_author_line: Callable[[str], bool] | None = None,
-                 para_indent_min: float = 12.0):
+                 para_indent_min: float = 12.0,
+                 tables: dict[int, list] | None = None):
+        # The DRAWN tables of each page (pdfio.TableGrid), by page number.
+        # A court that rules a grid has already said what its cells are:
+        # the lines inside one are read as a table, and the prose above and
+        # below it never joins across it.
+        self.tables = tables or {}
         self.geom = geom
         self.page_width = page_width
         self.bands = gap_bands(geom)
@@ -207,9 +214,51 @@ class Segmenter:
         saved = self.bands
         self.bands = page_bands
         try:
+            grids = [g for g in (self.tables.get(page) or ())
+                     if any(g.holds(l) for l in lines)]
+            if grids:
+                return self._segment_around_tables(lines, page, grids)
             return self._segment_page_inner(lines, page)
         finally:
             self.bands = saved
+
+    def _segment_around_tables(self, lines: list[Line], page: int,
+                               grids: list) -> list[Segment]:
+        """One segment per drawn table, the page's prose segmented in the
+        runs BETWEEN them.
+
+        The cells are not paragraphs and the grid is not leading: read as
+        prose, a two-column assets table came out as 16 blocks — every cell
+        its own paragraph, every stub head an h3, in reading order down one
+        column and then the other (ncctapp/ahdi, the user, 2026-08-20)."""
+        held: dict[int, list[Line]] = {}
+        prose: list[Line] = []
+        for line in lines:
+            for i, g in enumerate(grids):
+                if g.holds(line):
+                    held.setdefault(i, []).append(line)
+                    break
+            else:
+                prose.append(line)
+        bands = sorted(((grids[i].top, grids[i].bottom, i) for i in held),
+                       key=lambda b: b[0])
+        out: list[Segment] = []
+        run: list[Line] = []
+        k = 0
+        for line in prose:
+            while k < len(bands) and line.top >= bands[k][1]:
+                if run:
+                    out.extend(self._segment_page_inner(run, page))
+                    run = []
+                out.append(Segment(page, held[bands[k][2]], "table"))
+                k += 1
+            run.append(line)
+        if run:
+            out.extend(self._segment_page_inner(run, page))
+        while k < len(bands):
+            out.append(Segment(page, held[bands[k][2]], "table"))
+            k += 1
+        return out
 
     def _segment_page_inner(self, lines: list[Line], page: int) -> list[Segment]:
         # Pieces of ONE VISUAL ROW share a baseline and contribute a ZERO

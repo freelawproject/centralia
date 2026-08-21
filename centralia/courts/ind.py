@@ -83,14 +83,20 @@ furniture. The pre-certification notice one record prints above the masthead
 notice. Footnotes are core's: the reader stops at the top of the separator
 Indiana rules at 144.0pt, which is the only measure it ever rules one at.
 
-A KNOWN DEFECT THIS READER CANNOT REACH. Core's footnote chain takes a
-cover FENCE for a footnote separator on 14 of the 50 records — the fence is
-full measure at the body rail with 11pt case-info type under it, which is
-'a rule over smaller text', and it only escapes on the other 36 because the
-fence there falls above core's caption-page floor. Those records lose the
-whole lower cover into a phantom '?' footnote before this reader runs. See
-docs/core-patch-queue.md; the fix is a declared measure for this court's
-separator, not anything a headmatter reader can do.
+FIXED 2026-08-21 — THE FENCE IS NO LONGER READ AS A SEPARATOR. Core's
+footnote chain used to take a cover FENCE for a footnote separator on 15 of
+the 50 records: the fence is full measure at the body rail with 11pt
+case-info type under it, which is 'a rule over smaller text', and it escaped
+on the other 35 only because the fence there falls above core's caption-page
+floor. Those records lost the whole lower cover — the argued/decided row,
+the appeal-from lines, the 'Opinion by' announcement, the bench line — into
+a phantom '?' footnote before this reader ran. The fix is the declared
+measure this docstring always asked for: the profile now carries
+`FootnoteConfig(sep_measure=(140.0, 148.0))`, and core vetoes any rule
+outside a declared measure in every rule-based step of the chain. Measured
+over all 50 records: phantom notes 15 -> 0, claimed headmatter rows 715 ->
+839, and the writing footnotes are UNCHANGED at 154 — no real note was won
+or lost by the veto.
 """
 
 from __future__ import annotations

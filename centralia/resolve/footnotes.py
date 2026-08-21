@@ -58,6 +58,15 @@ class FootnoteConfig:
     """Court FACTS about footnotes — evidence config, never decisions."""
 
     sep_rect: tuple[float, float] | None = None   # exact (x0, x1) of the rule
+    # THE COURT'S DECLARED SEPARATOR MEASURE (min, max) width. A court that
+    # rules its separator at one measure and its COVER FENCE at another, both
+    # at the body rail, cannot be told apart by rail the way ariz is: ind
+    # rules the separator at 144.0pt and the fence at 395.5pt, both from
+    # x0=108.0, so 'a rule over smaller text' took the fence on the caption
+    # page and lifted the whole lower cover into a phantom '?' note. Opt-in
+    # and inert unless declared; where declared, no rule outside the measure
+    # may open a zone by ANY step.
+    sep_measure: tuple[float, float] | None = None
     structural: bool = False       # body-size-note court: structural finder first
     reject_underlines: bool = True  # conn's genuine rule sits inside the band
     text_min_width: float | None = None   # typed-rule width when court fixes it
@@ -111,6 +120,12 @@ def detect_label(line: Line) -> str | None:
     zone evidence.)"""
     chars = line.chars
     if not chars:
+        return None
+    # A RAIL GLYPH IS NOT A LABEL — see pdfio.quirks.tag_rail_glyphs. The
+    # caption's stacked '§' is a line of its own beside the party column, and
+    # read as a label it opened a note on that party row.
+    _ink = [c for c in chars if (c.get("text") or "").strip()]
+    if _ink and all(c.get("_rail") for c in _ink):
         return None
     plain = line.plain.strip()
     if plain and len(plain) <= 3 and all(
@@ -367,6 +382,7 @@ class FootnoteZones:
         self.body_size = geom.body_size if geom else 12.0
         self.top_keys = repeated_top_keys(model, self.body_size)
         self._gutters: dict[int, set[int]] = {}
+        self._box_cache: dict[int, list] = {}
         # Marks the document's own text calls (raised label glyphs anywhere)
         # — the owed set that lets a body-size flush label corroborate a rule
         # (utahctapp's '1. "In reviewing…"' at 12pt on a 12pt body).
@@ -409,6 +425,64 @@ class FootnoteZones:
                 continue
             return True
         return False
+
+    def _boxes(self, pm: PageModel) -> list[tuple[float, float, float, float]]:
+        """The CLOSED RECTANGLES this page draws: a rule, a rule below it on
+        the same measure, and verticals joining them at BOTH ENDS. The
+        corners are the whole test — a rail that merely crosses a rule
+        (wyo's own caption divider) has neither."""
+        cached = self._box_cache.get(pm.number)
+        if cached is not None:
+            return cached
+        out: list[tuple[float, float, float, float]] = []
+        for top in pm.h_rules:
+            for bot in pm.h_rules:
+                if bot.top - top.top < 12.0:
+                    continue
+                if abs(bot.x0 - top.x0) > 8.0 or abs(bot.x1 - top.x1) > 8.0:
+                    continue
+                if sum(1 for edge in (top.x0, top.x1)
+                       if any(abs(v.x - edge) <= 8.0
+                              and abs(v.top - top.top) <= 8.0
+                              and abs(v.bottom - bot.top) <= 8.0
+                              for v in pm.v_rules)) == 2:
+                    out.append((top.top, bot.top, top.x0, top.x1))
+        self._box_cache[pm.number] = out
+        return out
+
+    def _is_box_rule(self, pm: PageModel, rule: DrawnRule) -> bool:
+        """A rule that is an EDGE OR AN INTERNAL DIVISION of a drawn box is
+        not a separator. What stands inside a fence is not a footnote.
+
+        The compositor fences furniture this way, and the top edge is the
+        shape step 2 reads as the separator: a full-measure rule with
+        smaller text under it. Measured —
+
+          wyo double-rules its revision notice into a panel at the foot of
+          the caption page (aaron_r._maki: edges 629.3/633.7 and
+          706.2/710.6, verticals 60.7/65.2 and 545.5/549.9), and all 50
+          records draw it. 36 published the notice a second time as a
+          phantom '?' footnote of the headmatter.
+
+          prapp frames the whole page of its findings (bosch_international
+          p5: 63.5 to 951.1 between verticals at 101.5 and 510.1) — the
+          zone opened at 63.5 and the ENTIRE page came back as a note.
+
+          ortc sets its magistrate's figures as a 34-rule ruled table
+          (d._kahl p10) and its statutory comparison as a two-column panel
+          (d.e._shaw p5): the panel's top opened the zone and its inner
+          division moved it, so the table read as a footnote either way.
+
+        ONLY THE TOP EDGE IS VETOED. Extending this to a box's internal
+        divisions reads further than the evidence: on d.e._shaw p5 it moved
+        ortc's cut from the panel's top (303.6) to a rule at the head of the
+        page (49.1), which is worse than the defect it was meant to fix.
+        A division inside a panel is a table problem, and pdfio's grids are
+        where that belongs.
+        """
+        return any(abs(rule.top - t) <= 8.0
+                   and abs(rule.x0 - x0) <= 8.0 and abs(rule.x1 - x1) <= 8.0
+                   for t, _b, x0, x1 in self._boxes(pm))
 
     def _caption_shelf_bottom(self, pm: PageModel) -> float | None:
         """Bottom of a mid-page caption divider on THIS page, if drawn."""
@@ -689,10 +763,27 @@ class FootnoteZones:
 
         def veto(rule: DrawnRule, allow_signed_underline: bool = True) -> str | None:
             """Core vetoes. Returns the veto name or None."""
+            measure = self.config.sep_measure
+            if measure is not None and not (
+                    measure[0] <= rule.width <= measure[1]):
+                return "measure"
             if cap_bot is not None and abs(rule.top - cap_bot) <= 4:
                 return "caption-shelf"
             if self._shares_row(rule, pool):
                 return "box-edge"
+            if self._is_box_rule(pm, rule):
+                return "box-rule"
+            # A DRAWN TABLE'S OWN RULE IS NOT A SEPARATOR. A table is set in
+            # reduced type, so its top border is a rule with smaller text
+            # under it — the exact shape step 2 reads as the footnote
+            # separator. ind sets its lien chronology as a ruled table
+            # mid-body (edgerock p27) and the whole table, plus everything
+            # after it, was read as a footnote. pdfio has already read the
+            # grid off the page: its edges are cells, not the zone.
+            if any(g.x0 - 6.0 <= rule.x0 and rule.x1 <= g.x1 + 6.0
+                   and any(abs(rule.top - y) <= 3.0 for y in g.row_edges)
+                   for g in pm.tables):
+                return "table-rule"
             if self._rule_underlines_text(pm, rule):
                 sig = (round(rule.x0), round(rule.width))
                 if allow_signed_underline and sig in self.sigs:
@@ -702,6 +793,31 @@ class FootnoteZones:
             return None
 
         def decide(value, step: str) -> Decision:
+            # A ZONE NEVER OPENS INSIDE A DRAWN TABLE. Whatever step found
+            # it, a cut that lands between a grid's own rules would make
+            # cells into notes: the rows of a table are tightly leaded and
+            # set in reduced type, which is what every zone test reads as
+            # footnote text (ri's clerk sets the cover sheet as a ten-band
+            # ruled grid, and 'tighter-leading' cut it at the second band —
+            # the sheet was published a second time as the last writing's
+            # last footnote, on 8 of ri's 50 records). The zone can only
+            # open BELOW the table, and only on the evidence any zone needs.
+            for _g in pm.tables:
+                if _g.top - 2.0 < (value or -1) < _g.bottom - 2.0:
+                    chain.append(Evidence("in-table", "veto", value,
+                                          why=f"grid {_g.n_rows}x{_g.n_cols}"))
+                    # Below the table a zone must prove itself the way any
+                    # zone does — by a LABELLED note. Advancing the cut
+                    # unconditionally makes a note out of whatever the page
+                    # sets under the grid: ri's cover sheet closes with the
+                    # clerk's form number, and it came back as a footnote on
+                    # 6 of the 50 records.
+                    below = self._lines_below(pm, _g.bottom)
+                    value = (below[0].top - 1
+                             if below and self._labelled_note_below(
+                                 pm, _g.bottom) else None)
+                    step = f"{step}+{'below-table' if value else 'in-table'}"
+                    break
             # BODY-SIZE lines below the separator are not notes: ca9 sets
             # the next writing's byline ('BUMATAY, Circuit Judge,
             # dissenting:') under the rule, above the notes. Footnotes are
