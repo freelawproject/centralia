@@ -42,7 +42,7 @@ from .resolve.headmatter import read_headmatter, _hm_line
 from .resolve.segments import Segmenter
 from .styles import pick as pick_style
 
-PIPELINE_VERSION = "2.0.0a0"
+PIPELINE_VERSION = "0.0.1"
 
 # Warnings that describe the SOURCE PDF rather than the parse. These can
 # never be fixed by better extraction, so they route a file to 'scanned'

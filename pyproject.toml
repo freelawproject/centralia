@@ -1,12 +1,12 @@
 [project]
 name = "centralia"
-version = "2.0.0a0"
+version = "0.0.1"
 description = "Court PDF opinion extractor: PDF + court id -> typed Document via one fixed pipeline"
 readme = "README.md"
 requires-python = ">=3.13"
-# TODO(you): license, authors and URLs — I am not going to assert these.
-#   license = "..."
-#   authors = [{ name = "...", email = "..." }]
+authors = [
+    { name = "Free Law Project", email = "info@free.law" },
+]
 keywords = ["court", "opinion", "pdf", "extraction", "caselaw"]
 classifiers = [
     "Development Status :: 3 - Alpha",
@@ -17,6 +17,10 @@ classifiers = [
 dependencies = [
     "pdfplumber>=0.11.4",
 ]
+
+[project.urls]
+Repository = "https://github.com/freelawproject/centralia"
+Issues = "https://github.com/freelawproject/centralia/issues"
 
 
 [build-system]

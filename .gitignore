@@ -6,3 +6,7 @@ output/notes/*.tmp
 __pycache__/
 *.pyc
 .venv/
+
+# Local rewrite/debugging artifacts
+/after
+/claudeplan.md
