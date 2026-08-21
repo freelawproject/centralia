@@ -90,6 +90,8 @@ from ..resolve.footnotes import line_markup
 from ..resolve.furniture import (FurnitureFinder, _looks_like_efiling_stamp,
                                  is_folio_text)
 
+_RAIL_STATUS_TAIL = True
+
 STYLE_GLYPH_RAIL = "ecf order, glyph rail"
 STYLE_DRAWN_RAIL = "ecf order, drawn rail"
 STYLE_FLUSH_STATUS = "ecf order, flush-right status"
@@ -115,6 +117,10 @@ STYLE_TYPED_BOX = "ecf order, typed box"
 # the strokes answer the same three questions the typed fence does. Measured
 # on nynd, where 16 of 24 records were refused outright for want of it.
 STYLE_DRAWN_BOX = "ecf order, drawn box"
+# THE CENTRED FENCE. A chambers that names no court on its sheet and rules
+# its caption with short strokes on the page axis instead — see
+# `_centre_fence`.
+STYLE_CENTRE_FENCE = "ecf order, centred fence"
 
 # THE DOCKET, in every form the chambers write it: 'CIVIL ACTION NO.
 # 25-171-DLB-CJS', 'CRIMINAL ACTION NO. 26-196-DLB', 'Case No.:
@@ -249,6 +255,17 @@ class EcfPaper:
     # cell and the title both begin far right of the rail, the party and the
     # pivot both begin on it.
     lone_piece_reach: float = 40.0
+    # THE CENTRED FENCE: three short strokes on the page axis, standing in
+    # for a masthead this paper never prints. Measured on all three records
+    # that draw it (paed/658030, txed/243348, txed/245820) — every stroke is
+    # x 288.0-324.0 on a 612pt sheet: 36pt wide, centred on 306.0 within a
+    # tenth of a point. The floors are set well outside those numbers and
+    # still far inside anything else drawn on a district sheet: a footnote
+    # separator on the same records runs 144pt from x 162.
+    centre_fence_max_w: float = 80.0
+    centre_fence_axis: float = 20.0
+    centre_fence_min: int = 3
+    centre_fence_band: float = 0.55
     # HOW FAR BELOW THE BOX the appearances may reach before the reader stops
     # looking. Measured on ord: the longest roster runs 7 rows.
     counsel_max_rows: int = 16
@@ -322,8 +339,20 @@ def _spells_court(text: str, court_name: str) -> bool:
     return "".join(court_name.split()).lower() in flat
 
 
+# TYPOGRAPHIC LIGATURES ARE PRESENTATION, NOT SPELLING. A chambers setting
+# its sheet in a text font ships 'Plaintiﬀ,' as U+FB00 rather than two f's,
+# and every closed vocabulary here is spelled in ASCII — so the status word
+# did not match, and the party name came back as 'Rothwell, Plaintiﬀ' with
+# its status glued on (paed/658030, txed/245820; txed/243348 says
+# 'Petitioner,' and was already right, which is what identified the cause).
+# U+FB00-FB06 are presentation forms of ASCII pairs and fold with no loss.
+_LIGATURES = str.maketrans({"\ufb00": "ff", "\ufb01": "fi", "\ufb02": "fl",
+                            "\ufb03": "ffi", "\ufb04": "ffl",
+                            "\ufb05": "st", "\ufb06": "st"})
+
+
 def _norm(text: str) -> str:
-    return " ".join(text.split())
+    return " ".join(text.translate(_LIGATURES).split())
 
 
 def _letters(text: str) -> str:
@@ -767,6 +796,34 @@ def _decode_cid_docket(value: str):
     return out if _CASE_NUMBER.match(_norm(out)) else None
 
 
+def _cid_markup(line, facts: EcfPaper):
+    """The row's markup with a lost ToUnicode map decoded, or None.
+
+    `_decode_cid_docket` proves the +29 ordering from the case number it
+    completes, and records the decoded docket as the criterion — but the row
+    the page RENDERS was still built from the raw glyphs, so ndd/…72274.9.0
+    stated 'Case No. 1:26-cv-128' in its criteria and printed 'Case No.
+    1:26-(cid:70)(cid:89)-128' in its headmatter (the user, 2026-08-21). The
+    proof is good for both or for neither.
+    """
+    plain = line.plain or ""
+    if "(cid:" not in plain:
+        return None
+    try:
+        fixed = _CID.sub(lambda mm: chr(int(mm.group(1)) + 29), plain)
+    except ValueError:
+        return None
+    if not fixed.isprintable() or "(cid:" in fixed:
+        return None
+    if _docket_value(_norm(fixed), facts) is None:
+        return None            # it does not land on a case number: no proof
+    try:
+        return _CID.sub(lambda mm: chr(int(mm.group(1)) + 29),
+                        line_markup(line))
+    except ValueError:
+        return None
+
+
 def _docket_value(text: str, facts: EcfPaper):
     """The docket the row states, or None. A number is required: 'No.' alone
     heads nothing, and 'Notice of…' is not a docket."""
@@ -982,6 +1039,49 @@ def _underlined(pm, line) -> bool:
         if r.x0 <= line.x0 + 4 and r.x1 >= line.x1 - 4:
             return True
     return False
+
+
+def _stroke_next(fence: list, stroke) -> float:
+    """The top of the stroke below ``stroke``, or the page's foot — the
+    bound of the run this stroke opens."""
+    for other in fence:
+        if other.top > stroke.top:
+            return other.top
+    return float("inf")
+
+
+def _centre_fence(pm, facts: EcfPaper) -> list:
+    """The short strokes a chambers rules its caption with ON THE PAGE AXIS.
+
+    A paper that never names its court has no masthead for the walk to
+    anchor on, and `_drawn_fence` cannot see these strokes either — it wants
+    a rule that STARTS at the body rail, and these start halfway across the
+    sheet. What they are is a fence of their own: three identical strokes
+    centred on the axis, the docket between the first two, the party stack
+    between the second and third, and the paper's title or its opening
+    paragraph below the third.
+
+    Measured on the three records in the corpus that draw it — paed/658030,
+    txed/243348 and txed/245820, two courts sharing one chambers template
+    (the paed record is a transferred order signed by a Texas judge) — every
+    stroke of all three is x 288.0-324.0 on a 612pt sheet. Swept over all
+    2,217 district records, nothing else in the corpus draws this shape.
+
+    Returned in page order, or [] where the page does not draw it."""
+    axis = pm.width / 2
+    out = [r for r in sorted(pm.h_rules, key=lambda r: r.top)
+           if (r.x1 - r.x0) <= facts.centre_fence_max_w
+           and abs((r.x0 + r.x1) / 2 - axis) <= facts.centre_fence_axis
+           and r.top <= pm.height * facts.centre_fence_band]
+    if len(out) < facts.centre_fence_min:
+        return []
+    # ONE FENCE, ONE STROKE WIDTH. The strokes are the same rule drawn three
+    # times; a page whose short centred marks disagree about their width is
+    # showing something else (a column of dashes, a struck-through cell).
+    w0 = out[0].x1 - out[0].x0
+    if any(abs((r.x1 - r.x0) - w0) > 2.0 for r in out):
+        return []
+    return out
 
 
 def _drawn_fence(pm, body_x0: float, measure: float, facts: EcfPaper) -> list:
@@ -1252,8 +1352,17 @@ def read_ecf(model, geom, facts: EcfPaper = DEFAULT, **_):
             left_set = True
             open_left = True
             break
+    cfence: list = []
     if anchor is None:
-        return _refuse("no-masthead-anchor")                     # the court never names itself
+        # …AND SOME PAPERS NEVER NAME THEIR COURT AT ALL. The sheet opens on
+        # the clerk's stamp and goes straight into a caption fenced by short
+        # strokes on the page axis. There is no masthead to anchor on and
+        # none to walk back over, so the fence itself is the anchor: what
+        # stands above its first stroke is the overlay, and the caption is
+        # what stands between the first stroke and the last.
+        cfence = _centre_fence(pm, facts)
+        if not cfence:
+            return _refuse("no-masthead-anchor")                 # the court never names itself
     # THE BOX'S TOP IS THE STROKE BELOW THE COURT'S NAME. `_drawn_fence` will
     # not judge which strokes are the box — it cannot, since it runs before
     # the masthead is found — and once full-measure strokes were allowed in
@@ -1261,8 +1370,11 @@ def read_ecf(model, geom, facts: EcfPaper = DEFAULT, **_):
     # sheet at 71.9 AND 114.7, both 72.0-539.9, with the masthead at 91.2
     # between them: the walk broke on the FIRST of them, above the masthead,
     # and the record was refused for having no masthead at all.
-    dbelow = [r for r in dfence if r.top > live[anchor].top]
-    mast_at = anchor
+    dbelow = [] if cfence else [r for r in dfence
+                                if r.top > live[anchor].top]
+    mast_at = (next((k for k, l in enumerate(live) if l.top > cfence[0].top),
+                    len(live))
+               if cfence else anchor)
     while (mast_at > 0 and centred(live[mast_at - 1])
            and not _looks_like_overlay(live[mast_at - 1].plain)
            # …AND NEVER BACK OVER A TYPED RULE. cacd rules the sheet ABOVE
@@ -1291,7 +1403,7 @@ def read_ecf(model, geom, facts: EcfPaper = DEFAULT, **_):
     mast = []
     j = mast_at
     side: list = []
-    while j < len(live):
+    while j < len(live) and not cfence:
         line = live[j]
         # A TYPED RULE IS NEVER THE COURT'S NAME. wyd centres the box's top
         # edge — '__________________________________' at x 204-408 on a
@@ -1319,7 +1431,7 @@ def read_ecf(model, geom, facts: EcfPaper = DEFAULT, **_):
             break
         mast.append(line)
         j += 1
-    if not mast:
+    if not mast and not cfence:
         return _refuse("masthead-empty")
 
     # THE ASSIGNED JUDGE IS NAMED, NOT CAPTIONED. Several districts print the
@@ -1341,7 +1453,8 @@ def read_ecf(model, geom, facts: EcfPaper = DEFAULT, **_):
     # fences its TITLE in the same hyphens, halfway down the sheet — read as
     # the caption's box, the fence put every party into the masthead and the
     # record came back with no caption at all.
-    boxed = (len(fence) >= 2 and j < len(live) and fence[0] is live[j])
+    boxed = (not cfence and len(fence) >= 2
+             and j < len(live) and fence[0] is live[j])
     # THE DRAWN BOX IS RECOGNISED THE SAME WAY: two strokes, the first of
     # them standing directly under the masthead run. A typed fence wins where
     # a court has both — nynd underlines its own typed rules, so the drawn
@@ -1349,12 +1462,22 @@ def read_ecf(model, geom, facts: EcfPaper = DEFAULT, **_):
     # …and the band it makes has to be able to HOLD a caption: two strokes
     # less than one line of type apart are one edge however they were drawn,
     # and reading them as a box refuses the record outright.
-    _box = [r for r in dfence
-            if r.top >= mast[-1].top and r.top <= ph * facts.box_band]
+    _box = [] if cfence else [r for r in dfence
+                              if r.top >= mast[-1].top
+                              and r.top <= ph * facts.box_band]
     dboxed = (not boxed and len(_box) >= 2
               and _box[0].top <= mast[-1].bottom + facts.rail_head_slack
               and _box[1].top - _box[0].top >= body_size)
-    if boxed:
+    if cfence:
+        # THE FIRST STROKE OPENS THE CAPTION AND THE LAST CLOSES IT. What
+        # falls between them is the docket and the party stack; the strokes
+        # in between divide the two and are furniture of the fence, recorded
+        # with the rest of it.
+        closer = None
+        band_lo = cfence[0].top
+        band_hi = cfence[-1].top
+        cap_band = (band_lo, band_hi)
+    elif boxed:
         j += 1
         band_lo = fence[0].bottom
         closer = fence[1]
@@ -1522,11 +1645,31 @@ def read_ecf(model, geom, facts: EcfPaper = DEFAULT, **_):
             # opening paragraphs into the caption.
             cap_band = (band_lo, rail["bottom"])
             in_band = [l for l in in_band if l.top <= rail["bottom"] + 1]
+            # …AND THE STATUS ROW THE RAIL STOPS SHORT OF. A chambers types
+            # the rail beside every row it means to divide and then sets the
+            # last party's status under it without one — tned closes
+            # 'CORRECTIONS, et al.,  )' / '  )' / 'Defendants.', where the
+            # final row carries no glyph at all. Left outside, the caption's
+            # own closing status was read as an APPEARANCE OF COUNSEL (the
+            # user, 2026-08-21: 'defendants is not counsel its part of the
+            # caption'). A STATUS is a closed vocabulary and nothing below a
+            # caption is a bare status word, so the row is admitted on what
+            # it says — within one line of the rail's foot, and one row only.
+            _below = sorted((l for l in (live[j:] if _RAIL_STATUS_TAIL else [])
+                             if rail["bottom"] + 1 < l.top
+                             <= rail["bottom"] + 2.2 * (body_size or 12.0)),
+                            key=lambda l: l.top)
+            for _l in _below[:1]:
+                if _is_status_row(_norm(_l.plain), facts):
+                    in_band.append(_l)
+                    cap_band = (band_lo, _l.bottom)
         else:
             return _refuse("no-closer-no-rail")                 # no closer, no rail: not this paper
         if not in_band:
             return _refuse("band-empty-after-closer")
-    if boxed and rail is None:
+    if cfence:
+        style = STYLE_CENTRE_FENCE
+    elif boxed and rail is None:
         style = STYLE_TYPED_BOX
     elif dboxed and rail is None:
         style = STYLE_DRAWN_BOX
@@ -1565,6 +1708,8 @@ def read_ecf(model, geom, facts: EcfPaper = DEFAULT, **_):
         consumed.add(line.id)
 
     def emit(line, role: str, text: str | None = None):
+        if text is None:
+            text = _cid_markup(line, facts)
         items.append(m.HmLine(
             text=text if text is not None else line_markup(line),
             prov=m.Prov(1, (line.id,)),
@@ -1735,7 +1880,7 @@ def read_ecf(model, geom, facts: EcfPaper = DEFAULT, **_):
         parts = sorted(parts, key=lambda l: l.x0)
         text = ""
         for p in parts:
-            piece = line_markup(p)
+            piece = _cid_markup(p, facts) or line_markup(p)
             text = (text.rstrip() + "  " + piece.lstrip()) if text.strip() \
                 else piece
         first = parts[0]
@@ -1785,7 +1930,18 @@ def read_ecf(model, geom, facts: EcfPaper = DEFAULT, **_):
             # title was never recognised. For a two-piece row this is the
             # same split as before.
             ordered = sorted(row, key=lambda l: l.x0)
-            if len(ordered) >= 2:
+            if cfence:
+                # THE CENTRED FENCE DIVIDES TOP FROM BOTTOM, not left from
+                # right. This caption is one centred stack — every row is a
+                # lone piece on the page axis, so the x0 test below would
+                # send the party names into the right-hand column and tint
+                # them 'case info' beside empty party cells. What the middle
+                # stroke separates is the DOCKET above it from the party
+                # stack below it, which is the only division this paper
+                # draws.
+                (r_parts if ordered[0].top < cfence[1].top
+                 else l_parts).extend(ordered)
+            elif len(ordered) >= 2:
                 cut = max(range(len(ordered) - 1),
                           key=lambda i: ordered[i + 1].x0 - ordered[i].x1)
                 l_parts = ordered[:cut + 1]
@@ -1922,13 +2078,42 @@ def read_ecf(model, geom, facts: EcfPaper = DEFAULT, **_):
         return not re.sub(r"<[^>]+>", "", row.text or "").strip()
     while left and _bare(left[-1]) and _bare(right[-1]):
         left.pop(); right.pop(); left_plain.pop(); right_plain.pop()
-    items.append(m.CaptionBlock(
-        left=left, right=right,
-        rail=(rail["glyph"] if rail else None), rail_rows=len(left),
-        style_id=None,
-        fp={"rail": rail["glyph"] if rail else None, "mid_x": mid,
-            "band": cap_band},
-        prov=m.Prov(1, tuple(sorted(l.id for l in in_band)))))
+    if cfence:
+        # REPRODUCE THE PAGE, DO NOT RESTRUCTURE IT. This caption has no
+        # columns and no divider: it is one centred stack, fenced by three
+        # strokes, with the DOCKET ON TOP — between the first stroke and the
+        # second — and the parties below. Published as a CaptionBlock it
+        # came out as two columns either side of a rail the page never
+        # draws, the docket moved BELOW the parties because a right-hand
+        # column renders after a left-hand one, and the three strokes
+        # appeared nowhere at all — neither drawn nor recorded (the user,
+        # 2026-08-21: 'the format isnt matching the pdf').
+        #
+        # The columns above still do the reading — they are what tells a
+        # docket from a party and fills `parties` and `case_name` — but the
+        # ITEMS are emitted here in the page's own order instead.
+        _seen: set[int] = set()
+        for _stroke in cfence:
+            items.append(m.Rule(prov=m.Prov(1, ()), span="center"))
+            for _cell in (c for c in right + left if not _bare(c)):
+                if id(_cell) in _seen:
+                    continue
+                _at = min((l.top for l in in_band
+                           if l.id in (_cell.prov.line_ids or ())),
+                          default=None)
+                if _at is None or _at > _stroke_next(cfence, _stroke):
+                    continue
+                _cell.align = m.Align.CENTER
+                items.append(_cell)
+                _seen.add(id(_cell))
+    else:
+        items.append(m.CaptionBlock(
+            left=left, right=right,
+            rail=(rail["glyph"] if rail else None), rail_rows=len(left),
+            style_id=None,
+            fp={"rail": rail["glyph"] if rail else None, "mid_x": mid,
+                "band": cap_band},
+            prov=m.Prov(1, tuple(sorted(l.id for l in in_band)))))
 
     # ---- the closer, and the foot rule the box draws --------------------
     # A DRAWN RULE WHOSE ENDS COINCIDE WITH THE ROW ABOVE IT IS AN

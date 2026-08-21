@@ -1007,3 +1007,89 @@ ONE record:
   all look like counsel or clerks credited as authors. Confirming each
   against its PDF is the work; the rule is one line in
   `conformed_signature_author` once they are confirmed.
+
+## paed/658030 — the centred fence, and one accepted loss (2026-08-21)
+
+`paed/gov.uscourts.paed.658030.12.0` was marked 'fix headmatter': its whole
+caption sat in the opinion body and it read NO criteria at all.
+
+THE CAUSE: `read_ecf` anchors on the masthead — a row where the court names
+itself — and this paper's masthead is not text (see the accepted loss below).
+With no anchor it refused, honestly, and everything fell through to the body.
+
+What the page DOES put in its text layer is a caption fenced by three short
+strokes on the page axis:
+
+        ───────      drawn rule, x 288.0-324.0
+    No. 1:26-cv-01525
+        ───────      drawn rule, x 288.0-324.0
+       Rothwell,
+       Plaintiff,
+           v.
+    Anthony & Sylvan Corp.,
+       Defendant.
+        ───────      drawn rule, x 288.0-324.0
+
+Swept over ALL 2,217 district records: 8 pages carry short centred strokes
+and exactly 3 are this fence — paed/658030, txed/243348, txed/245820 — two
+courts sharing one chambers template (the paed record is a transferred order
+signed by a Texas judge). Every stroke of all three is x 288.0-324.0 on a
+612pt sheet. The other 5 hits are 2.5pt marks that fail the equal-width test.
+
+Fixed in `districts/ecf.py`:
+- ✅ `_centre_fence` + `EcfPaper.centre_fence_*` — the fence is recognised
+  when no masthead anchor is found. `_drawn_fence` cannot see these strokes:
+  it wants a rule that STARTS at the body rail, and these start halfway
+  across the sheet.
+- ✅ The band is split by the MIDDLE stroke, top from bottom — docket above,
+  parties below — not by a left/right gutter. This caption has no columns.
+- ✅ The items are emitted in the PAGE'S OWN ORDER: three centred `Rule`s
+  with the docket and the party stack between them. Published as a
+  `CaptionBlock` it came out as two columns either side of a rail the page
+  never draws, with the docket rendered BELOW the parties (a right column
+  renders after a left one) and the three strokes appearing nowhere at all
+  (the user, 2026-08-21: 'the format isnt matching the pdf'). The columns
+  still do the READING; only the emission changed. `[[reproduce-dont-restructure]]`
+- ✅ `_norm` now folds U+FB00-FB06. This chambers ships 'Plaintiﬀ,' as one
+  ligature glyph, so the ASCII status vocabulary missed it and the party came
+  back as 'Rothwell, Plaintiﬀ' with its status glued on. Only 7 district
+  records contain a ligature at all; the fold changed one other
+  (ncmd/103164) and improved it the same way.
+
+All three records now read docket, caption, parties and case_name, and the
+two txed ones their `ORDER` title.
+
+### THE ACCEPTED LOSS — drawn lettering, no text
+
+The user's call, 2026-08-21: *'ill deal with that loss'*. Recorded so it is
+not rediscovered as a bug.
+
+This paper draws its small-caps headings as VECTOR OUTLINES, not text. On
+paed/658030 page 1, pdfplumber reports 212 curve objects and ZERO chars in
+two bands:
+
+    y  90-126   138 curves, 0 chars   UNITED STATES DISTRICT COURT /
+                                      WESTERN DISTRICT OF TEXAS /
+                                      AUSTIN DIVISION
+    y 276-282    68 curves, 0 chars   MEMORANDUM OPINION AND ORDER
+
+txed/243348 has the same disease, milder: its masthead is 114 curves in
+y 90-108, while its 'OR D ER' title happens to be real letter-spaced text,
+which is why that one renders.
+
+So the masthead and the title are not dropped — they were never extracted,
+by us or by pdfplumber. There is no OCR engine in this repo (only
+`classify.ocr_text_layer`, which DETECTS an existing OCR layer), so
+recovering them means a new dependency.
+
+TWO LESSONS WORTH MORE THAN THE RECORD:
+- **An audit built on the text layer inherits the extractor's blind spot.**
+  The line-accounting audit compared `pm.lines` against the render and
+  reported '10 unaccounted, all ECF stamps' — true of TEXT, and silent about
+  206 curves of drawn lettering. The page IMAGE is what settled it.
+  `[[oracle-blind-spots]]`
+- **The ECF stamp accounting is separately broken** and is NOT this loss:
+  core removes the repeated stamp on pages 2+ without a `Dropped` record,
+  while the shared reader records page 1's. Measured: paed/658030 10
+  unaccounted, paed/596645 23 (all 23 stamps), txed/243348 2 — against wyo,
+  cadc, pacommwct and nh at 0. Still open.

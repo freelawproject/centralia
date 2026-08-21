@@ -44,8 +44,12 @@ _MONTHS = {
 }
 _MONTH_RE = "|".join(sorted(_MONTHS, key=len, reverse=True))
 
-# 'January 22, 2026' — the comma is optional, the day may be 1 or 2 digits.
-_MDY = re.compile(rf"\b(?P<m>{_MONTH_RE})\.?\s+(?P<d>\d{{1,2}})(?:st|nd|rd|th)?"
+# 'January 22, 2026' — the comma is optional, the day may be 1 or 2 digits,
+# and THE SPACE MAY BE MISSING: this corpus's text layer welds words together
+# ('Decided June25, 2025' — nmariana), so a required space loses a real date.
+# Safe because a 4-digit year must still follow: 'May 2026' cannot match as
+# day 20 of May, since '26' is not four digits.
+_MDY = re.compile(rf"\b(?P<m>{_MONTH_RE})\.?\s*(?P<d>\d{{1,2}})(?:st|nd|rd|th)?"
                   rf"\s*,?\s*(?P<y>\d{{4}})\b", re.I)
 # '22 January 2026' — the day-first form.
 _DMY = re.compile(rf"\b(?P<d>\d{{1,2}})(?:st|nd|rd|th)?\s+(?P<m>{_MONTH_RE})\.?"

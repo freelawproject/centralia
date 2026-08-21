@@ -104,21 +104,31 @@ def ocr_text_layer(model: PdfModel) -> bool:
     """
     if not model.pages:
         return False
-    covered = [p for p in model.pages if p.image_area > SCAN_IMAGE_AREA]
-    if len(covered) / model.n_pages < SCAN_PAGE_FRAC:
-        return False
-    fonts = {f for p in model.pages for f in p.fonts if f}
-    if not fonts:
-        return False            # no text at all: `triage` owns that answer
-    if any(_is_ocr_font(f) for f in fonts):
-        return True
-    # A '*' PREFIX IS PDFMINER SAYING IT SUBSTITUTED — the PDF named a face it
-    # could not find, which is the opposite of embedding. plains_pipeline's
-    # scan names every face '*Times New Roman-3251', '*Times New Roman-Bold-
-    # 3253' and so on; read as embedded they made a 5-of-5 raster look
-    # born-digital.
-    return all("+" not in f and (f.startswith("*") or f in _BASE_14)
-               for f in fonts)
+    # PAGE BY PAGE, NOT DOCUMENT-WIDE. A hybrid sheet is common: five rastered
+    # pages with an OCR layer and a born-digital certificate appended.
+    # tenn/brad_wigdor is exactly that — pages 1-5 are full rasters typed in
+    # nothing but Helvetica and Times-Roman, page 6 is real type in
+    # 'CIDFont+F1'. Unioned, that one embedded subset declared all six pages
+    # born-digital and the scan went unflagged (guard regression, 2026-08-21).
+    ocr_pages = 0
+    for page in model.pages:
+        if page.image_area <= SCAN_IMAGE_AREA:
+            continue
+        fonts = {f for f in page.fonts if f}
+        if not fonts:
+            continue        # an image with no text at all: `triage` owns it
+        if any(_is_ocr_font(f) for f in fonts) or all(
+                "+" not in f and (f.startswith("*") or f in _BASE_14)
+                for f in fonts):
+            ocr_pages += 1
+    # NO DOCUMENT-WIDE OVERRIDE. An OCR face on ONE page does not make the
+    # document a scan: nced 205280.57 is a born-digital CM/ECF filing —
+    # 'UNHHVC+LiberationSans' embedded on all eight pages — carrying a
+    # 'HiddenHorzOCR' overlay on page 5 alone, presumably a scanned exhibit.
+    # Tested document-wide on the font name it read as a scan, which would
+    # have gated a real filing out of ingestion. The PAGE COUNT is the gate,
+    # and the per-page test above already counts an OCR-font page as one.
+    return ocr_pages / model.n_pages >= SCAN_PAGE_FRAC
 
 
 def triage(model: PdfModel) -> str | None:

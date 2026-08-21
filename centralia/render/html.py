@@ -328,22 +328,46 @@ def opinion_text(op: m.Opinion) -> str:
     return "\n\n".join(out)
 
 
+def render_headmatter(doc: m.Document) -> str:
+    """The cover as the page sets it: the caption block, the rows, the rules.
+
+    Public because the headmatter is a part of the document in its own right,
+    not review furniture — `render_body` used to skip it (its section style is
+    'hm', which that function did not handle) and the whole cover, plus the
+    attorneys block, silently vanished from the body render.
+    """
+    return render_hm_items(doc.headmatter)
+
+
 def render_body(doc: m.Document) -> str:
     """The document's TEXT, without the review furniture — no criteria box, no
     Removed panel, no role tints, no legend. This is what an ingest wants;
     `render_html` is what a reviewer wants.
+
+    EVERY SECTION IS ACCOUNTED FOR, and the 'hm' ones are included rather than
+    dropped: an unhandled style used to fall through the loop in silence, so
+    the cover and the appearances were lost from the body with nothing saying
+    so. An unknown style now raises.
     """
     parts = []
     for spec in SECTIONS:
+        if spec.name in ("removed", "residual"):
+            continue                      # attestation, not the document
         value = getattr(doc, spec.attr, None)
         if not value:
             continue
         if spec.html == "opinions":
             parts.append("".join(_render_opinion(op) for op in value))
-        elif spec.html == "flow":
+        elif spec.html in ("flow", "hm-or-flow"):
             parts.append(_render_blocks(value))
+        elif spec.html == "hm":
+            parts.append(render_hm_items(value))
         elif spec.html == "footnotes":
             parts.append(_render_footnotes(value))
+        else:
+            raise ValueError(
+                f"render_body: unhandled section style {spec.html!r} for "
+                f"{spec.name!r} — it would be dropped in silence")
     return "".join(parts)
 
 
