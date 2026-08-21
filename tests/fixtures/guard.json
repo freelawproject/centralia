@@ -500,7 +500,14 @@
    "lower_court",
    "parties"
   ],
-  "hm": 7,
+  "hm": 6,
+  "hm_roles": {
+   "caption": 1,
+   "court": 2,
+   "date": 1,
+   "docket": 1,
+   "lower-court": 1
+  },
   "lead_bylined": true,
   "op_blocks": [
    1
@@ -522,9 +529,16 @@
    "parties"
   ],
   "hm": 13,
+  "hm_roles": {
+   "caption": 6,
+   "court": 1,
+   "date": 1,
+   "docket": 1,
+   "lower-court": 2
+  },
   "lead_bylined": true,
   "op_blocks": [
-   28
+   25
   ],
   "ops": [
    "majority"
@@ -542,10 +556,19 @@
    "lower_court",
    "parties"
   ],
-  "hm": 7,
+  "hm": 8,
+  "hm_roles": {
+   "caption": 1,
+   "case-info": 1,
+   "court": 1,
+   "date": 1,
+   "docket": 1,
+   "lower-court": 1,
+   "title": 1
+  },
   "lead_bylined": false,
   "op_blocks": [
-   5
+   4
   ],
   "ops": [
    "order"
@@ -563,10 +586,19 @@
    "lower_court",
    "parties"
   ],
-  "hm": 7,
+  "hm": 8,
+  "hm_roles": {
+   "caption": 1,
+   "case-info": 1,
+   "court": 1,
+   "date": 1,
+   "docket": 1,
+   "lower-court": 1,
+   "title": 1
+  },
   "lead_bylined": false,
   "op_blocks": [
-   6
+   5
   ],
   "ops": [
    "majority"
@@ -585,10 +617,18 @@
    "parties"
   ],
   "hm": 212,
+  "hm_roles": {
+   "caption": 135,
+   "court": 1,
+   "date": 1,
+   "docket": 15,
+   "lower-court": 15,
+   "title": 15
+  },
   "lead_bylined": true,
   "op_blocks": [
-   58,
-   59
+   54,
+   57
   ],
   "ops": [
    "majority",
@@ -607,7 +647,15 @@
    "lower_court",
    "parties"
   ],
-  "hm": 10,
+  "hm": 7,
+  "hm_roles": {
+   "caption": 1,
+   "court": 2,
+   "date": 1,
+   "docket": 1,
+   "lower-court": 1,
+   "title": 1
+  },
   "lead_bylined": true,
   "op_blocks": [
    4
@@ -624,14 +672,22 @@
   "attorneys": 0,
   "criteria": [
    "decision_date",
+   "disposition",
    "docket_number",
    "lower_court",
    "parties"
   ],
   "hm": 6,
+  "hm_roles": {
+   "caption": 1,
+   "court": 1,
+   "date": 1,
+   "docket": 1,
+   "lower-court": 1
+  },
   "lead_bylined": false,
   "op_blocks": [
-   8
+   7
   ],
   "ops": [
    "majority"
@@ -650,6 +706,13 @@
    "parties"
   ],
   "hm": 10,
+  "hm_roles": {
+   "caption": 3,
+   "court": 1,
+   "date": 1,
+   "docket": 1,
+   "lower-court": 2
+  },
   "lead_bylined": true,
   "op_blocks": [
    16
@@ -671,9 +734,17 @@
    "parties"
   ],
   "hm": 12,
+  "hm_roles": {
+   "caption": 4,
+   "court": 1,
+   "date": 1,
+   "docket": 1,
+   "lower-court": 2,
+   "title": 1
+  },
   "lead_bylined": true,
   "op_blocks": [
-   80
+   79
   ],
   "ops": [
    "majority"
@@ -692,9 +763,16 @@
    "parties"
   ],
   "hm": 11,
+  "hm_roles": {
+   "caption": 3,
+   "court": 1,
+   "date": 1,
+   "docket": 1,
+   "lower-court": 3
+  },
   "lead_bylined": true,
   "op_blocks": [
-   59,
+   57,
    3,
    14
   ],
@@ -2051,6 +2129,60 @@
   "lead_bylined": true,
   "op_blocks": [
    71
+  ],
+  "ops": [
+   "majority"
+  ],
+  "residual": 0,
+  "status": "valid",
+  "summary": 0,
+  "syllabus": 0
+ },
+ "asbca/accu-are_mechanical_llc": {
+  "attorneys": 0,
+  "criteria": [
+   "decision_date",
+   "docket_number",
+   "parties"
+  ],
+  "hm": 10,
+  "hm_roles": {
+   "caption": 4,
+   "case-info": 1,
+   "counsel": 8,
+   "court": 1,
+   "docket": 5
+  },
+  "lead_bylined": true,
+  "op_blocks": [
+   3
+  ],
+  "ops": [
+   "majority"
+  ],
+  "residual": 0,
+  "status": "valid",
+  "summary": 0,
+  "syllabus": 0
+ },
+ "asbca/kiewitphelps": {
+  "attorneys": 0,
+  "criteria": [
+   "decision_date",
+   "docket_number",
+   "parties"
+  ],
+  "hm": 13,
+  "hm_roles": {
+   "caption": 4,
+   "case-info": 1,
+   "counsel": 11,
+   "court": 1,
+   "docket": 5
+  },
+  "lead_bylined": true,
+  "op_blocks": [
+   33
   ],
   "ops": [
    "majority"
@@ -11277,6 +11409,67 @@
   "summary": 0,
   "syllabus": 0
  },
+ "indtc/new_cingular_wireless_pcs_llc_v._department_of_state_revenue": {
+  "attorneys": 0,
+  "criteria": [
+   "decision_date",
+   "docket_number",
+   "parties",
+   "publication_status"
+  ],
+  "hm": 11,
+  "hm_roles": {
+   "caption": 19,
+   "counsel": 16,
+   "court": 2,
+   "date": 1,
+   "docket": 1,
+   "publication": 1,
+   "title": 1
+  },
+  "lead_bylined": true,
+  "op_blocks": [
+   86
+  ],
+  "ops": [
+   "majority"
+  ],
+  "residual": 10,
+  "status": "valid",
+  "summary": 0,
+  "syllabus": 0
+ },
+ "indtc/thomas_nancy_crandall_v._bartholomew_county_assessor": {
+  "attorneys": 0,
+  "criteria": [
+   "decision_date",
+   "docket_number",
+   "lower_court",
+   "parties",
+   "publication_status"
+  ],
+  "hm": 12,
+  "hm_roles": {
+   "caption": 17,
+   "counsel": 24,
+   "court": 2,
+   "date": 1,
+   "docket": 1,
+   "lower-court": 2,
+   "publication": 1
+  },
+  "lead_bylined": true,
+  "op_blocks": [
+   28
+  ],
+  "ops": [
+   "majority"
+  ],
+  "residual": 8,
+  "status": "valid",
+  "summary": 0,
+  "syllabus": 0
+ },
  "indtc/tippecanoe_county_assessor_v._craig_goergen": {
   "attorneys": 0,
   "criteria": [
@@ -13682,6 +13875,80 @@
   "summary": 0,
   "syllabus": 0
  },
+ "miss/joe_nathan_harris_v._state_of_mississippi": {
+  "attorneys": 0,
+  "criteria": [
+   "docket_number",
+   "parties"
+  ],
+  "hm": 7,
+  "hm_roles": {
+   "caption": 5,
+   "court": 1,
+   "docket": 1
+  },
+  "lead_bylined": false,
+  "op_blocks": [
+   21,
+   11
+  ],
+  "ops": [
+   "order",
+   "objecting-to-the-order-with-separate-written-statement"
+  ],
+  "residual": 0,
+  "status": "valid",
+  "summary": 0,
+  "syllabus": 0
+ },
+ "miss/mississippi_commission_on_judicial_performance_v._aelicia_thomas": {
+  "attorneys": 0,
+  "criteria": [
+   "docket_number",
+   "parties"
+  ],
+  "hm": 6,
+  "hm_roles": {
+   "caption": 4,
+   "court": 1,
+   "docket": 1
+  },
+  "lead_bylined": false,
+  "op_blocks": [
+   9
+  ],
+  "ops": [
+   "order"
+  ],
+  "residual": 0,
+  "status": "scanned",
+  "summary": 0,
+  "syllabus": 0
+ },
+ "miss/mississippi_commission_on_judicial_performance_v._james_littleton_leflore": {
+  "attorneys": 0,
+  "criteria": [
+   "docket_number",
+   "parties"
+  ],
+  "hm": 6,
+  "hm_roles": {
+   "caption": 4,
+   "court": 1,
+   "docket": 1
+  },
+  "lead_bylined": false,
+  "op_blocks": [
+   8
+  ],
+  "ops": [
+   "order"
+  ],
+  "residual": 0,
+  "status": "valid",
+  "summary": 0,
+  "syllabus": 0
+ },
  "mo/in_re_todd_n._agron": {
   "attorneys": 0,
   "criteria": [
@@ -14839,6 +15106,129 @@
   "summary": 0,
   "syllabus": 1
  },
+ "nev/engle_julie_v._dist._ct._state_criminal_2": {
+  "attorneys": 0,
+  "criteria": [
+   "docket_number",
+   "parties"
+  ],
+  "hm": 3,
+  "hm_roles": {
+   "caption": 21,
+   "court": 1,
+   "docket": 1,
+   "title": 1
+  },
+  "lead_bylined": true,
+  "op_blocks": [
+   77,
+   101
+  ],
+  "ops": [
+   "order",
+   "majority"
+  ],
+  "residual": 0,
+  "status": "scanned",
+  "summary": 0,
+  "syllabus": 0
+ },
+ "nev/rosenbrook_v._lloyd_cw_85175": {
+  "attorneys": 0,
+  "criteria": [
+   "disposition",
+   "docket_number",
+   "lower_court",
+   "parties"
+  ],
+  "hm": 37,
+  "hm_roles": {
+   "caption": 19,
+   "citation": 1,
+   "counsel": 5,
+   "court": 1,
+   "disposition": 2,
+   "docket": 2,
+   "lower-court": 4,
+   "panel": 2,
+   "title": 1
+  },
+  "lead_bylined": true,
+  "op_blocks": [
+   61
+  ],
+  "ops": [
+   "majority"
+  ],
+  "residual": 0,
+  "status": "scanned",
+  "summary": 0,
+  "syllabus": 0
+ },
+ "nevapp/ccmsi_v._odell": {
+  "attorneys": 0,
+  "criteria": [
+   "disposition",
+   "docket_number",
+   "lower_court",
+   "parties"
+  ],
+  "hm": 15,
+  "hm_roles": {
+   "caption": 11,
+   "citation": 1,
+   "counsel": 4,
+   "court": 1,
+   "disposition": 1,
+   "docket": 1,
+   "lower-court": 4,
+   "panel": 2,
+   "title": 1
+  },
+  "lead_bylined": true,
+  "op_blocks": [
+   41
+  ],
+  "ops": [
+   "majority"
+  ],
+  "residual": 0,
+  "status": "scanned",
+  "summary": 0,
+  "syllabus": 0
+ },
+ "nevapp/hayes_v._watson": {
+  "attorneys": 0,
+  "criteria": [
+   "disposition",
+   "docket_number",
+   "lower_court",
+   "parties"
+  ],
+  "hm": 17,
+  "hm_roles": {
+   "caption": 21,
+   "citation": 1,
+   "counsel": 7,
+   "court": 1,
+   "disposition": 1,
+   "docket": 1,
+   "lower-court": 3,
+   "panel": 2,
+   "title": 1
+  },
+  "lead_bylined": true,
+  "op_blocks": [
+   93
+  ],
+  "ops": [
+   "majority"
+  ],
+  "residual": 0,
+  "status": "scanned",
+  "summary": 0,
+  "syllabus": 0
+ },
  "nh/appeal_of_doe_bd._of_med.": {
   "attorneys": 0,
   "criteria": [
@@ -14892,6 +15282,58 @@
   ],
   "ops": [
    "majority"
+  ],
+  "residual": 0,
+  "status": "valid",
+  "summary": 0,
+  "syllabus": 0
+ },
+ "nhd/scott_v._ssa": {
+  "attorneys": 0,
+  "criteria": [
+   "docket_number",
+   "parties"
+  ],
+  "hm": 4,
+  "hm_roles": {
+   "caption": 10,
+   "citation": 1,
+   "court": 2,
+   "docket": 1,
+   "title": 1
+  },
+  "lead_bylined": false,
+  "op_blocks": [
+   23
+  ],
+  "ops": [
+   "order"
+  ],
+  "residual": 0,
+  "status": "valid",
+  "summary": 0,
+  "syllabus": 0
+ },
+ "nhd/united_states_of_america_and_state_of_new_hampshire_department_of_environmental_services_plaintiffs_v._mccord_corporatio": {
+  "attorneys": 0,
+  "criteria": [
+   "docket_number",
+   "parties"
+  ],
+  "hm": 4,
+  "hm_roles": {
+   "caption": 14,
+   "citation": 1,
+   "court": 2,
+   "docket": 1,
+   "title": 1
+  },
+  "lead_bylined": false,
+  "op_blocks": [
+   16
+  ],
+  "ops": [
+   "order"
   ],
   "residual": 0,
   "status": "valid",
@@ -17834,6 +18276,147 @@
   ],
   "residual": 0,
   "status": "scanned",
+  "summary": 0,
+  "syllabus": 0
+ },
+ "texapp/gerald_blace_west_v._the_state_of_texas": {
+  "attorneys": 0,
+  "criteria": [
+   "docket_number",
+   "parties"
+  ],
+  "hm": 4,
+  "hm_roles": {
+   "caption": 3,
+   "case-info": 3,
+   "docket": 1,
+   "title": 2
+  },
+  "lead_bylined": true,
+  "op_blocks": [
+   29
+  ],
+  "ops": [
+   "order"
+  ],
+  "residual": 3,
+  "status": "valid",
+  "summary": 0,
+  "syllabus": 0
+ },
+ "texcrimapp/cuevas_victor_hugo_v._the_state_of_texas_2": {
+  "attorneys": 0,
+  "criteria": [
+   "decision_date",
+   "docket_number",
+   "lower_court",
+   "parties",
+   "publication_status"
+  ],
+  "hm": 19,
+  "hm_roles": {
+   "caption": 3,
+   "court": 2,
+   "docket": 1,
+   "lower-court": 3,
+   "panel": 5
+  },
+  "lead_bylined": true,
+  "op_blocks": [
+   102
+  ],
+  "ops": [
+   "majority"
+  ],
+  "residual": 0,
+  "status": "valid",
+  "summary": 0,
+  "syllabus": 0
+ },
+ "texcrimapp/maresmartinez_sergio_guadal_a.k.a._mares_sergio_guadalupe": {
+  "attorneys": 2,
+  "criteria": [
+   "decision_date",
+   "docket_number",
+   "lower_court",
+   "parties",
+   "publication_status"
+  ],
+  "hm": 15,
+  "hm_roles": {
+   "caption": 2,
+   "court": 2,
+   "docket": 1,
+   "lower-court": 4,
+   "panel": 1
+  },
+  "lead_bylined": true,
+  "op_blocks": [
+   9
+  ],
+  "ops": [
+   "per-curiam"
+  ],
+  "residual": 0,
+  "status": "valid",
+  "summary": 0,
+  "syllabus": 0
+ },
+ "texcrimapp/wenzel_michael_justice": {
+  "attorneys": 2,
+  "criteria": [
+   "decision_date",
+   "docket_number",
+   "lower_court",
+   "parties",
+   "publication_status"
+  ],
+  "hm": 14,
+  "hm_roles": {
+   "caption": 1,
+   "court": 2,
+   "docket": 1,
+   "lower-court": 3,
+   "panel": 2
+  },
+  "lead_bylined": false,
+  "op_blocks": [
+   6
+  ],
+  "ops": [
+   "concurrence"
+  ],
+  "residual": 0,
+  "status": "valid",
+  "summary": 0,
+  "syllabus": 0
+ },
+ "texcrimapp/wenzel_michael_justice_1": {
+  "attorneys": 2,
+  "criteria": [
+   "decision_date",
+   "docket_number",
+   "lower_court",
+   "parties",
+   "publication_status"
+  ],
+  "hm": 13,
+  "hm_roles": {
+   "caption": 1,
+   "court": 2,
+   "docket": 1,
+   "lower-court": 3,
+   "panel": 1
+  },
+  "lead_bylined": true,
+  "op_blocks": [
+   5
+  ],
+  "ops": [
+   "per-curiam"
+  ],
+  "residual": 0,
+  "status": "valid",
   "summary": 0,
   "syllabus": 0
  },

@@ -254,6 +254,16 @@ class Criteria:
     lower_court: str | None = None
     history: str | None = None
     submitted: str | None = None
+    # THE SITTING'S DATE, SPLIT BY WHAT THE COURT CALLED IT. `submitted` above
+    # is fed by 'argued', 'reargued', 'heard' and 'submitted' alike — 63 court
+    # files write it and most know the label before they discard it — so a
+    # consumer cannot tell an argued case from one submitted on the briefs.
+    # These carry the label's own value. `submitted` STAYS AUTHORITATIVE while
+    # the court files migrate: nothing breaks, and `diagnostics` shows coverage
+    # rising instead of a flag day (the user, 2026-08-21).
+    date_argued: str | None = None
+    date_submitted: str | None = None
+    date_reargued: str | None = None
     motion: str | None = None
     # --- what the page NAMES itself, kept beside the parsed forms ---------
     # The printed form and the normalized form are both facts, and choosing
@@ -310,6 +320,17 @@ class Meta:
     doc_style: str | None = None   # named layout contract that matched
     n_pages: int = 0
     source_path: str = ""
+    # WHICH PAGES ARE WHAT, so a consumer can decide without re-opening the
+    # PDF. All three are computed in the pipeline already and were thrown
+    # away; they are the facts a doctor asserts on (the user, 2026-08-21:
+    # 'i think you should report it … so we can decide what to do').
+    #   scan_pages          a raster covers ≥90% of the sheet
+    #   text_missing_pages  an image and almost no text: those words are NOT
+    #                       in this document, and that is the one that matters
+    #   cid_pages           text present but unmapped — garbage, not absent
+    scan_pages: list = field(default_factory=list)
+    text_missing_pages: list = field(default_factory=list)
+    cid_pages: list = field(default_factory=list)
     # WHAT THE PAPER IS, as a value rather than a sentence. `doc.warnings`
     # already says it in prose, but a consumer that must DECIDE something —
     # the review banner, the casebody projection, whatever ingests this

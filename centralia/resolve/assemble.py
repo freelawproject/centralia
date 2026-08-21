@@ -1049,58 +1049,6 @@ def assemble(model, geom: DocGeometry | None, segments_by_page: dict,
         mid = (line.x0 + line.x1) / 2
         return mid > model.pages[0].width / 2 + _SIG_OFF_AXIS
 
-    def _under_signature_rule(seg, i: int = -1) -> bool:
-        """Is this row printed under a TYPED SIGNATURE RULE?
-
-        A court that signs its order conformed draws the rule and sets the
-        name beneath it:
-
-            FOR THE COURT:
-            _______________________________________
-                        MAXA, J.
-
-        The name is a byline in every grammar, and nothing follows it, so it
-        opened a writing with no body at all — washctapp/aiden_asbach's order
-        came back as two writings, an order and an empty majority, beside the
-        opinion stapled behind it (the user, 2026-08-21: 'it has two … but im
-        getting three'). The position test above cannot see it: the name is
-        set INSIDE the rule's span, 19pt off the axis against a 40pt bound.
-        The rule itself is the evidence, and only a signature is written
-        under one.
-        """
-        if not seg.lines:
-            return False
-        # …AND A SIGNATURE HAS NOTHING AFTER IT. The rule alone is far too
-        # weak: a court signs the lead opinion and the SEPARATE WRITING'S
-        # byline follows a few points under that signature's rule, so the
-        # test caught real openings — ca6 lost its concurrences and dissents
-        # outright ('majority, concurrence, dissent' -> 'majority') and
-        # cadc's 'Per Curiam', which its judgments print near the end over a
-        # rule, stopped being demoted to `terminal_author` and the lead came
-        # back unbylined. What makes washctapp's 'MAXA, J.' a signature is
-        # that the order ENDS there. Bounded to the same tail the terminal-
-        # byline rule below uses.
-        if i >= 0:
-            after = sum(len(t.lines) for t in split_stream[i + 1:])
-            if after > 8:
-                return False
-        line = seg.lines[0]
-        pm = next((q for q in model.pages if q.number == seg.page), None)
-        if pm is None:
-            return False
-        for other in pm.lines:
-            txt = "".join((other.plain or "").split())
-            if not (txt.count("_") >= 6 and set(txt) <= set("_/")):
-                continue
-            if not (0 < line.top - other.top <= 40.0):
-                continue
-            # …and nothing but the signature's own rows in between.
-            if any(other.top < q.top < line.top and " ".join((q.plain or ""
-                   ).split()) for q in pm.lines):
-                continue
-            return True
-        return False
-
     # …AND A BYLINE THAT SIGNS OFF IS A SIGNATURE TOO. nm sets the author's
     # conformed name at the rail on some records and flushed right on others,
     # but either way an ATTESTATION follows it — 'WE CONCUR:' over the roster
@@ -1177,15 +1125,6 @@ def assemble(model, geom: DocGeometry | None, segments_by_page: dict,
               and not (i > 0 and split_stream[i - 1].lines
                        and _midsentence_tail(
                            split_stream[i - 1].lines[-1].plain))]
-
-    # A BYLINE UNDER A SIGNATURE RULE, WITH A WRITING ALREADY OPEN ABOVE IT,
-    # SIGNS THAT WRITING. Applied to the FIRST start it would take the only
-    # byline the paper has: cadc prints its judgments as caption > JUDGMENT
-    # heading > body > 'Per Curiam' over a rule, and the terminal-byline rule
-    # below is what demotes that one — it needs the start to reach it.
-    if len(starts) > 1:
-        starts = [i for k, i in enumerate(starts)
-                  if k == 0 or not _under_signature_rule(split_stream[i], i)]
 
     # THE VOTE BLOCK REPORTS THE WRITINGS; IT DOES NOT OPEN THEM. Texas's
     # Court of Criminal Appeals prints its whole vote under the caption:
@@ -2608,7 +2547,10 @@ def assemble(model, geom: DocGeometry | None, segments_by_page: dict,
                 return False
             ids = getattr(getattr(b, "prov", None), "line_ids", ())
             xs = [_by_id[i].x0 for i in ids if i in _by_id]
-            return bool(xs) and min(xs) > model.pages[0].width * 0.42
+            # RIGHT OF THE AXIS. At 0.42 a CENTRED row passes — ca3's
+            # 'OPINION' banner opens at x0 279 on a 612pt sheet — and the
+            # signing column this is looking for stands at 334-399.
+            return bool(xs) and min(xs) > model.pages[0].width * 0.5
 
         def _signed_over(b) -> bool:
             """Is this row printed under a SIGNATURE — a typed rule of
@@ -2680,7 +2622,7 @@ def assemble(model, geom: DocGeometry | None, segments_by_page: dict,
                 # dangling last paragraph of the opinion.
                 if cut > 0:
                     above = (getattr(op.blocks[cut - 1], "text", "") or "")
-                    _ab = " ".join(above.split()).upper().rstrip(":.")
+                    _ab = " ".join(above.split()).upper().rstrip(":")
                     if len(above) < 120 and (
                             _ab.startswith("DATED")
                             or _ab in ("BY THE COURT", "FOR THE COURT")):
@@ -2694,7 +2636,12 @@ def assemble(model, geom: DocGeometry | None, segments_by_page: dict,
             run = op.blocks[j:]
             named = [b for b in run if not isinstance(b, m.ImageBlock)
                      and (getattr(b, "text", "") or "").strip()]
-            if j < len(op.blocks) and named \
+            # …AND NEVER THE WHOLE WRITING. `j == 0` means every block the
+            # writing has looked like signing, which is not a signature but
+            # a misread: ca3 assembles a one-block writing holding just its
+            # 'OPINION' banner, and lifting that left the writing empty and
+            # the banner unclaimed — dropped from the output entirely.
+            if 0 < j < len(op.blocks) and named \
                     and any(_signed_over(b) for b in named):
                 # THE ATTESTATION THAT OPENS THE BLOCK COMES WITH IT. 'WE
                 # CONCUR:' is set at the RAIL, not in the signers' column,

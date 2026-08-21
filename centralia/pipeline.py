@@ -358,9 +358,17 @@ def _extract_model(model, court_id: str, pdf_path) -> ExtractionResult:
     # carry no text layer at all (wis reprints an order as page images).
     # Nothing text-based is lost, but the reader must know pages are
     # image-only.
-    from .classify import SCAN_IMAGE_AREA
+    from .classify import CID_MAX_FRAC, SCAN_IMAGE_AREA
     _img_only = [pm.number for pm in model.pages
                  if pm.image_area > SCAN_IMAGE_AREA and pm.ink_chars < 120]
+    # SURFACED, not just warned about. These were local and discarded; a
+    # consumer needs the page numbers, not a sentence to parse. See Meta.
+    meta.text_missing_pages = list(_img_only)
+    meta.scan_pages = [pm.number for pm in model.pages
+                       if pm.image_area > SCAN_IMAGE_AREA]
+    meta.cid_pages = [pm.number for pm in model.pages
+                      if pm.ink_chars and
+                      pm.cid_chars / pm.ink_chars > CID_MAX_FRAC]
     if _img_only and verdict != "scan" and len(_img_only) < model.n_pages:
         # NAME THE PAGES, AND SAY WHAT IS LOST. Printed as first-to-last the
         # note read as a RANGE — nev/engle_julie_2 carries no text on pages 4
@@ -2504,6 +2512,39 @@ def _extract_model(model, court_id: str, pdf_path) -> ExtractionResult:
         trace.event("writing.fence_folded",
                     f"{_folded} heading-only writing(s) joined the writing "
                     "below")
+
+    # AN EMPTY WRITING IS NOT A WRITING. A byline with no body under it did
+    # not open anything — it SIGNED the writing above it. washctapp's stapled
+    # order closes 'FOR THE COURT:' over a typed rule with 'MAXA, J.' beneath,
+    # and that name, being byline-shaped, opened a third writing holding
+    # nothing at all beside the order and the opinion (the user, 2026-08-21:
+    # 'it has two … but im getting three'). Refusing the anchor cannot tell
+    # this case from cadc's 'Per Curiam' — both are the document's only
+    # byline — so the EMPTINESS is what is read, after assembly, when it is
+    # known.
+    _emptied = 0
+    for _i in range(len(doc.opinions) - 1, -1, -1):
+        _o = doc.opinions[_i]
+        if _o.blocks or _o.signature or _o.footnotes:
+            continue
+        # …AND ONLY WHERE THERE IS A WRITING ABOVE IT TO SIGN. An empty LEAD
+        # writing has signed nothing; dropping it costs the document its
+        # majority and its author outright (alaska's democratic_party, whose
+        # 'majority, dissent, dissent' came back as two dissents).
+        if _i == 0:
+            continue
+        if _o.author_name and not doc.opinions[_i - 1].author_name:
+            _prev = doc.opinions[_i - 1]
+            _prev.author = _o.author
+            _prev.author_name = _o.author_name
+            _prev.author_title = _o.author_title
+            _prev.author_prov = _o.author_prov
+        del doc.opinions[_i]
+        _emptied += 1
+    if _emptied:
+        trace.event("writing.empty_dropped",
+                    f"{_emptied} byline(s) with no body signed the writing "
+                    "above instead of opening one")
 
     # 9b INVARIANT — A WRITING IS NEVER BISECTED.
     #

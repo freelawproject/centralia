@@ -298,6 +298,55 @@ def _render_opinion(op: m.Opinion, hm_sig: str = "") -> str:
     return "".join(parts)
 
 
+def render_opinion(op: m.Opinion) -> str:
+    """One writing's own HTML — its byline, blocks, signature and footnotes.
+
+    Public because a consumer ingesting sub-opinions needs each writing
+    addressable on its own; `render_html` emits the whole review page and
+    `render_casebody` buries the same content inside its XML.
+    """
+    return _render_opinion(op)
+
+
+def opinion_text(op: m.Opinion) -> str:
+    """The same writing as plain text, for search and diffing. Markup is the
+    model's own vocabulary, so it is stripped rather than escaped away."""
+    import re as _re
+    from html import unescape as _un
+    out = []
+    for b in (*op.blocks, *op.signature):
+        t = getattr(b, "text", "") or ""
+        if not t and getattr(b, "rows", None):
+            t = " ".join(" ".join(r) for r in b.rows)
+        if t:
+            out.append(_un(_re.sub(r"<[^>]+>", "", t)))
+    for fn in op.footnotes:
+        body = " ".join(_un(_re.sub(r"<[^>]+>", "", getattr(x, "text", "") or ""))
+                        for x in fn.blocks)
+        if body:
+            out.append(f"[{fn.label}] {body}")
+    return "\n\n".join(out)
+
+
+def render_body(doc: m.Document) -> str:
+    """The document's TEXT, without the review furniture — no criteria box, no
+    Removed panel, no role tints, no legend. This is what an ingest wants;
+    `render_html` is what a reviewer wants.
+    """
+    parts = []
+    for spec in SECTIONS:
+        value = getattr(doc, spec.attr, None)
+        if not value:
+            continue
+        if spec.html == "opinions":
+            parts.append("".join(_render_opinion(op) for op in value))
+        elif spec.html == "flow":
+            parts.append(_render_blocks(value))
+        elif spec.html == "footnotes":
+            parts.append(_render_footnotes(value))
+    return "".join(parts)
+
+
 def _render_removed(doc: m.Document) -> str:
     """Collapsed by default — the reviewer's first look should be the
     document itself; residual CONTENT (the real worklist) forces itself open."""

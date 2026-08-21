@@ -211,10 +211,10 @@
 "sign": 0.57
 },
 "ca3": {
-"ab": 1.0,
+"ab": 0.98,
 "g": "A",
 "n": 103,
-"s": 0.11,
+"s": 0.2,
 "sign": 0.96
 },
 "ca4": {
@@ -12511,16 +12511,20 @@
 "s": 0.0
 },
 "ca3/corey_kendig_v._nicholas_stolar": {
-"f": [],
-"g": "A",
+"f": [
+"residual\u00d71"
+],
+"g": "C",
 "o": 1,
-"s": 0.0
+"s": 5.0
 },
 "ca3/craig_kimmel_v._massachusetts_bay_insurance_co": {
-"f": [],
-"g": "A",
+"f": [
+"residual\u00d71"
+],
+"g": "C",
 "o": 1,
-"s": 0.0
+"s": 5.0
 },
 "ca3/cristofer_ortega-varela_v._attorney_general_united_states_of_america": {
 "f": [],

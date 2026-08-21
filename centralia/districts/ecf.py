@@ -1005,7 +1005,14 @@ def _drawn_fence(pm, body_x0: float, measure: float, facts: EcfPaper) -> list:
         # of counsel. The relation is already named above: a stroke that
         # begins and ends with a row's own ink, struck through its descender
         # band, belongs to that row.
-        if any(_underlined_by(line, r) for line in pm.lines):
+        # …EXCEPT UNDER THE PAPER'S OWN NAME. A chambers that underlines its
+        # title draws the only strokes on the sheet, and the box test has
+        # always used them: ncmd sets 'ORDER AND MEMORANDUM OPINION' / 'OF
+        # UNITED STATES MAGISTRATE JUDGE' underlined and nothing else, and
+        # excluding those two refused the record outright. What nhd
+        # underlines is its PARTY NAMES, which no box edge ever sits under.
+        if any(_underlined_by(line, r) and not _is_title_row(
+                _norm(line.plain), facts) for line in pm.lines):
             continue
         # THE BOX'S FOOT MAY STAND DEEP. Searched only to the closer band,
         # mnd/202185's box — whose caption names enough parties to push the
