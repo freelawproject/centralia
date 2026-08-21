@@ -1,9 +1,9 @@
 [project]
 name = "centralia"
-version = "0.0.1"
+version = "0.0.2"
 description = "Court PDF opinion extractor: PDF + court id -> typed Document via one fixed pipeline"
 readme = "README.md"
-requires-python = ">=3.13"
+requires-python = ">=3.12"
 authors = [
     { name = "Free Law Project", email = "info@free.law" },
 ]
@@ -11,6 +11,7 @@ keywords = ["court", "opinion", "pdf", "extraction", "caselaw"]
 classifiers = [
     "Development Status :: 3 - Alpha",
     "Intended Audience :: Legal Industry",
+    "Programming Language :: Python :: 3.12",
     "Programming Language :: Python :: 3.13",
     "Topic :: Text Processing :: Markup :: HTML",
 ]

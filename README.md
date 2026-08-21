@@ -2,7 +2,7 @@
 
 Court PDF opinion extractor: a PDF plus a court id in, a typed document out.
 
-Requires Python 3.13 or newer.
+Requires Python 3.12 or newer.
 
 ```sh
 python -m pip install centralia

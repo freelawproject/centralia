@@ -45,7 +45,7 @@ __all__ = [
     "render_headmatter", "opinion_text", "to_iso", "all_iso", "__version__",
 ]
 
-__version__ = "0.0.1"
+__version__ = "0.0.2"
 
 
 class UnknownCourt(KeyError):
