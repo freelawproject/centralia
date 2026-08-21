@@ -1,6 +1,6 @@
-"""Renderers that consume an ``ExtractedDocument``."""
-
 from .casebody import render_casebody
-from .html import fingerprint, render_html, render_index
+from .html import (opinion_text, render_body, render_headmatter, render_html,
+                   render_opinion)
 
-__all__ = ["fingerprint", "render_casebody", "render_html", "render_index"]
+__all__ = ["render_casebody", "render_html", "render_opinion",
+           "render_body", "render_headmatter", "opinion_text"]

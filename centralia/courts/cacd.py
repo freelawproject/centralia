@@ -1,31 +1,44 @@
-"""United States District Court, Central District of California.
+"""United States District Court, Central District of California ('cacd').
 
-Two filing shapes share this court: a regular memorandum/order (handled by the
-district base — signature block + document-type heading) and the 'CIVIL MINUTES
-- GENERAL' minute order, whose author is the 'Present: The Honorable NAME,
-UNITED STATES DISTRICT JUDGE' line and whose ruling begins at 'Proceedings:'.
+THE CONTRACT — the ECF pleading order, `centralia.districts.ecf`, the paper
+this court shares with the other federal district corpora. The paper, the
+walk and the vocabularies are documented there.
+
+MEASURED: the shared reader reads NONE of a five-record sample. This
+court's paper has not been read yet — the registration is here so the
+court is wired and measurable, not because it is done.
+
+Facts this court measures differently from the shared defaults are declared
+below. Nothing is inherited: this file imports core and never another court
+file, and no other court file imports it.
 """
 
 from __future__ import annotations
 
-from ._district import DistrictBase
+from ..districts import EcfPaper, read_ecf
+from ..profile import CourtProfile
+from ..resolve.bylines import BylineGrammar
+from ..resolve.evidence import decider
+from . import register
+
+CACD = register(CourtProfile(
+    "cacd", "United States District Court, Central District of California",
+    # ONE PAPER, ONE WRITING: a district court is a single judge ruling,
+    # so there is no second writing to concur in or dissent from.
+    single_writing=True,
+    # A district judge signs in the reversed form — the name over the office
+    # ('EMILY C. MARKS' / 'UNITED STATES DISTRICT JUDGE').
+    byline=BylineGrammar(style="reversed",
+                         rev_titles=("United States District Judge",
+                                     "United States Magistrate Judge",
+                                     "Senior United States District Judge",
+                                     "Chief United States District Judge")),
+))
+
+PAPER = EcfPaper()
 
 
-class CentralDistrictOfCalifornia(DistrictBase):
-    court_id = "cacd"
-    court_label = "United States District Court, Central District of California."
-
-    def find_authors(self, all_segments) -> list:
-        self._district_author = (
-            self._present_author(all_segments)
-            or self._signature_author(all_segments)
-            or self._byline_author(all_segments)
-            or self._caption_judge(all_segments)
-        )
-        # Minute order: the ruling proper starts at the 'Proceedings:' line.
-        for i, (_p, seg, _k) in enumerate(all_segments):
-            if seg and self.line_plain_text(seg[0]).strip().lower().startswith(
-                "proceedings:"
-            ):
-                return [i]
-        return super().find_authors(all_segments)
+@decider("headmatter.read", court="cacd")
+def read_headmatter_cacd(model, geom, **kw):
+    """Read cacd's ECF pleading order, or NOTHING."""
+    return read_ecf(model, geom, PAPER, **kw)

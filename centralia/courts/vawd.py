@@ -1,57 +1,44 @@
-"""United States District Court, Western District of Virginia.
+"""United States District Court, Western District of Virginia ('vawd').
 
-CM/ECF filing — a single ruling by one judge. The shared district base takes the
-author from the signature block (or an opening byline / 'Present:' minute line)
-and treats the whole ruling as one opinion; the CM/ECF header band is dropped.
+THE CONTRACT — the ECF pleading order, `centralia.districts.ecf`, the paper
+this court shares with the other federal district corpora. The paper, the
+walk and the vocabularies are documented there.
 
-The clerk's e-filing stamp in the page-1 top-right corner is set in a font
-with no unicode mapping — its glyphs extract as '(cid:NN)' tokens overlapping
-the caption lines — so those chars are stripped (the stamp's one readable
-line, the filing date, stays).
+MEASURED: the shared reader reads NONE of a five-record sample. This
+court's paper has not been read yet — the registration is here so the
+court is wired and measurable, not because it is done.
+
+Facts this court measures differently from the shared defaults are declared
+below. Nothing is inherited: this file imports core and never another court
+file, and no other court file imports it.
 """
 
 from __future__ import annotations
 
-from ._district import DistrictBase
+from ..districts import EcfPaper, read_ecf
+from ..profile import CourtProfile
+from ..resolve.bylines import BylineGrammar
+from ..resolve.evidence import decider
+from . import register
+
+VAWD = register(CourtProfile(
+    "vawd", "United States District Court, Western District of Virginia",
+    # ONE PAPER, ONE WRITING: a district court is a single judge ruling,
+    # so there is no second writing to concur in or dissent from.
+    single_writing=True,
+    # A district judge signs in the reversed form — the name over the office
+    # ('EMILY C. MARKS' / 'UNITED STATES DISTRICT JUDGE').
+    byline=BylineGrammar(style="reversed",
+                         rev_titles=("United States District Judge",
+                                     "United States Magistrate Judge",
+                                     "Senior United States District Judge",
+                                     "Chief United States District Judge")),
+))
+
+PAPER = EcfPaper()
 
 
-class WesternDistrictOfVirginia(DistrictBase):
-    court_id = "vawd"
-    styled_headmatter = True
-    court_label = "United States District Court, Western District of Virginia."
-
-    def extract(self, pdf_path):
-        self._stamp_dropped = []
-        doc = super().extract(pdf_path)
-        extra = list(dict.fromkeys(self._stamp_dropped))
-        if extra:
-            doc.dropped = list(doc.dropped) + extra
-        return doc
-
-    def page_lines(self, page):
-        lines = super().page_lines(page)
-        if page.page_number != 1:
-            return lines
-        if getattr(self, "_stamp_dropped", None) is None:
-            self._stamp_dropped = []
-        kept = []
-        for ln in lines:
-            chars = ln.get("chars") or []
-            clean = [c for c in chars if not (c.get("text") or "").startswith("(cid:")]
-            if not clean:
-                continue  # a pure stamp-glyph line
-            if len(clean) != len(chars):
-                ln = dict(ln)
-                ln["chars"] = clean
-                ln["x0"] = min(c["x0"] for c in clean)
-                ln["x1"] = max(c["x1"] for c in clean)
-            # The clerk's received stamp sits in the top-right corner above
-            # the caption ('CLERKS OFFICE US DISTRICT COURT / AT ROANOKE, VA
-            # / FILED / <date> / <clerk>') — furniture, recorded as dropped.
-            if ln["top"] < 140 and ln["x0"] > page.width * 0.62:
-                txt = self.line_plain_text(ln).strip()
-                if txt:
-                    self._stamp_dropped.append(txt)
-                continue
-            kept.append(ln)
-        return kept
+@decider("headmatter.read", court="vawd")
+def read_headmatter_vawd(model, geom, **kw):
+    """Read vawd's ECF pleading order, or NOTHING."""
+    return read_ecf(model, geom, PAPER, **kw)

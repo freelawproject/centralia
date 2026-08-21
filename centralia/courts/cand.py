@@ -1,45 +1,44 @@
-"""United States District Court, Northern District of California.
+"""United States District Court, Northern District of California ('cand').
 
-CM/ECF filing — a single ruling by one judge. The shared district base takes the
-author from the signature block (or an opening byline / 'Present:' minute line)
-and treats the whole ruling as one opinion; the CM/ECF header band is dropped.
+THE CONTRACT — the ECF pleading order, `centralia.districts.ecf`, the paper
+this court shares with the other federal district corpora. The paper, the
+walk and the vocabularies are documented there.
+
+MEASURED: the shared reader reads NONE of a five-record sample. This
+court's paper has not been read yet — the registration is here so the
+court is wired and measurable, not because it is done.
+
+Facts this court measures differently from the shared defaults are declared
+below. Nothing is inherited: this file imports core and never another court
+file, and no other court file imports it.
 """
 
 from __future__ import annotations
 
-from ._district import DistrictBase
+from ..districts import EcfPaper, read_ecf
+from ..profile import CourtProfile
+from ..resolve.bylines import BylineGrammar
+from ..resolve.evidence import decider
+from . import register
+
+CAND = register(CourtProfile(
+    "cand", "United States District Court, Northern District of California",
+    # ONE PAPER, ONE WRITING: a district court is a single judge ruling,
+    # so there is no second writing to concur in or dissent from.
+    single_writing=True,
+    # A district judge signs in the reversed form — the name over the office
+    # ('EMILY C. MARKS' / 'UNITED STATES DISTRICT JUDGE').
+    byline=BylineGrammar(style="reversed",
+                         rev_titles=("United States District Judge",
+                                     "United States Magistrate Judge",
+                                     "Senior United States District Judge",
+                                     "Chief United States District Judge")),
+))
+
+PAPER = EcfPaper()
 
 
-class NorthernDistrictOfCalifornia(DistrictBase):
-    def page_lines(self, page):
-        if not hasattr(self, "_cand_dropped"):
-            self._cand_dropped = []
-        # the court name printed SIDEWAYS up the pleading margin is
-        # extracted reversed ('truoC tcirtsiD …') at x≈37, outside the body
-        # margins — record it from the RAW chars (the margin filter removes
-        # it before line building) and surface it as removed furniture
-        rot = "".join(
-            (c.get("text") or "")
-            for c in page.chars
-            if not c.get("upright", True)
-        ).strip()
-        if rot:
-            self._cand_dropped.append(
-                "[rotated margin text removed: " + rot[:80] + "]"
-            )
-        return super().page_lines(page)
-
-    def extract(self, pdf_path: str):
-        self._cand_dropped = []
-        doc = super().extract(pdf_path)
-        if self._cand_dropped:
-            seen, extra = set(), []
-            for t in self._cand_dropped:
-                if t not in seen:
-                    seen.add(t)
-                    extra.append(t)
-            doc.dropped = list(doc.dropped) + extra
-        return doc
-
-    court_id = "cand"
-    court_label = "United States District Court, Northern District of California."
+@decider("headmatter.read", court="cand")
+def read_headmatter_cand(model, geom, **kw):
+    """Read cand's ECF pleading order, or NOTHING."""
+    return read_ecf(model, geom, PAPER, **kw)

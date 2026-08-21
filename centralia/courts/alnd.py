@@ -1,18 +1,44 @@
-"""United States District Court, Northern District of Alabama.
+"""United States District Court, Northern District of Alabama ('alnd').
 
-Shares the Alabama-district caption style — parties | case numbers separated by a
-stacked divider column (']' here) — rendered as a whitespace-preserved facsimile
-by the shared base (split by x-gap, so the ']' divider is handled the same as
-the Middle/Southern districts' ')'). Opinion opens at the centered, bold
-document title; signature-block author; bates / clerk 'FILED' stamp in the top
-margin excluded.
+THE CONTRACT — the ECF pleading order, `centralia.districts.ecf`, the paper
+this court shares with the other federal district corpora. The paper, the
+walk and the vocabularies are documented there.
+
+MEASURED: the shared reader reads NONE of a five-record sample. This
+court's paper has not been read yet — the registration is here so the
+court is wired and measurable, not because it is done.
+
+Facts this court measures differently from the shared defaults are declared
+below. Nothing is inherited: this file imports core and never another court
+file, and no other court file imports it.
 """
 
 from __future__ import annotations
 
-from ._aldistrict import AlabamaDistrictBase
+from ..districts import EcfPaper, read_ecf
+from ..profile import CourtProfile
+from ..resolve.bylines import BylineGrammar
+from ..resolve.evidence import decider
+from . import register
+
+ALND = register(CourtProfile(
+    "alnd", "United States District Court, Northern District of Alabama",
+    # ONE PAPER, ONE WRITING: a district court is a single judge ruling,
+    # so there is no second writing to concur in or dissent from.
+    single_writing=True,
+    # A district judge signs in the reversed form — the name over the office
+    # ('EMILY C. MARKS' / 'UNITED STATES DISTRICT JUDGE').
+    byline=BylineGrammar(style="reversed",
+                         rev_titles=("United States District Judge",
+                                     "United States Magistrate Judge",
+                                     "Senior United States District Judge",
+                                     "Chief United States District Judge")),
+))
+
+PAPER = EcfPaper()
 
 
-class NorthernDistrictOfAlabama(AlabamaDistrictBase):
-    court_id = "alnd"
-    court_label = "United States District Court, Northern District of Alabama."
+@decider("headmatter.read", court="alnd")
+def read_headmatter_alnd(model, geom, **kw):
+    """Read alnd's ECF pleading order, or NOTHING."""
+    return read_ecf(model, geom, PAPER, **kw)

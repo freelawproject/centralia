@@ -1,13 +1,23 @@
 [project]
 name = "centralia"
-version = "0.1.0"
-description = "Court-pluggable PDF opinion extractor: PDF + court id -> structured document"
+version = "2.0.0a0"
+description = "Court PDF opinion extractor: PDF + court id -> typed Document via one fixed pipeline"
+readme = "README.md"
 requires-python = ">=3.13"
-dependencies = [
-    "django>=6.0.6",
-    "pdfplumber>=0.11.4",
-    "pillow>=10.0.0",
+# TODO(you): license, authors and URLs — I am not going to assert these.
+#   license = "..."
+#   authors = [{ name = "...", email = "..." }]
+keywords = ["court", "opinion", "pdf", "extraction", "caselaw"]
+classifiers = [
+    "Development Status :: 3 - Alpha",
+    "Intended Audience :: Legal Industry",
+    "Programming Language :: Python :: 3.13",
+    "Topic :: Text Processing :: Markup :: HTML",
 ]
+dependencies = [
+    "pdfplumber>=0.11.4",
+]
+
 
 [build-system]
 requires = ["hatchling"]
@@ -21,3 +31,8 @@ dev = ["pytest>=8"]
 
 [tool.pytest.ini_options]
 testpaths = ["tests"]
+# `tests/` is importable so the suites can share conftest helpers by name.
+pythonpath = ["."]
+markers = [
+    "slow: needs the corpus and takes minutes (the guard's 739 sentinels)",
+]

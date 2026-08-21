@@ -1,874 +1,562 @@
-"""Render an ``ExtractedDocument`` as a self-contained, readable HTML page.
+"""The review HTML page — the surface the user actually eyeballs.
 
-This is a review-oriented consumer of the extraction contract: it produces a
-single styled HTML document meant to be opened and eyeballed against the
-source PDF. When the document's ``source_path`` is available, the page is laid
-out as two panes — the source PDF on the left, the extracted content on the
-right — so the two can be compared side by side.
-
-Paragraph/footnote text already carries inline markup
-(``<em>``/``<strong>``/``<u>``/``<footnotemark>``/``<pagenumber>``) with its
-literal text escaped; ``<em>``/``<strong>``/``<u>`` are valid HTML and pass
-through, while footnote marks and page-number markers are rewritten into
-review-friendly HTML. No regex — the inline rewrite is a plain string scan.
+Iterates SECTION_SPEC; dispatch is typed (see facsimile.render_hm_items and
+_render_blocks). A section that is empty renders nothing. The Removed box and
+the residual worklist render up top, because that is the reviewer's first
+question: what did the extractor do with everything?
 """
 
 from __future__ import annotations
 
-from pathlib import Path
-from xml.sax.saxutils import escape
+import re
 
-from ..models import ExtractedDocument, Footnote, Opinion
+from html import escape
 
+from .. import model as m
+from ..sections import SECTIONS
+from .facsimile import render_hm_items
+from .inline import inline_to_html
 
 _CSS = """
-  :root { --ink:#1a1a1a; --muted:#666; --rule:#ddd; --accent:#7a1f1f; }
-  * { box-sizing: border-box; }
-  body { font: 16px/1.6 Georgia, "Times New Roman", serif; color: var(--ink);
-         margin: 0; }
-  .review-cols { display: flex; height: 100vh; }
-  .review-pane { flex: 1; min-width: 0; height: 100vh; overflow: auto; }
-  .review-pane.pdf { background: #525659; border-right: 1px solid var(--rule); }
-  .review-pane.pdf iframe { width: 100%; height: 100%; border: 0; }
-  .review-pane.doc { padding: 2rem 2.5rem; }
-  .doc-inner { max-width: 44rem; margin: 0 auto; }
-  /* single-pane fallback when there is no PDF to show */
-  body.single .review-pane.doc { padding: 2rem 1.25rem; }
-  body.single .doc-inner { max-width: 46rem; }
-
-  .fingerprint { border: 1px solid var(--rule); border-left: 10px solid var(--muted);
-                 border-radius: .3rem; padding: .8rem 1rem; margin-bottom: 1.5rem;
-                 background: #fafafa; }
-  .fingerprint.fp-full-opinion { border-left-color: #2f5d3a; }
-  .fingerprint.fp-no-opinion-decision { border-left-color: #6a4a1f; }
-  .fingerprint.fp-per-curiam-opinion { border-left-color: #1f4e7a; }
-  .fingerprint.fp-order, .fingerprint.fp-notice { border-left-color: var(--accent); }
-  .fp-main { font-weight: bold; font-size: 1.15rem; }
-  .fp-court { font-variant: small-caps; color: var(--muted); font-size: .9rem; }
-  .fp-signals { margin-top: .5rem; display: flex; gap: .4rem; flex-wrap: wrap; }
-  .fp-signals span { font-family: ui-monospace, monospace; font-size: .7rem;
-             background: #ece9e3; color: #555; padding: .12rem .5rem;
-             border-radius: .25rem; }
-  details.dropped { margin-bottom: 1.5rem; border: 1px dashed #d8c4c4;
-                    background: #fcf6f6; border-radius: .3rem; padding: .5rem .8rem; }
-  details.dropped > summary { cursor: pointer; color: var(--accent);
-                    font-size: .78rem; font-family: ui-monospace, monospace;
-                    letter-spacing: .03em; }
-  .dropline { font-family: ui-monospace, monospace; font-size: .76rem;
-              color: #8a6a6a; line-height: 1.5; margin-top: .5rem;
-              white-space: pre-wrap; word-break: break-word; }
-  .block { margin-bottom: 2.5rem; }
-  h2.sec { font-size: .8rem; text-transform: uppercase; letter-spacing: .1em;
-           color: var(--muted); border-bottom: 2px solid var(--ink);
-           padding-bottom: .3rem; margin: 0 0 1rem; }
-  h2.sec .raw-tag, h2.sec .count { float: right; font-weight: normal;
-           letter-spacing: .04em; text-transform: none; }
-  h2.sec .raw-tag { color: var(--accent); }
-  .headmatter .raw, .syllabus .raw, .headnotes .raw { background: #faf8f4;
-                     border: 1px solid var(--rule);
-                     border-radius: .3rem; padding: .9rem 1.1rem; }
-  .rawline { font-family: ui-monospace, monospace; font-size: .8rem;
-             line-height: 1.5; color: #333; white-space: pre-wrap;
-             word-break: break-word; }
-  .rawline .centered { display: block; text-align: center; }  /* keep centering */
-  .hmline { line-height: 1.45; color: #222; }
-  .hm-logo { display: block; margin: 0 auto .9rem; max-height: 90px;
-             width: auto; }
-  hr.divider { border: 0; border-top: 1px solid #999; margin: .55rem auto;
-               width: 40%; }
-  .rawgap { height: .8rem; }
-  .empty { color: var(--muted); font-style: italic; }
-  .hm-fac { position: relative; font-family: "Times New Roman", Georgia, serif;
-            color: var(--ink); margin: .25rem 0 .5rem; }
-  .hm-fac .hm-line { position: absolute; white-space: nowrap; line-height: 1; }
-  .hm-fac .hm-rule { position: absolute; }
-  section.opinion { margin-top: 2rem; padding-top: 1.25rem;
-                    border-top: 1px solid var(--rule); }
-  section.opinion:first-of-type { border-top: 0; padding-top: 0; margin-top: 0; }
-  .author { font-variant: small-caps; font-weight: bold; font-size: 1.05rem;
-            margin: .5rem 0 1rem; }
-  .optype-badge { display: inline-block; font-family: ui-monospace, monospace;
-            font-size: .72rem; font-weight: bold; text-transform: uppercase;
-            letter-spacing: .06em; color: #fff; background: var(--muted);
-            padding: .15rem .55rem; border-radius: .25rem; }
-  .optype-badge.t-majority { background: #2f5d3a; }
-  .optype-badge.t-dissent { background: #7a1f1f; }
-  .optype-badge.t-concurrence { background: #1f4e7a; }
-  .optype-badge.t-concurrence-in-result { background: #6a4a1f; }
-  p { text-align: justify; margin: .85rem 0; }
-  blockquote { margin: .85rem 0 .85rem 2rem; color: #333; }
-  h3 { font-size: 1.05rem; margin: 1.4rem 0 .6rem; text-align: center; }
-  sup.fn { color: var(--accent); font-weight: bold; padding: 0 .1em; }
-  .pagenum { display: inline-block; font-family: ui-monospace, monospace;
-             font-size: .62rem; color: #fff; background: var(--muted);
-             border-radius: .2rem; padding: 0 .3rem; vertical-align: super;
-             margin: 0 .15rem; }
-  .footnotes { margin-top: 1.5rem; padding-top: .75rem;
-               border-top: 1px solid var(--rule); font-size: .88rem;
-               color: #333; }
-  .footnote { margin: .5rem 0; }
-  .footnote .label { color: var(--accent); font-weight: bold; margin-right: .4rem; }
-  details.summary { margin-top: 2.5rem; font-size: .85rem; color: var(--muted); }
-  details.summary pre { white-space: pre-wrap; font-family: ui-monospace, monospace;
-                        font-size: .78rem; background: #faf8f4; padding: .75rem;
-                        border-radius: .3rem; }
-  .centered { display: block; text-align: center; }
-  .warnings { background: #fff5f5; border: 1px solid #f0c0c0; color: #7a1f1f;
-              padding: .6rem .9rem; border-radius: .3rem; margin-bottom: 1.5rem;
-              font-size: .85rem; }
-  .src { color: var(--muted); font-size: .78rem; margin-top: 3rem;
-         border-top: 1px solid var(--rule); padding-top: .75rem;
-         font-family: ui-monospace, monospace; word-break: break-all; }
-  .nopdf { color: var(--muted); padding: 2rem; font-family: ui-monospace, monospace;
-           font-size: .85rem; }
+:root { --ink:#1a1a1a; --mut:#777; --line:#ddd; --accent:#6b4b9a; --bad:#b3372f; }
+* { box-sizing:border-box }
+/* The measure FOLLOWS THE PANE. A flat 820px squeezed the document when the
+   review viewer showed the PDF beside it, and then refused to use the room
+   when the PDF was closed. It now grows to 1180px when there is space and
+   falls back to 94vw when there is not — and the left gutter that the
+   headmatter's margin labels live in (left:-96px) grows with it, so those
+   labels stop being clipped in the narrow split view. */
+body { font:15px/1.5 Georgia,'Times New Roman',serif; color:var(--ink);
+       max-width:min(1180px, 94vw); margin:1.5em auto 6em;
+       padding:0 1.5em 0 clamp(1.5em, 8vw, 6.5em); background:#fdfdfc }
+h1 { font-size:1.15em; margin:.2em 0 }
+.meta { color:var(--mut); font:12px system-ui,sans-serif; margin-bottom:1.2em }
+.chip { display:inline-block; font:600 11px system-ui,sans-serif; color:#fff;
+        background:var(--accent); border-radius:9px; padding:1px 9px; margin-right:.4em }
+.chip.warn { background:var(--bad) }
+.chip.kind { background:#8a8a8a }
+/* THE SOURCE BANNER. A scan's OCR text reads like any other text — that is
+   exactly the danger, so the page says so before it says anything else. The
+   warning chip alone was a tooltip on a glyph; this is unmissable and its
+   colour is the one the sheet already reserves for a defect. */
+.srcbanner { border:1px solid var(--bad); border-left-width:6px; border-radius:4px;
+             background:#fdf3f2; color:#7a2620; padding:.6em .9em; margin:0 0 1.1em;
+             font:13px/1.45 system-ui,sans-serif }
+.srcbanner b { font:700 13px system-ui,sans-serif; letter-spacing:.02em }
+.srcbanner code { font:12px ui-monospace,Menlo,monospace; background:#fff;
+                  border:1px solid #e6cfcd; border-radius:3px; padding:0 4px }
+section { margin:1.4em 0 }
+section > h2 { font:600 12px system-ui,sans-serif; text-transform:uppercase;
+               letter-spacing:.08em; color:var(--mut); border-bottom:1px solid var(--line);
+               padding-bottom:2px }
+.box { border:1px solid var(--line); border-radius:6px; padding:.7em 1em;
+       font-size:.92em; background:#f7f6f4 }
+.box.removed div { color:var(--mut) }
+.box.residual .content { color:var(--bad) }
+details { margin:.8em 0 }
+details > summary { font:600 12px system-ui,sans-serif; text-transform:uppercase;
+  letter-spacing:.08em; color:var(--mut); cursor:pointer; user-select:none }
+.hmrow { min-height:1.2em; white-space:pre-wrap; margin:.24em 0 }
+.hmrow.ac { text-align:center } .hmrow.ar { text-align:right }
+.hmrow.rel { transform:translateX(var(--rel)) }
+/* How the headmatter was READ, shown in place — the block renders whole and
+   the tints say which rows a court reader identified as what. */
+.hmrow[data-role] { border-left:3px solid transparent; padding-left:6px }
+/* COURT: the court naming itself — its name, its division, its seat, the
+   term it sits in. Called `banner` until 2026-08-19, which conflated it with
+   the publication flag printed in the same band (the user's call: a banner
+   that names the court IS the court). */
+.hmrow[data-role="court"]   { background:#eef4ff; border-left-color:#8ab }
+.hmrow[data-role="banner"]  { background:#eef4ff; border-left-color:#8ab }
+.hmrow[data-role="title"]   { background:#eef4ff; border-left-color:#8ab }
+/* PUBLICATION: 'PUBLISHED' / 'NOT FOR PUBLICATION' / 'NOT PRECEDENTIAL' —
+   ~500 rows that were tinted as if they named the court. */
+.hmrow[data-role="publication"] { background:#f7f0ff; border-left-color:#b9a6de }
+/* CITATION: the court's own public-domain cite ('Slip Opinion No.
+   2026-Ohio-2065', '2026 IL 130930') — read as a banner it looked like the
+   court naming itself, and as a docket it displaced the real one. */
+.hmrow[data-role="citation"] { background:#eef7f4; border-left-color:#8bb3a5 }
+/* HEADNOTES: the Reporter of Decisions' SUBJECT list, not a summary of the
+   case — 'Pretrial Detention. Robbery. Dangerous Weapon.' (mass);
+   'Attorneys—Misconduct—…—Public reprimand.' (ohio). The user's call,
+   2026-08-19: these are headnotes, and a précis is a different thing. */
+.hmrow[data-role="headnotes"] { background:#f6f6f2; border-left-color:#c2c0a8 }
+/* A SYLLABUS IS NOT HEADNOTES. Kansas (and wva) print numbered points of
+   law BY THE COURT in the headmatter; headnotes are the reporter's subject
+   list. Same band of the page, different authorship, so a different tint. */
+.hmrow[data-role="syllabus"] { background:#f2f4f6; border-left-color:#a8b6c2 }
+/* AUTHOR: who the caption says wrote it, where the court ANNOUNCES the
+   author instead of signing the writing ('OPINION BY' over 'JUSTICE WESLEY
+   G. RUSSELL, JR.' — va). Distinct from `panel`: va prints a real roster
+   row ('PRESENT: Powell, Kelsey, …') in the same block, and one label for
+   both made two different things look alike. */
+.hmrow[data-role="author"] { background:#eefaf2; border-left-color:#7bbf95 }
+.hmrow[data-role="docket"]  { background:#f3f0ff; border-left-color:#a9b }
+.hmrow[data-role="date"]    { background:#f3f0ff; border-left-color:#a9b }
+.hmrow[data-role="panel"]   { background:#eefaf2; border-left-color:#8c9 }
+.hmrow[data-role="caption"] { background:#fff8e8; border-left-color:#dc9 }
+.hmrow[data-role="counsel"] { background:#fdeef4; border-left-color:#d9b }
+.hmrow[data-role="summary"] { background:#f6f6f6; border-left-color:#bbb }
+.hmrow[data-role="lower-court"] { background:#eef9fb; border-left-color:#7bb }
+.hmrow.role-start[data-role="lower-court"]::before { content:"lower court" }
+/* CASE INFO: apparatus the caption carries that is none of the named parts.
+   A bankruptcy caption's 'Chapter 7' row is the case's identity, not its
+   docket, and tinting it as a docket said the reader had found a number. */
+.hmrow[data-role="case-info"] { background:#f4f2ee; border-left-color:#c9ba9a }
+/* DISPOSITION: what the court DID, stated in the headmatter ('WRIT GRANTED',
+   'AFFIRMED') — wva fences it as a band of its own. */
+.hmrow[data-role="disposition"] { background:#f0f7ee; border-left-color:#9c8 }
+.hmrow.role-start[data-role="case-info"]::before { content:"case info" }
+/* …and a rule down the WHOLE block, so a recognized headmatter reads as one
+   thing and the opinion below it plainly starts somewhere else. */
+section.sec-headmatter, section.sec-endmatter {
+  border-left:2px solid #d8d8d8; padding-left:10px; margin-left:2px }
+/* THE COURT'S SEAL stands at the head of the block, centred, as the page
+   sets it — not inside the opinion, which is not where it belongs. */
+img.hm-img { display:block; margin:.2em auto .6em; max-width:180px; height:auto }
+.hm-legend { font:11px system-ui,sans-serif; color:#888; margin:.2em 0 .6em }
+.hm-legend b { font-weight:600; padding:1px 6px; margin-right:4px;
+               border-radius:3px; border-left:3px solid transparent }
+/* the margin label — named where each run of one role begins */
+section.sec-headmatter, section.sec-endmatter {
+  padding-left:136px; padding-right:136px }
+.hmrow.role-start { position:relative }
+/* THE MARGIN LABEL sits in the gutter, and the gutter has to fit the longest
+   name in the vocabulary. At 78px 'lower court' wrapped to two lines and
+   collided with the row beneath it, and 'headnotes' overran into the row's
+   own first word. The vocabulary grew on 2026-08-19 (publication, citation,
+   headnotes, disposition, case info, author), so the gutter grew with it and
+   the label is kept to ONE line — a label that wraps is a label in the way. */
+.hmrow.role-start::before {
+  content:attr(data-role); position:absolute; left:-136px; width:118px;
+  text-align:right; font:10px/1.7 system-ui,sans-serif; color:#9a9a9a;
+  text-transform:uppercase; letter-spacing:.04em; white-space:nowrap;
+  overflow:hidden; text-overflow:ellipsis; pointer-events:none }
+/* A caption's RIGHT column is a second stack of rows, and its label belongs
+   in the margin beside IT — named in the left gutter it lands on top of the
+   left column's own text. The block keeps a gutter on both sides. */
+.cap-right .hmrow.role-start::before {
+  left:auto; right:-136px; text-align:left }
+.caption { display:grid; grid-template-columns:1fr auto 1fr; gap:0 10px; margin:.6em 0 }
+.rail.drawn { border-left:1.5px solid var(--ink) }
+.rail.glyphs { display:flex; flex-direction:column; justify-content:space-between;
+               font-family:inherit }
+.rail.open { width:14px }
+.pgbreak { font:600 10px system-ui,sans-serif; color:#999; text-align:center;
+           border-top:1px dashed #ccc; margin:.9em 0 .5em; padding-top:2px }
+[data-pg] { cursor:default }
+.rule { border-bottom:1.5px solid var(--ink); margin:.45em 0 }
+.rule.span-left { margin-right:50% } .rule.span-right { margin-left:50% }
+.rule.span-center { width:44px; margin:.55em auto }
+p.sig-right { margin-left:48% }
+/* A SIGNATURE THAT IS A PICTURE: an ECF order is signed with a stamp, and
+   kyed's judge's name exists only as pixels. Sized to the page's own scale
+   rather than the measure, so it reads as a signature and not a figure. */
+.sig img { display:block; max-width:320px; height:auto; margin:.4em 0 }
+.typedrule { border-bottom:1.5px dashed var(--ink); margin:.45em 0 }
+.divider { height:.6em }
+p { margin:.55em 0; text-indent:1.6em }
+p.noindent { text-indent:0 }
+blockquote { margin:.7em 2.2em; font-size:.95em }
+h3.bhead { font-size:1em; text-align:center; margin:1em 0 .4em }
+table.tb { border-collapse:collapse; margin:.6em 0; max-width:100% } .tb td,.tb th { border:1px solid var(--line); padding:2px 8px; vertical-align:top; text-align:left } .tb td:empty,.tb th:empty { height:1em }
+.opinion { border-top:2px solid var(--accent); margin-top:1.6em; padding-top:.5em }
+.byline { font-weight:bold; margin:.4em 0 }
+.fns { border-top:1px solid var(--line); margin-top:1em; padding-top:.4em; font-size:.88em }
+.fn { display:flex; gap:.6em; margin:.35em 0 }
+.fn .lbl { font-weight:bold; min-width:1.4em; text-align:right }
+.fn p { text-indent:0; margin:.2em 0 }
+sup.fnmark { color:var(--accent); font-weight:bold }
+span.pg { font:600 10px system-ui,sans-serif; color:#fff; background:#b8b2c8;
+          border-radius:8px; padding:0 6px; margin:0 3px; vertical-align:2px }
+span.fr { display:block; text-align:right }
+span.ctr { display:block; text-align:center }
+.sig { margin:1em 0 0 45% }
 """
 
 
-def render_html(doc: ExtractedDocument, pdf_src: str | None = None) -> str:
-    """Render the review page. ``pdf_src`` is the href used for the PDF pane —
-    pass a path relative to where the HTML will be written so it resolves when
-    served or previewed; if omitted, an absolute ``file://`` URI is used."""
-    title = " ".join(doc.parties).strip() or doc.court_label or "Opinion"
-    pdf_uri = pdf_src or _pdf_uri(doc.source_path)
-
-    out = [
-        "<!DOCTYPE html>",
-        '<html lang="en"><head><meta charset="utf-8">',
-        '<meta name="viewport" content="width=device-width, initial-scale=1">',
-        f"<title>{escape(title)}</title>",
-        f"<style>{_CSS}</style>",
-        "</head>",
-        f'<body class="{"" if pdf_uri else "single"}">',
-        '<div class="review-cols">',
-    ]
-
-    if pdf_uri:
-        out.append('<div class="review-pane pdf">')
-        out.append(f'<iframe src="{escape(pdf_uri)}" title="source PDF"></iframe>')
-        out.append("</div>")
-
-    out.append('<div class="review-pane doc"><article class="doc-inner">')
-    out.extend(_render_content(doc))
-    out.append("</article></div>")
-
-    out.append("</div></body></html>")
-    return "\n".join(out)
-
-
-def _pdf_uri(source_path: str | None) -> str | None:
-    """Absolute ``file://`` URI for the source PDF, or None if unavailable."""
-    if not source_path:
-        return None
-    try:
-        return Path(source_path).resolve().as_uri()
-    except (ValueError, OSError):
-        return None
-
-
-def _render_content(doc: ExtractedDocument) -> list:
+def _render_blocks(blocks: list, plain_paras: bool = False) -> str:
+    """Every block carries data-pg (its source page) so the viewer can sync
+    the original-PDF pane to the reader's position; a small chip marks each
+    page transition."""
     out = []
-    if not doc.layout_ok:
-        out.append(
-            '<div class="warnings">⚠ unexpected layout — ' "review carefully</div>"
-        )
-    if doc.warnings:
-        items = "".join(f"<li>{escape(w)}</li>" for w in doc.warnings)
-        out.append(f'<div class="warnings"><ul>{items}</ul></div>')
-
-    out.extend(_render_fingerprint(doc))
-    out.extend(_render_dropped(doc))
-    out.extend(_render_headmatter(doc))
-    out.extend(_render_headnotes(doc))
-    out.extend(_render_syllabus(doc))
-    out.extend(_render_opinions(doc))
-    out.extend(_render_signature(doc))
-    out.extend(_render_trailer(doc))
-
-    if doc.source_path:
-        out.append(f'<div class="src">source: {escape(doc.source_path)}</div>')
-    return out
-
-
-_INDEX_CSS = """
-  body { font: 15px/1.5 -apple-system, system-ui, sans-serif; color: #1a1a1a;
-         max-width: 70rem; margin: 2rem auto; padding: 0 1.5rem; }
-  h1 { font-size: 1.4rem; margin: 0 0 .25rem; }
-  .sub { color: #666; margin-bottom: 1.5rem; }
-  .legend { display: flex; gap: .5rem; flex-wrap: wrap; margin-bottom: 2rem; }
-  .legend a { text-decoration: none; font-size: .8rem; font-family: ui-monospace,
-              monospace; background: #f0ece4; color: #333; padding: .2rem .6rem;
-              border-radius: .25rem; }
-  .legend a b { color: #7a1f1f; }
-  h2.grp { font-size: 1.05rem; margin: 2rem 0 .5rem; padding-bottom: .3rem;
-           border-bottom: 2px solid #1a1a1a; display: flex;
-           justify-content: space-between; }
-  h2.grp .n { color: #666; font-weight: normal; font-size: .9rem; }
-  table { width: 100%; border-collapse: collapse; font-size: .9rem; }
-  th { text-align: left; color: #888; font-weight: normal; font-size: .75rem;
-       text-transform: uppercase; letter-spacing: .05em; padding: .3rem .5rem; }
-  td { padding: .4rem .5rem; border-top: 1px solid #eee; vertical-align: top; }
-  tr:hover td { background: #faf8f4; }
-  td.name a { color: #1a4e7a; text-decoration: none; }
-  td.name a:hover { text-decoration: underline; }
-  td.types { font-family: ui-monospace, monospace; font-size: .78rem; color: #555; }
-  td.pp { color: #888; white-space: nowrap; text-align: right; }
-"""
-
-# Display order for the fingerprint groups.
-_FP_ORDER = [
-    "Full opinion",
-    "Per curiam opinion",
-    "No-opinion decision",
-    "Order",
-    "Certificate of judgment",
-    "Notice",
-    "Unknown",
-]
-
-
-def render_index(court_id: str, court_label: str, entries: list) -> str:
-    """An index page for a batch: cases grouped by fingerprint, each group a
-    table. ``entries`` is a list of dicts with keys name/href/fingerprint/
-    types/n_pages/doc_type."""
-    groups = {}
-    for e in entries:
-        groups.setdefault(e["fingerprint"], []).append(e)
-    ordered = [g for g in _FP_ORDER if g in groups] + [
-        g for g in groups if g not in _FP_ORDER
-    ]
-
-    out = [
-        "<!DOCTYPE html>",
-        '<html lang="en"><head><meta charset="utf-8">',
-        '<meta name="viewport" content="width=device-width, initial-scale=1">',
-        f"<title>{escape(court_label)} — index</title>",
-        f"<style>{_INDEX_CSS}</style></head><body>",
-        f"<h1>{escape(court_label)}</h1>",
-        f'<div class="sub">{len(entries)} document(s) · grouped by type</div>',
-    ]
-
-    out.append('<div class="legend">')
-    for g in ordered:
-        slug = g.lower().replace(" ", "-")
-        out.append(f'<a href="#{slug}">{escape(g)} <b>{len(groups[g])}</b></a>')
-    out.append("</div>")
-
-    for g in ordered:
-        rows = sorted(groups[g], key=lambda e: e["name"].lower())
-        slug = g.lower().replace(" ", "-")
-        out.append(
-            f'<h2 class="grp" id="{slug}">{escape(g)}'
-            f'<span class="n">{len(rows)}</span></h2>'
-        )
-        out.append(
-            "<table><thead><tr><th>Case</th><th>Opinions</th>"
-            "<th>doc_type</th><th>pp.</th></tr></thead><tbody>"
-        )
-        for e in rows:
-            types = " · ".join(e["types"]) or "—"
-            out.append(
-                f'<tr><td class="name"><a href="{escape(e["href"])}">'
-                f'{escape(e["name"])}</a></td>'
-                f'<td class="types">{escape(types)}</td>'
-                f'<td class="types">{escape(e["doc_type"])}</td>'
-                f'<td class="pp">{e["n_pages"]}</td></tr>'
-            )
-        out.append("</tbody></table>")
-
-    out.append("</body></html>")
-    return "\n".join(out)
-
-
-def fingerprint(doc: ExtractedDocument) -> str:
-    return _fingerprint(doc)
-
-
-def _fingerprint(doc: ExtractedDocument) -> str:
-    """A human-facing characterization of the document, finer than doc_type:
-    'Full opinion' vs 'No-opinion decision' vs 'Per curiam' vs order / etc."""
-    if doc.doc_type == "certificate-of-judgment":
-        return "Certificate of judgment"
-    if doc.doc_type == "order":
-        return "Order"
-    if doc.doc_type == "notice":
-        return "Notice"
-    if doc.doc_type == "unknown":
-        return "Unknown"
-    # doc_type == opinion: look closer at the body.
-    body = " ".join(b.text for op in doc.opinions for b in op.blocks).lower()
-    if "no opinion" in body:
-        return "No-opinion decision"
-    per_curiam = doc.opinions and all(
-        op.author.upper().startswith("PER CURIAM") for op in doc.opinions
-    )
-    if per_curiam:
-        return "Per curiam opinion"
-    return "Full opinion"
-
-
-def _caption_style(doc: ExtractedDocument):
-    """Best-effort caption style name from the /captions catalog, derived
-    from the structural signals extraction already found (rail glyph, drawn
-    rules, corner close, divider rows). Exact names only where the signal is
-    decisive; a descriptive label otherwise; None when there is no caption."""
-    cap = next(
-        (s for s in doc.summary if isinstance(s, dict) and s.get("__caption__")),
-        None,
-    )
-    summary_text = [str(s) for s in doc.summary if not isinstance(s, dict)]
-    has_divider = any(s == "__DIVIDER__" for s in summary_text)
-    star_rows = any(
-        isinstance(s, dict)
-        and s.get("__hm__")
-        and set(str(s.get("html", "")).replace("<", "").replace(">", "")) <= set("* ")
-        for s in doc.summary
-    )
-    fp = (doc.caption_box or {}).get("fp_style")
-    if fp:
-        return fp
-    if cap is None:
-        if has_divider:
-            return "one-column, ruled"
-        return None
-    rail = cap.get("rail", "__legacy__")
-    if cap.get("boxes"):
-        return "The Double Box"
-    if rail == "|" or (rail == "__legacy__" and (doc.caption_box or {}).get("vx")):
-        return "Old Faithful" if cap.get("corner") else "Old Faithful (open)"
-    names = {
-        ")": "The Banded Bracket" if has_divider else "The Parenthetical Box",
-        "§": "The Section-Sign Rail",
-        ":": "The Colon Rail",
-        "]": "The Square-Bracket Rail",
-        "*": "The Asterisk Rail",
-        "}": "The Gathering Brace",
-    }
-    if isinstance(rail, str) and rail in names:
-        return names[rail]
-    if rail is None:
-        if star_rows:
-            return "The Starbreak"
-        if has_divider:
-            return "The Rule Sandwich"
-        return "two-column (whitespace)"
-    return None
-
-
-def _render_fingerprint(doc: ExtractedDocument) -> list:
-    fp = _fingerprint(doc)
-    n_fn = sum(len(op.footnotes) for op in doc.opinions) + len(
-        doc.headmatter_footnotes
-    )
-    types = " · ".join(op.type for op in doc.opinions) or "—"
-    signals = [
-        f"type: {escape(doc.doc_type)}",
-        f"{len(doc.opinions)} opinion(s): {escape(types)}",
-        f"{n_fn} footnote(s)",
-        f"{doc.n_pages} pp.",
-    ]
-    cap_style = _caption_style(doc)
-    if cap_style:
-        signals.append(f"caption: {escape(cap_style)}")
-    chips = "".join(f"<span>{s}</span>" for s in signals)
-    slug = fp.lower().replace(" ", "-")
-    return [
-        f'<div class="fingerprint fp-{slug}">',
-        f'<div class="fp-main">{escape(fp)}</div>',
-        f'<div class="fp-court">{escape(doc.court_label)}</div>',
-        f'<div class="fp-signals">{chips}</div>',
-        "</div>",
-    ]
-
-
-def _render_dropped(doc: ExtractedDocument) -> list:
-    """Collapsible block (closed by default) of content found and removed —
-    publication notices, stamps, etc. — shown at the very top for review."""
-    residual = getattr(doc, "residual", None) or []
-    if not doc.dropped and not residual:
-        return []
-    total = len(doc.dropped) + len(residual)
-    out = [
-        '<details class="dropped">',
-        f"<summary>Removed before parsing — notices / stamps "
-        f"({total})</summary>",
-    ]
-    for d in doc.dropped:
-        out.append(f'<div class="dropline">{_inline_to_html(str(d))}</div>')
-
-    # Residual: source lines that landed in no section, swept up so nothing is
-    # silently lost. Split so real content (a to-do) stands apart from junk.
-    def _kind(r):
-        return r.get("kind") if isinstance(r, dict) else None
-
-    content = [r for r in residual if _kind(r) != "furniture"]
-    furniture = [r for r in residual if _kind(r) == "furniture"]
-
-    def _emit(items, label):
-        if not items:
-            return
-        out.append(f'<div class="dropgroup">{label} ({len(items)})</div>')
-        for r in items:
-            txt = r.get("text", "") if isinstance(r, dict) else str(r)
-            pg = r.get("page") if isinstance(r, dict) else None
-            tag = f'<span class="droppg">p{pg}</span> ' if pg else ""
-            out.append(f'<div class="dropline">{tag}{_inline_to_html(str(txt))}</div>')
-
-    _emit(content, "Unplaced content — needs a home")
-    _emit(furniture, "Unplaced furniture — confirm &amp; drop")
-    out.append("</details>")
-    return out
-
-
-def _render_headnotes(doc: ExtractedDocument) -> list:
-    """Reporter headnotes preceding the opinion (Maryland) — bold topical
-    headings and their summary prose, their own section, not opinion body."""
-    if not getattr(doc, "headnotes", None):
-        return []
-    out = [
-        '<section class="block headnotes">',
-        '<h2 class="sec">Headnotes '
-        '<span class="raw-tag">not part of the opinion</span></h2>',
-        '<div class="raw">',
-    ]
-    for line in doc.headnotes:
-        if isinstance(line, dict) and line.get("__hm__"):
-            al = {"C": "center", "L": "left", "R": "right"}.get(
-                line.get("align"), "left"
-            )
-            out.append(
-                f'<div class="hmline" style="text-align:{al};'
-                f'font-size:{line.get("rel", 1)}em">'
-                f'{_inline_to_html(str(line.get("html", "")))}</div>'
-            )
-        elif str(line).strip() == "":
-            out.append('<div class="rawgap"></div>')
-        else:
-            out.append(f'<div class="rawline">{_inline_to_html(str(line))}</div>')
-    out.append("</div></section>")
-    return out
-
-
-def _render_syllabus(doc: ExtractedDocument) -> list:
-    """Official syllabus / case summary that precedes the opinion (Colorado's
-    SUMMARY page, Connecticut's Syllabus) — its own block, not opinion body."""
-    if not getattr(doc, "syllabus", None):
-        return []
-    out = [
-        '<section class="block syllabus">',
-        '<h2 class="sec">Syllabus '
-        '<span class="raw-tag">not part of the opinion</span></h2>',
-        '<div class="raw">',
-    ]
-    for line in doc.syllabus:
-        if isinstance(line, dict) and line.get("__hm__"):
-            # A styled syllabus paragraph (SCOTUS): real flowing text with
-            # inline bold/italic, same row treatment as styled headmatter.
-            al = {"C": "center", "L": "left", "R": "right"}.get(
-                line.get("align"), "left"
-            )
-            out.append(
-                f'<div class="hmline" style="text-align:{al};'
-                f'font-size:{line.get("rel", 1)}em">'
-                f'{_inline_to_html(str(line.get("html", "")))}</div>'
-            )
-        elif str(line).strip() == "":
-            out.append('<div class="rawgap"></div>')
-        else:
-            out.append(f'<div class="rawline">{_inline_to_html(str(line))}</div>')
-    out.append("</div></section>")
-    return out
-
-
-def _caption_cell_lines(entries) -> list:
-    """Caption cell lines, faithful to the page: inline bold/italic kept,
-    per-line indents preserved (a role line indented under its party), and
-    blank spacer rows where the caption is double-spaced. Plain strings
-    (older stored summaries) still render as before."""
-    out = []
-    for ln in entries:
-        if isinstance(ln, dict):
-            ind = ln.get("ind") or 0
-            style = (
-                f' style="padding-left:{min(round(ind * 0.9), 160)}px"'
-                if ind > 14
-                else ""
-            )
-            out.append(
-                f'<div class="rawline"{style}>'
-                f'{_inline_to_html(str(ln.get("h", "")))}</div>'
-            )
-        elif str(ln).strip() == "":
-            out.append('<div style="height:.55rem"></div>')
-        else:
-            out.append(
-                f'<div class="rawline">{_inline_to_html(str(ln))}</div>'
-            )
-    return out
-
-
-def _render_signature(doc: ExtractedDocument) -> list:
-    """The signature block lifted off the end of the last opinion — the
-    '/s/' conformed signature or signature rule, the printed name, and the
-    signer's title — in its own box so it isn't read as opinion body."""
-    if not doc.signature:
-        return []
-    out = [
-        '<section class="block signature">',
-        '<h2 class="sec">Signature</h2>',
-        '<div class="raw">',
-    ]
-    for line in doc.signature:
-        if isinstance(line, dict) and line.get("__image__"):
-            h = line.get("height") or 54
-            out.append(
-                f'<img src="{escape(str(line.get("src", "")))}" '
-                f'alt="signature" style="display:block;max-height:{round(h)}px">'
-            )
-        else:
-            out.append(
-                f'<div class="rawline">{_inline_to_html(str(line))}</div>'
-            )
-    out.append("</div></section>")
-    return out
-
-
-def _render_trailer(doc: ExtractedDocument) -> list:
-    """Trailing matter after the last opinion (counsel names / addresses),
-    grouped in its own box so it isn't mistaken for opinion body."""
-    if not doc.trailer:
-        return []
-    out = [
-        '<section class="block trailer">',
-        '<h2 class="sec">Ending matter '
-        '<span class="raw-tag">counsel / addresses</span></h2>',
-        '<div class="raw">',
-    ]
-    for line in doc.trailer:
-        out.append(f'<div class="rawline">{_inline_to_html(str(line))}</div>')
-    out.append("</div></section>")
-    return out
-
-
-def _stack_headmatter_pages(lines: list) -> list:
-    """Headmatter that spans pages carries each line's own page-local y, so
-    absolute positioning would overlay page 2's top on page 1's top. Shift
-    every page after the first to start just below the previous page's last
-    line, preserving page-local geometry. Page-1 coordinates are untouched, so
-    the caption-box rules (page-1 geometry) stay aligned."""
-    pages = sorted({l.get("page", 1) for l in lines})
-    if len(pages) <= 1:
-        return lines
-    out, cursor = [], None
-    for pno in pages:
-        pls = [l for l in lines if l.get("page", 1) == pno]
-        top0 = min(l["top"] for l in pls)
-        off = 0.0 if cursor is None else cursor - top0
-        out += [{**l, "top": l["top"] + off} for l in pls]
-        cursor = max(l["top"] + off + l["size"] * 1.3 for l in pls) + 14
-    return out
-
-
-def _render_headmatter_facsimile(doc: ExtractedDocument) -> list:
-    """Faithful headmatter: each line placed at its real x/y, at its real font
-    size and weight, with the caption box drawn from the rule geometry. 1px per
-    PDF point."""
-    lines = _stack_headmatter_pages(doc.headmatter_lines)
-    box = doc.caption_box or {}
-    xs = [l["x0"] for l in lines]
-    if box.get("vx") is not None:
-        xs.append(box["vx"])
-    if box.get("hrules"):
-        xs += [h[1] for h in box["hrules"]]
-    min_x = min(xs)
-    min_top = min(l["top"] for l in lines)
-    bottom = max(l["top"] + l["size"] * 1.3 for l in lines)
-    if box.get("vbottom"):
-        bottom = max(bottom, box["vbottom"])
-    height = bottom - min_top + 6
-
-    out = [f'<div class="hm-fac" style="height:{height:.0f}px">']
-    # caption-box rules
-    if box.get("vx") is not None:
-        out.append(
-            f'<div class="hm-rule" style="left:{box["vx"] - min_x:.0f}px;'
-            f'top:{box["vtop"] - min_top:.0f}px;'
-            f'height:{box["vbottom"] - box["vtop"]:.0f}px;'
-            'border-left:1px solid #b9b2a6"></div>'
-        )
-    for top, x0, x1 in box.get("hrules", []):
-        out.append(
-            f'<div class="hm-rule" style="left:{x0 - min_x:.0f}px;'
-            f"top:{top - min_top:.0f}px;width:{x1 - x0:.0f}px;"
-            'border-top:1px solid #b9b2a6"></div>'
-        )
-    for l in lines:
-        weight = "bold" if l["bold"] else "normal"
-        out.append(
-            f'<div class="hm-line" style="left:{l["x0"] - min_x:.0f}px;'
-            f'top:{l["top"] - min_top:.0f}px;font-size:{l["size"]:.1f}px;'
-            f'font-weight:{weight}">{escape(l["text"])}</div>'
-        )
-    out.append("</div>")
-    return out
-
-
-def _render_headmatter(doc: ExtractedDocument) -> list:
-    """Raw, unparsed pre-opinion content, verbatim and at the top. Structured
-    caption parsing is deliberately deferred — this is the dump."""
-    out = [
-        '<section class="block headmatter">',
-        '<h2 class="sec">Headmatter <span class="raw-tag">raw</span></h2>',
-    ]
-    if (
-        doc.summary
-        and isinstance(doc.summary[0], dict)
-        and doc.summary[0].get("__facsimile__")
-        and doc.headmatter_lines
-    ):
-        # Style/whitespace-preserving facsimile (exact x/y, size, weight);
-        # the plain rows behind the sentinel exist for the audit and DB.
-        out.extend(_render_headmatter_facsimile(doc))
-    elif not doc.summary:
-        out.append('<div class="empty">(none)</div>')
-    else:
-        out.append('<div class="raw">')
-        for s in doc.summary:
-            if isinstance(s, dict) and s.get("__image__"):
-                # The court seal / logo, placed above the caption.
-                out.append(
-                    f'<img class="hm-logo" src="{escape(str(s.get("src", "")))}" '
-                    'alt="court seal">'
-                )
-            elif isinstance(s, dict) and s.get("__caption__"):
-                # A two-column caption box (left = parties, right = docket).
-                # The divider mirrors the SOURCE: a stacked rail-glyph column
-                # (')' / '§' / ':') where the PDF uses glyphs, nothing where
-                # the columns are separated by whitespace alone, and the
-                # legacy drawn rule only when the producer didn't say.
-                out.append(
-                    '<div class="caption-cols" style="display:flex;'
-                    'gap:1.4rem;align-items:stretch">'
-                )
-                # 'Old Faithful' close: the half-rule under the parties that
-                # runs into the vertical renders as the left column's bottom
-                # border, meeting the divider at the corner.
-                shape = s.get("shape")
-                lstyle = "flex:1;min-width:0"
-                if s.get("boxes") or shape == "double-box":
-                    lstyle += ";border:1px solid #999;padding:.4rem .6rem"
-                elif shape == "i-beam":
-                    lstyle += (";border-top:1px solid #999"
-                               ";border-bottom:1px solid #999")
-                elif shape == "backwards-c":
-                    lstyle += (";border-top:1px solid #999"
-                               ";border-bottom:1px solid #999")
-                elif shape == "upside-down-t":
-                    lstyle += ";border-bottom:1px solid #999"
-                elif s.get("corner") or shape == "old-faithful":
-                    lstyle += ";border-bottom:1px solid #999"
-                out.append(f'<div style="{lstyle}">')
-                out.extend(_caption_cell_lines(s.get("left", [])))
-                rail = s.get("rail", "__legacy__")
-                shape = s.get("shape")
-                if s.get("boxes") or shape == "double-box":
-                    mid_div = '<div style="flex:none;width:.2rem"></div>'
-                elif shape == "twin-rail":
-                    mid_div = '<div style="border-left:3px double #999"></div>'
-                elif shape in ("i-beam", "backwards-c", "upside-down-t",
-                               "old-faithful"):
-                    mid_div = '<div style="border-left:1px solid #999"></div>'
-                elif rail == "__legacy__" or rail == "|":
-                    # '|' = the PDF draws a real vertical rule here.
-                    mid_div = '<div style="border-left:1px solid #999"></div>'
-                elif rail:
-                    # draw exactly one rail glyph per SOURCE row that bore it
-                    # (the PDF draws a ')' per caption row); never one-per-cell,
-                    # which invents glyphs for banner / blank rows. Falls back
-                    # to the non-blank cell count for older stored summaries.
-                    n = s.get("rail_rows")
-                    if not n:
-                        n = max(
-                            sum(1 for x in s.get("left", []) if str(x).strip()),
-                            sum(1 for x in s.get("right", []) if str(x).strip()),
-                            1,
-                        )
-                    glyphs = "<br>".join([escape(str(rail))] * n)
-                    mid_div = (
-                        '<div class="rawline" style="color:#8a8374;'
-                        f'text-align:center;flex:none">{glyphs}</div>'
-                    )
-                else:
-                    mid_div = '<div style="flex:none;width:.2rem"></div>'
-                rstyle = "flex:1;min-width:0"
-                shape = s.get("shape")
-                if s.get("boxes") or shape == "double-box":
-                    rstyle += ";border:1px solid #999;padding:.4rem .6rem"
-                elif shape == "i-beam":
-                    rstyle += (";border-top:1px solid #999"
-                               ";border-bottom:1px solid #999")
-                elif shape == "upside-down-t":
-                    rstyle += ";border-bottom:1px solid #999"
-                elif shape == "status-flush":
-                    # status labels are pinned against the right margin
-                    rstyle += ";text-align:right"
-                out.append(f"</div>{mid_div}" f'<div style="{rstyle}">')
-                out.extend(_caption_cell_lines(s.get("right", [])))
-                out.append("</div></div>")
-            elif isinstance(s, dict) and s.get("__hmrow__"):
-                # A three-zone flush-right row: party at the left margin,
-                # status label pinned right, docket centered between them.
-                # Equal 1fr side tracks keep the center cell truly centered.
-                out.append(
-                    '<div class="hmline" style="display:grid;'
-                    'grid-template-columns:1fr auto 1fr;column-gap:.6rem">'
-                    f'<div>{_inline_to_html(str(s.get("l", "")))}</div>'
-                    '<div style="text-align:center">'
-                    f'{_inline_to_html(str(s.get("c", "")))}</div>'
-                    '<div style="text-align:right">'
-                    f'{_inline_to_html(str(s.get("r", "")))}</div>'
-                    "</div>"
-                )
-            elif isinstance(s, dict) and s.get("__hm__"):
-                # A style-preserving headmatter line: relative font size,
-                # alignment, and inline bold/italic kept from the PDF.
-                al = {"C": "center", "L": "left", "R": "right"}.get(
-                    s.get("align"), "left"
-                )
-                out.append(
-                    f'<div class="hmline" style="text-align:{al};'
-                    f'font-size:{s.get("rel", 1)}em">'
-                    f'{_inline_to_html(str(s.get("html", "")))}</div>'
-                )
-            elif isinstance(s, dict):
-                out.append(f'<div class="rawline">{escape(str(s))}</div>')
-            elif str(s).strip() == "__RULE__":
-                # a DRAWN full-width rule at its position
-                out.append('<hr style="border:0;border-top:1px solid #999;margin:.55rem 0">')
-            elif str(s).strip() == "__DIVIDER__":
-                out.append('<hr class="divider">')
-            elif str(s).strip() == "":
-                out.append('<div class="rawgap"></div>')  # section spacing
-            else:
-                out.append(f'<div class="rawline">{_inline_to_html(str(s))}</div>')
-        out.append("</div>")
-    if doc.headmatter_footnotes:
-        out.append('<div class="footnotes">')
-        for fn in doc.headmatter_footnotes:
-            out.append(_render_footnote(fn))
-        out.append("</div>")
-    out.append("</section>")
-    return out
-
-
-def _render_opinions(doc: ExtractedDocument) -> list:
-    out = ['<section class="block opinions">']
-    if doc.opinions:
-        types = " · ".join(op.type for op in doc.opinions)
-        out.append(
-            f'<h2 class="sec">Opinions '
-            f'<span class="count">{len(doc.opinions)}: '
-            f"{escape(types)}</span></h2>"
-        )
-    else:
-        out.append('<h2 class="sec">Opinions <span class="count">none</span>' "</h2>")
-    for op in doc.opinions:
-        out.extend(_render_opinion(op))
-    out.append("</section>")
-    return out
-
-
-def _render_opinion(op: Opinion) -> list:
-    out = ['<section class="opinion">']
-    out.append(
-        f'<div class="optype-badge t-{escape(op.type)}">' f"{escape(op.type)}</div>"
-    )
-    out.append(f'<div class="author">{escape(op.author)}</div>')
-    for b in op.blocks:
-        if b.kind == "image":
-            out.append(
-                f'<img src="{escape(str(b.payload.get("src", "")))}" '
-                f'alt="figure on page {b.page}">'
-            )
-        elif b.kind == "table":
-            out.extend(_render_table(b.payload.get("rows") or []))
-        elif b.kind == "heading":
-            out.append(f"<h3>{_inline_to_html(b.text)}</h3>")
-        elif b.kind == "blockquote":
-            out.append(f"<blockquote>{_inline_to_html(b.text)}</blockquote>")
-        else:
-            out.append(f"<p>{_inline_to_html(b.text)}</p>")
-    if op.footnotes:
-        out.append('<div class="footnotes">')
-        for fn in op.footnotes:
-            out.append(_render_footnote(fn))
-        out.append("</div>")
-    out.append("</section>")
-    return out
-
-
-def _render_footnote(fn: Footnote) -> str:
-    body = "".join(
-        (
-            f"<blockquote>{_inline_to_html(text)}</blockquote>"
-            if tag == "blockquote"
-            else f"<span>{_inline_to_html(text)}</span> "
-        )
-        for tag, text in fn.paragraphs
-    )
-    return (
-        f'<div class="footnote">'
-        f'<span class="label">{escape(fn.label)}</span>{body}</div>'
-    )
-
-
-def _render_table(rows: list) -> list:
-    if not rows:
-        return []
-    out = ["<table>"]
-    for ri, row in enumerate(rows):
-        tag = "th" if ri == 0 else "td"
-        cells = "".join(
-            f"<{tag}>{escape((c or '').replace(chr(10), ' ').strip())}</{tag}>"
-            for c in row
-        )
-        out.append(f"<tr>{cells}</tr>")
-    out.append("</table>")
-    return out
-
-
-def _inline_to_html(text: str) -> str:
-    """Rewrite the inline-markup string into review-friendly HTML.
-
-    ``<em>``/``<strong>``/``<u>`` are already valid HTML and pass through.
-    ``<footnotemark>N</footnotemark>`` -> superscript; ``<pagenumber
-    value="N"/>`` -> a small page chip; ``<centered>`` -> a centered block.
-    Plain string scanning, no regex."""
-    text = (
-        text.replace("<footnotemark>", '<sup class="fn">')
-        .replace("</footnotemark>", "</sup>")
-        .replace("<centered>", '<span class="centered">')
-        .replace("</centered>", "</span>")
-    )
-    return _rewrite_pagenumbers(text)
-
-
-def _rewrite_pagenumbers(text: str) -> str:
-    marker = '<pagenumber value="'
-    if marker not in text:
-        return text
-    out = []
-    rest = text
-    while True:
-        i = rest.find(marker)
-        if i == -1:
-            out.append(rest)
-            break
-        out.append(rest[:i])
-        rest = rest[i + len(marker) :]
-        j = rest.find('"/>')
-        if j == -1:  # malformed; emit the rest verbatim
-            out.append(marker + rest)
-            break
-        out.append(f'<span class="pagenum">{rest[:j]}</span>')
-        rest = rest[j + 3 :]
+    last_pg = None
+    for b in blocks:
+        pg = getattr(getattr(b, "prov", None), "page", None)
+        attr = f' data-pg="{pg}"' if pg else ""
+        if pg and last_pg is not None and pg != last_pg:
+            out.append(f'<div class="pgbreak" data-pg="{pg}">p. {pg}</div>')
+        if pg:
+            last_pg = pg
+        match b:
+            case m.Paragraph():
+                names = []
+                if b.continuation or plain_paras:
+                    names.append("noindent")
+                if getattr(b, "align", "") == "right":
+                    names.append("sig-right")
+                if getattr(b, "role", "") == "disposition":
+                    names.append("disposition")
+                cls = f' class="{" ".join(names)}"' if names else ""
+                out.append(f"<p{cls}{attr}>{inline_to_html(b.text)}</p>")
+            case m.Blockquote():
+                out.append(f"<blockquote{attr}>{inline_to_html(b.text)}</blockquote>")
+            case m.Heading():
+                out.append(f'<h3 class="bhead"{attr}>{inline_to_html(b.text)}</h3>')
+            case m.ListItem():
+                tag = "ol" if b.ordered else "ul"
+                out.append(f"<{tag}{attr}><li>{inline_to_html(b.text)}</li></{tag}>")
+            case m.TableBlock():
+                rows = []
+                for i, row in enumerate(b.rows):
+                    tag = "th" if (b.has_header and i == 0) else "td"
+                    cells = "".join(f"<{tag}>{inline_to_html(c)}</{tag}>" for c in row)
+                    rows.append(f"<tr>{cells}</tr>")
+                out.append(f'<table class="tb"{attr}>{"".join(rows)}</table>')
+            case m.ImageBlock():
+                out.append(f'<img src="{b.src}" alt="{escape(b.role)}"{attr}>')
+            case _:
+                raise TypeError(f"_render_blocks: {type(b)!r}")
     return "".join(out)
+
+
+def _render_endmatter(blocks: list) -> str:
+    """A roster the court prints BELOW its writings, shown the way the
+    headmatter is shown.
+
+    It is the same thing the headmatter's counsel block is — the court just
+    set it after the opinions — so it reads as tagged rows, not as body
+    prose. A centred short row inside a roster is an appearance, never a
+    section heading: rendering it as one turned '[Argued]' and a firm's
+    name into headings of the document."""
+    out = []
+    last_pg = None
+    for b in blocks:
+        pg = getattr(getattr(b, "prov", None), "page", None)
+        if pg and last_pg is not None and pg != last_pg:
+            out.append(f'<div class="pgbreak" data-pg="{pg}">p. {pg}</div>')
+        if pg:
+            last_pg = pg
+        text = getattr(b, "text", None)
+        if text is None:
+            out.append(_render_blocks([b]))
+            continue
+        attr = f' data-pg="{pg}"' if pg else ""
+        out.append(f'<div class="hmrow al" data-role="counsel"{attr}>'
+                   f"{inline_to_html(text)}</div>")
+    return "".join(out)
+
+
+def _render_footnotes(fns: list) -> str:
+    if not fns:
+        return ""
+    rows = []
+    for fn in fns:
+        rows.append(f'<div class="fn"><span class="lbl">{escape(fn.label)}</span>'
+                    f"<div>{_render_blocks(fn.blocks, plain_paras=True)}</div></div>")
+    return f'<div class="fns">{"".join(rows)}</div>'
+
+
+_TAG = re.compile(r"<[^>]+>")
+
+
+def _hm_signature(doc: m.Document) -> str:
+    """The headmatter's own author rows, whitespace removed — what the page
+    prints as its ANNOUNCEMENT of who wrote the opinion."""
+    out = []
+    for item in doc.headmatter:
+        if getattr(item, "role", "") == "author":
+            out.append(_TAG.sub("", getattr(item, "text", "") or ""))
+    return "".join("".join(t.split()) for t in out)
+
+
+def _render_opinion(op: m.Opinion, hm_sig: str = "") -> str:
+    parts = [f'<div class="opinion"><span class="chip">{escape(op.type)}</span>']
+    if op.caption:
+        parts.append(render_hm_items(op.caption))
+    # AN ANNOUNCEMENT IS NOT THE WRITING'S BYLINE. Where the court announces
+    # its author in the HEADMATTER ('MATTHEW J. WILSON, J., delivered the
+    # opinion of the court, in which …' — the Tennessee courts, va, tenn),
+    # the row is already rendered where the page prints it, and drawing it
+    # again at the head of the writing prints the same sentence twice and
+    # reads as though the opinion began with it (the user, 2026-08-21: 'this
+    # is not part of the opinion its the headmatter'). The author stays on
+    # the object for every consumer of it; only the duplicate line goes.
+    _same = op.author and hm_sig and "".join(
+        _TAG.sub("", op.author).split()) in hm_sig
+    if op.author and not _same:
+        parts.append(f'<div class="byline">{inline_to_html(op.author)}</div>')
+    parts.append(_render_blocks(op.blocks))
+    if op.signature:
+        # Stacked '/s/ Name' lines keep their breaks — the page sets one
+        # signer per line ('/s/ Ackerman /s/ Borrello' joined is wrong).
+        sig_html = _render_blocks(op.signature, True).replace(
+            " /s/ ", "<br>/s/ ")
+        parts.append(f'<div class="sig">{sig_html}</div>')
+    parts.append(_render_footnotes(op.footnotes))
+    parts.append("</div>")
+    return "".join(parts)
+
+
+def render_opinion(op: m.Opinion) -> str:
+    """One writing's own HTML — its byline, blocks, signature and footnotes.
+
+    Public because a consumer ingesting sub-opinions needs each writing
+    addressable on its own; `render_html` emits the whole review page and
+    `render_casebody` buries the same content inside its XML.
+    """
+    return _render_opinion(op)
+
+
+def opinion_text(op: m.Opinion) -> str:
+    """The same writing as plain text, for search and diffing. Markup is the
+    model's own vocabulary, so it is stripped rather than escaped away."""
+    import re as _re
+    from html import unescape as _un
+    out = []
+    for b in (*op.blocks, *op.signature):
+        t = getattr(b, "text", "") or ""
+        if not t and getattr(b, "rows", None):
+            t = " ".join(" ".join(r) for r in b.rows)
+        if t:
+            out.append(_un(_re.sub(r"<[^>]+>", "", t)))
+    for fn in op.footnotes:
+        body = " ".join(_un(_re.sub(r"<[^>]+>", "", getattr(x, "text", "") or ""))
+                        for x in fn.blocks)
+        if body:
+            out.append(f"[{fn.label}] {body}")
+    return "\n\n".join(out)
+
+
+def render_headmatter(doc: m.Document) -> str:
+    """The cover as the page sets it: the caption block, the rows, the rules.
+
+    Public because the headmatter is a part of the document in its own right,
+    not review furniture — `render_body` used to skip it (its section style is
+    'hm', which that function did not handle) and the whole cover, plus the
+    attorneys block, silently vanished from the body render.
+    """
+    return render_hm_items(doc.headmatter)
+
+
+def render_body(doc: m.Document) -> str:
+    """The document's TEXT, without the review furniture — no criteria box, no
+    Removed panel, no role tints, no legend. This is what an ingest wants;
+    `render_html` is what a reviewer wants.
+
+    EVERY SECTION IS ACCOUNTED FOR, and the 'hm' ones are included rather than
+    dropped: an unhandled style used to fall through the loop in silence, so
+    the cover and the appearances were lost from the body with nothing saying
+    so. An unknown style now raises.
+    """
+    parts = []
+    for spec in SECTIONS:
+        if spec.name in ("removed", "residual"):
+            continue                      # attestation, not the document
+        value = getattr(doc, spec.attr, None)
+        if not value:
+            continue
+        if spec.html == "opinions":
+            parts.append("".join(_render_opinion(op) for op in value))
+        elif spec.html in ("flow", "hm-or-flow"):
+            parts.append(_render_blocks(value))
+        elif spec.html == "hm":
+            parts.append(render_hm_items(value))
+        elif spec.html == "footnotes":
+            parts.append(_render_footnotes(value))
+        else:
+            raise ValueError(
+                f"render_body: unhandled section style {spec.html!r} for "
+                f"{spec.name!r} — it would be dropped in silence")
+    return "".join(parts)
+
+
+def _render_removed(doc: m.Document) -> str:
+    """Collapsed by default — the reviewer's first look should be the
+    document itself; residual CONTENT (the real worklist) forces itself open."""
+    out = []
+    if doc.dropped:
+        rows = "".join(
+            f'<div><span class="chip kind">{escape(d.kind)}</span>'
+            f"p{d.prov.page} · {escape(d.text)}</div>" for d in doc.dropped)
+        out.append(
+            f"<details><summary>removed · {len(doc.dropped)}</summary>"
+            f'<div class="box removed">{rows}</div></details>')
+    if doc.residual:
+        n_content = sum(1 for d in doc.residual if d.kind == "content")
+        rows = "".join(
+            f'<div class="{d.kind}"><span class="chip kind">{escape(d.kind)}</span>'
+            f"p{d.prov.page} · {escape(d.text)}</div>" for d in doc.residual)
+        force = " open" if n_content else ""
+        label = (f"residual · {len(doc.residual)}"
+                 + (f" · {n_content} CONTENT" if n_content else ""))
+        out.append(
+            f"<details{force}><summary>{label}</summary>"
+            f'<div class="box residual">{rows}</div></details>')
+    return "".join(out)
+
+
+_SOURCE_BANNER = {
+    "ocr-scan": (
+        "This document is a SCAN, read by OCR.",
+        "The text below is a machine's reading of a page image, not the "
+        "court's own type. The words are usable and the structure is real, "
+        "but every coordinate is the scanner's guess, spelling and spacing "
+        "may be wrong in ways nothing here can detect, and the page may "
+        "carry marks no text layer records. Do not treat this as an "
+        "authoritative transcription."),
+    "scan": (
+        "This document is a SCAN with no usable text layer.",
+        "Nothing was parsed. What follows is whatever little text the file "
+        "carries — a stamp, a header — and not the document."),
+}
+
+
+def _source_banner(kind: str) -> str:
+    """The bar that says what the paper is, before it says anything else."""
+    lead, rest = _SOURCE_BANNER.get(
+        kind, (f"Source kind: {kind}.",
+               "This document is not born-digital paper."))
+    return (f'<div class="srcbanner"><b>⚠ {escape(lead)}</b> {escape(rest)} '
+            f'<code>source={escape(kind)}</code></div>')
+
+
+def render_html(doc: m.Document, title: str | None = None) -> str:
+    meta = doc.meta
+    title = title or f"{meta.court_id} — {meta.doc_type}"
+    chips = [f'<span class="chip">{escape(meta.doc_type)}</span>']
+    if meta.doc_style:
+        chips.append(f'<span class="chip kind">{escape(meta.doc_style)}</span>')
+    for w in doc.warnings:
+        chips.append(f'<span class="chip warn" title="{escape(w)}">⚠</span>')
+    head = (f"<h1>{escape(meta.court_label or meta.court_id)}</h1>"
+            f'<div class="meta">{"".join(chips)} {escape(meta.source_path)}'
+            f" · {meta.n_pages}pp</div>")
+
+    body = [head]
+    # WHAT THE PAPER IS, SAID FIRST. A scan's OCR text layer reads exactly
+    # like a court's own type — same words, same order, no marker of any kind
+    # — so a reader who does not already know cannot tell, and neither can
+    # anything downstream. The chip row carried a '⚠' whose only explanation
+    # was a hover title (nevapp/ccmsi_v._odell: ten pages of 200dpi raster,
+    # graded A, indistinguishable from born-digital paper on the page). The
+    # banner states it, and `meta name="centralia-source"` states it again in
+    # a form a consumer can read without parsing the review furniture.
+    if meta.source_kind:
+        body.append(_source_banner(meta.source_kind))
+
+    c = doc.criteria
+    crit_rows = [(k, v) for k, v in (
+        ("publication", c.publication_status),
+        ("parties", " v. ".join(c.parties) if c.parties else None),
+        ("citation", c.citation),
+        ("docket", c.docket_number),
+        ("other dockets", ", ".join(c.other_dockets) or None),
+        ("decided", c.decision_date),
+        ("argued/submitted", c.submitted),
+        ("judges", c.judges),
+        ("author", c.author),
+        ("disposition", c.disposition),
+        ("lower court", c.lower_court),
+        ("lower court docket",
+         ", ".join(c.lower_court_docket) or None),
+        ("history", c.history),
+        ("attorneys", c.attorneys),
+    ) if v]
+    if crit_rows:
+        rows = "".join(
+            f'<div><span class="chip kind">{escape(k)}</span>'
+            f"{escape(str(v)[:300])}</div>" for k, v in crit_rows)
+        body.append(f"<details><summary>criteria · {len(crit_rows)}</summary>"
+                    f'<div class="box">{rows}</div></details>')
+    removed_html = _render_removed(doc)
+    if removed_html:
+        body.append(removed_html)
+
+    _hm_sig = _hm_signature(doc)
+    for spec in SECTIONS:
+        if spec.html == "removed":
+            continue  # rendered up top
+        value = getattr(doc, spec.attr)
+        if not value:
+            continue
+        if spec.name == "endmatter" and not all(
+                isinstance(x, (m.HmLine, m.CaptionBlock, m.Rule,
+                               m.Divider, m.Gap, m.ImageBlock))
+                for x in value):
+            # The roster is normally rebuilt into the page's own rows and
+            # renders exactly like the headmatter. When provenance could not
+            # place them the pipeline keeps the assembled BLOCKS instead —
+            # and `render_hm_items` raises on a Paragraph, so that fallback
+            # would take the whole document down. Render it as blocks.
+            inner = _render_endmatter(value)
+        elif spec.name == "signature" and all(
+                isinstance(x, (m.HmLine, m.CaptionBlock, m.Rule,
+                               m.Divider, m.Gap))
+                for x in value):
+            # A COURT THAT READ ITS OWN SIGNATURE BAND may hand over the
+            # page's ROWS instead of assembled blocks, and rows are what a
+            # two-abreast signature needs: guam sets two justices side by
+            # side over drawn rules, and one flow paragraph per printed row
+            # fuses the columns into a single run ('/s/ /s/ F. PHILIP
+            # CARBULLIDO KATHERINE A. MARAMAN Associate Justice Associate
+            # Justice' — three printed rows, six cells, one line). Rendered
+            # the way the headmatter renders rows, the whitespace is the
+            # page's. Courts that hand over Paragraphs (haw, dc, hawapp,
+            # ohioctapp) still take the flow path below, exactly as before.
+            inner = render_hm_items(value)
+        elif spec.html == "hm":
+            inner = render_hm_items(value)
+        elif spec.html == "flow":
+            inner = _render_blocks(value)
+        elif spec.html == "footnotes":
+            inner = _render_footnotes(value)
+        elif spec.html == "opinions":
+            inner = "".join(_render_opinion(op, _hm_sig) for op in value)
+        else:
+            raise ValueError(f"unknown html style {spec.html!r}")
+        _sc = f' class="sec-{escape(spec.name)}"' if spec.name else ""
+        _tagged = spec.name in ("headmatter", "endmatter")
+        if _tagged and 'data-role="' in inner:
+            # Mark the FIRST row of each run of one role: the margin label
+            # names the section there, so the block reads as a sequence of
+            # named parts rather than a wash of colour.
+            import re as _rr
+            _seen: list[str | None] = [None]
+
+            def _mark(mo: "_rr.Match[str]") -> str:
+                cls, rest, role = mo.group(1), mo.group(2), mo.group(3)
+                if role != _seen[0]:
+                    cls += " role-start"
+                _seen[0] = role
+                return f'<div class="{cls}"{rest}data-role="{role}"'
+
+            inner = _rr.sub(
+                r'<div class="(hmrow[^"]*)"([^>]*?)data-role="([a-z-]+)"',
+                _mark, inner)
+        _legend = ""
+        if _tagged and 'data-role="' in inner:
+            _roles = [("court", "court"), ("publication", "publication"),
+                      ("banner", "banner/title"), ("title", "title"),
+                      ("docket", "docket"), ("date", "date"),
+                      ("panel", "panel"), ("lower-court", "lower court"),
+                      ("caption", "caption"), ("counsel", "counsel"),
+                      ("case-info", "case info"), ("disposition", "disposition"),
+                      ("citation", "citation"), ("headnotes", "headnotes"),
+                      ("syllabus", "syllabus"),
+                      ("author", "author"),
+                      ("summary", "summary")]
+            _legend = (
+                '<div class="hm-legend">read as: '
+                + " ".join(f'<b data-role="{k}">{label}</b>'
+                           for k, label in _roles
+                           if f'data-role="{k}"' in inner)
+                + " · untinted rows were not claimed by a court reader</div>")
+        body.append(
+            f"<section{_sc}><h2>{escape(spec.name)}</h2>{_legend}{inner}"
+            f"</section>")
+
+    return (f"<!doctype html><meta charset='utf-8'><title>{escape(title)}</title>"
+            f"<meta name='centralia-source' "
+            f"content='{escape(meta.source_kind or 'born-digital', quote=True)}'>"
+            f"<style>{_CSS}</style>{''.join(body)}")
