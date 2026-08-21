@@ -120,3 +120,37 @@ class Footnote(models.Model):
 
     class Meta:
         ordering = ["document", "opinion", "order"]
+
+
+class GroundTruth(models.Model):
+    """Hand-verified truth about a source PDF — never written by the pipeline.
+
+    Deliberately NOT a ForeignKey to ``Document``. ``manage.py ingest`` does a
+    full refresh per court (``court.documents.all().delete()``), so anything
+    hanging off a Document row is destroyed on the next run; and the truth is a
+    fact about the PDF, not about a database row, so it has to outlive a
+    rename, a wiped database or a fresh clone. The natural key is the same one
+    the corpus uses everywhere else — court id plus file stem.
+
+    ``kind`` leaves room for more than footnotes (opinion count, byline,
+    disposition) without another table; ``value`` holds whatever that kind
+    means — for 'footnotes' it is the list of labels in document order,
+    headmatter notes first, and an empty list is a real answer meaning the
+    document prints none.
+    """
+
+    court_id = models.CharField(max_length=32, db_index=True)
+    stem = models.CharField(max_length=255, db_index=True)
+    kind = models.CharField(max_length=32, default="footnotes", db_index=True)
+    value = models.JSONField(default=list, blank=True)
+    note = models.TextField(blank=True)
+    created = models.DateTimeField(auto_now_add=True)
+    updated = models.DateTimeField(auto_now=True)
+
+    class Meta:
+        unique_together = [("court_id", "stem", "kind")]
+        ordering = ["court_id", "stem", "kind"]
+        verbose_name_plural = "ground truth"
+
+    def __str__(self):
+        return f"{self.court_id}/{self.stem} [{self.kind}] = {self.value}"

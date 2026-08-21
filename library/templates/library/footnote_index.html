@@ -1,0 +1,39 @@
+<!doctype html>
+<meta charset="utf-8">
+<title>Footnote ground truth</title>
+<style>
+ body{font:13px/1.5 -apple-system,BlinkMacSystemFont,"Segoe UI",sans-serif;margin:2rem;color:#1f2328}
+ h1{font-size:1.3rem;margin:0 0 .2rem}
+ .sub{color:#57606a;margin-bottom:1.4rem}
+ table{border-collapse:collapse;width:100%;max-width:900px}
+ th,td{text-align:left;padding:.35rem .6rem;border-bottom:1px solid #eaeef2}
+ th{font-weight:600;color:#57606a;font-size:12px}
+ td.n{text-align:right;font-variant-numeric:tabular-nums}
+ a{color:#0969da;text-decoration:none} a:hover{text-decoration:underline}
+ .bar{display:inline-block;width:120px;height:8px;background:#eaeef2;border-radius:4px;overflow:hidden;vertical-align:middle}
+ .bar > i{display:block;height:100%;background:#1a7f37}
+ .done{color:#1a7f37;font-weight:600}
+ .tot{background:#f6f8fa;font-weight:600}
+</style>
+<h1>Footnote ground truth</h1>
+<div class="sub">
+  Hand-verified footnote labels, one entry per document. Stored in
+  <code>output/notes/_footnotes_truth.json</code> — never in the database, which
+  <code>manage.py ingest</code> rebuilds from the extractor's own output.
+</div>
+<table>
+  <tr><th>court</th><th class="n">labelled</th><th class="n">total</th><th>progress</th></tr>
+  <tr class="tot">
+    <td>ALL</td><td class="n">{{ done }}</td><td class="n">{{ total }}</td>
+    <td><span class="bar"><i style="width:{{ pct }}%"></i></span> {{ pct }}%</td>
+  </tr>
+  {% for r in rows %}
+  <tr>
+    <td><a href="/footnotes/{{ r.court_id }}/">{{ r.court_id }}</a>
+        <span style="color:#8c959f">{{ r.name }}</span></td>
+    <td class="n {% if r.done == r.total %}done{% endif %}">{{ r.done }}</td>
+    <td class="n">{{ r.total }}</td>
+    <td><span class="bar"><i style="width:{{ r.pct }}%"></i></span> {{ r.pct }}%</td>
+  </tr>
+  {% endfor %}
+</table>

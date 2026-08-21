@@ -29,7 +29,7 @@ from .families import family_of, similar_courts
 # old private names so views and library/tests.py keep their call sites.
 from .manifest import document_quality as _document_quality
 from .manifest import rebuild_manifest as _rebuild_manifest
-from .models import Block, Court, Document, Footnote, Opinion
+from .models import Block, Court, Document, Footnote, GroundTruth, Opinion
 
 _OUTPUT_DIR = settings.BASE_DIR / "output"
 
@@ -97,10 +97,16 @@ def reprocess(request, court_id):
     last = None
     for attempt in range(5):
         try:
+            # WITH the audit. ``--no-audit`` left every re-ingested row at the
+            # worker's default coverage of 0.0, and the viewer reads 0.0 as
+            # 'unplaced content' — so the re-run button itself manufactured
+            # phantom unplaced-content faults on every court it touched
+            # (minnctapp showed all 30 documents unplaced while the real
+            # audit measures 12,675/12,675 lines at 100.0%).
             if stem:
-                call_command("ingest", court_id, "--no-audit", pdf=stem)
+                call_command("ingest", court_id, pdf=stem)
             else:
-                call_command("ingest", court_id, "--no-audit")
+                call_command("ingest", court_id)
             _rebuild_manifest()
             last = None
             break
@@ -644,4 +650,213 @@ def audit(request):
         "families": families,
         "totals": totals,
         "footnote_gaps": footnote_gaps,
+    })
+
+
+# ======================================================================
+# FOOTNOTE GROUND TRUTH
+# ======================================================================
+# The extractor cannot grade itself. Every footnote bug found so far was a
+# SHAPE the reader had never met — a body-size label, an un-superscripted '4',
+# two '*' notes on one page, an opener indented off the rail, a tail carried
+# across a page break — and each was invisible until a human looked at the PDF.
+# So the truth is hand-recorded here, one entry per document, and the reader is
+# measured against it.
+#
+# Stored in output/notes/, NOT in the database, and the reason is not
+# convenience: ``manage.py ingest`` rebuilds every row in the DB from the
+# extractor's own output. Truth kept there would be overwritten by the very
+# answers it exists to check, on the next re-ingest, silently.
+_TRUTH_FILE = "_footnotes_truth.json"          # export/backup only, never the source
+
+
+def _load_truth() -> dict:
+    """The whole footnote truth map, from the DATABASE."""
+    return {
+        f"{r.court_id}/{r.stem}": r.value
+        for r in GroundTruth.objects.filter(kind="footnotes")
+    }
+
+
+def _export_truth() -> None:
+    """Mirror the table to output/notes/ as a plain-text backup.
+
+    Belt and braces after the JSON file WAS the source of truth and a partial
+    read wiped ~2,000 hand-made labels: the table is now authoritative and this
+    is only ever written, never read back into the store.
+    """
+    try:
+        p = _OUTPUT_DIR / "notes" / _TRUTH_FILE
+        p.parent.mkdir(parents=True, exist_ok=True)
+        tmp = p.with_suffix(".json.tmp")
+        tmp.write_text(
+            json.dumps(_load_truth(), indent=0, sort_keys=True), encoding="utf-8"
+        )
+        tmp.replace(p)                      # atomic: a reader never sees a partial file
+    except Exception:
+        pass                                # a backup must never break a save
+
+
+def _parse_labels(raw):
+    """A typed correction into a label list. Accepts '1,2,3', '1 2 3', '*,1,2',
+    'none'/'' for a document with no footnotes."""
+    if raw is None:
+        return None
+    text = str(raw).strip()
+    if text.lower() in ("none", "-", "0"):
+        return []
+    parts = [p.strip() for p in re.split(r"[,\s]+", text) if p.strip()]
+    return parts
+
+
+def _record(key: str, labels: list, tries: int = 6) -> None:
+    """Write one truth row, waiting out a writer that holds the lock.
+
+    SQLite can answer BUSY the moment another connection is mid-write no matter
+    what ``busy_timeout`` says, and a re-ingest is one long write per court. 46
+    saves were lost to 'database is locked' during one such run — not corrupted,
+    but the keystroke went nowhere and the row stayed unreviewed. A save is a
+    single tiny row, so retrying costs nothing and turns a lost label into a
+    short wait."""
+    from django.db import OperationalError
+
+    court_id, stem = key.split("/", 1)
+    delay = 0.25
+    for attempt in range(tries):
+        try:
+            GroundTruth.objects.update_or_create(
+                court_id=court_id, stem=stem, kind="footnotes",
+                defaults={"value": [str(x) for x in labels]},
+            )
+            return
+        except OperationalError:
+            if attempt == tries - 1:
+                raise
+            time.sleep(delay)
+            delay *= 2
+
+
+@csrf_exempt
+def footnote_truth(request):
+    """Durable store for hand-verified footnote labels, keyed 'court/stem'.
+
+    Backed by the GroundTruth table, which ``ingest`` never touches. Each save
+    writes ONE row; there is no read-modify-write of a whole file, so a
+    concurrent or partial read can no longer take the rest of the corpus with
+    it — which is exactly how the previous JSON-backed version lost ~2,000
+    labels in one request.
+    """
+    if request.method == "GET":
+        return JsonResponse({"truth": _load_truth()})
+    if request.method != "POST":
+        return HttpResponseNotAllowed(["GET", "POST"])
+    try:
+        body = json.loads(request.body or b"{}")
+    except Exception:
+        return JsonResponse({"error": "bad json"}, status=400)
+
+    n = 0
+    if isinstance(body.get("bulk"), dict):
+        for key, labels in body["bulk"].items():
+            if isinstance(labels, list) and "/" in key:
+                _record(key, labels); n += 1
+    key = body.get("key")
+    if key and "/" in key:
+        if body.get("clear"):
+            court_id, stem = key.split("/", 1)
+            GroundTruth.objects.filter(
+                court_id=court_id, stem=stem, kind="footnotes"
+            ).delete()
+            n += 1
+        else:
+            labels = body.get("labels")
+            if not isinstance(labels, list):
+                labels = _parse_labels(body.get("raw"))
+            if labels is None:
+                return JsonResponse({"error": "no labels"}, status=400)
+            _record(key, labels); n += 1
+    _export_truth()
+    return JsonResponse({
+        "ok": True, "wrote": n,
+        "total": GroundTruth.objects.filter(kind="footnotes").count(),
+    })
+
+
+def footnote_index(request):
+    """Every court, with hand-labelling progress — the way in to the review."""
+    truth = _load_truth()
+    rows = []
+    for court in Court.objects.all().order_by("court_id"):
+        stems = list(court.documents.values_list("stem", flat=True))
+        done = sum(1 for s in stems if f"{court.court_id}/{s}" in truth)
+        rows.append({
+            "court_id": court.court_id,
+            "name": court.label or court.court_id,
+            "total": len(stems),
+            "done": done,
+            "pct": round(100.0 * done / len(stems), 1) if stems else 0.0,
+        })
+    total = sum(r["total"] for r in rows)
+    done = sum(r["done"] for r in rows)
+    return render(request, "library/footnote_index.html", {
+        "rows": rows, "total": total, "done": done,
+        "pct": round(100.0 * done / total, 1) if total else 0.0,
+    })
+
+
+def footnote_review(request, court_id):
+    """One court's documents: what the reader found, what you say is true.
+
+    Ordered SUSPECT FIRST — a '?' label, a gap in the sequence, a symbol, a
+    warning, or no notes at all — because those are where the reader is most
+    likely wrong and where your attention is worth most. Everything is listed,
+    though: the run of contiguous 1..N documents is exactly what the
+    confirm-all control is for.
+    """
+    court = get_object_or_404(Court, court_id=court_id)
+    truth = _load_truth()
+    labels_by_doc: dict = {}
+    for doc_id, label in Footnote.objects.filter(
+        document__court=court
+    ).order_by("document_id", "opinion_id", "order").values_list(
+        "document_id", "label"
+    ):
+        labels_by_doc.setdefault(doc_id, []).append(label or "?")
+
+    rows = []
+    for doc in court.documents.all().order_by("stem"):
+        found = labels_by_doc.get(doc.id, [])
+        key = f"{court_id}/{doc.stem}"
+        recorded = truth.get(key)
+        digits = [l for l in found if l.isdigit()]
+        contiguous = (
+            [int(x) for x in digits] == list(range(1, len(digits) + 1))
+            and len(digits) == len(found)
+        )
+        suspicion = 0
+        if "?" in found:
+            suspicion += 8
+        if found and not contiguous:
+            suspicion += 5
+        if doc.warnings and any("footnote" in str(w).lower() for w in doc.warnings):
+            suspicion += 6
+        if not found:
+            suspicion += 1
+        rows.append({
+            "stem": doc.stem, "key": key, "pages": doc.n_pages,
+            "found": found, "found_str": ", ".join(found) or "(none)",
+            "recorded": recorded,
+            "recorded_str": (", ".join(recorded) or "(none)") if recorded is not None else "",
+            "agrees": recorded is not None and recorded == found,
+            "reviewed": recorded is not None,
+            "warn": [str(w) for w in (doc.warnings or []) if "footnote" in str(w).lower()],
+            "suspicion": suspicion,
+            "contiguous": contiguous,
+        })
+    rows.sort(key=lambda r: (r["reviewed"], -r["suspicion"], r["stem"]))
+    done = sum(1 for r in rows if r["reviewed"])
+    return render(request, "library/footnote_review.html", {
+        "court": court, "rows": rows, "total": len(rows), "done": done,
+        "pct": round(100.0 * done / len(rows), 1) if rows else 0.0,
+        "mismatch": sum(1 for r in rows if r["reviewed"] and not r["agrees"]),
     })

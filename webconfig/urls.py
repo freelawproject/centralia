@@ -13,7 +13,14 @@ from django.urls import include, path, re_path
 from django.views.static import serve
 
 from library.manifest import rebuild_manifest_if_stale
-from library.views import captions, review_marks, viewer
+from library.views import (
+    captions,
+    footnote_index,
+    footnote_review,
+    footnote_truth,
+    review_marks,
+    viewer,
+)
 
 _OUTPUT = str(settings.BASE_DIR / "output")
 _ASSETS = str(settings.BASE_DIR / "assets")
@@ -40,6 +47,9 @@ urlpatterns = [
     path("", viewer, name="viewer"),
     path("captions", captions, name="captions"),
     path("marks", review_marks, name="review_marks"),
+    path("footnotes/", footnote_index, name="footnote_index"),
+    path("footnotes/<slug:court_id>/", footnote_review, name="footnote_review"),
+    path("footnote-truth", footnote_truth, name="footnote_truth"),
     path("courts/", include("library.urls")),
     path("admin/", admin.site.urls),
     # Source PDFs: each rendered doc page frames its original at

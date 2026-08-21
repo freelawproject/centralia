@@ -1,0 +1,158 @@
+<!doctype html>
+<meta charset="utf-8">
+<title>{{ court.court_id }} — footnote truth</title>
+<style>
+ body{font:13px/1.5 -apple-system,BlinkMacSystemFont,"Segoe UI",sans-serif;margin:1.4rem;color:#1f2328}
+ h1{font-size:1.2rem;margin:0 0 .1rem}
+ .sub{color:#57606a;margin-bottom:.8rem}
+ .bar{display:inline-block;width:180px;height:9px;background:#eaeef2;border-radius:4px;overflow:hidden;vertical-align:middle}
+ .bar > i{display:block;height:100%;background:#1a7f37}
+ table{border-collapse:collapse;width:100%}
+ th,td{text-align:left;padding:.3rem .5rem;border-bottom:1px solid #eaeef2;vertical-align:top}
+ th{font-weight:600;color:#57606a;font-size:12px;position:sticky;top:0;background:#fff}
+ tr.row.sel{background:#ddf4ff}
+ tr.row.ok  {background:#f6fdf8}
+ tr.row.bad {background:#fff5f5}
+ code{font:12px/1.4 ui-monospace,SFMono-Regular,Menlo,monospace}
+ .found{font:12px ui-monospace,Menlo,monospace}
+ .warn{color:#bc4c00;font-size:11.5px}
+ .pill{display:inline-block;padding:0 .35rem;border-radius:3px;background:#eaeef2;color:#57606a;font-size:11px}
+ .pill.susp{background:#fff1e5;color:#bc4c00}
+ input.fix{width:150px;font:12px ui-monospace,Menlo,monospace;padding:.15rem .3rem}
+ button{font:12px inherit;padding:.15rem .5rem;cursor:pointer}
+ a{color:#0969da;text-decoration:none} a:hover{text-decoration:underline}
+ .keys{background:#f6f8fa;border:1px solid #eaeef2;padding:.5rem .7rem;border-radius:6px;margin-bottom:.9rem;font-size:12px}
+ .keys b{font-family:ui-monospace,Menlo,monospace}
+</style>
+
+<h1>{{ court.court_id }} — footnote ground truth</h1>
+<div class="sub">
+  <span class="bar"><i id="bar" style="width:{{ pct }}%"></i></span>
+  <b id="done">{{ done }}</b> / {{ total }} labelled
+  {% if mismatch %}· <span style="color:#cf222e"><b>{{ mismatch }}</b> disagree with the extractor</span>{% endif %}
+  · <a href="/footnotes/">all courts</a>
+</div>
+
+<div class="keys">
+  <b>↑</b>/<b>↓</b> move · <b>space</b> confirm the extractor's labels · <b>n</b> confirm as “no footnotes”
+  · <b>e</b> edit · <b>u</b> un-review · <b>o</b> open the PDF
+  &nbsp;|&nbsp; <button onclick="confirmAllContiguous()">confirm all contiguous 1..N</button>
+  <span style="color:#8c959f">(only rows the extractor reports as a clean 1..N run, still unreviewed)</span>
+</div>
+
+<table>
+  <tr><th></th><th>document</th><th>pp</th><th>extractor</th><th>truth</th><th></th></tr>
+  {% for r in rows %}
+  <tr class="row {% if r.reviewed %}{% if r.agrees %}ok{% else %}bad{% endif %}{% endif %}"
+      data-key="{{ r.key }}" data-found="{{ r.found_str }}" data-contig="{{ r.contiguous|yesno:'1,0' }}"
+      data-reviewed="{{ r.reviewed|yesno:'1,0' }}">
+    <td>{% if r.suspicion >= 5 %}<span class="pill susp">check</span>{% endif %}</td>
+    <td><a href="/{{ court.court_id }}/{{ r.stem }}.html" target="_blank">{{ r.stem }}</a>
+        {% if r.warn %}<div class="warn">{{ r.warn|join:" · " }}</div>{% endif %}</td>
+    <td>{{ r.pages }}</td>
+    <td class="found">{{ r.found_str }}</td>
+    <td class="found truth">{{ r.recorded_str }}</td>
+    <td><input class="fix" placeholder="1,2,3 or none" value=""></td>
+  </tr>
+  {% endfor %}
+</table>
+
+<script>
+const COURT = "{{ court.court_id }}";
+const rows = [...document.querySelectorAll("tr.row")];
+let cur = 0;
+function paint(){
+  rows.forEach((r,i)=>r.classList.toggle("sel", i===cur));
+  const r = rows[cur];
+  if (r) r.scrollIntoView({block:"nearest"});
+}
+function bump(delta){
+  const done = document.getElementById("done");
+  done.textContent = String(parseInt(done.textContent,10) + delta);
+  document.getElementById("bar").style.width =
+    (100*parseInt(done.textContent,10)/{{ total }}).toFixed(1) + "%";
+}
+async function post(body, tries=4){
+  // A SAVE MUST NOT BE LOST TO A TRANSIENT. The server can be mid-restart or
+  // waiting behind a re-ingest's write lock; retry before giving up, and make
+  // a real failure VISIBLE on the row rather than a modal that gets dismissed.
+  let delay = 300;
+  for(let i=0;i<tries;i++){
+    try{
+      const res = await fetch("/footnote-truth", {
+        method:"POST", headers:{"Content-Type":"application/json"},
+        body: JSON.stringify(body)
+      });
+      if(res.ok) return true;
+    }catch(err){ /* server down mid-restart — fall through and retry */ }
+    await new Promise(r=>setTimeout(r, delay)); delay *= 2;
+  }
+  return false;
+}
+async function record(row, labels){
+  const was = row.dataset.reviewed === "1";
+  const ok = await post({key: row.dataset.key, labels});
+  if(!ok){
+    row.style.outline = "2px solid #cf222e";
+    row.title = "SAVE FAILED — not recorded";
+    return;
+  }
+  row.style.outline = "";
+  row.querySelector(".truth").textContent = labels.length ? labels.join(", ") : "(none)";
+  const found = row.dataset.found === "(none)" ? [] : row.dataset.found.split(", ");
+  row.classList.remove("ok","bad");
+  row.classList.add(JSON.stringify(found)===JSON.stringify(labels) ? "ok" : "bad");
+  if(!was){ row.dataset.reviewed = "1"; bump(1); }
+}
+function labelsOf(row){
+  const f = row.dataset.found;
+  return f === "(none)" ? [] : f.split(", ");
+}
+document.addEventListener("keydown", async (e)=>{
+  // A MODIFIER CHORD BELONGS TO THE BROWSER. Cmd/Ctrl+C, Cmd+V, Cmd+L and
+  // friends must reach it untouched, or copy and paste stop working on this
+  // page — which matters because the labels get pasted in.
+  if(e.metaKey || e.ctrlKey || e.altKey) return;
+  if(e.target.tagName === "INPUT"){
+    if(e.key === "Enter"){
+      const row = e.target.closest("tr");
+      const raw = e.target.value.trim();
+      const labels = (raw==="" || raw.toLowerCase()==="none") ? []
+                    : raw.split(/[,\s]+/).filter(Boolean);
+      await record(row, labels);
+      e.target.value=""; e.target.blur();
+    }
+    if(e.key === "Escape") e.target.blur();
+    return;
+  }
+  const row = rows[cur];
+  // Arrow keys move; preventDefault so the page does not scroll under the
+  // selection. j/k stay as synonyms.
+  if(e.key === "ArrowDown" || e.key === "j"){
+    e.preventDefault(); cur = Math.min(cur+1, rows.length-1); paint(); }
+  if(e.key === "ArrowUp" || e.key === "k"){
+    e.preventDefault(); cur = Math.max(cur-1, 0); paint(); }
+  if(e.key === " " && row){ e.preventDefault(); await record(row, labelsOf(row)); cur = Math.min(cur+1, rows.length-1); paint(); }
+  if(e.key === "n" && row){ await record(row, []); cur = Math.min(cur+1, rows.length-1); paint(); }
+  if(e.key === "e" && row){ e.preventDefault(); row.querySelector("input.fix").focus(); }
+  if(e.key === "o" && row){ window.open("/"+COURT+"/"+row.querySelector("a").textContent+".html","_blank"); }
+  if(e.key === "u" && row){
+    await fetch("/footnote-truth",{method:"POST",headers:{"Content-Type":"application/json"},
+      body:JSON.stringify({key:row.dataset.key, clear:true})});
+    row.classList.remove("ok","bad"); row.querySelector(".truth").textContent="";
+    if(row.dataset.reviewed==="1"){ row.dataset.reviewed="0"; bump(-1); }
+  }
+});
+async function confirmAllContiguous(){
+  const todo = rows.filter(r=>r.dataset.contig==="1" && r.dataset.reviewed!=="1");
+  if(!todo.length){ alert("nothing left that is a clean 1..N run"); return; }
+  if(!confirm("Confirm the extractor's labels for "+todo.length+" contiguous documents?")) return;
+  const bulk = {};
+  todo.forEach(r=>bulk[r.dataset.key] = labelsOf(r));
+  if(!await post({bulk})){ alert("save failed — nothing recorded"); return; }
+  todo.forEach(r=>{ r.dataset.reviewed="1"; r.classList.add("ok");
+    r.querySelector(".truth").textContent = r.dataset.found; });
+  bump(todo.length);
+}
+paint();
+</script>

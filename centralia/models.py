@@ -46,6 +46,18 @@ class DocType:
 
     ALL = (OPINION, ORDER, NOTICE, FILING, CERTIFICATE, UNKNOWN)
 
+    # Administrative paper: the court (or a party) filed it, but there is no
+    # judicial body to parse, so an empty ``opinions`` list is the CORRECT
+    # outcome rather than a parse failure. Consumers that judge an extraction
+    # by "did a body come out" have to consult this, or a clerk's list of
+    # appealed cases reads as a lost opinion — vactapp's
+    # 'cases appealed to Supreme Court of Virginia' is four pages of docket
+    # entries and was reported as "no opinion body parsed".
+    #
+    # ORDER is deliberately NOT here: an order IS a judicial disposition and
+    # does have a body, so an order that produced none is a real fault.
+    NO_BODY_EXPECTED = (NOTICE, FILING, CERTIFICATE)
+
 
 # ---------------------------------------------------------------------------
 # Body model

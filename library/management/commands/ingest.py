@@ -16,6 +16,7 @@ import dataclasses
 from django.core.management.base import BaseCommand
 from django.db import transaction
 
+from centralia.models import DocType
 from centralia.registry import get_extractor
 
 
@@ -180,6 +181,18 @@ class Command(BaseCommand):
                             n_docs += 1
                             continue
                         has_body = any(op.blocks for op in d.opinions)
+                        # ``suspect`` means "this came out as all headmatter
+                        # and probably should not have". Administrative paper
+                        # has no judicial body by definition, so an empty body
+                        # is the right answer, not a suspicion — vactapp's
+                        # clerk list of appealed cases (4pp, doc_type=notice)
+                        # was flagged suspect and the viewer bucketed it
+                        # 'missing-opinion' instead of 'non-opinion'.
+                        suspect = (
+                            (not has_body)
+                            and d.n_pages > 2
+                            and d.doc_type not in DocType.NO_BODY_EXPECTED
+                        )
                         warnings = list(d.warnings)
                         if d.non_digital and not any(
                             "non-born-digital" in warning for warning in warnings
@@ -202,7 +215,7 @@ class Command(BaseCommand):
                             trailer=_jsonable(d.trailer),
                             residual=_jsonable(getattr(d, "residual", []) or []),
                             warnings=warnings,
-                            suspect=(not has_body) and d.n_pages > 2, coverage=cov)
+                            suspect=suspect, coverage=cov)
                         for fn in d.headmatter_footnotes:
                             Footnote.objects.create(
                                 document=doc, opinion=None, order=0, label=fn.label,
