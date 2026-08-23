@@ -54,7 +54,19 @@ def _split_at_vrules(raw_lines: list, v_rules: list, event) -> list:
         cuts = sorted({v.x for v in tall
                        if v.top - 2 <= ln["top"] <= v.bottom + 2
                        and any(c["x1"] <= v.x - 0.5 for c in chars)
-                       and any(c["x0"] >= v.x + 0.5 for c in chars)})
+                       and any(c["x0"] >= v.x + 0.5 for c in chars)
+                       # A RULE THAT PASSES THROUGH A GLYPH IS NOT DIVIDING
+                       # THE ROW. A column divider runs down whitespace; where
+                       # it crosses a letter's own box the row is not two
+                       # cells, and cutting it lands mid-word. oked's
+                       # 28692.970.0 closes its caption rule at y249.62 and
+                       # sets 'OPINION AND ORDER' at y251.40 — inside the +2
+                       # slack, crossing the 'A' of 'AND' (x297.3-305.9 over
+                       # a rule at x305.57), so the title read as 'OPINION A'
+                       # / 'ND ORDER' on two rows (the user, 2026-08-22).
+                       and not any(c["x0"] < v.x < c["x1"]
+                                   and (c.get("text") or "").strip()
+                                   for c in chars)})
         if not cuts:
             out.append(ln)
             continue
@@ -159,7 +171,8 @@ def _split_wide_gaps(raw_lines: list, event) -> list:
     return out
 
 
-def build_page(page, page_no: int, id_start: int) -> PageModel:
+def build_page(page, page_no: int, id_start: int,
+               mac_fonts=frozenset()) -> PageModel:
     pm = PageModel(number=page_no, width=float(page.width),
                    height=float(page.height))
 
@@ -168,7 +181,11 @@ def build_page(page, page_no: int, id_start: int) -> PageModel:
     # later repair (and pdfplumber's own 3pt row clustering) reads `top`.
     quirks.normalize_font_descent(chars, pm.event)
     quirks.drop_white_glyphs(chars, pm.event)
-    quirks.decode_cid_glyphs(chars, pm.event)
+    quirks.decode_cid_glyphs(chars, pm.event, mac_fonts)
+    # AFTER the decode, never before: the decode drops the .notdef high
+    # bytes a two-byte code arrives with, and the order pass must lay out
+    # the glyphs that are left.
+    quirks.restore_zero_advance_order(chars, pm.event)
     quirks.drop_micro_glyphs(chars, pm.event)
     quirks.drop_overstruck(chars, pm.event)
     quirks.snap_displaced_fragments(chars, pm.event)
@@ -198,11 +215,20 @@ def build_page(page, page_no: int, id_start: int) -> PageModel:
     _cell_rects = row_edge_rects(pm.tables, page.rects)
     quirks.tag_underlined_chars(page.rects, raw, skip=_cell_rects)
 
+    # A HIGHLIGHTER'S FILL is emphasis the text layer does not carry — read it
+    # back onto the glyphs standing on it, so `<mark>` survives into the
+    # rendering the way `<u>` does.
+    _n_hl = quirks.tag_highlighted_chars(page.rects, raw)
+    if _n_hl:
+        pm.event("highlight", f"{_n_hl} rows carry a highlighter's fill")
+
     # A REDACTION is drawn, not written — read it back into its line. Runs
     # after the splits on purpose: a blacked-out name always touches the words
     # beside it, so it never needs to make a column, and injecting it earlier
     # could only ever invent one.
     quirks.insert_redaction_boxes(page.rects, raw, pm.event, skip=_cell_rects)
+    # …and the bar that is a GLYPH rather than a rect (see convert_bar_glyphs).
+    quirks.convert_bar_glyphs(raw, pm.event)
 
     # A stacked one-glyph column is a RAIL. Tagged here so nothing downstream
     # has to re-measure it — the footnote resolver in particular, which would
@@ -278,9 +304,17 @@ def build_page(page, page_no: int, id_start: int) -> PageModel:
 def build_pdf(path: str) -> PdfModel:
     model = PdfModel(path=str(path))
     with pdfplumber.open(path) as pdf:
+        # WHOSE ORDERING, ASKED ONCE FOR THE WHOLE PAPER. A subset font
+        # addressed by glyph id has to prove itself before its text is
+        # rewritten, and the proof is words — which one page may not have.
+        # texapp's docketing statement proves its font on page 1 and carries
+        # too little prose to prove it again on pages 2-9; pasuperct/holbrook
+        # has exactly one broken page and it reads 'J-S15004-26 / - 23 - /
+        # Date: 7/29/2026'. See `quirks.mac_ordered_fonts`.
+        mac_fonts = quirks.mac_ordered_fonts(p.chars for p in pdf.pages)
         next_id = 0
         for i, page in enumerate(pdf.pages, start=1):
-            pm = build_page(page, i, next_id)
+            pm = build_page(page, i, next_id, mac_fonts)
             next_id += len(pm.lines)
             model.pages.append(pm)
     return model

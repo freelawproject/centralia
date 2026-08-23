@@ -20,7 +20,7 @@ from dataclasses import dataclass, field
 _KNOWN_TAGS = frozenset(
     # 'table'/'tr'/'th'/'td' appear when a footnote carries a printed table;
     # 'centered'/'flushright' are alignment markers — layout, not content.
-    ("em", "strong", "u", "footnotemark", "pagenumber", "sup", "sub",
+    ("em", "strong", "u", "mark", "footnotemark", "pagenumber", "sup", "sub",
      "table", "tr", "th", "td", "centered", "flushright")
 )
 

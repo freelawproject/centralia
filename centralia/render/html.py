@@ -18,6 +18,11 @@ from .facsimile import render_hm_items
 from .inline import inline_to_html
 
 _CSS = """
+/* A HIGHLIGHTER'S FILL, reproduced. The page painted a colour behind these
+   glyphs; `<mark>` says so, and the review sheet must not let a UA default
+   wash it out. Kept legible against the dark review background. */
+mark{background:#ffe95c;color:#111;padding:0 .05em;border-radius:2px}
+
 :root { --ink:#1a1a1a; --mut:#777; --line:#ddd; --accent:#6b4b9a; --bad:#b3372f; }
 * { box-sizing:border-box }
 /* The measure FOLLOWS THE PANE. A flat 820px squeezed the document when the
@@ -52,6 +57,10 @@ section > h2 { font:600 12px system-ui,sans-serif; text-transform:uppercase;
 .box { border:1px solid var(--line); border-radius:6px; padding:.7em 1em;
        font-size:.92em; background:#f7f6f4 }
 .box.removed div { color:var(--mut) }
+/* ONE GROUP PER CASE inside the criteria box: the heading names the case,
+   the rows under it are that case's own. */
+.caseline { margin:.55em 0 .1em; color:#555; font:12px system-ui,sans-serif }
+.caserow { padding-left:1.1em }
 .box.residual .content { color:var(--bad) }
 details { margin:.8em 0 }
 details > summary { font:600 12px system-ui,sans-serif; text-transform:uppercase;
@@ -467,7 +476,30 @@ def render_html(doc: m.Document, title: str | None = None) -> str:
         rows = "".join(
             f'<div><span class="chip kind">{escape(k)}</span>'
             f"{escape(str(v)[:300])}</div>" for k, v in crit_rows)
-        body.append(f"<details><summary>criteria · {len(crit_rows)}</summary>"
+        # THE CASES THIS RECORD DECIDES, each named on its own. A
+        # consolidated paper states one number per action and one caption per
+        # number; listed as 'docket' plus 'other dockets' the numbers survive
+        # and the grouping does not, so a reader cannot tell which parties go
+        # with which number (the user, 2026-08-23: 'it would list case 1 and
+        # case 2'). Restored here in the shape the sheet used before the
+        # template rewrite dropped it.
+        _cases = list(getattr(c, "cases", ()) or ())
+        if len(_cases) > 1:
+            for i, case in enumerate(_cases, 1):
+                rows += (f'<div class="caseline"><b>case {i} of '
+                         f"{len(_cases)}</b></div>")
+                for k, v in (("docket", case.docket_number),
+                             ("case name", case.case_name),
+                             ("lower court", case.lower_court),
+                             ("lower docket", case.lower_court_docket)):
+                    if v:
+                        rows += (f'<div class="caserow">'
+                                 f'<span class="chip kind">{escape(k)}</span>'
+                                 f"{escape(str(v)[:300])}</div>")
+        _label = f"criteria · {len(crit_rows)}"
+        if len(_cases) > 1:
+            _label += f" · {len(_cases)} cases heard together"
+        body.append(f"<details><summary>{escape(_label)}</summary>"
                     f'<div class="box">{rows}</div></details>')
     removed_html = _render_removed(doc)
     if removed_html:

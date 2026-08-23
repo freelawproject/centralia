@@ -47,8 +47,8 @@ def inferred_space_gap(chars: list) -> float:
 
 def inline_text(chars: list, label_chars: set, canon, mark_flags: list | None,
                 bracket_pinpoint: bool = False) -> str:
-    """The line's text with inline formatting preserved: <strong>/<em>/<u>
-    runs, <footnotemark>N</footnotemark> for raised label glyphs (per
+    """The line's text with inline formatting preserved: <strong>/<em>/<u>/
+    <mark> runs, <footnotemark>N</footnotemark> for raised label glyphs (per
     ``mark_flags``, computed by the footnote subsystem's mark test), literal
     text XML-escaped, word breaks measured. Ported from the old
     line_inline_text: double-emitted ligature glyphs skipped."""
@@ -59,7 +59,7 @@ def inline_text(chars: list, label_chars: set, canon, mark_flags: list | None,
     space_gap = inferred_space_gap(chars)
     parts: list[str] = []
     buf = ""
-    in_bold = in_italic = in_underline = False
+    in_bold = in_italic = in_underline = in_highlight = False
     cur_fn = ""
     prev_x1 = None
     prev_pos = None
@@ -73,6 +73,8 @@ def inline_text(chars: list, label_chars: set, canon, mark_flags: list | None,
             t = f"<strong>{t}</strong>"
         if in_underline:
             t = f"<u>{t}</u>"
+        if in_highlight:
+            t = f"<mark>{t}</mark>"
         return t
 
     def flush_buf():
@@ -95,6 +97,7 @@ def inline_text(chars: list, label_chars: set, canon, mark_flags: list | None,
         ch_bold = "Bold" in fn
         ch_italic = ("Italic" in fn) or ("Oblique" in fn)
         ch_underline = bool(c.get("_underline"))
+        ch_highlight = bool(c.get("_highlight"))
         if prev_x1 is not None:
             gap = c["x0"] - prev_x1
             # A STYLE CHANGE is itself word-boundary evidence (mont sets
@@ -129,12 +132,15 @@ def inline_text(chars: list, label_chars: set, canon, mark_flags: list | None,
                 parts.append(f"<footnotemark>{escape(cur_fn)}</footnotemark>")
                 cur_fn = ""
             style_changed = (ch_bold != in_bold or ch_italic != in_italic
-                             or ch_underline != in_underline)
+                             or ch_underline != in_underline
+                             or ch_highlight != in_highlight)
             if style_changed and buf:
                 flush_buf()
-                in_bold, in_italic, in_underline = ch_bold, ch_italic, ch_underline
+                in_bold, in_italic, in_underline, in_highlight = (
+                    ch_bold, ch_italic, ch_underline, ch_highlight)
             elif not buf:
-                in_bold, in_italic, in_underline = ch_bold, ch_italic, ch_underline
+                in_bold, in_italic, in_underline, in_highlight = (
+                    ch_bold, ch_italic, ch_underline, ch_highlight)
             buf += c.get("text") or ""
         prev_x1 = c["x1"]
     if cur_fn:

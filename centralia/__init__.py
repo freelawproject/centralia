@@ -195,6 +195,19 @@ def _cluster(doc: Document) -> dict:
         "author": c.author,
         "attorneys": c.attorneys,
         "parties": list(c.parties),
+        # THE CASES THIS RECORD DECIDES, where it decides more than one —
+        # each with its own number and its own parties. Empty for the
+        # ordinary record: `docket_number` and `case_name` already name it.
+        "cases": [{"docket_number": k.docket_number,
+                   "case_name": k.case_name,
+                   "parties": list(k.parties),
+                   "caption": list(k.caption),
+                   "lower_court": k.lower_court or None,
+                   "lower_court_docket": k.lower_court_docket or None,
+                   "lower_court_judge": k.lower_court_judge or None,
+                   "prior_history": k.prior_history or None,
+                   "page": k.prov.page}
+                  for k in (c.cases or ())],
         "caption": list(c.caption),
         "disposition": c.disposition,
         "history": c.history,
@@ -283,6 +296,31 @@ def _headmatter(doc: Document) -> dict:
     return out
 
 
+def _placed_row(rec) -> dict:
+    """One removed or unclaimed row, with its position. ``bbox`` is
+    (x0, top, x1, bottom) in PDF points over the row's own source lines, and
+    ``line_ids`` are stable within this extraction — the two together are what
+    make the decision checkable against the page."""
+    out = {"kind": rec.kind, "page": rec.prov.page, "text": rec.text,
+           "line_ids": list(rec.prov.line_ids)}
+    if rec.bbox:
+        out["bbox"] = [round(v, 2) for v in rec.bbox]
+    return out
+
+
+def _redaction_runs(doc: Document) -> int:
+    """How many blacked-out spans the record carries — one per run of block
+    glyphs, not one per glyph: a bar the width of a name is one redaction."""
+    import re as _re
+    parts = [getattr(i, "text", "") or "" for i in doc.headmatter]
+    for op in doc.opinions:
+        parts += [getattr(b, "text", "") or ""
+                  for b in (*op.blocks, *op.signature)]
+        parts += [getattr(b, "text", "") or ""
+                  for fn in op.footnotes for b in fn.blocks]
+    return sum(len(_re.findall(r"\u2588+", t)) for t in parts)
+
+
 def _diagnostics(doc: Document, status: str) -> dict:
     """Facts, not verdicts. Nothing here changes `status`; the caller decides
     (the user, 2026-08-21)."""
@@ -299,8 +337,7 @@ def _diagnostics(doc: Document, status: str) -> dict:
         "scan_pages": list(mt.scan_pages),
         "text_missing_pages": list(mt.text_missing_pages),
         "cid_pages": list(mt.cid_pages),
-        "residual": [{"kind": r.kind, "page": r.prov.page, "text": r.text}
-                     for r in doc.residual],
+        "residual": [_placed_row(r) for r in doc.residual],
         "residual_content": sum(1 for r in doc.residual if r.kind == "content"),
         "removed_counts": removed,
         "opinion_count": len(doc.opinions),
@@ -308,6 +345,14 @@ def _diagnostics(doc: Document, status: str) -> dict:
                                   if not (op.author or op.author_name)),
         "footnote_count": sum(len(op.footnotes) for op in doc.opinions)
         + len(doc.headmatter_footnotes),
+        # BLACKED-OUT SPANS ARE A FACT ABOUT THE TEXT. A redacted printing
+        # reads as ordinary prose with words missing, and a consumer cannot
+        # tell that from prose we failed to extract — so the count is
+        # reported. `pdfio.quirks` reads a redaction back into its line as
+        # FULL BLOCK glyphs, whether the page drew it as a filled rect or
+        # (akd/62768.505.0) as one very wide dash, so counting the runs
+        # counts the redactions.
+        "redactions": _redaction_runs(doc),
         "headmatter_rows": len(hm_rows),
         "headmatter_untinted": sum(1 for i in hm_rows if not i.role),
         "dates_unparsed": [k for k, v in (
@@ -382,8 +427,12 @@ def read(src, court_id: str, *,
                      for name in ("syllabus", "headnotes", "summary",
                                   "signature", "trailer")
                      if getattr(doc, name)},
-        "removed": [{"kind": d.kind, "page": d.prov.page, "text": d.text}
-                    for d in doc.dropped],
+        # AUDITABLE, not merely reported. Each removal says what it was,
+        # what it said, and WHERE IT STOOD — page, box and the source line
+        # ids — so a reader can put it back on the sheet and check the call
+        # (the user, 2026-08-22: 'i want to be able to sorta let someone
+        # audit it').
+        "removed": [_placed_row(d) for d in doc.dropped],
         "diagnostics": _diagnostics(doc, result.status),
         "html": render_body(doc),
         "review_html": render_html(doc),

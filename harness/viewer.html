@@ -124,13 +124,14 @@ body { margin:0; font:13px system-ui,sans-serif; color:var(--ink);
 <div id="main">
   <div id="bar">
     <b id="title">—</b>
-    <span id="help">↓/↑ file · →/← court · 1–5 mark · 0 clear · n note · a old/new · h hide ✅ · p pdf · r re-run · R court</span>
+    <span id="help">↓/↑ file · →/← court · 1–5 mark · 0 clear · n note · a old/new · c CL view · h hide ✅ · p pdf · r re-run · R court</span>
     <button data-t="nay">✗ nay</button><button data-t="some">◔ some</button>
     <button data-t="good">◑ good</button><button data-t="almost">~ almost</button>
     <button data-t="yay">✅ yay</button>
     <button id="donebtn" title="Mark this whole court complete">✓ court done</button>
     <button id="hidedone" title="Hide the files you marked ✅ yay (h)">⊘ hide ✅</button>
     <button id="ab">A/B: new</button>
+    <button id="clbtn" title="How this record translates into CourtListener fields — and what has no field at all (c)">CL</button>
     <button id="pdfbtn">PDF</button>
     <button id="syncbtn" class="on" title="PDF pane follows your scroll">sync</button>
     <button id="runfile" title="Re-run the engine on THIS pdf (r)">⟳ file</button>
@@ -146,7 +147,7 @@ body { margin:0; font:13px system-ui,sans-serif; color:var(--ink);
 </div>
 <script>
 let MAN = {}, MARKS = {}, NOTES = {}, QUAL = {files:{}, courts:{}}, CMETA = {}, STALE = {},
-    courts = [], ci = 0, fi = 0, old = false;
+    courts = [], ci = 0, fi = 0, old = false, cl = false;
 const $ = s => document.querySelector(s);
 const key = () => courts.length ? courts[ci] + "/" + MAN[courts[ci]][fi] : null;
 
@@ -449,9 +450,12 @@ function show() {
     + (q && q.o !== undefined
        ? `  ·  ${q.o} writing${q.o === 1 ? "" : "s"}` : "")
     + (q ? `  ·  ${q.g}${q.f.length ? " (" + q.f.join(", ") + ")" : ""}` : "");
-  $("#frame").src = (old ? "/old/" : "/out/") + k + ".html";
+  // THE CL VIEW IS RENDERED ON DEMAND, so it is always current — where the
+  // review sheet is whatever was last written to disk.
+  $("#frame").src = (cl ? "/cl/" : old ? "/old/" : "/out/") + k + ".html";
   $("#ab").textContent = "A/B: " + (old ? "old" : "new");
   $("#ab").classList.toggle("on", old);
+  $("#clbtn").classList.toggle("on", cl);
   $("#panes").classList.toggle("split", showPdf);
   $("#pdfbtn").classList.toggle("on", showPdf);
   $("#syncbtn").classList.toggle("on", syncOn);
@@ -553,6 +557,7 @@ function pickCourt(c) {
 $("#donebtn").onclick = toggleDone;
 $("#hidedone").onclick = toggleHideDone;
 $("#ab").onclick = () => { old = !old; show(); };
+$("#clbtn").onclick = () => { cl = !cl; show(); };
 $("#runfile").onclick = () => rerun(false);
 $("#runcourt").onclick = () => rerun(true);
 $("#pdfbtn").onclick = togglePdf;
@@ -585,6 +590,7 @@ document.onkeydown = e => {
   if (e.key === "K" || e.key === "ArrowLeft") { e.preventDefault(); return pickCourt(ci - 1); }
   if (e.key === "h") { e.preventDefault(); return toggleHideDone(); }
   if (e.key === "a") { old = !old; show(); }
+  if (e.key === "c") { cl = !cl; show(); }
   if (e.key === "p") togglePdf();
 };
 boot();

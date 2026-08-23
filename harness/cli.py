@@ -251,6 +251,37 @@ def cmd_extract(args: list[str]) -> int:
     return 0
 
 
+def cmd_clview(args: list[str]) -> int:
+    """Write ONE record's CourtListener view. Usage: clview <court/stem>
+
+    Its own command, and its own process, because the review viewer serves
+    this page on demand: a long-running server that imported the engine once
+    would keep serving the engine it imported, and the whole point of an
+    on-demand page is that it is never stale.
+    """
+    from centralia.pipeline import extract
+    from centralia.render import render_cl
+    from centralia.settings import OUTPUT_DIR, resolve_pdf
+
+    if not args:
+        print("usage: clview <court/stem>")
+        return 1
+    name = args[0]
+    court = name.split("/")[0] if "/" in name else "unknown"
+    pdf = resolve_pdf(name)
+    if pdf is None:
+        print(f"cannot resolve {name!r}")
+        return 1
+    r = extract(str(pdf), court)
+    out = OUTPUT_DIR / ".clview" / court / f"{pdf.stem}.html"
+    out.parent.mkdir(parents=True, exist_ok=True)
+    tmp = out.with_suffix(".tmp")
+    tmp.write_text(render_cl(r.document, r.status))
+    tmp.replace(out)
+    print(f"{r.status} -> {out}")
+    return 0
+
+
 def cmd_render(args: list[str]) -> int:
     """Render review HTML. Usage: render <court...> [--limit N]"""
     from centralia.pipeline import extract
@@ -530,7 +561,8 @@ def cmd_notes(args: list[str]) -> int:
     return 0
 
 
-COMMANDS = {"freeze": cmd_freeze, "truth": cmd_truth, "identity": cmd_identity,
+COMMANDS = {"clview": cmd_clview,
+            "freeze": cmd_freeze, "truth": cmd_truth, "identity": cmd_identity,
             "lines": cmd_lines, "serve": cmd_serve, "footnotes": cmd_footnotes,
             "compare": cmd_compare, "extract": cmd_extract,
             "render": cmd_render, "fngaps": cmd_fngaps, "audit": cmd_audit,

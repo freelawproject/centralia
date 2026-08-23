@@ -104,6 +104,26 @@ class Assembled:
 
 _OUTLINE = re.compile(r"^(?:[IVXLCDM]{1,5}|[A-Za-z]|\d{1,2})\.?$")
 
+# A BULLET IS AN OPENER AND ITS OWN ITEM. A court that sets a bulleted list
+# indents the item's first line to the paragraph indent and its RUNOVERS
+# deeper still — alnd/179841.412.0 rules its conclusion that way: the item
+# opens at x0 122.4 over a body rail of 86.4, and runs over at 140.4. The
+# indent test cannot see it: the row does not return to the rail on the next
+# line (the runover is deeper), so no bullet opened anything and item ran
+# into item — 'DENIES TVA's motion … on Plaintiffs' / claims (doc. 314); •
+# DENIES WITHOUT PREJUDICE …' (the user, 2026-08-23: 'whitespace is also
+# note respected in places? like these lists?'). The glyph is the landmark,
+# and it is the same glyph in every court that prints one.
+_BULLET = re.compile(r"^[\u2022\u25CF\u25AA\u2023\u25E6\u00B7\u2043]\s*\S")
+
+
+_BULLET_LEAD = re.compile(
+    r"^(?:<[^>]+>)*[\u2022\u25CF\u25AA\u2023\u25E6\u00B7\u2043]\s*")
+
+
+def _is_bullet_row(line) -> bool:
+    return bool(_BULLET.match(" ".join((line.plain or "").split())))
+
 
 # A PARAGRAPH NUMBER OPENS A PARAGRAPH. A court that numbers its paragraphs
 # sets the number at the RAIL and its first line of text indented beside it,
@@ -351,6 +371,7 @@ def _paragraph_blocks(seg: Segment, segmenter: Segmenter,
     labels: dict[int, Line] = {}
     prev = None
     after_label = False
+    bullet_x0: float | None = None
     for i, line in enumerate(seg.lines):
         # a SAME-ROW piece continues its row whatever its x0 — ca1's
         # double sentence-spacing splits rows at sentence gaps and the
@@ -383,8 +404,21 @@ def _paragraph_blocks(seg: Segment, segmenter: Segmenter,
             prev = line
             after_label = False
             continue
+        # A BULLETED ITEM IS ITS OWN BLOCK, and everything set in from it
+        # is that item still running over.
+        _bullet = _is_bullet_row(line)
+        if _bullet:
+            bullet_x0 = line.x0
+        elif bullet_x0 is not None and not same_row:
+            if line.x0 > bullet_x0 + 2.0:
+                paras[-1].append(line) if paras else paras.append([line])
+                prev = line
+                after_label = False
+                continue                   # a runover of the item above
+            bullet_x0 = None               # back at the measure: list over
         opens = bool(paras) and not same_row and (
-            _is_para_mark(line)
+            _bullet
+            or _is_para_mark(line)
             or _is_list_marker(line, seg.lines, i,
                                min((l.x0 for l in seg.lines), default=None))
             or (abs(line.x0 - rail) >= step
@@ -406,8 +440,15 @@ def _paragraph_blocks(seg: Segment, segmenter: Segmenter,
                 text=" ".join(label.plain.split()),
                 prov=_prov([label])))
         text = _join(lines, vocab)
-        if text:
-            out.append(m.Paragraph(text=text, prov=_prov(lines)))
+        if not text:
+            continue
+        if lines and _is_bullet_row(lines[0]):
+            # The glyph is the list's own mark, not the item's words: it is
+            # said again by rendering the item AS an item.
+            out.append(m.ListItem(text=_BULLET_LEAD.sub("", text, count=1),
+                                  prov=_prov(lines), ordered=False))
+            continue
+        out.append(m.Paragraph(text=text, prov=_prov(lines)))
     return out
 
 
@@ -759,6 +800,68 @@ _STACK_STEP = (30.0, 42.0)
 
 def _is_dispo_line(txt: str) -> bool:
     return " ".join(txt.split()).lower().rstrip(".").strip() in _DISPO
+
+
+def _merge_heading_runs(blocks: list, by_id: dict) -> list:
+    """One printed heading is ONE heading, however many rows it wraps over.
+
+    A heading that wraps arrives as one Heading PER ROW, because the
+    segmenter cut the rows apart: a page carrying two leadings (a
+    double-spaced body over a single-spaced footnote block) has its bands
+    measured off the tighter one, so every row of the page reads as its own
+    segment. Prose survives that — `_flush_merge` rejoins a row that ends
+    mid-sentence — but a heading has no mid-sentence cue, so it stayed in
+    pieces: gud/…15303.118.0 printed a two-part heading as NINE centred
+    blocks with a paragraph of air between each, and cand/…419089.7070.2
+    printed the paper's own name as SIXTEEN (the user, 2026-08-23: 'why
+    space separting text', 'we need to make sure we gorup stuff better',
+    'its paragrpahs grouped together or section of table of contents').
+
+    The rows the court set as one heading are the ones it set in ONE TYPE at
+    ONE PITCH: same face, and a gap no wider than the run's own leading.
+    Both are read off the rows themselves — nothing here spells a heading or
+    guesses a distance. Measured over the corpus, 238 files carry a run of
+    three or more consecutive headings.
+    """
+    if len(blocks) < 2:
+        return blocks
+    def rows(b):
+        return [by_id[i] for i in getattr(b, "prov", None).line_ids
+                if i in by_id] if getattr(b, "prov", None) else []
+    def face(l):
+        return (l.font or "", round(l.size or 0.0, 1), bool(l.all_bold))
+    out: list = []
+    for b in blocks:
+        prev = out[-1] if out else None
+        if not (isinstance(b, m.Heading) and isinstance(prev, m.Heading)):
+            out.append(b)
+            continue
+        a_rows, b_rows = rows(prev), rows(b)
+        if not a_rows or not b_rows:
+            out.append(b)
+            continue
+        if a_rows[-1].page != b_rows[0].page:
+            out.append(b)          # never weld across the sheet
+            continue
+        if {face(l) for l in a_rows} != {face(l) for l in b_rows}:
+            out.append(b)          # a different type is a different heading
+            continue
+        # THE RUN'S OWN PITCH, not a constant: the gap between the rows of
+        # one heading is its leading, and the gap to the next heading is
+        # wider. With only two rows to go on the row's type size is the
+        # measure available — one line of leading and no more.
+        _sz = max((l.size or 12.0) for l in a_rows + b_rows)
+        _gap = b_rows[0].top - a_rows[-1].top
+        if not 0 < _gap <= _sz * 1.45:
+            out.append(b)
+            continue
+        joined = prev.text.rstrip()
+        tail = b.text.lstrip()
+        out[-1] = m.Heading(
+            text=f"{joined} {tail}" if joined and tail else joined or tail,
+            prov=m.Prov(prev.prov.page,
+                        tuple(prev.prov.line_ids) + tuple(b.prov.line_ids)))
+    return out
 
 
 def _unweld_conformed(blocks: list, by_id: dict, vocab: set[str] | None) -> list:
@@ -2670,4 +2773,16 @@ def assemble(model, geom: DocGeometry | None, segments_by_page: dict,
                         b.align = "right"
                 op.signature = tail
                 op.blocks = op.blocks[:cut]
+
+    # HEADING RUNS ARE JOINED LAST, once every pass that reads the HEAD of a
+    # block has run. Placed before the signature lift it changed what that
+    # scan sees, and a joined heading matched (or stopped matching) the
+    # conformed-signature shape: 4 records across arwd, azd and kyed gained
+    # a 'panel' row in their headmatter and fladistctapp gained a
+    # 'disposition' criterion, none of which is a heading question at all
+    # (guard, 2026-08-23). Joining rows into the heading the court printed
+    # is a RENDERING fact and belongs after the structure is settled.
+    for op in result.opinions:
+        op.blocks = _merge_heading_runs(op.blocks, _by_id)
+        op.signature = _merge_heading_runs(op.signature, _by_id)
     return result

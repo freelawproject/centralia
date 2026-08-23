@@ -46,7 +46,14 @@ _SECTION = re.compile(
 _CHIP = re.compile(r'<span class="chip[^"]*">[^<]*</span>')
 _LEGEND = re.compile(r'<div class="hm-legend">.*?</div>', re.S)
 _JOIN = re.compile(r"[a-z]{3,}[A-Z][a-z]")
-_HYPH = re.compile(r"[a-z]- [a-z]")
+# A BROKEN HYPHEN-JOIN ('pro- posed') — but NOT a suspended hyphen, which is
+# what the court actually printed: 'a five- to ten-second tase', 'pre- and
+# post-trial', 'two- or three-judge'. Measured over the rendered corpus, 643
+# of 1,218 hits were suspended hyphens across 358 files — more than half the
+# flag, every one of them a page we set right and graded down anyway (the
+# user, 2026-08-23: 'why did this get a B').
+_HYPH = re.compile(
+    r"[a-z]- (?!(?:to|or|and|nor|through|until|versus|vs)\b)[a-z]")
 _CID = re.compile(r"\(cid:\d+\)")
 _COUNSEL = re.compile(
     r"argued the cause|on the briefs?\b|attorneys? for the|counsel for the",
@@ -139,8 +146,18 @@ def score_file(path: Path) -> dict:
     # them in the criteria box. What matters is that they were READ, not
     # which container they ended up in.
     _atty_crit = re.search(r'chip kind">attorneys</span>\s*[^<\s]', html)
+    # THE CUE IS ONLY A CUE WHERE AN APPEARANCE COULD STAND. Searched over the
+    # whole document, 'counsel for the' matches the ORDER'S OWN PROSE — a
+    # discovery order says 'counsel for the government shall', 'counsel for
+    # the moving party certifies', 'counsel for the parties have been unable'
+    # — and flmd/465048.14.0 was marked as hiding an appearances block it
+    # never printed, at 3 points and a C (the user, 2026-08-23: 'shouldnt be
+    # ranked c for no attorneys … its not uncommon'). An appearance stands in
+    # the headmatter or the endmatter; nowhere else counts.
+    _atty_zone = " ".join(b for n, b in sections
+                          if n in ("headmatter", "endmatter", "attorneys"))
     no_atty = int("attorneys" not in names and not _atty_crit
-                  and len(_COUNSEL.findall(text)) >= 2)
+                  and len(_COUNSEL.findall(_text(_atty_zone))) >= 2)
     decap = 0
     for name, body in sections:
         # The headmatter legend is RENDER CHROME, not the document's text —
@@ -172,7 +189,14 @@ def score_file(path: Path) -> dict:
         _src = [w for w in warns if "scan with OCR" in w
                 or "image-only page" in w or "text missing from" in w
                 or "non-born-digital" in w]
-        _parse = [w for w in warns if w not in _src]
+        # A CLASSIFICATION IS NOT A DEFECT. Recognising a party's filing and
+        # saying so is the right answer, not a miss — graded as one it cost
+        # akd/79708.1.0 two points and a flag it can never clear (the user,
+        # 2026-08-23, seeing it as 'B (warn:a party's filing …)').
+        # Matched on the apostrophe-free middle: the warning is read back out
+        # of the rendered HTML, where the apostrophes are &#x27;.
+        _class = [w for w in warns if "filing, not the court" in w]
+        _parse = [w for w in warns if w not in _src and w not in _class]
         score += 2 * len(_parse)
         if _parse:
             flags.append("warn:" + ";".join(sorted(set(_parse)))[:60])

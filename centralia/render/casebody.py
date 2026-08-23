@@ -8,15 +8,25 @@ SEMANTIC (normalized diffs), not byte-for-byte.
 
 from __future__ import annotations
 
+import re as _re
+
 from html import escape
 
 from .. import model as m
 from ..sections import SECTIONS
 
 
+# `<mark>` is OURS, not Harvard's. A highlighter's fill is a fact about the
+# sheet and it belongs in the review rendering, but the casebody schema has no
+# element for it and this renderer's whole purpose is compatibility — so the
+# tag is dropped here and the words it wrapped are kept.
+_MARK_TAG = _re.compile(r"</?mark>")
+
+
 def _markup_ok(s: str) -> str:
-    """Model markup is already escaped + known-tag XML; pass through."""
-    return s or ""
+    """Model markup is already escaped + known-tag XML; pass through, less the
+    tags this schema does not define."""
+    return _MARK_TAG.sub("", s or "")
 
 
 def _blocks_xml(blocks: list, out: list) -> None:
