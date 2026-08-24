@@ -9,6 +9,7 @@ were found — so the next fix cannot silently undo it.
     uv run python harness/cli.py guard ca9 ca10     # check some courts
     uv run python harness/cli.py guard --bless      # re-pin (state verified)
     uv run python harness/cli.py guard --add ca9/foo   # pin a new sentinel
+    uv run python harness/cli.py guard --prune         # unpin rejected files
 
 The signature deliberately excludes prose text: it answers "is this document
 still put together the same way", which is what fixes break. Run it after
@@ -28,6 +29,28 @@ sys.path.insert(0, str(REPO_ROOT))
 from centralia.settings import CORPUS_ROOT  # noqa: E402
 
 PINS = REPO_ROOT / "tests" / "fixtures" / "guard.json"
+MARKS = REPO_ROOT / "output" / "notes" / "marks.json"
+
+
+def _marks() -> dict:
+    """How the reviewer judged each file: 'yay' | 'nay' | absent.
+
+    A SENTINEL IS A FILE WE FIXED. That is this module's own premise, and a
+    file marked 'nay' is one the reviewer has judged WRONG — so a pin on it
+    freezes a reading nobody accepted, and every diff against it is noise
+    that can never be resolved by fixing anything. Worse, a blanket
+    `--bless` would write that bad reading into the fixture as truth.
+    Measured when the rule was added: 23 of 1,447 pins stood on files marked
+    'nay', 15 of them among the 341 diffs of that run — including
+    nycivct/yumi_acupuncture, whose pin was the single largest criteria loss
+    in the corpus and was never a correct reading to begin with (the user,
+    2026-08-24: 'dude yumi isnt marked as corrrect yet?', 'not even teh
+    court hte PDF is marked incomplete and wrong').
+    """
+    try:
+        return json.loads(MARKS.read_text())
+    except Exception:
+        return {}
 
 
 def _hm_roles(items: list) -> dict:
@@ -192,16 +215,43 @@ def main(args: list[str]) -> int:
     if "--add" in args:
         keys = [a for a in args[args.index("--add") + 1:]
                 if not a.startswith("-")]
+        marks = _marks()
         for k in keys:
+            if marks.get(k) == "nay":
+                print(f"REFUSED {k}: marked 'nay' — a sentinel is a file we fixed")
+                continue
             _, sig = _sig_one(k)
             pins[k] = sig
             print(f"pinned {k}: {sig.get('ops')}")
         _save(pins)
         return 0
 
+    marks = _marks()
     courts = [a for a in args if not a.startswith("-")]
+
+    if "--prune" in args:
+        gone = [k for k in sorted(pins) if marks.get(k) == "nay"
+                and (not courts or k.split("/")[0] in courts)]
+        for k in gone:
+            del pins[k]
+            print(f"unpinned {k} (marked 'nay')")
+        _save(pins)
+        print(f"\npruned {len(gone)} sentinel(s); {len(pins)} remain")
+        return 0
+
+    # A BARE ARGUMENT IS A COURT OR A WHOLE KEY. Reviewing the guard file by
+    # file means blessing it file by file too — 'guard --bless
+    # ilnd/gov.uscourts.ilnd.470880.39.0' re-pins exactly the one you looked
+    # at, and nothing else moves.
+    wanted = {a for a in courts if "/" in a}
+    courts = [a for a in courts if "/" not in a]
     keys = [k for k in sorted(pins)
-            if not courts or k.split("/")[0] in courts]
+            if (not courts or k.split("/")[0] in courts)
+            and (not wanted or k in wanted)]
+    # A REJECTED FILE IS NOT A SENTINEL. Held out of the verdict rather than
+    # silently dropped, so the count says how many are waiting on a fix.
+    held = [k for k in keys if marks.get(k) == "nay"]
+    keys = [k for k in keys if marks.get(k) != "nay"]
     if not keys:
         print("no sentinels pinned — use --add <court/stem>")
         return 0
@@ -214,17 +264,40 @@ def main(args: list[str]) -> int:
             pins[k] = results[k]
         _save(pins)
         print(f"blessed {len(keys)} sentinels")
+        if held:
+            print(f"held back {len(held)} marked 'nay' (unchanged; "
+                  f"use --prune to unpin)")
         return 0
 
     bad = 0
+    review: dict = {}
     for k in keys:
         diffs = _compare(pins[k], results[k])
         if diffs:
             bad += 1
+            review[k] = diffs
             print(f"REGRESSION {k}")
             for d in diffs:
                 print(f"    {d}")
+
+    # WHAT STILL NEEDS A HUMAN, where the human already is. A regression is
+    # judged by LOOKING at the rendering, and the viewer is where the
+    # renderings are — so the diffs are published for it to filter on rather
+    # than printed once into a terminal and lost (the user, 2026-08-24: 'can
+    # we make it easy to just review all of them … only show what needs to
+    # be reviewed?'). Written on every run so it can never be stale relative
+    # to the verdict above; written for the WHOLE corpus only, since a
+    # per-court run knows nothing about the courts it did not check.
+    if "--review" in args or not (courts or wanted):
+        out = REPO_ROOT / "output" / "notes" / "guard-review.json"
+        try:
+            out.write_text(json.dumps(review, indent=1, sort_keys=True))
+            print(f"\n{len(review)} to review -> {out.relative_to(REPO_ROOT)}")
+        except OSError as exc:
+            print(f"could not write {out}: {exc}")
     print(f"\nguard: {len(keys) - bad}/{len(keys)} sentinels OK")
+    if held:
+        print(f"held back {len(held)} sentinel(s) on files marked 'nay'")
     return 1 if bad else 0
 
 

@@ -3,6 +3,24 @@ output/*
 # except the things no re-render can recreate: the user's marks and status
 !output/notes/
 output/notes/*.tmp
+# …and by that same test, these are all recreatable, and they churn on every
+# click or run: a .bak is yesterday's copy of the file beside it, and the
+# rest are written by a harness command that can simply be run again
+# (`quality`, `coverage`, `guard --review`). The marks, the file notes and
+# the court status stay tracked — those are judgments, and nothing rebuilds
+# them. So do the .log journals: they are the history the stale-mark test
+# reads to say whether a rendering changed since it was marked.
+output/notes/*.bak
+# THE REVIEWER'S NOTES ARE THEIR OWN. filenotes.json and its journal carry
+# what the reviewer wrote to themselves about a file, in their own words —
+# not a product of this repo and not for it to publish (the user,
+# 2026-08-24: 'i dont want my notes included'). The marks stay: a yay/nay is
+# a verdict the guard reads, and it carries no prose.
+output/notes/filenotes.json
+output/notes/filenotes.log
+output/notes/quality.json
+output/notes/coverage.json
+output/notes/guard-review.json
 __pycache__/
 *.pyc
 .venv/

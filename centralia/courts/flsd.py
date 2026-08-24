@@ -32,7 +32,23 @@ FLSD = register(CourtProfile(
                          rev_titles=("United States District Judge",
                                      "United States Magistrate Judge",
                                      "Senior United States District Judge",
-                                     "Chief United States District Judge")),
+                                     "Chief United States District Judge",
+                                     # A THREE-JUDGE COURT INCLUDES A CIRCUIT
+                                     # JUDGE, and when he writes he signs as
+                                     # one: 'GRANT, Circuit Judge:' opens
+                                     # flsd/668130.226.0, convened under 28
+                                     # U.S.C. § 2284. Unknown as a title the
+                                     # byline was body prose and the writing
+                                     # had no author.
+                                     "Circuit Judge",
+                                     "District Judge",
+                                     "Magistrate Judge"),
+                         # …and the PROSE form the circuit judge signs with
+                         # when this court sits as a three-judge court.
+                         also_prose=True,
+                         titles=("Circuit Judge", "District Judge",
+                                 "Chief Judge", "Magistrate Judge",
+                                 "Judge")),
 ))
 
 PAPER = EcfPaper()

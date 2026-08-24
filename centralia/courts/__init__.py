@@ -903,6 +903,9 @@ from . import flsd                          # noqa: E402,F401
 from . import gamd                          # noqa: E402,F401
 from . import gand                          # noqa: E402,F401
 from . import gasd                          # noqa: E402,F401
+# THE TERRITORIAL DISTRICTS — Article IV district courts filing on
+# CM/ECF exactly as the fifty states' districts do.
+from . import gud                            # noqa: E402,F401
 from . import hid                            # noqa: E402,F401
 from . import iand                          # noqa: E402,F401
 from . import iasd                          # noqa: E402,F401
@@ -950,6 +953,7 @@ from . import ord                            # noqa: E402,F401
 from . import paed                          # noqa: E402,F401
 from . import pamd                          # noqa: E402,F401
 from . import pawd                          # noqa: E402,F401
+from . import prd                            # noqa: E402,F401
 from . import rid                            # noqa: E402,F401
 from . import scd                            # noqa: E402,F401
 from . import sdd                            # noqa: E402,F401
@@ -964,6 +968,7 @@ from . import utd                            # noqa: E402,F401
 from . import vaed                          # noqa: E402,F401
 from . import vawd                          # noqa: E402,F401
 from . import vtd                            # noqa: E402,F401
+from . import vid                            # noqa: E402,F401
 from . import waed                          # noqa: E402,F401
 from . import wawd                          # noqa: E402,F401
 from . import wied                          # noqa: E402,F401

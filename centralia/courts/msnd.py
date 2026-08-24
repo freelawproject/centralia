@@ -16,6 +16,7 @@ file, and no other court file imports it.
 from __future__ import annotations
 
 from ..districts import EcfPaper, read_ecf
+from ..districts.ecf import TITLE_OPENERS, TITLE_WORDS
 from ..profile import CourtProfile
 from ..resolve.bylines import BylineGrammar
 from ..resolve.evidence import decider
@@ -35,7 +36,15 @@ MSND = register(CourtProfile(
                                      "Chief United States District Judge")),
 ))
 
-PAPER = EcfPaper()
+# THE WORD THIS COURT QUALIFIES ITS JUDGMENT WITH. The shared vocabulary
+# knows 'JUDGMENT' and not 'FINAL JUDGMENT', so on msnd/52361.17.0 — a
+# one-page judgment whose whole text is three sentences — no row could close
+# the caption band: it ran to the band's ceiling and swallowed the title, the
+# body AND the signature into the caption (the user, 2026-08-23: 'this one
+# parses headmatter badly'). 'final' names no case and no party; like
+# 'amended' and 'corrected' it only ever qualifies the court's own paper.
+PAPER = EcfPaper(title_words=TITLE_WORDS + ("final",),
+                 title_openers=TITLE_OPENERS + ("final",))
 
 
 @decider("headmatter.read", court="msnd")

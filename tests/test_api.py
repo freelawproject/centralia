@@ -31,14 +31,14 @@ CLUSTER_KEYS = {
     "date_reargued", "date_reargued_iso", "submitted_split",
     "precedential_status", "judges", "panel", "author", "attorneys",
     "syllabus", "summary", "headnotes",
-    "parties", "caption", "disposition", "history", "lower_court",
+    "parties", "cases", "caption", "disposition", "history", "lower_court",
     "lower_court_docket", "lower_court_judge", "title", "panel_line",
     "motion", "headmatter_style", "n_pages", "doc_type",
 }
 
 DIAG_KEYS = {
     "status", "rollout", "source_kind", "n_pages", "scan_pages", "text_missing_pages",
-    "cid_pages", "residual", "residual_content", "removed_counts",
+    "cid_pages", "residual", "residual_content", "removed_counts", "redactions",
     "opinion_count", "unbylined_opinions", "footnote_count",
     "headmatter_rows", "headmatter_untinted", "dates_unparsed", "warnings",
 }

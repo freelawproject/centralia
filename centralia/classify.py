@@ -74,6 +74,46 @@ def _is_ocr_font(name: str) -> bool:
     return bare in _OCR_FONTS or "ocr" in bare.lower()
 
 
+def _body_fonts(page) -> set:
+    """The faces the PAGE'S OWN TYPE is set in — the e-filing overlay left out.
+
+    `ocr_text_layer` asks whose type the glyphs are, and answers it from the
+    page's whole font set. But CM/ECF stamps its header onto the sheet AT
+    FILING, in its own embedded face, over whatever was filed: every page of
+    ctd/170255.73.0 is a 300dpi JPEG with a Helvetica OCR layer under a
+    'QOSDJF+LiberationSans' stamp row, and that one subsetted face — the
+    clerk's, not the document's — declared all 36 pages born-digital. So a
+    scanned pro-se filing was read as ordinary paper: its OCR's own damage
+    ('rathcr' for 'rather', a case-lookup screenshot OCR'd to
+    'c FgT.C\r21.80S$t€ CA3CADE FUIIOIIIG') was graded as OUR parse defect
+    (joins x66, hyph x5, grade D) and the geometry was trusted (the user,
+    2026-08-23).
+
+    The stamp is excluded by what it SAYS, not by where it sits, and its whole
+    visual row goes with it: pdfio splits the overlay at its column gaps, and
+    a piece like 'Document 73' names too few fields to be recognised alone.
+    """
+    from .resolve.furniture import _looks_like_efiling_stamp
+    lines = list(page.lines)
+    stamped = {l.row for l in lines if l.row is not None
+               and _looks_like_efiling_stamp(" ".join((l.plain or "").split()))}
+    out: set = set()
+    for line in lines:
+        t = " ".join((line.plain or "").split())
+        if not t:
+            continue
+        if _looks_like_efiling_stamp(t) or (line.row is not None
+                                            and line.row in stamped):
+            continue
+        for c in line.chars or ():
+            f = c.get("fontname")
+            if f:
+                out.add(f)
+    # A PAGE THAT IS NOTHING BUT ITS STAMP still has to answer the question,
+    # and the only faces it has are the ones it was asked about.
+    return out or {f for f in page.fonts if f}
+
+
 def ocr_text_layer(model: PdfModel) -> bool:
     """True when the paper is a SCAN and its text is an OCR layer over it.
 
@@ -114,7 +154,7 @@ def ocr_text_layer(model: PdfModel) -> bool:
     for page in model.pages:
         if page.image_area <= SCAN_IMAGE_AREA:
             continue
-        fonts = {f for f in page.fonts if f}
+        fonts = _body_fonts(page)
         if not fonts:
             continue        # an image with no text at all: `triage` owns it
         if any(_is_ocr_font(f) for f in fonts) or all(

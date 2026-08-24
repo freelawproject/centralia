@@ -433,6 +433,27 @@ class FurnitureFinder:
         # row is a plain folio so the folio keeps its own name.
         if not is_folio_text(text) and self._scan_margin(pm, line):
             return "stamp"
+        # THE STAMP'S WRAPPED TAIL. CM/ECF sets its header to the sheet's
+        # width and the 'Page ID #:NNN' field falls off the end, landing on
+        # its own row directly under the stamp — and that row carries no
+        # field label at all, so `_looks_like_efiling_stamp` cannot see it.
+        # On a multi-page record the tail repeats and the running-head rule
+        # catches it; on a ONE-PAGE record there is no repetition to catch,
+        # and the tail became the first block of the opinion. It then set the
+        # writing's span to the top of the sheet, and the 'a writing is never
+        # bisected' invariant reunited the whole headmatter into the body:
+        # cacd/1002267.10.0 (one page, '#:32') lost all six of its form rows
+        # while cacd/1021353.23.0 (seven pages, '#:235') kept them (the user,
+        # 2026-08-22). The shape is the evidence — '#', a colon and digits,
+        # nothing else — and it is only believed inside the overlay band.
+        # THE COLON IS PART OF THE SHAPE. Tested on '#' plus digits alone this
+        # rule ate a court's own docket: sd numbers its opinions '#28123' and
+        # prints that at the head of the sheet, so advisory_opinion lost its
+        # docket, its date and every role in a 19-row headmatter (guard,
+        # 2026-08-22). CM/ECF always writes the field as 'Page ID #:NNN'.
+        if frac <= 0.15 and text.replace(" ", "").startswith("#:") \
+                and text.split(":", 1)[1].strip().isdigit():
+            return "stamp"
         row_text = self._row_text(pm, line)
         if row_text != text and (frac <= 0.15 or frac >= 0.85):
             if _looks_like_efiling_stamp(row_text):

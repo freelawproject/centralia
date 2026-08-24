@@ -8,6 +8,8 @@ run right after.
 
 from __future__ import annotations
 
+import re
+
 # A FontDescriptor /Descent past this many em is not a typeface's descent —
 # it is its /FontBBox depth mis-copied. MEASURED across the corpus: honest
 # faces run 0.246-0.299 em (Aptos, Cambria-Bold, Cambria-Italic), the broken
@@ -127,7 +129,67 @@ def drop_white_glyphs(chars: list, event) -> None:
         event("white-glyphs", f"dropped {len(white)} white-painted spacers")
 
 
-def decode_cid_glyphs(chars: list, event) -> None:
+# The words a court's page carries in every language this corpus is in. Used
+# as PROOF: an English page decodes with 'the', 'and', 'of' in it; a page
+# decoded on the wrong offset carries none of them, and vowel counting cannot
+# tell the two apart ('(cid:16)' spells 'cid' often enough to pass).
+_PROOF_WORDS = (" the ", " and ", " of ", " to ", " that ", " is ", " we ",
+                " court ", " for ", " this ", " not ", " in ")
+
+
+def mac_ordered_fonts(chars_by_page) -> set:
+    """Which of a DOCUMENT'S fonts are addressed by glyph id, decided once
+    over every page.
+
+    THE ORDERING IS A PROPERTY OF THE FONT, NOT OF THE PAGE, and proof does
+    not arrive evenly: texapp's docketing statement proves itself on page 1
+    ('Amended/Corrected Statement Appellate Court…') and then its own later
+    pages carry too few words to prove anything, so 2,290 glyphs kept their
+    literals in a document whose ordering was settled on the first sheet.
+    pasuperct/holbrook is the same story in miniature -- the only broken page
+    it has says 'J-S15004-26 / - 23 - / Date: 7/29/2026', which no vocabulary
+    test can ever pass. Asked once per document, both are answered.
+    """
+    per: dict = {}
+    unmapped: set = set()
+    for chars in chars_by_page:
+        for c in chars:
+            font = str(c.get("fontname"))
+            per.setdefault(font, []).append(c)
+            if _CID_RE.match(c.get("text") or ""):
+                unmapped.add(font)
+    # …AND WHAT THE PAPER ALREADY SAYS ELSEWHERE IS PROOF TOO. Some fonts
+    # never carry prose at all: pasuperct/holbrook's one broken page reads
+    # 'J-S15004-26 / - 23 - / Date: 7/29/2026', and no vocabulary test will
+    # ever pass it. But 'J-S15004-26' is the running head on the other 22
+    # pages, set in a font that mapped correctly — so a decode that
+    # reproduces a distinctive string the document ALREADY carries has
+    # confirmed itself against the document's own text. A wrong offset
+    # cannot spell the court's docket number by accident.
+    sound = "".join((c.get("text") or "") for font, cs in per.items()
+                    if font not in unmapped for c in cs)
+    known = {t for t in re.split(r"\s+", sound) if len(t) >= 6}
+    proven = set()
+    for font in unmapped:
+        out = []
+        for c in per[font]:
+            t = c.get("text") or ""
+            m = _CID_RE.match(t)
+            code = int(m.group(1)) if m else _font_code(t)
+            out.append(_mac_glyph(code) if code is not None else t)
+        flat = "".join(out)
+        if not _reads_like_text(flat):
+            continue
+        dec = " ".join(flat.split()).lower()
+        if sum(1 for w in _PROOF_WORDS if w in f" {dec} ") >= 3:
+            proven.add(font)
+            continue
+        if any(t in known for t in flat.split() if len(t) >= 6):
+            proven.add(font)
+    return proven
+
+
+def decode_cid_glyphs(chars: list, event, proven=frozenset()) -> None:
     """Recover text from subset fonts with no ToUnicode map. pdfminer emits
     the literal '(cid:N)' for such glyphs; for the common TrueType subset
     ordering the unicode is cid+29 ('(cid:45)(cid:82)(cid:75)' -> 'Joh').
@@ -150,8 +212,17 @@ def decode_cid_glyphs(chars: list, event) -> None:
         by_font.setdefault(str(c.get("fontname")), []).append((i, n))
     decoded = 0
     for font, hits in by_font.items():
-        mapped = [chr(n + 29) for _, n in hits if 32 <= n + 29 <= 126]
-        if len(mapped) < max(4, int(0.95 * len(hits))):
+        # A font the DOCUMENT has already proved needs no page's permission.
+        if font in proven:
+            continue
+        mapped = [_mac_glyph(n) for _, n in hits if _mac_glyph(n)]
+        # A HANDFUL OF UNKNOWN CODES IS NOT A WRONG OFFSET. cit sets its
+        # citation run in a 27-glyph subset that decodes to ', 10 CIT 399,
+        # 40405' with six glyphs at code 239 -- past everything this table
+        # knows -- and at 21 of 27 in range it failed a 95% coverage bar and
+        # kept its literals. The offset is proven by what DOES decode; the
+        # rest decode to nothing, exactly as they render now.
+        if len(mapped) < max(4, int(0.75 * len(hits))):
             continue                     # offset can't cover this font
         letters = [ch for ch in mapped if ch.isalpha()]
         others = [ch for ch in mapped
@@ -161,20 +232,94 @@ def decode_cid_glyphs(chars: list, event) -> None:
                 or vowels < 0.15 * len(letters)):
             continue                     # decodes to junk — keep literals
         for i, n in hits:
-            if 32 <= n + 29 <= 126:
-                chars[i]["text"] = chr(n + 29)
+            ch = _mac_glyph(n)
+            if ch:
+                chars[i]["text"] = ch
                 decoded += 1
     if decoded:
         # Small subsets (a 4-glyph 'hnhn' font inside 'Jo?nson') can't
         # prove themselves — too few letters for the vowel test; once a
         # sibling font proved the +29 ordering on this page, decode their
         # in-range letters too.
+        # THE ORDERING BELONGS TO THE PRODUCER, NOT TO ONE SUBSET, so the
+        # size bar is gone: cit/american_brass_rod sets 'New York, New York'
+        # in one 18-glyph subset (which proves itself) and 'ly ' and two
+        # spaces in two more (which cannot -- no vowels, no letters), and
+        # those kept their '(cid:N)' literals on a page whose ordering was
+        # already established. A font that DISAGREES with the ordering still
+        # refuses it above; this only vouches for the ones with nothing to
+        # say either way.
         for font, hits in by_font.items():
-            if len(hits) >= 8:
-                continue
             for i, n in hits:
-                ch = chr(n + 29) if 32 <= n + 29 <= 126 else ""
-                if ch and (ch.isalnum() or ch in " .,;:'\"-()"):
+                ch = _mac_glyph(n)
+                if ch and (ch.isalnum()
+                           or ch in " .,;:'\"-()\u00a7\u2018\u2019\u201c\u201d"):
+                    if chars[i].get("text") != ch:
+                        chars[i]["text"] = ch
+                        decoded += 1
+    # …AND SOME FONTS HAND BACK THE WRONG LETTERS INSTEAD OF '(cid:N)'.
+    # Where pdfminer holds a PARTIAL encoding for a subset it prints what
+    # StandardEncoding gives for the glyph's code, so the page comes back in
+    # readable characters that are the wrong ones: pasuperct's closing sheet
+    # reads 'LUPDI(cid:3)ZH(cid:3)DQG' for 'affirm we and', and only its
+    # spaces, digits and punctuation arrive as '(cid:N)'. The loop above
+    # cannot see that -- it inspects the unmapped glyphs alone, and here they
+    # carry no letters at all, so its own plausibility test refuses the font
+    # ('letters=0') and 21 of pasuperct's 42 records graded F on a page that
+    # was fully recoverable (the user, 2026-08-23).
+    #
+    # The signature is mechanical, not linguistic: a font whose every glyph
+    # reports width 0.0 is one pdfminer could not measure OR map, and its
+    # codes are the subset's glyph ids. The decode still has to prove itself,
+    # and vowel counting cannot do it -- '(cid:16)' spells 'cid' often enough
+    # to pass -- so the proof is the DOCUMENT'S OWN VOCABULARY: an English
+    # page carries 'the', 'and', 'of'; a shifted one carries none of them.
+    per_font: dict = {}
+    for i, c in enumerate(chars):
+        per_font.setdefault(str(c.get("fontname")), []).append(i)
+    for font, idxs in per_font.items():
+        if font not in by_font:
+            continue                     # nothing unmapped: nothing to prove
+        if any(chars[i].get("width") for i in idxs):
+            continue                     # the font has advances: it is sound
+        out = []
+        for i in idxs:
+            t = chars[i].get("text") or ""
+            m = _CID.match(t)
+            code = int(m.group(1)) if m else _font_code(t)
+            out.append(_mac_glyph(code) if code is not None else t)
+        if font not in proven:
+            dec = " ".join("".join(out).split()).lower()
+            if sum(1 for w in _PROOF_WORDS if w in f" {dec} ") < 3:
+                continue                 # nothing readable to go on
+            if not _reads_like_text("".join(out)):
+                continue
+        for i, ch in zip(idxs, out):
+            if chars[i].get("text") != ch:
+                chars[i]["text"] = ch
+                decoded += 1
+    if proven:
+        # The document's own verdict, applied. A font with advances is decoded
+        # only where pdfminer said '(cid:N)' -- its other characters are the
+        # ones it mapped correctly; a font with NO advances has all of them
+        # wrong, and all of them are decoded.
+        _zero: dict = {}
+        for i, c in enumerate(chars):
+            _zero.setdefault(str(c.get("fontname")), []).append(i)
+        for font, idxs in _zero.items():
+            if font not in proven:
+                continue
+            flat = not any(chars[i].get("width") for i in idxs)
+            for i in idxs:
+                t = chars[i].get("text") or ""
+                m = _CID_RE.match(t)
+                if not (m or flat):
+                    continue
+                code = int(m.group(1)) if m else _font_code(t)
+                if code is None:
+                    continue
+                ch = _mac_glyph(code)
+                if ch and chars[i]["text"] != ch:
                     chars[i]["text"] = ch
                     decoded += 1
     for i in reversed(notdef):
@@ -183,6 +328,111 @@ def decode_cid_glyphs(chars: list, event) -> None:
         event("cid-glyphs",
               f"decoded {decoded} cid glyphs (+29), "
               f"dropped {len(notdef)} .notdef")
+
+
+
+_CID_RE = __import__("re").compile(r"^\(cid:(\d+)\)$")
+
+# THE STANDARD MACINTOSH GLYPH ORDER, past the ASCII run. A subset font
+# addressed by glyph id spells its text as `id + 29` from glyph 3 (space) to
+# glyph 97 ('~'); above that the order is a list of NAMED glyphs, and these
+# four are the ones the corpus actually uses. Derived, not remembered: each
+# was learned by decoding pasuperct's broken pages and aligning the result
+# against poppler's text for the same page, and each vote was unanimous
+# (31/31 for the apostrophe, 7/7, 6/6, 3/3). My own recollection of the order
+# was off by one past glyph 178, which is exactly why the table is measured.
+_MAC_TAIL = {134: "\u00a7", 179: "\u201c", 180: "\u201d", 182: "\u2019"}
+# …AND THE CODE A DISPLAYED CHARACTER CAME FROM. pdfminer does not always
+# print '(cid:N)': where it has a partial encoding it prints the glyph
+# StandardEncoding gives for that code, so the code has to be read back OUT
+# of the character it printed. For ASCII the two coincide; these are the rest.
+_STD_INV = {"\u2019": 39, "\u2018": 96, "\u201c": 170, "\u201d": 186,
+            "\u2013": 177, "\u2014": 208, "\ufb01": 174, "\ufb02": 175,
+            "\u00a7": 167, "\u00b6": 182, "\u2020": 178, "\u2021": 179,
+            "\u2022": 183, "\u2026": 188, "\u00b7": 180, "\u201e": 185,
+            "\u201a": 184, "\u0192": 166, "\u00a5": 165, "\u00a3": 163,
+            "\u00a2": 162, "\u2044": 164, "\u00a1": 161, "\u00ab": 171,
+            "\u00bb": 187, "\u2039": 172, "\u203a": 173}
+
+
+def _mac_glyph(code: int) -> str:
+    """The character a glyph id spells in the standard Macintosh ordering."""
+    if code < 3:
+        return ""
+    if code <= 97:
+        return chr(code + 29)
+    return _MAC_TAIL.get(code, "")
+
+
+def _font_code(text: str) -> int | None:
+    """The code the FONT used for this extracted character."""
+    if len(text) != 1:
+        return None
+    return ord(text) if ord(text) < 128 else _STD_INV.get(text)
+
+
+# What a court's page is made of, once decoded. Deliberately generous: the
+# test below is a JUNK RATE, not a whitelist, because a whitelist fails on the
+# one character nobody thought of. pasuperct rules its footnote separator with
+# forty-four underscores — glyph 66, decoding to '_' — and an 'others must be
+# empty' test threw away a page that had already decoded perfectly
+# ('Consequently, we conclude that the trial court's order …') over that one
+# rule (the user, 2026-08-23: 'why doesnt this ... remove the CIDs here?').
+_PAGE_CHARS = (" .,;:!?()[]{}'\"-\u2013\u2014&$%/\u00a7*\u2020\u2021_@#+=<>|~^`\\"
+               "\u2018\u2019\u201c\u201d\u00b6\u00a9\u00ae\u00b0\u00bd\u00be")
+
+
+def _reads_like_text(s: str) -> bool:
+    """The same test this module has always applied to a candidate decode:
+    letters dominate, vowels are present, and next to nothing outside a legal
+    page's own character set survives. A wrong-but-plausible word is worse
+    than visible '(cid:)' garbage, so an implausible font keeps its literals."""
+    letters = [ch for ch in s if ch.isalpha()]
+    junk = sum(1 for ch in s if not (ch.isalnum() or ch in _PAGE_CHARS))
+    vowels = sum(1 for ch in letters if ch.lower() in "aeiou")
+    return (bool(letters) and vowels >= 0.15 * len(letters)
+            and junk <= 0.02 * max(1, len(s)))
+
+
+def restore_zero_advance_order(chars: list, event) -> None:
+    """A FONT WITH NO WIDTHS HAS NO POSITIONS EITHER, so its text must be read
+    in the order the page DRAWS it.
+
+    pasuperct's closing sheet is set in a subset whose descriptor carries no
+    widths at all ('Could not get FontBBox … None cannot be parsed as 4
+    floats'), so every glyph on it reports width 0.0 and x0 == x1: 348 chars
+    all standing at x 72. Read in position order — which is what every line
+    walk in this package does — the words come out shuffled ('IRMAF WE AND'
+    for 'affirm we and'), and the page renders as nonsense even once its
+    glyphs are decoded. The DRAW order is intact, so each row's chars are
+    given synthetic advances in stream order: the row keeps its own left
+    edge, and half the type size per glyph is close enough for a walk that
+    only asks which piece comes first. Geometry on such a page is the
+    reader's best reconstruction, never the page's own measure."""
+    rows: dict = {}
+    for c in chars:
+        if c.get("width") or not c.get("upright", True):
+            continue
+        if (c.get("x1") or 0) - (c.get("x0") or 0) > 0.01:
+            continue
+        rows.setdefault(round(c.get("top") or 0.0, 1), []).append(c)
+    moved = 0
+    for _top, run in rows.items():
+        if len(run) < 4:
+            continue
+        left = min(c["x0"] for c in run)
+        x = left
+        for c in run:
+            step = (c.get("size") or 12.0) * (0.28 if (c.get("text") or "") == " "
+                                              else 0.5)
+            c["x0"] = x
+            c["x1"] = x + step
+            c["width"] = step
+            x += step
+            moved += 1
+    if moved:
+        event("zero-advance-order",
+              f"{moved} glyphs in {len(rows)} rows re-laid in draw order")
 
 
 def drop_micro_glyphs(chars: list, event) -> None:
@@ -460,6 +710,14 @@ def reunite_offset_glyphs(lines: list, event) -> list:
     return [l for l in lines if id(l) not in absorbed]
 
 
+# STACKED ROWS, not one row with an offset run: the share of the merged ink
+# covered twice, AND how evenly the ink divides between the two lines. Both
+# thresholds must be met to refuse a merge — see the measurement in
+# `merge_interleaved`.
+_STACKED_ROW_COLLISION = 0.25
+_STACKED_ROW_BALANCE = 0.85
+
+
 def merge_interleaved(lines: list, event) -> list:
     """An italic span set on a slightly offset baseline becomes its own line
     ('Bell Atl. Corp. v. Twombly' floating 4.8pt above its roman host) and
@@ -499,6 +757,48 @@ def merge_interleaved(lines: list, event) -> list:
         if merged_chars and size_compatible and v_overlap > 0.45 * min_h:
             union = max(c["x1"] for c in merged_chars) - min(c["x0"] for c in merged_chars)
             glyphs = sum(c["x1"] - c["x0"] for c in merged_chars)
+            # TWO STACKED ROWS COLLIDE; AN OFFSET RUN FILLS A GAP. The width
+            # test below compares total ink against the union SPAN, which a
+            # two-column line satisfies for free — its two short columns
+            # leave most of the measure empty however they are stacked. So a
+            # letterhead's own rows were fused into one: almd/70991.238.0
+            # sets 'David J. Smith' over 'Clerk of Court' at x72 and 'For
+            # rules and forms visit' over 'www.ca11.uscourts.gov' at x306,
+            # 8.6pt apart, and the merge rendered
+            # 'DClaevrikd  oJf.  CSmouitrht' (the user, 2026-08-22: 'this is
+            # a letter').
+            #
+            # TWO SIGNALS, AND BOTH ARE REQUIRED. Neither separates the
+            # families alone — measured across five courts, a genuine merge
+            # reaches a collision of 0.201 (minnag's scanned AG opinion,
+            # whose OCR baselines really do overlap) and an ink balance of
+            # 0.78 ('1.' over 'OF' on nevapp's raster), so either test alone
+            # refuses a merge that belongs. What no genuine merge does is
+            # score high on both: the highest is 0.78 balance at 0.000
+            # collision, or 0.32 balance at 0.201. The letterhead is 0.96
+            # and 0.445.
+            #
+            #   collision — the share of the merged ink covered twice once
+            #     the glyphs are laid in x order. An offset run fills a gap
+            #     its host left and tiles; two stacked rows cover the same
+            #     span twice and nearly every neighbour collides.
+            #   balance   — the smaller row's ink over the larger's. A
+            #     merge that belongs is a host plus a FRAGMENT ('proc', ':',
+            #     'Ave.', 'Appellants,'); two rows of a letterhead are both
+            #     whole.
+            _seq = sorted(merged_chars, key=lambda c: c["x0"])
+            _collide = 0.0
+            for _a, _b in zip(_seq, _seq[1:]):
+                _ov = min(_a["x1"], _b["x1"]) - max(_a["x0"], _b["x0"])
+                if _ov > 0:
+                    _collide += _ov
+            _ink_a = sum(c["x1"] - c["x0"] for c in _printable(prev))
+            _ink_b = sum(c["x1"] - c["x0"] for c in _printable(ln))
+            _balance = min(_ink_a, _ink_b) / max(_ink_a, _ink_b, 0.1)
+            if (_collide >= _STACKED_ROW_COLLISION * max(glyphs, 0.1)
+                    and _balance >= _STACKED_ROW_BALANCE):
+                out.append(ln)
+                continue
             if glyphs <= union * 1.05:  # interleaved, not colliding
                 m = dict(prev)
                 m["chars"] = merged_chars
@@ -551,6 +851,94 @@ def tag_underlined_chars(rects: list, lines: list,
                     break
 
 
+# A HIGHLIGHTER IS DRAWN, NOT WRITTEN. Where a chambers (or whoever filed the
+# paper) highlights a passage, the PDF fills a coloured rectangle BEHIND the
+# glyphs and the text layer says nothing about it — so the emphasis, which is
+# the whole point of the marking, is invisible to a reader of the extraction.
+# alnd/201258.14.0 highlights 40 spans on its first page in pure yellow
+# (non-stroking colour 1,1,0) and they came out as ordinary prose (the user,
+# 2026-08-22).
+#
+# Not an annotation: a PDF /Highlight annot is a different animal and this
+# corpus does not use it — these are painted rects, which is why they survive
+# flattening.
+#
+# A HIGHLIGHT IS A BLOCK OF COLOUR, and that is what separates it from every
+# other rect the page draws: an underline and a table border are hairlines
+# (see `tag_underlined_chars`, height < 2), a redaction is BLACK and stands
+# where the glyphs are missing, and the paper itself is white. So the test is
+# a fill that is neither near-white nor near-black, tall enough to sit behind
+# a row of type, with type inside it.
+_HL_MIN_HEIGHT = 5.0
+# How far from white or black a fill must be to be a highlighter's colour.
+# Measured: the yellow is (1, 1, 0) — 1.0 off white on its blue channel and
+# 2.0 off black across the three. Grey page furniture sits within 0.12 of the
+# diagonal and is excluded by the saturation floor rather than by brightness.
+_HL_SATURATION = 0.25
+
+
+def _fill_rgb(rect) -> tuple | None:
+    """A rect's fill as (r, g, b) in 0..1, or None when it has none. PDF fills
+    arrive as a scalar (grey), a 3-tuple (RGB) or a 4-tuple (CMYK)."""
+    col = rect.get("non_stroking_color")
+    if col is None:
+        return None
+    if isinstance(col, (int, float)):
+        return (float(col),) * 3
+    vals = [float(v) for v in col]
+    if len(vals) == 1:
+        return (vals[0],) * 3
+    if len(vals) == 3:
+        return tuple(vals)
+    if len(vals) == 4:
+        c, m_, y, k = vals
+        return (max(0.0, 1 - min(1, c + k)), max(0.0, 1 - min(1, m_ + k)),
+                max(0.0, 1 - min(1, y + k)))
+    return None
+
+
+def highlight_rects(rects: list) -> list:
+    """The rects that are highlighter marks — a saturated fill, tall enough to
+    stand behind a row of type."""
+    out = []
+    for r in rects:
+        if (r.get("height") or (r["bottom"] - r["top"])) < _HL_MIN_HEIGHT:
+            continue
+        rgb = _fill_rgb(r)
+        if rgb is None:
+            continue
+        if max(rgb) - min(rgb) < _HL_SATURATION:
+            continue          # white, black or grey: the paper or a redaction
+        out.append(r)
+    return out
+
+
+def tag_highlighted_chars(rects: list, lines: list) -> int:
+    """Mark chars standing on a highlighter's fill (``_highlight=True`` on the
+    char dicts). Returns the number of rows touched."""
+    marks = highlight_rects(rects)
+    if not marks:
+        return 0
+    n = 0
+    for line in lines:
+        chars = line.get("chars") or []
+        if not chars:
+            continue
+        hit = False
+        for c in chars:
+            cmid = (c["x0"] + c["x1"]) / 2
+            cvmid = (c["top"] + c["bottom"]) / 2
+            for r in marks:
+                if (r["x0"] - 1 <= cmid <= r["x1"] + 1
+                        and r["top"] - 1 <= cvmid <= r["bottom"] + 1):
+                    c["_highlight"] = True
+                    hit = True
+                    break
+        if hit:
+            n += 1
+    return n
+
+
 # --------------------------------------------------------------------------
 # redaction boxes
 # --------------------------------------------------------------------------
@@ -588,6 +976,83 @@ _REDACT_MAX_H = 26.0
 # a black square alone in the middle of a figure is not a lost name.
 _REDACT_INLINE_GAP = 24.0
 REDACTION_GLYPH = "█"          # FULL BLOCK — N of them are one solid bar
+
+
+# …AND SOMETIMES THE BAR IS A CHARACTER. The pass below reads redactions the
+# page DRAWS as filled rects; akd/62768.505.0 does it the other way — the bar
+# is a glyph in the text layer, a hyphen from a bold font rendered 30pt wide
+# over 12pt type. Nothing about the char stream says 'redaction': the text
+# came out as 'relationship with- throughout her', so the reader lost the
+# subject of the sentence AND the record was graded down for 18 broken
+# hyphen-joins that were never hyphens (the user, 2026-08-23: 'shouldnt this
+# one identfiy redactions? … and teh boxes?').
+#
+# MEASURED, on that document: its real hyphens are 3.8-5.7pt wide, and its
+# bars 28.4-29.9pt — a full em-dash is 1.0em, so a thin punctuation mark set
+# wider than 1.5em is not that mark. The height test keeps it to a bar as
+# tall as the type it covers, and the black fill is what makes it a bar
+# rather than a rule.
+_BAR_CHARS = frozenset("-\u2010\u2011\u2012\u2013\u2014\u2015_\u00ad")
+_BAR_MIN_EM = 1.5              # wider than any dash the character could be
+_BAR_MIN_HEIGHT_EM = 0.55      # as tall as the type, not a rule
+
+
+def _is_black_glyph(c) -> bool:
+    nsc = c.get("non_stroking_color")
+    if isinstance(nsc, (list, tuple)):
+        return bool(nsc) and all(v == 0 for v in nsc)
+    return nsc in (0, 0.0)
+
+
+def convert_bar_glyphs(lines: list, event) -> None:
+    """Turn a glyph that IS a black bar into block glyphs, in place.
+
+    The same output as `insert_redaction_boxes` — one `REDACTION_GLYPH` per
+    glyph-width of bar — so every later stage, and every reader, sees a
+    redaction rather than a stray dash."""
+    n = 0
+    for line in lines:
+        chars = line.get("chars") or []
+        ink = [c for c in chars if (c.get("text") or "").strip()]
+        if not ink:
+            continue
+        widths = sorted((c["x1"] - c["x0"]) for c in ink
+                        if (c.get("text") or "") not in (" ", ""))
+        glyph_w = widths[len(widths) // 2] if widths else 5.0
+        if glyph_w <= 0.5:
+            glyph_w = 5.0
+        out: list = []
+        hit = False
+        for c in chars:
+            txt = c.get("text") or ""
+            size = c.get("size") or 0.0
+            w = c["x1"] - c["x0"]
+            h = c["bottom"] - c["top"]
+            if (txt in _BAR_CHARS and size > 0
+                    and w >= _BAR_MIN_EM * size
+                    and h >= _BAR_MIN_HEIGHT_EM * size
+                    and _is_black_glyph(c)):
+                k = max(1, int(round(w / glyph_w)))
+                step = w / k
+                for i in range(k):
+                    b = dict(c)
+                    b["text"] = REDACTION_GLYPH
+                    b["x0"] = c["x0"] + i * step
+                    b["x1"] = c["x0"] + (i + 1) * step
+                    b["width"] = step
+                    b["_redaction"] = True
+                    b.pop("_underline", None)
+                    out.append(b)
+                hit = True
+                n += 1
+                continue
+            out.append(c)
+        if not hit:
+            continue
+        line["chars"] = out
+        line["text"] = "".join(c.get("text") or "" for c in out)
+    if n:
+        event("redaction", f"{n} blacked-out glyphs read as block glyphs")
 
 
 def _is_black_fill(rect) -> bool:

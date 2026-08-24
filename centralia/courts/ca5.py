@@ -606,8 +606,14 @@ def read_headmatter_ca5(model, geom, **_):
                 crit["case_name"] = one
     if origin_rows:
         crit["lower_court"] = _norm(" ".join(origin_rows))
+    # THE COURT BELOW'S NUMBER IS NOT A COMPANION APPEAL. 'USDC No.
+    # 4:09-CV-160' went into `other_dockets`, which the model reserves for
+    # the appeals consolidated INTO this one — so a reader could not tell
+    # 'this case, downstairs' from 'another case, alongside', and the CL
+    # view listed the district number among the consolidated appeals.
     for docket in lower_dockets:
-        crit.setdefault("other_dockets", []).append(docket)
+        if docket not in crit.setdefault("lower_court_docket", []):
+            crit["lower_court_docket"].append(docket)
     if recital_rows:
         crit["history"] = _norm(" ".join(recital_rows))
     if roster_rows:

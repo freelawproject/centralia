@@ -17,6 +17,7 @@ import time
 import shutil
 import threading
 import sys
+from html import escape
 from http.server import ThreadingHTTPServer, SimpleHTTPRequestHandler
 from pathlib import Path
 from urllib.parse import unquote
@@ -35,9 +36,90 @@ PAGEIMG_DIR = OUTPUT_DIR / ".pageimg"
 _PAGE_COUNTS: dict[str, int] = {}
 
 
+# A DEAD PANE FROM THE OLD REVIEW SHEET. Pages written before the current
+# template embed the source PDF in a left pane of their own, by a path
+# relative to the FILE ('../../assets/<court>/<stem>.pdf'). That resolved
+# when the page was opened off disk; served from here it 404s, and a 404
+# body is '{}' — so the pane renders as an empty grey column with two
+# braces in it, beside the document (the user, 2026-08-23: 'remove the
+# blank metadata column'). The viewer has its own PDF pane (p), so the old
+# one is hidden WHERE IT IS SERVED rather than by rewriting thousands of
+# generated files that a re-render will replace anyway.
+_DEAD_PANE = b'class="review-pane pdf"'
+_HIDE_PANE = (b"<style>.review-cols .review-pane.pdf{display:none}"
+              b".review-cols .review-pane.doc{flex:1 1 100%}</style>")
+
+# THE CL VIEW is rendered on demand, never as a build artifact. The review
+# pages on disk go stale the moment the engine moves, and a second set of
+# stale pages is worse than none — so this one is generated when it is asked
+# for and cached only until the engine or the PDF is newer than the cache
+# (the user, 2026-08-23: 'a toggle to render the CL view so i can see how
+# things translate if they translate').
+CLVIEW_DIR = OUTPUT_DIR / ".clview"
+_CL_LOCK = threading.Lock()
+_ENGINE_MTIME: list = [0.0, 0.0]        # [checked_at, value]
+
 _RASTER_LOCK = threading.Lock()
 _NOTES_LOCK = threading.Lock()
+_BLESS_LOCK = threading.Lock()
 _STATUS_LOCK = threading.Lock()
+
+
+def _engine_mtime() -> float:
+    """The newest engine source. Re-measured at most once every few seconds —
+    a rglob per request is wasted work, and the answer cannot change between
+    two clicks in a way that matters."""
+    now = time.time()
+    if now - _ENGINE_MTIME[0] > 3.0:
+        _ENGINE_MTIME[0] = now
+        _ENGINE_MTIME[1] = max(
+            (p.stat().st_mtime for p in (REPO_ROOT / "centralia").rglob("*.py")),
+            default=0.0)
+    return _ENGINE_MTIME[1]
+
+
+def _cl_page(court: str, stem: str) -> Path | None:
+    """This record as CourtListener would store it, rendered on demand."""
+    pdf = CORPUS_ROOT / court / f"{stem}.pdf"
+    if not pdf.is_file():
+        return None
+    out = CLVIEW_DIR / court / f"{stem}.html"
+    if out.exists() and out.stat().st_mtime >= max(pdf.stat().st_mtime,
+                                                   _engine_mtime()):
+        return out
+    with _CL_LOCK:                      # extraction is not thread-safe
+        if out.exists() and out.stat().st_mtime >= max(pdf.stat().st_mtime,
+                                                       _engine_mtime()):
+            return out
+        # A SEPARATE PROCESS, EVERY TIME. This server has been running since
+        # before the last engine edit; rendering in-process would serve the
+        # engine it imported at startup, which is exactly the staleness this
+        # view exists to avoid.
+        import subprocess
+        try:
+            r = subprocess.run(
+                [sys.executable, str(Path(__file__).parent / "cli.py"),
+                 "clview", f"{court}/{stem}"],
+                cwd=str(Path(__file__).parent.parent),
+                capture_output=True, text=True, timeout=300)
+        except Exception as e:          # noqa: BLE001
+            return _cl_error(out, repr(e)[:400])
+        if out.exists():
+            return out
+        # A FAILURE IS A FINDING, shown where the view would have been —
+        # the alternative is an empty pane that says nothing.
+        return _cl_error(out, ((r.stderr or r.stdout or "no output")
+                               .strip()[-1200:]))
+
+
+def _cl_error(out: Path, msg: str) -> Path:
+    out.parent.mkdir(parents=True, exist_ok=True)
+    out.write_text(
+        "<title>CL view — failed</title>"
+        "<body style='font:14px system-ui;padding:2em;color:#7a2620'>"
+        "<b>The engine raised on this record, so there is nothing to "
+        f"translate.</b><pre>{escape(msg)}</pre>")
+    return out
 
 
 def _page_image(court: str, stem: str, page: int) -> Path | None:
@@ -140,6 +222,15 @@ kywd laed lamd lawd mad mdd med mied miwd mnd moed mowd msnd mssd mtd nced
 ncmd ncwd ndd ned nhd njd nmd nvd nyed nynd nysd nywd ohnd ohsd oked oknd
 okwd ord paed pamd pawd rid scd sdd tned tnmd tnwd txed txnd txsd txwd utd
 vaed vawd vtd waed wawd wied wiwd wvnd wvsd wyd
+# THE TERRITORIAL DISTRICTS ARE FEDERAL DISTRICT COURTS. Guam, Puerto Rico
+# and the Virgin Islands each have an Article IV district court that files on
+# CM/ECF exactly as the fifty states' districts do — listed nowhere, they
+# fell to the 'state' default and sat in the state lane, which is neither
+# where they belong nor where their reader will be written (the user,
+# 2026-08-23: 'GUD should be in the federal district catgegory with vid and
+# prd'). `virginislands` and `prapp`/`prsupreme` are the TERRITORIES' OWN
+# courts and stay where they are — a different thing entirely.
+gud prd vid
 """.split())
 # Federal specialty, military and agency tribunals — neither a circuit nor a
 # district, and not a state court either.
@@ -416,6 +507,36 @@ def _safe_under(root: Path, rel: str) -> Path | None:
     return p if p.is_file() and p.is_relative_to(root.resolve()) else None
 
 
+def _bless_sentinel(key: str) -> None:
+    """Re-pin one guard sentinel to its reading NOW, and clear its flag.
+
+    Silent when the key is not pinned: most files are not sentinels, and a
+    mark on one of those is nothing to do with the guard.
+    """
+    import guard as _guard
+    with _BLESS_LOCK:
+        try:
+            pins = _guard._load()
+            if key not in pins:
+                return
+            _, sig = _guard._sig_one(key)
+            if sig.get("error"):
+                return
+            pins[key] = sig
+            _guard._save(pins)
+        except Exception:
+            return                      # never let a mark fail on the guard
+        # …and drop it from what the viewer shows as still needing review, so
+        # the ⚑ clears without waiting for the next full guard run.
+        try:
+            rev_path = OUTPUT_DIR / "notes" / "guard-review.json"
+            rev = json.loads(rev_path.read_text()) if rev_path.exists() else {}
+            if rev.pop(key, None) is not None:
+                rev_path.write_text(json.dumps(rev, indent=1, sort_keys=True))
+        except Exception:
+            pass
+
+
 class Handler(SimpleHTTPRequestHandler):
     def log_message(self, *a):  # quiet
         pass
@@ -435,7 +556,11 @@ class Handler(SimpleHTTPRequestHandler):
                      path.suffix.lstrip("."), "text/plain")
         if ctype == "application/pdf":
             return self._send(200, path.read_bytes(), ctype)
-        self._send(200, path.read_bytes(), f"{ctype}; charset=utf-8")
+        body = path.read_bytes()
+        if ctype == "text/html" and _DEAD_PANE in body:
+            body = (body.replace(b"</head>", _HIDE_PANE + b"</head>", 1)
+                    if b"</head>" in body else _HIDE_PANE + body)
+        self._send(200, body, f"{ctype}; charset=utf-8")
 
     def do_GET(self):  # noqa: N802
         if self.path in ("/", "/index.html"):
@@ -454,6 +579,13 @@ class Handler(SimpleHTTPRequestHandler):
         if self.path == "/api/quality":
             q = OUTPUT_DIR / "notes" / "quality.json"
             return self._send(200, q.read_bytes() if q.exists() else b"{}")
+        # THE SENTINELS WHOSE READING MOVED. Written by `guard --review`:
+        # {court/stem: [diff, …]}. The viewer filters on it so a regression
+        # is judged by looking at the rendering, which is the only way it can
+        # honestly be judged.
+        if self.path == "/api/guardreview":
+            g = OUTPUT_DIR / "notes" / "guard-review.json"
+            return self._send(200, g.read_bytes() if g.exists() else b"{}")
         if self.path.startswith("/api/notes/"):
             court = unquote(self.path.rsplit("/", 1)[1])
             p = MARKS_DIR / f"{court}.md"
@@ -461,6 +593,14 @@ class Handler(SimpleHTTPRequestHandler):
             return self._send(200, json.dumps({"text": text}).encode())
         if self.path.startswith("/out/"):
             p = _safe_under(OUTPUT_DIR, self.path[5:])
+            return self._send_file(p) if p else self._send(404, b"{}")
+        if self.path.startswith("/cl/"):
+            court, _, stem = unquote(
+                self.path[4:]).removesuffix(".html").partition("/")
+            if not court.replace("_", "").replace("-", "").isalnum() \
+                    or not stem or "/" in stem or ".." in stem:
+                return self._send(404, b"{}")
+            p = _cl_page(court, stem)
             return self._send_file(p) if p else self._send(404, b"{}")
         if self.path.startswith("/old/"):
             p = _safe_under(OLD_OUTPUT, self.path[5:])
@@ -503,6 +643,20 @@ class Handler(SimpleHTTPRequestHandler):
                     marks[key] = tier
                 _log_mark(key, tier)
                 _save_marks(marks)
+            # ✅ IS THE BLESSING. Approving a rendering and re-pinning its
+            # structural signature were two registries and two commands, so
+            # a reviewer could clear a whole court by eye and the guard would
+            # still flag every file of it — the pin still held the reading
+            # from before the fix (the user, 2026-08-24: 'well.. when
+            # reclick yay that should be a blessing?'). Saying 'this is
+            # right' is the only evidence a pin ever had, so it is recorded
+            # in both places at once.
+            #
+            # Only for an EXISTING sentinel: 'yay' means the reading is
+            # right, not that the file should become a new sentinel — pins
+            # are chosen deliberately with `guard --add`.
+            if tier == "yay":
+                _bless_sentinel(key)
             return self._send(200, b'{"ok":true}')
         if self.path == "/api/filenotes":
             key = data.get("key")

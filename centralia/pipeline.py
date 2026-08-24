@@ -42,7 +42,7 @@ from .resolve.headmatter import read_headmatter, _hm_line
 from .resolve.segments import Segmenter
 from .styles import pick as pick_style
 
-PIPELINE_VERSION = "0.0.2"
+PIPELINE_VERSION = "0.0.3"
 
 # Warnings that describe the SOURCE PDF rather than the parse. These can
 # never be fixed by better extraction, so they route a file to 'scanned'
@@ -57,7 +57,132 @@ SOURCE_WARNINGS = (
     # layer at all -- graded D on 'no-opinions' plus a parse warning, as
     # though a reader could be written for them.
     "non-born-digital",
+    # An unmapped-CID font is unreadable by every extractor, so it routes
+    # with the scans wherever a warning list is consulted.
+    "text layer unreadable",
 )
+
+# A FOLIO IS NOT A SIGNATURE ROW. The page number closes the sheet
+# below the signing block ("5", "Page 116 of 116", "- 3 -"), and it is
+# not dropped yet where the signature lift runs, so it broke the walk
+# on its first row.
+_FOLIO_ROW = _re.compile(
+    r"^(?:[-–—\s]*\d{1,4}[-–—\s]*|Page\s+\d{1,4}\s+of\s+\d{1,4}\.?)$",
+    _re.IGNORECASE)
+
+# THE CONFORMED SLASH, WHEREVER THE ROW PUTS IT. A judge signs on the slash
+# alone; a lawyer types the form the pleading rule gives them, which opens
+# with the word that introduces it: 'By: /s/ Yonatan Even'
+# (cand/364265.1716.0). Tested with `startswith`, that row was not a signing
+# row at all — so it BROKE the signing run in half, the half that carried the
+# slash was thrown away, and the whole end matter (firm, roster, 'Attorneys
+# for Plaintiff and Counter-defendant EPIC GAMES, INC.') stayed in the body
+# as 14 one-line paragraphs. Nothing then claimed the signature, and with no
+# signature there was nothing for the filing test below to read.
+_CONFORMED = _re.compile(r"(?:^|[\s:(\[])/s/")
+
+
+
+# WHO SIGNED, AND AS WHAT. A court signs an office; a party's lawyer signs
+# for a client, and says so.
+# WHAT OPENS A BLOCK ON ITS OWN: the paragraph mark a court numbers with, and
+# the outline label it sections with. Neither is ever a runover.
+_PARA_OPENER = __import__("re").compile(
+    r"^(?:\u00b6|\u00a7|\*)|^(?:[IVXLC]{1,5}|[0-9]{1,2}|[A-Z])\s*[.)]\s+\S")
+# A bare paragraph number, the mark lost to OCR: digits then a capitalised
+# word, never a citation's reporter volume.
+_NUM_OPENER = __import__("re").compile(r"^[0-9]{1,3}\s+[A-Z]")
+# The dot leaders and the page number that CLOSE a table-of-contents entry.
+_TOC_TAIL = __import__("re").compile(
+    r"(?:\.[  ]?){6,}\s*[0-9IVXivx]+(?:\s*[-\u2013\u2014]\s*[0-9IVXivx]+)?\.?$")
+_re_tags = __import__("re").compile(r"<[^>]+>")
+
+_FILING_FLAG = "a party's filing, not the court's writing"
+_re_filing_appearance = __import__("re").compile(
+    r"\b(?:attorneys?|counsel)\s+for\b|\bon\s+behalf\s+of\b"
+    r"|\bpro\s+se\b(?:\s+(?:plaintiff|defendant|petitioner))")
+# THE ROSTER A PARTY'S PAPER CLOSES WITH. Contact details -- an e-mail, a
+# telephone, a firm's form of organisation -- are what a lawyer's end matter
+# carries and what a court's signature never does. Two of them standing with
+# an appearance row is the evidence that the block IS an appearance block and
+# not a sentence of prose that mentions counsel.
+_re_roster_row = _re.compile(
+    r"[\w.+-]+@[\w-]+\.[\w.]+"
+    r"|^(?:tel|telephone|fax|facsimile|phone)\b\s*[:.]"
+    r"|\b(?:LLP|LLC|PLLC|P\.\s?C\.|A\.?P\.?C\.?)\b", _re.I)
+# AN APPEARANCE ROW, NOT A SENTENCE ABOUT ONE. A district order says 'counsel
+# for plaintiff filed a motion' in prose all the time; an appearance block
+# says nothing but who it appeared for, and stops.
+# THE DATE A COURT PUTS ON ITS PAPER WHEN THE HEADMATTER NEVER DID. A
+# district signs above its own name and dates the signature: 'Dated: August
+# 6, 2026', a bare 'August 18, 2026' at the rail, or the ordinal recital
+# 'SO ORDERED, this 17th day of August, 2026'. Measured on mad, where 21 of
+# 27 records carry their ONLY date there and came back with none at all (the
+# user, 2026-08-24: 'gotta fix tese MAD ones'), and on msnd/52361.17.0, whose
+# one-page judgment states its date the ordinal way.
+_MONTHS = ("january|february|march|april|may|june|july|august|september"
+           "|october|november|december")
+_re_signed_date = _re.compile(
+    rf"\b(?:dated?\s*:?\s*)?({_MONTHS})\s+(\d{{1,2}}),?\s+(\d{{4}})\b", _re.I)
+_re_ordinal_date = _re.compile(
+    rf"\bthis\s+(\d{{1,2}})(?:st|nd|rd|th)\s+day\s+of\s+({_MONTHS}),?\s+(\d{{4}})\b",
+    _re.I)
+
+
+# THE ROW THAT SAYS THE DATE IS THE PAPER'S OWN.
+_re_dated_row = _re.compile(
+    r"\bdated\b|\bdone\s+and\s+ordered\b|\bso\s+ordered\b"
+    r"|\bentered\s+this\b|\bsigned\s+this\b|\bthis\s+\d{1,2}(?:st|nd|rd|th)"
+    r"\s+day\s+of\b", _re.I)
+
+
+def _signed_date(text: str) -> str | None:
+    """The date a signing block states, in the form the readers publish."""
+    m = _re_ordinal_date.search(text)
+    if m:
+        return f"{m.group(2).title()} {int(m.group(1))}, {m.group(3)}"
+    m = _re_signed_date.search(text)
+    if m:
+        return f"{m.group(1).title()} {int(m.group(2))}, {m.group(3)}"
+    return None
+
+
+# WHAT ONLY A COURT SAYS. A disposition is the court speaking, and it
+# outranks a party's appearance printed on the same page.
+_re_ordering = _re.compile(
+    r"\b(?:so\s+ordered|it\s+is\s+(?:hereby\s+)?ordered"
+    r"|signed\s+this|entered\s+this)\b", _re.I)
+_re_appearance_row = _re.compile(
+    r"^(?:attorneys?|counsel)\s+(?:for|on\s+behalf\s+of)\b", _re.I)
+
+# WHAT A PARTY'S SIGNATURE CARRIES AND A COURT'S NEVER DOES.
+_re_counsel_apparatus = __import__("re").compile(
+    r"\brespectfully\s+submitted\b|\bby:\s*/s/|\bcertificate\s+of\s+service\b"
+    r"|\b(?:sbn|bar\s+no\.?|state\s+bar)\b|\besq\.|"
+    r"[a-z0-9._%+-]+@[a-z0-9.-]+\.[a-z]{2,}")
+
+# …and what the paper calls itself — but ONLY where the name belongs to a
+# party and to nobody else. Measured over 90 records, a broad pleading
+# vocabulary called five court writings filings: 'memorandum' is what olc
+# titles its opinions and what ca9 titles an unpublished disposition, and
+# 'motion', 'brief', 'response' and 'objections' all appear in the names
+# courts give their own orders. What is left is a name no court signs.
+_re_pleading = __import__("re").compile(
+    r"^(?:(?:first|second|third|fourth|amended|verified|joint|corrected|"
+    r"supplemental|proposed)\s+)*"
+    r"(?:complaint|answer|counterclaim|cross-?claim|"
+    r"notice\s+of\s+(?:appeal|removal))\b",
+    __import__("re").I)
+
+
+def _px(image) -> int:
+    """How many pixels the source object actually carries. `srcsize` is the
+    image's own resolution, which is what tells a photograph from the frame
+    it was pasted inside."""
+    src = image.get("srcsize") if hasattr(image, "get") else None
+    if src and len(src) == 2:
+        return int(src[0]) * int(src[1])
+    return 0
 
 
 def _page_list(pages: list[int]) -> str:
@@ -334,7 +459,16 @@ def _extract_model(model, court_id: str, pdf_path) -> ExtractionResult:
             meta.doc_type = m.DocType.SCAN
             meta.source_kind = "scan"
             doc.warnings.append("non-born-digital (scan); not parsed")
-            return ExtractionResult(doc, trace, status="valid")
+            # `scanned`, NOT `valid`. A stamp-only scan yields no headmatter,
+            # no writing and no text, and `valid` states the one thing the
+            # status exists to state -- that the reading can be trusted --
+            # about a reading that does not exist. Every OTHER source
+            # complaint routes to `scanned` through SOURCE_WARNINGS below;
+            # this early return was the one path that did not, so 231
+            # district records (mtd 21 of 38, ded 14, cacd 13) reported clean
+            # with an unread caption page, and a consumer gating on `valid`
+            # was handed an empty document as a good one.
+            return ExtractionResult(doc, trace, status="scanned")
         meta.source_kind = "ocr-scan"
         doc.warnings.append(
             "scan with OCR text layer; extracted, geometry untrusted")
@@ -384,7 +518,16 @@ def _extract_model(model, court_id: str, pdf_path) -> ExtractionResult:
     if verdict == "unreadable":
         meta.doc_type = m.DocType.UNKNOWN
         doc.warnings.append("text layer unreadable (unmapped CID glyphs)")
-        return ExtractionResult(doc, trace, status="failed")
+        # A FONT WITH NO USABLE ENCODING IS A SOURCE COMPLAINT, not a parse
+        # failure. The glyphs carry no Unicode mapping, so no reader can
+        # recover the text: poppler returns the same mojibake pdfminer does
+        # ('ÿijkSlTÿcZmY[Page' on rid/58912, where only the CM/ECF stamp --
+        # set in a normal font -- survives). Reported as `failed` it sat on
+        # the parse worklist as though a reader were owed, which is the very
+        # thing SOURCE_WARNINGS exists to prevent; it belongs with the scans,
+        # whose text is recoverable only by OCR. Measured on the 7 records in
+        # the district corpora that reach here (5 rid, mnd, nced).
+        return ExtractionResult(doc, trace, status="scanned")
 
     # 3 measure
     geom = geometry.measure(model)
@@ -522,7 +665,39 @@ def _extract_model(model, court_id: str, pdf_path) -> ExtractionResult:
         # a data URI. Everything else (seals, logo stamps, signature
         # graphics) is surfaced as a KNOWN removal; tiny artifacts
         # (< 20pt a side) stay silent.
+        # ONE PICTURE, TWO OBJECTS. A photo pasted in through a word
+        # processor arrives as a composite AND as the photograph inside it —
+        # alnd/179841.412.0 carries, on each of five pages, a 264×208 outer
+        # object and a 789×620 inner one inset ~15pt on every side. Both are
+        # sizable, both are inside the body, so both were planted as figures
+        # and every exhibit photo appeared TWICE side by side (the user,
+        # 2026-08-23: 'the html is oduble rendering IMages'). Where one box
+        # contains another the picture is the one with more pixels in it; the
+        # other is the frame it was pasted in, and it is recorded as a
+        # removal so the audit still shows what stood there.
+        _nested: set = set()
+        for _a in pm.images:
+            for _b in pm.images:
+                if _a is _b:
+                    continue
+                if not (_b.x0 >= _a.x0 - 1 and _b.top >= _a.top - 1
+                        and _b.x1 <= _a.x1 + 1 and _b.bottom <= _a.bottom + 1):
+                    continue
+                _pa = _px(_a)
+                _pb = _px(_b)
+                _drop = _a if _pb > _pa else _b
+                if id(_drop) in _nested:
+                    continue
+                _nested.add(id(_drop))
+                doc.dropped.append(m.Dropped(
+                    text=(f"graphic {_drop.x1 - _drop.x0:.0f}×"
+                          f"{_drop.bottom - _drop.top:.0f}pt "
+                          f"(the frame around another image)"),
+                    prov=m.Prov(pm.number), kind="image",
+                    bbox=(_drop.x0, _drop.top, _drop.x1, _drop.bottom)))
         for _im in pm.images:
+            if id(_im) in _nested:
+                continue
             _w, _h = _im.x1 - _im.x0, _im.bottom - _im.top
             # WHAT A GRAPHIC IS can be the court's own knowledge. Every test
             # below reads a graphic's role off its GEOMETRY, because geometry
@@ -535,6 +710,69 @@ def _extract_model(model, court_id: str, pdf_path) -> ExtractionResult:
             # removal and the string itself is the reason shown in the
             # record. NOTHING falls through to core exactly as if the court
             # file did not exist.
+            # A BOX DRAWN ROUND THE TYPE IS NOT A DEVICE. An e-filed caption
+            # may carry a graphic that FILLS the caption box:
+            # ctd/gov.uscourts.ctd.172073.13.0 paints a 271x126pt indexed
+            # fill from (77,114) to (348,240), which is exactly where 'STRIKE
+            # 3 HOLDINGS, LLC,' … 'Defendant.' are typed. Every geometric
+            # test below says masthead — page 1, top third, inside the
+            # measure, centred — so the caption was DRAWN A SECOND TIME above
+            # its own rows (the user, on this file: 'this shouldnt redraw the
+            # image of hte caption please'). A court's device stands on blank
+            # paper: the discriminator is the page's OWN TYPE INSIDE the box,
+            # which no seal, no clerk's stamp and no figure of an opinion
+            # has. Scoped off the scan pages and off anything covering half
+            # the sheet, where every row of the page is 'inside' the raster
+            # and the stationery rules already have the answer.
+            # …AND ONLY WHERE A CAPTION CAN BE. A JUDGE'S SIGNATURE IS A
+            # BOX ROUND TYPE TOO: the graphic is the handwriting, and its
+            # box reaches down over the typed rule, the name and the office
+            # beneath it — alnd/…190122.47.0 signs page 18 of 18 with a
+            # 382x111pt stamp enclosing '____', 'HAROLD D. MOOTY III' and
+            # 'UNITED STATES DISTRICT JUDGE'. Measured over the 109 corpus
+            # files that keep a graphic, the unbounded test took 40 real
+            # signatures with it across alnd, lawd, nhd, nmd, cod, ned, rid
+            # and 6 more courts. A caption box stands where a caption
+            # stands — the first sheets, in the head of the page — and the
+            # signature band is the one place this test must not reach.
+            # …AND ON THE FIRST SHEET ONLY. A DIGITAL SIGNATURE BLOCK is a
+            # box round type too, and it stands in the head of a later page:
+            # miss/…leflore encloses 'DIGITAL SIGNATURE', 'Order#: 261995',
+            # 'Sig Serial: 100011970' and 'Presiding Justice' in a 415x89pt
+            # box at the top of page 2, and the page-2 reach dropped it. A
+            # caption box stands where the caption is — the first sheet —
+            # and a caption that runs on to the second is read by the
+            # carry-on walk, not by this test.
+            if (pm.number == 1
+                    and _im.bottom <= pm.height * 0.5
+                    and pm.number not in _scan_pages
+                    and _w * _h <= 0.5 * pm.width * pm.height):
+                _inside = [_l for _l in pm.lines
+                           if _l.plain.strip()
+                           and _l.x0 >= _im.x0 - 2 and _l.x1 <= _im.x1 + 2
+                           and _l.top >= _im.top - 2
+                           and _l.top <= _im.bottom + 2]
+                if len(_inside) >= 3:
+                    # NAME WHAT IT IS, where position can tell. A graphic
+                    # flush to the right edge of the head band is the
+                    # clerk's stamp, not a caption box — the same
+                    # discriminator the figure test states below, and
+                    # vawd/…132979.41.0 draws its 'CLERK … FILED May 19,
+                    # 2026 … BY: /s/ DEPUTY' stamp there in unmapped CID
+                    # glyphs. Read as a masthead it was drawn at the head of
+                    # the headmatter as though it were the court's seal.
+                    _mid_x = (_im.x0 + _im.x1) / 2
+                    _text = (f"stamp {_w:.0f}\u00d7{_h:.0f}pt "
+                             "(clerk's, flush right)"
+                             if _mid_x > pm.width * 0.6
+                             else f"graphic {_w:.0f}\u00d7{_h:.0f}pt "
+                                  f"(the box around {len(_inside)} "
+                                  "typed rows)")
+                    doc.dropped.append(m.Dropped(
+                        text=_text,
+                        prov=m.Prov(pm.number), kind="image",
+                        bbox=(_im.x0, _im.top, _im.x1, _im.bottom)))
+                    continue
             _role = court_decides("image.role", court_id, trace,
                                   model=model, geom=geom, page=pm, image=_im)
             if _role is not NOTHING:
@@ -547,7 +785,8 @@ def _extract_model(model, court_id: str, pdf_path) -> ExtractionResult:
                 else:
                     doc.dropped.append(m.Dropped(
                         text=f"graphic {_w:.0f}×{_h:.0f}pt ({_role})",
-                        prov=m.Prov(pm.number), kind="image"))
+                        prov=m.Prov(pm.number), kind="image",
+                        bbox=(_im.x0, _im.top, _im.x1, _im.bottom)))
                 continue
             # AN IMAGE ABOVE ALL THE TYPE IS STATIONERY, not a figure. mo
             # sets its court seal at top 72 of 792 — 9.09%, just past the
@@ -622,7 +861,8 @@ def _extract_model(model, court_id: str, pdf_path) -> ExtractionResult:
             if _same_as_seal:
                 doc.dropped.append(m.Dropped(
                     text=f"seal {_w:.0f}\u00d7{_h:.0f}pt (repeated)",
-                    prov=m.Prov(pm.number), kind="image"))
+                    prov=m.Prov(pm.number), kind="image",
+                    bbox=(_im.x0, _im.top, _im.x1, _im.bottom)))
                 continue
             # …and the mirror at the foot of the LAST page: an image below
             # every text row there is the court's signature stamp.
@@ -644,9 +884,35 @@ def _extract_model(model, court_id: str, pdf_path) -> ExtractionResult:
                               and l.top < pm.height * 0.9
                               and ff.kind(pm, l) is None),
                              default=0.0)
+            # …AND THE SIGNATURE MAY STAND BESIDE THE DATE, not below it.
+            # nynd/141588.92.0 sets 'Dated: June 11, 2026' / 'Albany, New
+            # York' at the rail and the judge's signature in the signers'
+            # column beside them — the graphic's top is 2.4pt ABOVE the
+            # place row's, so `_im.top > _sig_floor - 30` failed by those
+            # 2.4pt. Dropped as 'seal/logo/stamp', it took the only trace of
+            # the judge with it: the page types no name and no office, so
+            # the record came back with NO AUTHOR and still graded A (the
+            # user, 2026-08-23: 'why was scullin removed and where to').
+            # What a closing block cannot do is stand in the signers' own
+            # column — the date and the place are set at the rail — so this
+            # second floor is measured only from the rows that could be
+            # BODY, the ones that run at least half the measure, and the
+            # image must be in the signers' column with none of them below
+            # it. A figure the opinion discusses runs the measure itself and
+            # keeps its own rows below it, so it cannot pass here.
+            _prose_floor = max(
+                (l.bottom for l in pm.lines
+                 if l.plain.strip() and l.top < pm.height * 0.9
+                 and ff.kind(pm, l) is None
+                 and geom is not None
+                 and l.x1 - l.x0 > geom.column * 0.5),
+                default=None)
             if (pm.number == model.n_pages and _w >= 60 and _h >= 20
-                    and _im.bottom > _sig_floor
-                    and _im.top > _sig_floor - 30.0):
+                    and ((_im.bottom > _sig_floor
+                          and _im.top > _sig_floor - 30.0)
+                         or (_prose_floor is not None
+                             and _im.x0 > pm.width * 0.42
+                             and _im.top > _prose_floor - 2.0))):
                 _sig_imgs.append(_im)
                 continue
             # A CLERK'S STAMP IS NOT A FIGURE OF THE OPINION. The masthead
@@ -670,7 +936,8 @@ def _extract_model(model, court_id: str, pdf_path) -> ExtractionResult:
                     and _h <= pm.height * 0.25):
                 doc.dropped.append(m.Dropped(
                     text=f"stamp {_w:.0f}\u00d7{_h:.0f}pt (clerk's, flush right)",
-                    prov=m.Prov(pm.number), kind="image"))
+                    prov=m.Prov(pm.number), kind="image",
+                    bbox=(_im.x0, _im.top, _im.x1, _im.bottom)))
                 continue
             if _is_figure:
                 _figures.append(_im)
@@ -680,7 +947,8 @@ def _extract_model(model, court_id: str, pdf_path) -> ExtractionResult:
                          else "seal/logo/stamp")
                 doc.dropped.append(m.Dropped(
                     text=f"graphic {_w:.0f}×{_h:.0f}pt ({_what})",
-                    prov=m.Prov(pm.number), kind="image"))
+                    prov=m.Prov(pm.number), kind="image",
+                    bbox=(_im.x0, _im.top, _im.x1, _im.bottom)))
     # Dedupe repeated furniture for display — but keep EVERY dropped line's
     # identity: the sweep must know page 3's folio was dropped even though
     # only page 2's shows (digitless keys collapse all folios to one entry).
@@ -946,7 +1214,26 @@ def _extract_model(model, court_id: str, pdf_path) -> ExtractionResult:
         if len(_names) <= 1:
             _lead = doc.opinions[0]
             for _extra in doc.opinions[1:]:
+                # A FOLD MOVES THE WHOLE WRITING, NOT ONLY ITS BLOCKS. The
+                # spurious writing this fold exists to absorb can hold its
+                # content ANYWHERE — nywd/162352.3.0 signs its order on a
+                # sheet of its own, so the tail writing opened on page 4
+                # held nothing but a signature ('Dated: May 22, 2026 /
+                # Rochester, New York'), and taking `.blocks` alone dropped
+                # those three rows on the floor: unplaced, unrecorded, and
+                # counted by the sweep below as lost content (the user,
+                # 2026-08-23: 'got an f why did we lose residuals').
+                #
+                # The signature joins the BODY, not `_lead.signature`: the
+                # district lift below prepends the rows it finds on the last
+                # page, which would print the bench's name above the dateline
+                # the page sets under it. In the body it keeps the page's own
+                # order, at the end of the writing where it was printed.
                 _lead.blocks.extend(_extra.blocks)
+                _lead.blocks.extend(_extra.signature)
+                _lead.footnotes.extend(_extra.footnotes)
+                if not _lead.caption:
+                    _lead.caption = list(_extra.caption)
                 if not _lead.author and _extra.author:
                     _lead.author = _extra.author
             doc.opinions = [_lead]
@@ -1860,7 +2147,8 @@ def _extract_model(model, court_id: str, pdf_path) -> ExtractionResult:
                 doc.dropped.append(m.Dropped(
                     text=(f"seal {_im.x1 - _im.x0:.0f}×"
                           f"{_im.bottom - _im.top:.0f}pt (uncropped)"),
-                    prov=m.Prov(_im.page), kind="image"))
+                    prov=m.Prov(_im.page), kind="image",
+                    bbox=(_im.x0, _im.top, _im.x1, _im.bottom)))
 
     # CONTENT FIGURES: crop each body image from the page and place it in
     # the writing at its reading position (adidas's trademark exhibits are
@@ -1913,7 +2201,8 @@ def _extract_model(model, court_id: str, pdf_path) -> ExtractionResult:
                     doc.dropped.append(m.Dropped(
                         text=(f"figure {_im.x1 - _im.x0:.0f}×"
                               f"{_im.bottom - _im.top:.0f}pt (unplaced)"),
-                        prov=m.Prov(_im.page), kind="image"))
+                        prov=m.Prov(_im.page), kind="image",
+                        bbox=(_im.x0, _im.top, _im.x1, _im.bottom)))
 
     # THE COURT'S SIGNATURE, WHERE IT IS A PICTURE. An ECF order is signed
     # with a stamp, not with type: kyed's last page carries 293x79pt of image
@@ -2415,6 +2704,48 @@ def _extract_model(model, court_id: str, pdf_path) -> ExtractionResult:
                 trace.event("court.body_reclaimed",
                             f"{len(_moved)} rows below the read headmatter")
 
+    # THE AIR BETWEEN THE HEADMATTER'S OWN GROUPS. A court divides its
+    # cover with blank lines as often as with rules — ca6 sets a line of air
+    # above 'Decided and Filed:' and above 'Before: SILER, MOORE, …' — and a
+    # reader that keeps only the rows loses the grouping the page states.
+    # The pitch is the document's own: the modal gap between consecutive
+    # headmatter rows (8.7pt on that record), and anything appreciably wider
+    # is air the page left. Recorded in units of that pitch so a renderer can
+    # honour it at any type size, and only for rows whose provenance says
+    # where they stood — a two-column caption is one item and takes its air
+    # as a whole.
+    if doc.headmatter:
+        _hm_pos = {l.id: (l.page, l.top, l.bottom)
+                   for pm in model.pages for l in pm.lines}
+
+        def _hm_span(_it):
+            _ids = tuple(getattr(getattr(_it, "prov", None), "line_ids", ())
+                         or ())
+            _ps = [_hm_pos[i] for i in _ids if i in _hm_pos]
+            if not _ps:
+                return None
+            return (min(_ps)[0], min(q[1] for q in _ps),
+                    max(q[2] for q in _ps))
+
+        # THE TYPE IS THE RULER, not the other gaps. Measured against the
+        # median gap this found nothing at all: a cover with four spaced
+        # groups has as many wide gaps as tight ones, so the median sat at
+        # 12.5pt on a page whose rows are 8.7pt apart and every gap looked
+        # ordinary. A row's own size does not move: consecutive rows of 12pt
+        # type leave ~0.7 of a size between them, and a blank line adds a
+        # whole one.
+        _spans = [_hm_span(_it) for _it in doc.headmatter]
+        for _i, (_a, _b) in enumerate(zip(_spans, _spans[1:]), start=1):
+            _it = doc.headmatter[_i]
+            if not (_a and _b) or _a[0] != _b[0] or not hasattr(
+                    _it, "space_before"):
+                continue
+            _size = (getattr(_it, "size", 0.0)
+                     or (geom.body_size if geom else 0.0) or 12.0)
+            _air = ((_b[1] - _a[2]) - 0.8 * _size) / _size
+            if _air >= 0.3:
+                _it.space_before = round(min(_air, 3.0), 2)
+
     # An EMPTY WRITING is not a writing. The rescue anchor can open one at a
     # segment that turns out to hold nothing, and it renders as a phantom
     # 'order' beside the real opinion.
@@ -2604,6 +2935,210 @@ def _extract_model(model, court_id: str, pdf_path) -> ExtractionResult:
                             f"{_sec} row p{_p[0][0]}")
             setattr(doc, _sec, _kept)
 
+    # THE ROW THAT NAMED THE AUTHOR IS PART OF THE DOCUMENT. A district
+    # judge closes with a conformed signature — an optional 'DATED:' line,
+    # '/s/ Emily C. Marks', the name in capitals, 'UNITED STATES DISTRICT
+    # JUDGE' — set right of the measure below the body's last row. The
+    # byline reads those rows (the author comes out right) but nothing
+    # CLAIMS them, so they reached the sweep below as unaccounted content
+    # and demoted the record to `review`: measured on almd, hid, caed and
+    # ilcd, four courts whose readings were otherwise clean.
+    #
+    # Claimed here rather than in a court file because every district signs
+    # this way, and only at the END of the last writing: a '/s/' anywhere
+    # above the body's close belongs to a quoted document, not the bench.
+    if doc.opinions:
+        _sig_titles = ("judge", "justice", "magistrate", "chancellor",
+                       "commissioner", "master", "referee")
+
+        # THE SIGNERS' COLUMN starts at a third of the measure: almd sets
+        # the judge's name at x0 252 on a 612pt sheet (41%), ilcd at 288
+        # (47%). A body row starts at the rail (72) or its indent (108).
+        _sig_rail = model.pages[-1].width * 0.33
+
+        def _is_sig_row(line) -> bool:
+            """A row in the signing block: short, and either set out in the
+            signers' column or opening with the court's own signing cue.
+
+            The NAME carries nothing to recognise it by — 'EMILY C. MARKS'
+            is just a short line — so POSITION is the test, the same rail
+            the graphic-signature lift above already uses. A body sentence
+            starts at the measure and fails it.
+            """
+            t = " ".join((line.plain or "").split())
+            if not t or len(t) > 70:
+                return False
+            low = t.lower()
+            if low.startswith(("/s/", "/s ", "s/")) or _CONFORMED.search(low):
+                return True
+            if low.rstrip(".:").startswith(("dated", "done ")) or \
+                    low.startswith(("entered ", "signed ")):
+                return True
+            # THE DISTRIBUTION LINE IS PART OF THE SIGNING BLOCK. The page
+            # sets 'cc: counsel of record' under the judge's office, and it
+            # broke the run there — so the judge's NAME, his office and the
+            # cc line stayed in the body as one welded paragraph (the user,
+            # 2026-08-23: 'the last line is teh judge stuff but it should be
+            # on separte rows').
+            if low.startswith(("cc:", "cc ", "copies to", "copies furnished",
+                               "copy to", "distribution")):
+                return True
+            if any(w in low for w in _sig_titles):
+                return True
+            return line.x0 > _sig_rail
+
+        # The dropped set is recomputed here: `all_dropped_ids` was taken
+        # before the furniture passes ran, so the folio this page ends on
+        # ('5', bottom of the sheet) still looked live and broke the walk on
+        # its first row.
+        _drop_now = {i for d in doc.dropped for i in d.prov.line_ids}
+        _last_pg = model.pages[-1].number
+        _tail = [l for l in model.pages[-1].lines
+                 if l.plain.strip() and l.id not in _drop_now
+                 and not _FOLIO_ROW.match(l.plain.strip())]
+        _tail.sort(key=lambda l: (l.top, l.x0))
+
+        # A RUN IS THE BENCH SIGNING only if it says so somewhere: the
+        # conformed slash, or a judicial office. caed's magistrate types the
+        # name and the office with no '/s/' at all.
+        def _run_is_signature(run) -> bool:
+            for line in run:
+                low = " ".join((line.plain or "").split()).lower()
+                if low.startswith(("/s/", "/s ", "s/")) or _CONFORMED.search(low):
+                    return True
+                if any(w in low for w in _sig_titles):
+                    return True
+            return False
+
+        # THE SIGNATURE IS NOT ALWAYS THE LAST THING ON THE SHEET. almd
+        # prints footnote 29 in the foot margin BELOW the judge's name, so a
+        # walk up from the bottom hit footnote prose and stopped before ever
+        # reaching the signing block. Every maximal run of signing rows on
+        # the page is considered instead, and the LAST one that names an
+        # office or carries the slash is the bench: footnote and body rows
+        # start at the measure and bound the run on both sides.
+        _runs: list = []
+        _cur: list = []
+        for line in _tail:
+            if _is_sig_row(line):
+                _cur.append(line)
+                continue
+            if _cur:
+                _runs.append(_cur)
+                _cur = []
+        if _cur:
+            _runs.append(_cur)
+        _run = next((r for r in reversed(_runs) if _run_is_signature(r)), [])
+
+        if _run:
+            _op_sig = doc.opinions[-1]
+            # A ROW ALREADY READ AS BODY IS IN THE WRONG PLACE, NOT MISSING.
+            # This lift used to APPEND every row of the signing run, so where
+            # a court reader (or either lift above) had already placed those
+            # rows the paper was signed twice over — akd/76949.15.0 printed
+            # '/s/ Sharon L. Gleason' and 'UNITED STATES DISTRICT JUDGE'
+            # twice, once with the page's italics and once without (the user,
+            # 2026-08-23: 'why does this list the signature twice???'), and
+            # almd/81184.72.0 the same. Appending only the UNCLAIMED rows
+            # cured the double but left the other half of the defect: on
+            # alnd/179841.412.0 the judge's name, his title and the
+            # signature graphic stayed in the BODY, so the writing ended on
+            # its own signature block (the user: 'signatures are inserted
+            # into and above the ending text?').
+            #
+            # So the run MOVES what it finds. Everything from the first
+            # already-placed signing row to the end of the writing is the
+            # signature — which is what `signature.opens` means where a court
+            # states it — and the rows nothing claimed are created beside
+            # them, each in the place the page prints it.
+            def _ids(b) -> set:
+                return set(getattr(getattr(b, "prov", None),
+                                   "line_ids", ()) or ())
+
+            _run_ids = {l.id for l in _run}
+            _rank = {l.id: k for k, l in enumerate(_run)}
+
+            # ONLY A TRAILING RUN OF PURE SIGNING BLOCKS MOVES. Cutting at
+            # the FIRST block that merely touches the run swallowed the
+            # writing: cafc/in_re_us lost all 7 of its blocks to its own
+            # signature, and six other sentinels lost half their body, on
+            # one-page orders where a signing row and a body paragraph share
+            # a block. A block qualifies only if EVERY line in it is a
+            # signing row — or if it carries no lines at all, which is what
+            # a graphic is — and the walk stops at the first block that does
+            # not qualify, so a body paragraph is a floor.
+            def _is_sig_block(b) -> bool:
+                ids = _ids(b)
+                if not ids:
+                    return isinstance(b, m.ImageBlock)
+                return ids <= _run_ids
+
+            _cut = len(_op_sig.blocks)
+            while _cut > 0 and _is_sig_block(_op_sig.blocks[_cut - 1]):
+                _cut -= 1
+            _tail = _op_sig.blocks[_cut:]
+            _op_sig.blocks = _op_sig.blocks[:_cut]
+            _held = {i for b in (*_tail, *_op_sig.signature) for i in _ids(b)}
+            _held |= {i for _o in doc.opinions for _b in _o.blocks
+                      for i in _ids(_b)}
+
+            # ORDER IS THE PAGE'S. A moved block keeps the position of its
+            # first signing row; a graphic carries no row ids at all, so it
+            # keeps the place it already had, just after the block above it.
+            _keyed: list = []
+            _last_key = -1.0
+            for b in _tail:
+                _mine = [_rank[i] for i in _ids(b) if i in _rank]
+                _last_key = float(min(_mine)) if _mine else _last_key + 0.5
+                _keyed.append((_last_key, b))
+            _new = 0
+            for line in _run:
+                if line.id in _held:
+                    continue
+                _keyed.append((float(_rank[line.id]), m.Paragraph(
+                    text=line.plain.strip(),
+                    prov=m.Prov(_last_pg, (line.id,)), align="right")))
+                _new += 1
+            _keyed.sort(key=lambda kv: kv[0])
+            # ONE PRINTED ROW PER ROW. The assembler joins contiguous lines
+            # into prose, so a moved block arrives with the judge's name, his
+            # office and the cc line welded into one paragraph — 'ROY K.
+            # ALTMAN UNITED STATES DISTRICT JUDGE cc: counsel of record'. The
+            # page sets one per line and a signature block IS its rows, so a
+            # moved block is rebuilt from the lines it came off.
+            _line_of = {l.id: l for pm in model.pages for l in pm.lines}
+            from .resolve.footnotes import line_markup as _lmk
+
+            def _as_rows(b) -> list:
+                ids = [i for i in _ids(b) if i in _line_of]
+                if len(ids) <= 1 or isinstance(b, m.ImageBlock):
+                    return [b]
+                _ls = sorted((_line_of[i] for i in ids),
+                             key=lambda l: (l.page, l.top, l.x0))
+                _rows: list = []
+                for _l in _ls:
+                    if (_rows and _rows[-1][0].page == _l.page
+                            and abs(_rows[-1][0].top - _l.top) <= 2.0):
+                        _rows[-1].append(_l)
+                    else:
+                        _rows.append([_l])
+                if len(_rows) <= 1:
+                    return [b]
+                return [m.Paragraph(
+                    text="  ".join(_lmk(x) for x in sorted(_r,
+                                                           key=lambda y: y.x0)),
+                    prov=m.Prov(_r[0].page, tuple(x.id for x in _r)),
+                    align="right") for _r in _rows]
+
+            _sig_items = [x for _k, b in _keyed for x in _as_rows(b)]
+            for _i2, _b2 in enumerate(_sig_items):
+                if isinstance(_b2, m.Heading):
+                    _sig_items[_i2] = m.Paragraph(
+                        text=_b2.text, prov=_b2.prov, align="right")
+            _op_sig.signature = _sig_items + list(_op_sig.signature)
+            trace.event("signature.claimed",
+                        f"{len(_tail)} moved, {_new} new, p{_last_pg}")
+
     # 10 finalize — residual sweep: every content line must have landed.
     placed: set[int] = set()
     for items in (doc.headmatter, doc.attorneys, doc.syllabus, doc.summary,
@@ -2650,6 +3185,102 @@ def _extract_model(model, court_id: str, pdf_path) -> ExtractionResult:
                 text=line.plain.strip(), prov=m.Prov(pm.number, (line.id,)),
                 kind=kind))
 
+    # A PARTY'S FILING IS NOT THE COURT'S WRITING. A complaint reads like an
+    # opinion to every structural test — masthead, caption, numbered
+    # paragraphs, a signature — and akd/79708.1.0 came back as an `opinion`
+    # with 297 blocks and an 'author' who is the plaintiff's lawyer. The
+    # paper says what it is where it SIGNS: the signer states who they
+    # appeared FOR ('Attorneys for Plaintiff Defenders of Wildlife'), and no
+    # court signs that way; a court signs an office. The paper's own name is
+    # the second route, for a filing that closes without the phrase.
+    #
+    # The record is still parsed and still rendered — the user, 2026-08-23:
+    # 'we want to be able to recognize this as not an opinion and not ingest
+    # it on the CL side but that doesnt mean we shouldnt be able to parse
+    # this right here and also flag it'. `DocType.FILING` is what the flag
+    # is: `NO_BODY_EXPECTED` already contains it, and the CL view refuses to
+    # translate it into an opinion cluster.
+    if meta.doc_type in (m.DocType.OPINION, m.DocType.ORDER,
+                         m.DocType.UNKNOWN, m.DocType.HYBRID):
+        from .audit import strip_tags as _stf
+        # HOW A PAPER CLOSES IS WHO WROTE IT. The signature BLOCK alone was
+        # too narrow: a party's counsel signs 'By: /s/ William T. Dowd' and
+        # sets the firm, the street, the fax and the email under it, and
+        # those rows land in the BODY rather than the signature — so
+        # gud/15303.118.0, a motion in limine, came back an `opinion` (the
+        # user, 2026-08-23: 'i need filings to be identified across federal
+        # district courts'). The CLOSING REGION is read instead: the
+        # signature, the tail of the writing, and the trailer.
+        _tail_blocks = [b for _o in doc.opinions
+                        for b in (*_o.blocks[-8:], *_o.signature)]
+        _close = " ".join(_stf(getattr(b, "text", "") or "")
+                          for b in (*_tail_blocks, *doc.trailer))
+        _sig_low = " ".join(_close.split()).lower()
+        _office = ("judge", "justice", "magistrate", "chancellor",
+                   "referee", "commissioner", "clerk", "by the court",
+                   "so ordered", "it is ordered")
+        _judicial = any(w in _sig_low for w in _office)
+        # THE APPARATUS OF A PARTY'S SIGNATURE, which a court prints none of:
+        # no firm, no bar number, no email, no certificate of service, and it
+        # never submits anything respectfully.
+        _appeared_for = bool(_re_filing_appearance.search(_sig_low)
+                             or _re_counsel_apparatus.search(_sig_low))
+        _named_itself = bool(
+            doc.criteria.title and _re_pleading.match(doc.criteria.title))
+        # ...AND SOME PAPERS NEVER LET A SIGNATURE BE CLAIMED AT ALL. A
+        # complaint closes with PAGES of roster: caed/492832.42.2 runs its
+        # counsel over three sheets and ends, 57 pages in, on 'Counsel for
+        # Plaintiff National Association of / Wholesaler-Distributors' set at
+        # the RAIL -- so no signing run forms (that walk wants the signers'
+        # column or the conformed slash) and `signature` stays empty. The end
+        # matter is still there, in the body's last blocks, and it still says
+        # the one thing no court says. Read from the closing rows on three
+        # signals measured together: a row that IS an appearance rather than a
+        # sentence mentioning one, the contact details a roster carries and an
+        # order never does, and no judicial office among them.
+        _closing = [_t for _t in (
+            " ".join(_stf(getattr(b, "text", "") or "").split())
+            for _o in doc.opinions[-1:]
+            for b in (*[x for x in _o.blocks
+                        if getattr(getattr(x, "prov", None), "page", 0)
+                        >= model.pages[-1].number], *_o.signature))
+            if _t]
+        _appear_close = any(_re_appearance_row.match(_t) and len(_t) <= 80
+                            for _t in _closing)
+        _roster_rows = sum(1 for _t in _closing if _re_roster_row.search(_t))
+        _closed_by_counsel = (
+            _appear_close and _roster_rows >= 2
+            and not any(w in _t.lower() for _t in _closing for w in _office))
+        # …AND THE COURT'S OWN APPEARANCE LIST IS NOT A PARTY'S BLOCK. Both
+        # routes above read an appearance and neither asks WHOSE, so a court
+        # that prints its counsel of record at the foot of its opinion looked
+        # exactly like a paper filed by one of them.
+        #
+        # THE COURT NAMES EVERYONE; A PARTY NAMES ITSELF. nmd closes its
+        # opinions with a roster of every firm in the case — 'Attorneys for
+        # Defendant HCSC Insurance Services Co.', '… Molina Healthcare …',
+        # '… Presbyterian Health Plan …' on one record and six such rows on
+        # another — while a party's paper closes on ONE appearance, its own
+        # (the user, 2026-08-24: 'why does this … say its a filing?').
+        #
+        # AND NO PARTY WRITES 'SO ORDERED'. nysd endorses a letter-motion by
+        # stamping its order beneath counsel's own block, so that page
+        # carries a party's appearance AND the court's disposition; the
+        # disposition is the court speaking and outranks anything above it.
+        _appear_rows = sum(1 for _t in _closing
+                           if _re_appearance_row.match(_t) and len(_t) <= 80)
+        _court_roster = _appear_rows >= 2 or any(
+            _re_ordering.search(_t) for _t in _closing)
+        if not _judicial and not _court_roster and (
+                _appeared_for or _named_itself or _closed_by_counsel):
+            meta.doc_type = m.DocType.FILING
+            doc.warnings.append(
+                _FILING_FLAG + ": the signer "
+                + ("states who they appeared for" if _appeared_for
+                   else f"the paper names itself {doc.criteria.title!r}"
+                   if _named_itself
+                   else "is counsel for a party, with their own roster"))
+
     if meta.doc_type == m.DocType.UNKNOWN and doc.opinions:
         signed = any(op.author for op in doc.opinions)
         meta.doc_type = m.DocType.OPINION if signed else m.DocType.ORDER
@@ -2669,6 +3300,227 @@ def _extract_model(model, court_id: str, pdf_path) -> ExtractionResult:
         if _words >= 120:
             meta.doc_type = m.DocType.ORDER
 
+    # 10c WHERE IT STOOD. Every removal and every unclaimed row gets the box
+    # its source lines occupied, so a consumer can audit the decision against
+    # the page instead of taking it on trust. Done HERE, in one pass over the
+    # finished lists, rather than at the 163 sites that build a `Dropped` —
+    # one owner, and no site can forget it.
+    _box_of = {l.id: (l.x0, l.top, l.x1, l.bottom)
+               for pm in model.pages for l in pm.lines}
+
+    def _union(ids) -> tuple | None:
+        boxes = [_box_of[i] for i in ids if i in _box_of]
+        if not boxes:
+            return None
+        return (min(b[0] for b in boxes), min(b[1] for b in boxes),
+                max(b[2] for b in boxes), max(b[3] for b in boxes))
+
+    for _rec in (*doc.dropped, *doc.residual):
+        if _rec.bbox is None:
+            _rec.bbox = _union(_rec.prov.line_ids)
+
+    # 10c-bis A RUNOVER IS THE ITEM STILL SPEAKING. The segmenter can cut a
+    # bulleted list between an item and its own second line — measured on
+    # alnd/179841.412.0, 4 of its 9 conclusion items were cut that way — and
+    # the halves then read as an item and a stray paragraph beneath it. The
+    # page says which is which: a block whose first line is set IN from the
+    # item above it is that item continuing, not a new one.
+    _x0_of = {l.id: l.x0 for pm in model.pages for l in pm.lines}
+    _pos_of = {l.id: (l.page, l.top, l.bottom, l.x0)
+               for pm in model.pages for l in pm.lines}
+
+    def _first_x0(b):
+        xs = [_x0_of[i] for i in getattr(getattr(b, "prov", None),
+                                         "line_ids", ()) if i in _x0_of]
+        return min(xs) if xs else None
+
+    def _span(b):
+        """(rail, first_x0, first(page,top), last(page,bottom)) for a block."""
+        ps = [_pos_of[i] for i in getattr(getattr(b, "prov", None),
+                                          "line_ids", ()) if i in _pos_of]
+        if not ps:
+            return None
+        ps.sort(key=lambda q: (q[0], q[1]))
+        return (min(q[3] for q in ps), ps[0][3],
+                (ps[0][0], ps[0][1]), (ps[-1][0], ps[-1][2]))
+
+    # A LINE AT THE RAIL UNDER AN INDENTED PARAGRAPH IS THAT PARAGRAPH. The
+    # segmenter can cut a paragraph from its own last line, and a one-line
+    # segment always opens a block — so a paragraph lost its closing sentence
+    # to a block of its own ('… who Vandergaw was prosecuting.' / 'Id at 9.'
+    # — akd/62768.505.0). The page decides: this document marks a new
+    # paragraph by INDENTING it, so a row that starts at the runover edge,
+    # one line-pitch below, is the paragraph continuing (the user, 2026-08-23:
+    # 'we dont want every apragraph to lose its last sentence?').
+    _lead = (geom.lead if geom and geom.lead else 0.0) or 14.0
+    # NOT ON AN OCR'D SOURCE. This rule reads x0 to tell a runover from an
+    # opener, and a scan's own warning says the geometry is untrusted — on
+    # virginislands/…wrensford the OCR renders the court's paragraph marks as
+    # 'qi', '{9' and '47' by turns, so neither the marks nor the measure can
+    # carry the decision. The safe direction is to leave those documents
+    # exactly as they were.
+    _trust_geometry = not (meta.scan_pages or "scan" in (meta.source_kind or ""))
+    import os as _os2
+    _join_diag = _os2.environ.get("CENTRALIA_PARA_JOIN_DIAG")
+    for _op in (doc.opinions if _trust_geometry else ()):
+        _kept2: list = []
+        for _b in _op.blocks:
+            _prev = _kept2[-1] if _kept2 else None
+            if (isinstance(_b, m.Paragraph) and isinstance(_prev, m.Paragraph)
+                    and not getattr(_b, "role", "")
+                    and not getattr(_prev, "role", "")):
+                _a, _c = _span(_prev), _span(_b)
+                if _a and _c:
+                    _rail, _a_first, _, _a_last = _a
+                    _, _c_first, _c_top, _ = _c
+                    _indented = _a_first >= _rail + 8.0
+                    # AT the rail, not merely left of the indent. A row set
+                    # LEFT of the paragraph's own runover edge is outside its
+                    # measure and belongs to something else — illappct sets
+                    # its headings at 72 under paragraphs whose runovers sit
+                    # at 144, and those were being swallowed.
+                    _at_rail = abs(_c_first - _rail) <= 2.5
+                    _adjacent = (_c_top[0] == _a_last[0]
+                                 and 0 < _c_top[1] - _a_last[1] <= 1.6 * _lead)
+                    # …AND THE PAGE'S OWN OPENERS ARE NEVER RUNOVERS. A
+                    # court that numbers its paragraphs opens one at the rail
+                    # ('¶ 12 …' — the Illinois courts), and an outline label
+                    # opens a section there; joined to the paragraph above,
+                    # both vanish into it.
+                    _cur_flat = _re_tags.sub("", _b.text or "").lstrip()
+                    _opens_itself = bool(_PARA_OPENER.match(_cur_flat))
+                    # …AND A COURT THAT NUMBERS ITS PARAGRAPHS may lose the
+                    # mark to OCR, leaving a bare number ('47 On May 15,
+                    # 2023, Dr. Boschulte…' — virginislands). A leading
+                    # number is not enough on its own: a runover can open on
+                    # one ('91 Fed. Reg. 9339'). What settles it is whether
+                    # the paragraph ABOVE opens on a number too — that is
+                    # the document saying it numbers its paragraphs.
+                    if not _opens_itself and _NUM_OPENER.match(_cur_flat):
+                        _prev_flat = _re_tags.sub(
+                            "", _prev.text or "").lstrip()
+                        _opens_itself = bool(_NUM_OPENER.match(_prev_flat))
+                    if (_indented and _at_rail and _adjacent
+                            and not _opens_itself):
+                        if _join_diag:
+                            import re as _re3
+                            _pt = _re3.sub(r"<[^>]+>", "", _prev.text)[-58:]
+                            _ct = _re3.sub(r"<[^>]+>", "", _b.text or "")[:58]
+                            print(f"JOIN rail={_rail:.0f} first={_a_first:.0f} "
+                                  f"cur={_c_first:.0f} gap="
+                                  f"{_c_top[1] - _a_last[1]:.0f}: "
+                                  f"…{_pt!r} + {_ct!r}")
+                        _prev.text = (_prev.text.rstrip() + " "
+                                      + (_b.text or "").lstrip())
+                        _prev.prov = m.Prov(
+                            _prev.prov.page,
+                            tuple(_prev.prov.line_ids) + tuple(_b.prov.line_ids))
+                        continue
+            _kept2.append(_b)
+        _op.blocks = _kept2
+
+    for _op in doc.opinions:
+        _kept: list = []
+        for _b in _op.blocks:
+            if (_kept and isinstance(_kept[-1], m.ListItem)
+                    and isinstance(_b, m.Paragraph)):
+                _ax, _bx = _first_x0(_kept[-1]), _first_x0(_b)
+                if _ax is not None and _bx is not None and _bx > _ax + 2.0:
+                    _kept[-1].text = (_kept[-1].text.rstrip() + " "
+                                      + (_b.text or "").lstrip())
+                    _kept[-1].prov = m.Prov(
+                        _kept[-1].prov.page,
+                        tuple(_kept[-1].prov.line_ids) + tuple(
+                            _b.prov.line_ids))
+                    continue
+            _kept.append(_b)
+        _op.blocks = _kept
+
+    # 10c-ter A TABLE-OF-CONTENTS ENTRY IS ONE ROW, however many lines the
+    # page wraps it over. Only the LAST line of an entry carries the dot
+    # leaders and the page number; the lines above it are the heading's own
+    # text, and they are set in the same capitals a heading is — so they were
+    # classified one per line and came out as three Headings, a Blockquote and
+    # a stray Paragraph for two entries (gud/15303.96.0). A table of
+    # AUTHORITIES reads correctly for the one reason that its entries fit on a
+    # single row (the user, 2026-08-23: 'the table oc conteents fails to
+    # format right but table of authorities gest it irhgt … thats an issue
+    # across courts').
+    #
+    # Repaired here, over the finished blocks, because the mis-typing happens
+    # before the leader row is ever in view: the leader row is the END of the
+    # entry, and every contiguous block above it that does not end in leaders
+    # and stands at the same left edge is the same entry still speaking.
+    if _trust_geometry:
+        for _op in doc.opinions:
+            _out: list = []
+            for _b in _op.blocks:
+                _txt = _re_tags.sub("", getattr(_b, "text", "") or "")
+                if not _TOC_TAIL.search(_txt.rstrip()):
+                    _out.append(_b)
+                    continue
+                _run: list = []
+                while _out:
+                    _cand = _out[-1]
+                    _ct = _re_tags.sub("", getattr(_cand, "text", "") or "")
+                    if not _ct.strip() or _TOC_TAIL.search(_ct.rstrip()):
+                        break
+                    # PROSE IS NOT AN ENTRY'S FIRST LINE. Without this the
+                    # walk-back ate the body: 'COMES NOW Plaintiff Guam
+                    # Waterworks Authority, by and through Counsel, …'
+                    # swallowed the entry below it. A contents entry is
+                    # SHORT and set in the court's own capitals.
+                    _alpha = [c for c in _ct if c.isalpha()]
+                    if len(_ct.split()) > 25 or not _alpha:
+                        break
+                    if sum(c.isupper() for c in _alpha) < 0.8 * len(_alpha):
+                        break
+                    _sa, _sb = _span(_cand), _span(_run[0] if _run else _b)
+                    if not (_sa and _sb):
+                        break
+                    # contiguous, and standing at the same left edge
+                    # ADJACENT ROWS MAY OVERLAP BY THEIR GLYPH BOXES: entry
+                    # III's last line bottoms at 90 while the row under it
+                    # tops at 88, so a strictly positive gap rejected the
+                    # very rows this pass exists to join.
+                    if _sa[3][0] != _sb[2][0] or not (
+                            -5.0 <= _sb[2][1] - _sa[3][1] <= 2.2 * _lead):
+                        break
+                    if abs(_sa[1] - _sb[1]) > 40.0:
+                        break
+                    _run.insert(0, _out.pop())
+                if not _run:
+                    _out.append(_b)
+                    continue
+                _text = " ".join(
+                    (getattr(x, "text", "") or "").strip()
+                    for x in (*_run, _b) if (getattr(x, "text", "") or "").strip())
+                _ids = tuple(i for x in (*_run, _b)
+                             for i in getattr(getattr(x, "prov", None),
+                                              "line_ids", ()) or ())
+                _out.append(m.Paragraph(
+                    text=_text, prov=m.Prov(_run[0].prov.page, _ids)))
+            _op.blocks = _out
+
+    # 10d THE CASES THIS RECORD DECIDES. A court reader that read its own
+    # box's compartments has already published them (the district lane);
+    # this reads the grouping off the headmatter's own row order for every
+    # court that has not, and says nothing where the page states one case.
+    if not doc.criteria.cases:
+        from .resolve.headmatter import read_consolidated_cases
+        _cases = read_consolidated_cases(doc)
+        if _cases:
+            doc.criteria.cases = _cases
+            # THE LEAD CASE NAMES THE RECORD, and the companions are what
+            # `other_dockets` was already carrying — restated here so the
+            # two cannot disagree.
+            _extra = [c.docket_number for c in _cases[1:]
+                      if c.docket_number
+                      and c.docket_number != doc.criteria.docket_number]
+            for _d in _extra:
+                if _d not in doc.criteria.other_dockets:
+                    doc.criteria.other_dockets.append(_d)
+
     # 11 emit
     #
     # 'review' must mean SOMETHING TO FIX. A scanned or partly image-only
@@ -2677,7 +3529,11 @@ def _extract_model(model, court_id: str, pdf_path) -> ExtractionResult:
     # source complaints get their own status and their own worklist.
     _src = [w for w in doc.warnings
             if any(k in w for k in SOURCE_WARNINGS)]
-    _parse = [w for w in doc.warnings if w not in _src]
+    # THE FILING FLAG IS A CLASSIFICATION, NOT A DEFECT. Recognising a
+    # party's pleading and saying so is the RIGHT outcome — `review` means
+    # 'something to fix here', and there is nothing to fix.
+    _parse = [w for w in doc.warnings
+              if w not in _src and not w.startswith(_FILING_FLAG)]
     status = "valid"
     if any(r.kind == "content" for r in doc.residual) or _parse:
         status = "review"
@@ -2685,4 +3541,41 @@ def _extract_model(model, court_id: str, pdf_path) -> ExtractionResult:
         status = "review"
     elif _src:
         status = "scanned"
+    # THE SIGNING BLOCK DATES THE PAPER, where the headmatter never did.
+    # Asked LAST, when `doc.criteria` is final: placed with the signature
+    # lift it ran before the headmatter's own criteria were merged and
+    # OVERWROTE a date the caption had already stated correctly —
+    # mad/238521.179.0 went from its own 'August 11, 2026' to a 'March 12,
+    # 2026' recited inside the signing block. Only the court's own signature
+    # and the rows it closes on are read: a date anywhere else on the sheet
+    # could be a deadline the order sets or a filing it recites.
+    if not doc.criteria.decision_date and doc.opinions:
+        from .audit import strip_tags as _stdate
+        _last_op = doc.opinions[-1]
+        # A BODY PARAGRAPH MUST ANNOUNCE THE DATE TO COUNT. Inside the
+        # claimed signature a bare date is the court's own; in the body it is
+        # as likely to be something the order RECITES — ded/90534.32.0 closes
+        # on 'Dentsply's Motion to Dismiss, D.I. 14, is granted in part …'
+        # and the paragraph names a 2020 date, which this fallback published
+        # as the decision date of a 2026 opinion. So a body block is read
+        # only where it says the date is the paper's: 'Dated', the recital
+        # 'this 20th day of May 2026' (alsd), or an order pronounced with it.
+        for _sb in _last_op.signature:
+            _sd = _signed_date(" ".join(
+                _stdate(getattr(_sb, "text", "") or "").split()))
+            if _sd:
+                doc.criteria.decision_date = _sd
+                trace.event("date.from-signature", _sd)
+                break
+        else:
+            for _sb in _last_op.blocks[-3:]:
+                _t = " ".join(_stdate(getattr(_sb, "text", "") or "").split())
+                if not _re_dated_row.search(_t):
+                    continue
+                _sd = _signed_date(_t)
+                if _sd:
+                    doc.criteria.decision_date = _sd
+                    trace.event("date.from-closing-row", _sd)
+                    break
+
     return ExtractionResult(doc, trace, status=status)

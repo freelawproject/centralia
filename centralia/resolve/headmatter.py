@@ -266,7 +266,16 @@ def date_row_value(text: str) -> str | None:
 _STATUS_WORDS = ("plaintiff", "defendant", "appellant", "appellee",
                  "petitioner", "respondent", "intervenor", "movant",
                  "claimant", "cross-appellant", "cross-appellee", "debtor",
-                 "amicus", "amici")
+                 "amicus", "amici",
+                 # A SIDE THE CAPTION NAMES WITHOUT A ROLE WORD. 'Interested
+                 # Party.' is apparatus, not a party's name, and unread as
+                 # such it welded into the name — ca10's
+                 # universitas_education and cafc's nvlsp published
+                 # 'Interested Party - Appellant' as a party (the user,
+                 # 2026-08-24: 'the other is the interested party is the
+                 # same thing its part of caption'). 'Miscellaneous' is the
+                 # district form of the same thing (insd).
+                 "interested", "miscellaneous")
 _PIVOTS = ("v.", "vs.", "v", "vs", "against")
 _ORIGIN_OPENERS = ("appeal from", "on appeal from", "appeal by", "on petition",
                    "petition for", "on writ", "certiorari", "on remand",
@@ -1087,3 +1096,106 @@ def _above_band(item: m.HmLine, band, pages) -> bool:
     by_id = {l.id: l for l in lines1}
     src = by_id.get(item.prov.line_ids[0]) if item.prov.line_ids else None
     return bool(src and src.top < band[0])
+
+
+# --------------------------------------------------------------------------
+# the cases a record decides
+# --------------------------------------------------------------------------
+# A CONSOLIDATED RECORD IS MORE THAN ONE CASE. Where a court reader already
+# published the grouping (the district lane reads its box's compartments),
+# this leaves it alone; where it did not, the grouping is still on the page —
+# in the ORDER of the rows the reader tagged. ca5 prints 'No. 26-70004', that
+# case's parties, 'consolidated with', 'No. 26-10354' and THAT case's parties;
+# read as a flat row list the two weld into one (the user, 2026-08-23: 'has
+# two consolidated cases and we recognized it in teh old parser … it would
+# list case 1 and case 2').
+_CONSOLIDATED_MARK = re.compile(
+    r"^\(?\s*(?:and\s+)?consolidated(?:\s+with)?\b|^\(?\s*c/w\b", re.I)
+# A NUMBER THE COURT BELOW GAVE IT is not a companion case, and courts print
+# it in the same band ('USDC No. 4:09-CV-160', 'D.C. No. 1:22-cv-00776').
+# Tagged as a docket it would open a second case and swallow the rows under
+# it.
+_BELOW_DOCKET = re.compile(
+    r"\b(?:USDC|U\.?S\.?D\.?C|D\.?C\.?\s+No|District\s+Court|Superior|"
+    r"Circuit\s+Court|Bankr|Tax\s+Court|Agency|BIA|Board)\b", re.I)
+_PIVOT_ROW = re.compile(r"^(?:v\.?|vs\.?|versus|against)[\s,]*$", re.I)
+_PARTY_STATUS = re.compile(
+    r"^(?:plaintiffs?|defendants?|appellants?|appellees?|petitioners?|"
+    r"respondents?|movants?|intervenors?|applicants?|claimants?|"
+    r"cross-\w+|amici?\b|amicus\b|debtors?|creditors?|in\s+propria)"
+    r"[\s\-—,.]*(?:$|[\-—])", re.I)
+
+
+def _case_name_of(rows: list[str]) -> tuple[str, list[str]]:
+    """A case name out of one case's own caption rows: the names either side
+    of the pivot, apparatus dropped. Never a wholesale join — 'Petitioner—
+    Appellant,' is a status, not a party."""
+    left: list[str] = []
+    right: list[str] = []
+    side, seen = left, False
+    for row in rows:
+        flat = " ".join(row.split())
+        if not flat or _PARTY_STATUS.match(flat):
+            continue
+        if _PIVOT_ROW.match(flat):
+            side, seen = right, True
+            continue
+        head = flat.split(None, 1)
+        if head and _PIVOT_ROW.match(head[0]):
+            side, seen = right, True
+            flat = " ".join(head[1].split()) if len(head) > 1 else ""
+            if not flat or _PARTY_STATUS.match(flat):
+                continue
+        side.append(flat)
+    a = " ".join(left).strip(" ,;")
+    b = " ".join(right).strip(" ,;")
+    if seen and a and b:
+        return f"{a} v. {b}", [a, b]
+    joined = " ".join(x for x in (a, b) if x).strip(" ,;")
+    return joined, ([joined] if joined else [])
+
+
+def read_consolidated_cases(doc) -> list:
+    """The cases this record decides, read off the headmatter's own rows.
+
+    Returns [] for the ordinary record — one case, already named by
+    `docket_number` and `case_name`. A list means the page really does state
+    more than one number, each with its own parties under it."""
+    from ..audit import strip_tags, unescape_xml
+
+    rows: list = []
+    for item in doc.headmatter:
+        if isinstance(item, m.HmLine):
+            rows.append(item)
+        elif isinstance(item, m.CaptionBlock):
+            for pair in zip(item.left, item.right):
+                rows.extend([r for r in pair if r is not None])
+
+    cases: list = []                  # [(docket, prov, [caption rows])]
+    for row in rows:
+        text = unescape_xml(strip_tags(row.text or "")).strip()
+        if not text:
+            continue
+        if row.role == "docket":
+            if _CONSOLIDATED_MARK.match(text):
+                continue              # the connector, not a number
+            if _BELOW_DOCKET.search(text):
+                continue              # the court below's own number
+            if any(ch.isdigit() for ch in text):
+                cases.append((text, row.prov, []))
+                continue
+        if row.role == "caption" and cases:
+            cases[-1][2].append(text)
+
+    # EVIDENCE, NOT SHAPE: two numbers each with their own parties under
+    # them. One number with parties and a second with none is a docket
+    # printed twice, not a consolidation.
+    good = [c for c in cases if c[2]]
+    if len(good) < 2:
+        return []
+    out = []
+    for docket, prov, caption in good:
+        name, parties = _case_name_of(caption)
+        out.append(m.CaseRef(docket_number=docket, case_name=name,
+                             parties=parties, caption=caption, prov=prov))
+    return out

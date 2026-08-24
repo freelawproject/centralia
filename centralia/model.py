@@ -128,6 +128,15 @@ class HmLine:
     bold: bool = False
     italic: bool = False
     rel: float = 0.0
+    # THE AIR THE PAGE LEFT ABOVE THIS ROW, in blank lines of the headmatter's
+    # own pitch: 0.0 where the row simply follows the one above it, ~1.0 where
+    # the court set a blank line between two groups. ca6 prints its appeal-from
+    # rows, its 'Decided and Filed' and its 'Before:' panel with a line of air
+    # between each and no rule to divide them; rendered flush they read as one
+    # block (the user, 2026-08-24: 'id like to add a little vertical space
+    # betwween unique sections … see there is some spacing in teh real
+    # thing'). Measured, never invented — see `pipeline` where it is set.
+    space_before: float = 0.0
     # What a court reader identified this row AS. The vocabulary, as of
     # 2026-08-19 — every one of these renders with its own tint and margin
     # label in `render/html.py`, and the legend names the ones a document
@@ -171,6 +180,8 @@ class CaptionBlock:
     rail_rows: int = 0
     style_id: str | None = None
     fp: dict = field(default_factory=dict)
+    # The air the page left above the box — see `HmLine.space_before`.
+    space_before: float = 0.0
     prov: Prov = field(default_factory=lambda: Prov(1))
 
 
@@ -228,6 +239,41 @@ class Opinion:
 # --------------------------------------------------------------------------
 
 @dataclass
+class CaseRef:
+    """ONE CASE a record decides, where a paper decides more than one.
+
+    A consolidated record is not one case with spare numbers. akd hears three
+    actions together and captions each in its own compartment of the box; ca5
+    prints 'consolidated with' between two, each with its own number and its
+    own parties. Flattened into `docket_number` + `other_dockets` the numbers
+    survive and the GROUPING does not — the parties of all three weld into
+    one case name that names no case ('NATIVE VILLAGE OF HOOPER BAY … v. DOUG
+    BURGUM … STATE OF ALASKA, FRIENDS OF ALASKA NATIONAL WILDLIFE REFUGES
+    …'), and a reader cannot tell which party belongs to which number.
+
+    The lead case is ALSO `Criteria.docket_number` / `case_name` / `parties`,
+    so a consumer that knows nothing of consolidation reads the same thing it
+    always did — and now reads the lead case rather than a weld of all of
+    them. This list is empty for the ordinary record that decides one case:
+    the fields above already say it, and an empty list is the honest way to
+    say 'nothing consolidated here'.
+
+    The shape is the one the review sheet used before the template rewrite
+    dropped it (the user, 2026-08-23: 'it would list case 1 and case 2').
+    """
+
+    docket_number: str = ""
+    case_name: str = ""
+    parties: list[str] = field(default_factory=list)
+    caption: list[str] = field(default_factory=list)   # rows, verbatim
+    lower_court: str = ""
+    lower_court_docket: str = ""
+    lower_court_judge: str = ""
+    prior_history: str = ""
+    prov: Prov = field(default_factory=lambda: Prov(1))
+
+
+@dataclass
 class Criteria:
     publication_status: str | None = None   # "published" | "unpublished"
     decision_date: str | None = None
@@ -247,6 +293,9 @@ class Criteria:
     # 'this case, downstairs' from 'another case, alongside'.
     lower_court_docket: list[str] = field(default_factory=list)
     parties: list[str] = field(default_factory=list)
+    # THE CASES THIS RECORD DECIDES, where it decides more than one. See
+    # `CaseRef`: empty means the single case the fields above name.
+    cases: list = field(default_factory=list)          # list[CaseRef]
     attorneys: str | None = None
     judges: str | None = None
     panel: list[str] = field(default_factory=list)
@@ -295,21 +344,34 @@ class Criteria:
 
 @dataclass
 class Dropped:
-    """Identified junk, surfaced: stamps, folios, running heads, seals."""
+    """Identified junk, surfaced: stamps, folios, running heads, seals.
+
+    ``bbox`` is where it stood on the page — (x0, top, x1, bottom) over the
+    union of its source lines, filled once at stage 11 from `prov.line_ids`.
+    A removal a consumer cannot LOCATE cannot be audited: 'kind, page, text'
+    says what was taken and roughly where, but checking it against the sheet
+    means finding the row by eye. With the box (and the line ids beside it) a
+    reader can draw the removal back onto the page it came off.
+    """
 
     text: str
     prov: Prov
     kind: str                    # stamp | folio | running-head | margin | rotated | …
+    bbox: tuple | None = None
 
 
 @dataclass
 class Residual:
     """A source line no stage claimed. kind='content' is the worklist;
-    kind='furniture' is repeated margin matter the sweep recognized late."""
+    kind='furniture' is repeated margin matter the sweep recognized late.
+
+    ``bbox`` as for `Dropped` — the unclaimed rows are the other half of the
+    audit, and they are worth just as little without a position."""
 
     text: str
     prov: Prov
     kind: Literal["content", "furniture"] = "content"
+    bbox: tuple | None = None
 
 
 @dataclass

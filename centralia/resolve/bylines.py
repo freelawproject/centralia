@@ -105,6 +105,13 @@ class BylineGrammar:
     # nothing and 30 of 32 majorities were credited to the CLERK's conformed
     # sign-off at the foot of the document — two of them to a deputy clerk.
     also_abbrev: bool = False
+    # …AND THE THIRD DIRECTION: a court whose usual signature is the name
+    # over the office may also sign in PROSE when it sits differently. A
+    # district court convened as a three-judge court under 28 U.S.C. § 2284
+    # includes a circuit judge, and when he writes it he signs as one —
+    # 'GRANT, Circuit Judge:' (flsd/668130.226.0). Declared 'reversed'
+    # alone, that row was body prose and the writing had no author.
+    also_prose: bool = False
     # A TITLE-CASE name is a byline ONLY when its tail is a KIND clause.
     # wva signs three ways and the third ('Justice Wooton, dissenting:')
     # cannot be admitted outright: bare, the same rule takes 'Ewing,
@@ -434,6 +441,8 @@ class BylineParser:
             got = self._reversed(text)
         if got is None and self.g.also_abbrev and self.g.style != "abbrev":
             got = self._abbrev(text)
+        if got is None and self.g.also_prose and self.g.style != "prose":
+            got = self._prose_parse(text)
         if got is None and self.g.titlecase_kind_only:
             # clear the flag on the inner grammar, or parse() calls itself
             alt = BylineParser(replace(
