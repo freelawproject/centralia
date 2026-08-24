@@ -45,7 +45,7 @@ them (jacinto's rate line, 178.0-434.0) runs straight across where a rail
 would have to stand. There is no `)` column, no drawn vertical, no box rail.
 The old engine's shared military base folds a `)` rail into every CCA
 headmatter (`_military.py`: `_fold_rail_caption(d["summary"], ")")`) — the
-trap recorded at docs/core-patch-queue.md ~1690 — but armfor never inherited
+trap recorded at notes/core-patch-queue.md ~1690 — but armfor never inherited
 from that base even in v1 (it descends from `_reversedjustice`), and the
 measurement confirms the fold would invent a rail here too: page 1 contains
 ZERO `)` glyphs standing as a column on all 32 records.

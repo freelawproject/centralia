@@ -16,7 +16,7 @@ implementation is the OLD engine at `/Users/Palin/Code/centralia` — read
 output is at `/Users/Palin/Code/centralia/output/<court>/` and is your
 per-file oracle.
 
-Read `docs/lessons/porting-court-headmatter.md` first. It carries the rules
+Read `notes/lessons/porting-court-headmatter.md` first. It carries the rules
 and the traps; do not rediscover them.
 
 ## The loop

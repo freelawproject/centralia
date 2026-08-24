@@ -6,7 +6,7 @@ It is CORE, not a court file: a district court file may import it (the
 per-court-file rule forbids importing another COURT file, never core), and
 nothing outside `centralia/courts/<district>.py` reaches it.
 
-See `docs/district-rollout.md`.
+See `notes/district-rollout.md`.
 """
 
 from .ecf import (STYLE_DRAWN_RAIL, STYLE_FLUSH_STATUS, STYLE_GLYPH_RAIL,

@@ -52,6 +52,6 @@ references, not as templates.
 - **Apply the core queue before the sweep** — every port measures against
   core, and yesterday's rate was roughly one core defect per court.
 - **Do not trust the grades to say when a port is done.** See
-  `docs/` notes and the oracle blind spots: `v1diff` is structurally blind on
+  `notes/` notes and the oracle blind spots: `v1diff` is structurally blind on
   221 of 239 courts, `authorless` misses unbylined writings, and a grade can
   get WORSE as a port gets better.

@@ -161,7 +161,7 @@ def _is_rule_text(text: str) -> bool:
 
 def coverage(doc, pdf_model) -> AuditResult:
     """Line-coverage proof. Remember: this is the WEAK signal (see
-    docs/lessons/coverage-vs-correctness.md) — the correctness gates in the
+    notes/lessons/coverage-vs-correctness.md) — the correctness gates in the
     harness compare opinion counts and per-section word mass."""
     from .sections import SECTIONS, section_text
 

@@ -7,7 +7,7 @@ a ranked worklist — so defects are found by machine, not by eye.
     uv run python harness/cli.py v1diff              # all baselined courts
     uv run python harness/cli.py v1diff ca9 ca10     # some courts
 
-Writes docs/v1-diff.md (the worklist) and output/notes/v1diff.json (raw).
+Writes notes/v1-diff.md (the worklist) and output/notes/v1diff.json (raw).
 Ranked by kind: opinion-count first (did we find the right writings), then
 doc-type, then footnote labels, then section-word drift.
 """
@@ -25,7 +25,7 @@ sys.path.insert(0, str(REPO_ROOT / "harness"))
 
 from centralia.settings import BASELINE_DIR, CORPUS_ROOT, OUTPUT_DIR  # noqa: E402
 
-REPORT = REPO_ROOT / "docs" / "v1-diff.md"
+REPORT = REPO_ROOT / "notes" / "v1-diff.md"
 RAW = OUTPUT_DIR / "notes" / "v1diff.json"
 # Word-count drift below this is noise (furniture removal improved, star
 # pagination added, sections re-routed) — not a defect worth listing.

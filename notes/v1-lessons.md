@@ -3,7 +3,7 @@
 Source: full read of `/Users/Palin/Code/centralia/centralia/courts/` (25 family
 modules + ~235 court files, 2026-08-17) compared against
 `centralia/pipeline.py`, `resolve/{headmatter,assemble,footnotes,bylines}.py`,
-`courts/__init__.py`, and `docs/review-backlog.md`.
+`courts/__init__.py`, and `notes/review-backlog.md`.
 
 Format per entry: **lesson** | v1's approach | new-engine status
 (covered / partial / missing) | the portable signal.

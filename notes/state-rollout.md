@@ -65,7 +65,7 @@ No NY appellate / OK / colo-supreme corpora exist (see notes above).
 
 1. Skim old extractors (`/Users/Palin/Code/centralia/centralia/extractors/`)
    for each court: byline grammar, footnote hints, known junk, quirks worth
-   harvesting. Record anything nontrivial in docs/harvest-states.md.
+   harvesting. Record anything nontrivial in notes/harvest-states.md.
 2. Register profiles in `centralia/courts/__init__.py` (data only).
 3. Render the chunk; run the audit command over it.
 4. Triage review/failed files in the viewer; fix at engine or profile level.

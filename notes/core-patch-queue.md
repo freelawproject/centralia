@@ -714,7 +714,7 @@ intact. Exactly what the agent's in-memory proof predicted.
 
 **This is the pattern for `md` (32 of 50 files) and `del` (42 of 50)**, which
 lose judges AND date to the same gap — see the signature-band epic in
-`docs/review-backlog.md`.
+`notes/review-backlog.md`.
 
 ## 30. `criteria.attorneys` cannot see a `CaptionBlock` — `pipeline.py:1859`
 
@@ -2161,7 +2161,7 @@ page 18 is a COMPLETE second ladder — banner, 3 fences, 2 shelves,
 the opinion on rehearing. It renders as `<h3 class="bhead">`/`<blockquote>`
 inside the majority.
 
-`docs/lessons` already records this as "Rehearing staples… stapled-document
+`notes/lessons` already records this as "Rehearing staples… stapled-document
 splitter keys on Filed+banner; VA style differs". **The measurable landmark now
 exists:** a repeated page-1 ladder (banner + >=2 axis fences + 2 shelves +
 announcement) on a later page opens a second document. Note the vactapp profile

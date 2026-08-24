@@ -457,7 +457,7 @@ majority.
 
 v1's frozen output (baseline/, 18 courts) is a correctness oracle: v1 parsed
 most courts right, one court at a time. `v1diff` diffs v2 against it and
-writes docs/v1-diff.md, ranked worst-first. Use it instead of eyeballing.
+writes notes/v1-diff.md, ranked worst-first. Use it instead of eyeballing.
 
 FIRST FULL RUN: 271 diffs / 18 courts.
 - **scotus, conn, ca4: ZERO diffs** — those courts have reached v1 parity.

@@ -3,7 +3,7 @@
 pdfplumber's own ``line['text']`` drops spaces between kerned glyphs (a
 small-caps name renders 'DWIGHT E.TARWATER,J.,delivered'), so every consumer
 uses this rebuild instead. The word-break threshold is MEASURED per line —
-see docs/lessons/measured-geometry.md for the two bugs that wrote the rules.
+see notes/lessons/measured-geometry.md for the two bugs that wrote the rules.
 """
 
 from __future__ import annotations

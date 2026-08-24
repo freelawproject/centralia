@@ -1,7 +1,7 @@
 """Named pdfplumber quirk repairs. Every repair fires a trace event.
 
 All of these are ports of behaviors the old system proved on the corpus —
-see docs/lessons/pdfplumber-quirks.md. Char-level repairs run before line
+see notes/lessons/pdfplumber-quirks.md. Char-level repairs run before line
 clustering (by the time lines exist the damage is done); line-level repairs
 run right after.
 """

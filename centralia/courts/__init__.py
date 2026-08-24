@@ -881,7 +881,7 @@ from . import mspb                                       # noqa: E402,F401
 from . import nycivct                                    # noqa: E402,F401
 
 # ---- the federal district lane: one flat file per court, all on the
-# ---- shared ECF paper at centralia/districts/. See docs/district-rollout.md.
+# ---- shared ECF paper at centralia/districts/. See notes/district-rollout.md.
 
 from . import akd                            # noqa: E402,F401
 from . import alnd                          # noqa: E402,F401
