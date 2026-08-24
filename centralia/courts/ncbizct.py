@@ -166,7 +166,7 @@ one judge signs), no headnotes, no syllabus, no disposition band, no
 release-date row, no publication flag, and no lower court. Those criteria
 stay unset, which is a statement, not a gap.
 
-CORE OBSERVATIONS (diagnosed, NOT patched here — see docs/core-patch-queue.md):
+CORE OBSERVATIONS (diagnosed, NOT patched here — see notes/core-patch-queue.md):
   * item 41 — `criteria.attorneys` unreachable through the leftover walk;
     closed locally, as above.
   * NEW: core types 32 of these 42 papers 'order' and 10 'majority' from the

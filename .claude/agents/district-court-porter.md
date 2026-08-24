@@ -12,7 +12,7 @@ tools: Bash, Read, Grep, Glob
 You port ONE federal district court, at `/Users/Palin/Code/rewrite` (run
 everything with `.venv/bin/python`, never bare `python`).
 
-Read `docs/district-rollout.md` first — it is the plan you are executing — and
+Read `notes/district-rollout.md` first — it is the plan you are executing — and
 then `centralia/districts/ecf.py`, the shared reader. Read
 `centralia/courts/kyed.py` as the worked example of a district court file.
 

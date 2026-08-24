@@ -126,7 +126,7 @@ centred and draws the typed fences, so the fallback is a good one.
 iowactapp's profile stays in the shared table in `courts/__init__.py`; this
 file owns the reader only.
 
-CORE DEFECTS MET, NOT PATCHED (see `docs/core-patch-queue.md`):
+CORE DEFECTS MET, NOT PATCHED (see `notes/core-patch-queue.md`):
   * item 41 — `criteria.attorneys` is unreachable for a reader that keeps
     counsel inside the headmatter. Closed here the way connappct closed it,
     by setting the key in the reader's own criteria dict.

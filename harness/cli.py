@@ -477,7 +477,7 @@ def cmd_quality(args: list[str]) -> int:
 
 
 def cmd_v1diff(args: list[str]) -> int:
-    """Diff v2 against the frozen v1 baselines; writes docs/v1-diff.md.
+    """Diff v2 against the frozen v1 baselines; writes notes/v1-diff.md.
     Usage: v1diff [court...]"""
     import v1diff
     return v1diff.main(args)

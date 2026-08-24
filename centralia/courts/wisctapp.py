@@ -200,7 +200,7 @@ item 39). Reported, not guessed at.
 AUTHORLESS IS NOT A DEFECT (the user's ruling, 2026-08-19). state_v._gustin_
 j._king opens '¶1 PER CURIAM.' and no author is invented for it.
 
-CORE ITEMS CLOSED HERE, NOT PATCHED (docs/core-patch-queue.md):
+CORE ITEMS CLOSED HERE, NOT PATCHED (notes/core-patch-queue.md):
 
   item 41  `criteria.attorneys` is unreachable for a reader that keeps
            counsel in the headmatter. Closed the way seven courts have now

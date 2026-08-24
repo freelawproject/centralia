@@ -923,7 +923,7 @@ class FootnoteZones:
         if top is not None:
             return decide(top, "symbol-foot-note")
 
-        # 5 — zone by size (config opt-in ONLY; see docs/lessons — every cue
+        # 5 — zone by size (config opt-in ONLY; see notes/lessons — every cue
         # is equally true of a reduced-type block quotation).
         if self.config.zone_by_size:
             top = self._zone_by_size(pm, caption_page)

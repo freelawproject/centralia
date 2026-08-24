@@ -49,7 +49,7 @@ a record that draws neither shape returns NOTHING.
     └──────────────────────────────────────────────────────────────────┘
 
 THE COVER IS A COVER OF COUNSEL, WHICH IS WHY IT LOOKS LIKE NOTHING ELSE
-IN THIS ENGINE. The observation in `docs/review-backlog.md` is exact: the
+IN THIS ENGINE. The observation in `notes/review-backlog.md` is exact: the
 whole middle of page 1 is an appearance roster, and it is set as a LABEL
 GRID — a left rail of labels at body_x0 + 36 and a right rail of values
 just left of the page axis. 168 grid rows over the corpus. A grid has a

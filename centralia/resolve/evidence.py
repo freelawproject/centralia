@@ -7,7 +7,7 @@ never decide, and in particular can never decide "there is none" (absence of
 evidence is not a decision). Every Decision records WHICH step fired and the
 full chain, so `harness trace` can show why a page did what it did.
 
-Invariants (see docs/lessons/measured-geometry.md):
+Invariants (see notes/lessons/measured-geometry.md):
 - thresholds come from measured DocGeometry; profile constants only clamp;
 - no evidence -> the floor, unchanged;
 - vetoes are core-owned and apply to every candidate regardless of source.

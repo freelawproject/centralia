@@ -117,7 +117,7 @@ WHAT THIS READER DELIBERATELY DOES NOT DO:
     dressed as a reading. `authorless` is not a defect here (the owner's
     ruling, 2026-08-19): a tribunal that prints unsigned determinations
     means to. What the document needs is an ENDMATTER seam
-    (`docs/core-patch-queue.md` item 39) — reported, not worked around.
+    (`notes/core-patch-queue.md` item 39) — reported, not worked around.
   * IT CALLS A SPECIAL MASTER A SEAT ON THE BENCH, and that is a declared
     modelling choice rather than an oversight. `Criteria` has `panel`,
     `judges` and `panel_line` and no field for a court's other officers, so
@@ -434,7 +434,7 @@ class _Walk:
         is not a number — is left in the stream. Measured over the corpus:
         core names all three on the 23 records of three pages or more and
         only the first two on the seven records of two pages
-        (`docs/core-patch-queue.md` item 6 is the same defect from the
+        (`notes/core-patch-queue.md` item 6 is the same defect from the
         other end).
 
         Left there it is not merely an unread row: it is a DOCTYPE HEADING

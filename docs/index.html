@@ -79,6 +79,21 @@
     </div>
   </div>
 
+  <div class="row">
+    <div style="flex:1 1 420px">
+      <label for="url">…or fetch a PDF by URL</label>
+      <input type="url" id="url" placeholder="https://…/opinion.pdf" disabled
+             style="width:100%; font:inherit; padding:7px 9px; border:1px solid var(--line);
+                    border-radius:6px; background:var(--bg); color:var(--ink)">
+    </div>
+    <button id="fetchurl" disabled>Fetch</button>
+  </div>
+  <p class="note">The host must send <code>Access-Control-Allow-Origin</code> —
+    the browser enforces that below Python, so no amount of Pyodide routes around
+    it. CourtListener's dev bucket sends it; production
+    <code>storage.courtlistener.com</code> does not. When a fetch is refused,
+    download the PDF and drop it below.</p>
+
   <div id="drop">
     <strong>Drop a court PDF here</strong> — or click to pick one
     <input type="file" id="file" accept="application/pdf" class="hide">
@@ -95,19 +110,21 @@
 </main>
 
 <script>
-// From file:// the inline module script DOES run and Pyodide DOES boot (the CDN
-// import is https). What fails is fetching our own local files — Chrome blocks
-// same-origin fetch() at a file:// origin — so wheels/manifest.json, the wheel,
-// courts.json and the samples never load. Say that before the user waits 6s for
-// a confusing failure.
+// From file:// Pyodide boots (the CDN import is https) and the packages install
+// (PyPI sends Access-Control-Allow-Origin: *), so an UPLOADED pdf does read.
+// What stays broken is fetching our own files beside this page — Chrome blocks
+// same-origin fetch() at a file:// origin — so courts.json and the bundled
+// samples never arrive: the court dropdown loses its review-status grouping and
+// the sample buttons do nothing. Say so rather than let it look like a bug.
 if (location.protocol === "file:") {
   document.addEventListener("DOMContentLoaded", () => {
     document.getElementById("log").innerHTML =
-      '<span class="e">Opened from file:// — the wheel cannot load here.</span>\n' +
-      '<span class="d">Pyodide itself will boot (it comes from the CDN over https), but\n' +
-      'fetching our own local files is blocked at a file:// origin, so\n' +
-      'wheels/manifest.json and the centralia wheel never arrive. Serve the dir:</span>\n\n' +
-      '    <strong>cd pages &amp;&amp; python3 -m http.server 8765</strong>\n' +
+      '<span class="e">Opened from file:// — the samples will not load.</span>\n' +
+      '<span class="d">Pyodide boots and centralia installs from PyPI, so a pdf you\n' +
+      'upload yourself will read fine. But fetching files beside this page is\n' +
+      'blocked at a file:// origin, so courts.json and the bundled samples never\n' +
+      'arrive. For the whole page, serve the dir:</span>\n\n' +
+      '    <strong>cd docs &amp;&amp; python3 -m http.server 8765</strong>\n' +
       '    <strong>open http://127.0.0.1:8765</strong>\n\n' +
       '<span class="d">On GitHub Pages this is a non-issue — already served over https.</span>\n\n';
   });
@@ -145,14 +162,29 @@ await micropip.install(["pdfminer.six", "Pillow", "charset-normalizer", "cryptog
 `);
   log("pdf stack installed", "g");
 
-  const { wheel } = await (await fetch("wheels/manifest.json")).json();
-  const wheelUrl = new URL("wheels/" + wheel, location.href).href;
-  log(`installing ${wheel}…`);
-  await py.runPythonAsync(
-    `import micropip\nawait micropip.install(${JSON.stringify(wheelUrl)})`);
-  log("centralia installed", "g");
+  // centralia comes from PyPI, not from a wheel committed beside this page. The
+  // demo then follows the published release on its own — there is no build step
+  // to forget, and no stale wheel to serve. The cost is that unreleased work in
+  // main does not appear here until it ships.
+  // deps=False for the same reason pdfplumber got it: the one dependency
+  // (pdfplumber>=0.11.4) is installed above already, minus pypdfium2.
+  log("installing centralia from pypi…");
+  const version = await py.runPythonAsync(`
+import micropip
+await micropip.install("centralia", deps=False)
+from importlib.metadata import version
+version("centralia")
+`);
+  log(`centralia ${version} installed`, "g");
 
-  const status = await (await fetch("courts.json")).json().catch(() => ({}));
+  // The catch must sit on the FETCH, not on .json(): at a file:// origin the
+  // fetch itself rejects, and with the guard only on .json() that rejection
+  // escaped and killed the whole boot after centralia had installed fine.
+  // courts.json is decoration — it groups the dropdown by review status — so
+  // losing it must cost the dropdown its grouping, not the page its reader.
+  const status = await fetch("courts.json")
+    .then(r => (r.ok ? r.json() : {}))
+    .catch(() => ({}));
   const courts = JSON.parse(await py.runPythonAsync(`
 import json
 from centralia.courts import PROFILES
@@ -160,7 +192,7 @@ json.dumps(sorted(([cid, p.court_label or cid] for cid, p in PROFILES.items())))
 `));
   fillCourts(courts, status);
   log(`ready — ${courts.length} court readers registered`, "g");
-  document.querySelectorAll("button, select").forEach(b => b.disabled = false);
+  document.querySelectorAll("button, select, #url").forEach(b => b.disabled = false);
 }
 
 function fillCourts(courts, status) {
@@ -245,12 +277,49 @@ fileIn.onchange = async () => {
 
 for (const b of document.querySelectorAll(".sample")) {
   b.onclick = async () => {
-    const r = await fetch(b.dataset.pdf);
+    // Same file:// trap as courts.json, but on a click rather than at boot:
+    // unguarded, the rejection is unhandled and the button just does nothing.
+    // Say why, and point at the fix.
+    let r;
+    try {
+      r = await fetch(b.dataset.pdf);
+      if (!r.ok) throw new Error(`HTTP ${r.status}`);
+    } catch (err) {
+      log(`sample ${b.dataset.pdf} did not load: ${err.message || err}`, "e");
+      if (location.protocol === "file:")
+        log("serve the directory instead — see the note above", "d");
+      return;
+    }
     $("court").value = b.dataset.court;
     run(new Uint8Array(await r.arrayBuffer()), b.dataset.court,
         b.dataset.pdf.split("/").pop());
   };
 }
+
+// Fetch a PDF the user names by URL. This only ever works when the HOST opts in
+// with Access-Control-Allow-Origin: the check happens in the browser, beneath
+// Python, so pyfetch/urllib/requests all fail the same way (measured — see
+// README). Report a refusal as the CORS fact it is rather than as a bad URL.
+async function runUrl() {
+  const url = $("url").value.trim();
+  if (!url) return;
+  const court = $("court").value;
+  const name = (url.split("?")[0].split("/").pop() || "opinion.pdf");
+  log(`fetching ${name}…`);
+  let r;
+  try {
+    r = await fetch(url);
+    if (!r.ok) throw new Error(`HTTP ${r.status}`);
+  } catch (err) {
+    log(`could not fetch ${url}: ${err.message || err}`, "e");
+    log("if that says 'failed to fetch', the host sent no " +
+        "Access-Control-Allow-Origin — download the pdf and drop it below instead", "d");
+    return;
+  }
+  run(new Uint8Array(await r.arrayBuffer()), court, name);
+}
+$("fetchurl").onclick = runUrl;
+$("url").onkeydown = e => { if (e.key === "Enter") runUrl(); };
 
 $("download").onclick = () => {
   const a = document.createElement("a");

@@ -2,7 +2,7 @@
 
 REGENERATED FROM THE FILESYSTEM. A court leaves this list the moment
 `centralia/courts/<court>.py` exists, so re-running the generator in
-`docs/session-state-2026-08-20.md` is how you refresh it — never hand-edit.
+`notes/session-state-2026-08-20.md` is how you refresh it — never hand-edit.
 
 Protocol per agent, non-negotiable: one court file, own scratch dir, no
 core edits (report an exact patch instead), never `guard --add`/`--bless`,

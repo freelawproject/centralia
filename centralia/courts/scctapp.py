@@ -127,7 +127,7 @@ bisection invariant then pulls the claimed rows into it and the headmatter
 renders empty. So an unrecognised row aborts the whole claim and core's
 shared walk gets the record intact.
 
-CORE ITEMS CLOSED HERE, NOT PATCHED (docs/core-patch-queue.md):
+CORE ITEMS CLOSED HERE, NOT PATCHED (notes/core-patch-queue.md):
 
   item 41  `criteria.attorneys` is unreachable for a reader that keeps
            counsel in the headmatter. Closed the way five courts closed it

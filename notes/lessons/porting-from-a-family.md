@@ -1,6 +1,6 @@
 # Porting a court from its family — the fast path
 
-`docs/lessons/porting-court-headmatter.md` covers a COLD port: a court whose
+`notes/lessons/porting-court-headmatter.md` covers a COLD port: a court whose
 paper nobody has read yet. This covers the other 159 — a court whose family
 already has a finished reader. Different job, different first move, and an
 order of magnitude cheaper when you do it in the right order.

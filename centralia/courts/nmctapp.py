@@ -94,7 +94,7 @@ text row is the masthead at top 75.8. So there is nothing in the stream to
 drop and no row to guard: the stamp cannot reach any criterion because it
 never becomes a line. This is recorded because the coverage machinery knows
 the family ('UELMA signature-annotation boilerplate (invisible to
-pdfminer)', docs/review-backlog.md) and a later extractor that DOES render
+pdfminer)', notes/review-backlog.md) and a later extractor that DOES render
 annotations would put four rows above the masthead — where this reader
 already drops everything it does not recognize as a notice, as `stamp`.
 
