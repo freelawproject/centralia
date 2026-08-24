@@ -11,6 +11,13 @@ output/notes/*.tmp
 # them. So do the .log journals: they are the history the stale-mark test
 # reads to say whether a rendering changed since it was marked.
 output/notes/*.bak
+# THE REVIEWER'S NOTES ARE THEIR OWN. filenotes.json and its journal carry
+# what the reviewer wrote to themselves about a file, in their own words —
+# not a product of this repo and not for it to publish (the user,
+# 2026-08-24: 'i dont want my notes included'). The marks stay: a yay/nay is
+# a verdict the guard reads, and it carries no prose.
+output/notes/filenotes.json
+output/notes/filenotes.log
 output/notes/quality.json
 output/notes/coverage.json
 output/notes/guard-review.json
