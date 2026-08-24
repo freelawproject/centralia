@@ -125,6 +125,7 @@ from . import get_profile
 STYLE_SANDWICH = "typed sandwich"
 STYLE_SLIP = "separate slip"
 STYLE_HANDDOWN = "clerk's hand-down"
+STYLE_MEMO = "memorandum decision"
 
 # ---- wva's declared facts (measured over all 50 records, not tuned) -------
 # THE FENCES. 118 of them over the corpus, in two populations that never
@@ -633,6 +634,16 @@ def read_headmatter_wva(model, geom, **_):
     if _is_state(head) and any(_HANDDOWN_RECITAL in _plain(l.plain).lower()
                                for _p, _t, l in rows[:4]):
         return _read_handdown(model, geom, rows, stamp)
+    # LAST, DELIBERATELY. The three papers above are named by landmarks this
+    # one does not print, and every record of the reviewed corpus is one of
+    # them — so this arm can only claim what previously fell through to
+    # NOTHING. A memorandum decision that fell through had its whole majority
+    # read as headmatter: nothing opened a writing, because the paper is
+    # unsigned and writings open at bylines, so the first byline found was
+    # the DISSENT's on page 4 and the decision itself never became one
+    # (state_of_west_virginia_v._edward_dore_beckett_jr, added 2026-08-24).
+    if _is_state(head) or _is_banner(head):
+        return _read_memo(model, geom, rows, stamp)
     return NOTHING
 
 
@@ -1058,6 +1069,104 @@ def _read_handdown(model, geom, rows, stamp):
         return NOTHING
     # A CLAIM MUST BE TOTAL: this paper carries no clerk's stamp in the
     # corpus, but a row taken out of the stream is recorded either way.
+    stamp.record(ctx.crit, ctx.dropped, ctx.consumed)
+    ctx.crit["caption"] = caption
+    _name(ctx, [re.sub(r"\).*$", "", r) if _is_pivot(re.sub(r"\).*$", "", r))
+                else r for r in caption])
+    return ctx.result()
+
+
+def _memo_title(rows, ctx) -> int | None:
+    """Index of the row the memorandum decision's writing opens on, or None.
+
+    THE LANDMARK IS THE SECOND BANNER, NOT THE WORDS. This paper sets its
+    masthead in a bold centred banner, drops to the body rail for the
+    caption, and then returns to that SAME banner setting once more for the
+    heading the writing opens on. So the shape names it: a bold, centred row
+    at banner size standing BELOW a caption row. Read that way the reader
+    does not care what the heading says, which is the rule this file already
+    keeps for its other three papers — the court prints 'MEMORANDUM DECISION'
+    today and the reader would take 'ORDER' or anything else tomorrow.
+
+    Requiring a caption row above it is what keeps the masthead itself from
+    answering: the first banner run IS the masthead, and it has no caption
+    above it to stand below.
+    """
+    seen_caption = False
+    for i, (page, _top, line) in enumerate(rows):
+        if page != 1:
+            break
+        if line.x0 <= ctx.body_x0 + 2 and (line.size or 0) <= ctx.body_size + 1:
+            seen_caption = True          # a caption row, set at the body rail
+            continue
+        if (seen_caption and line.all_bold
+                and (line.size or 0) >= ctx.body_size + 1
+                and line_alignment(line, ctx.pages[line.page].width, ctx.geom,
+                                   banner_center_min_size=ctx.body_size + 2.0) == "C"):
+            return i
+    return None
+
+
+def _is_banner_row(line, ctx) -> bool:
+    """A row set in the masthead's own setting: bold, centred, and larger
+    than the body. The three tests together, because each alone catches
+    something else — the caption's party rows are bold, the disposition is
+    centred, and a footnote marker is neither."""
+    return bool(
+        line.all_bold
+        and (line.size or 0) >= ctx.body_size + 1
+        and line_alignment(line, ctx.pages[line.page].width, ctx.geom,
+                           banner_center_min_size=ctx.body_size + 2.0) == "C")
+
+
+def _read_memo(model, geom, rows, stamp):
+    """A memorandum decision: masthead, caption, and a heading the writing
+    opens on. Structurally the clerk's hand-down without its recital — the
+    same one-row pivot carrying both dockets — so it is read the same way.
+    """
+    ctx = _Ctx(model, geom, STYLE_MEMO)
+    stop = _memo_title(rows, ctx)
+    if stop is None:
+        return NOTHING
+    caption: list[str] = []
+    masthead: list[str] = []
+    for page, _top, line in rows[:stop]:
+        if page != 1:
+            break
+        text = _plain(line.plain)
+        # THE MASTHEAD IS THE LEADING BANNER RUN, HOWEVER MANY ROWS IT TAKES.
+        # This paper sets the court's name over two rows — 'STATE OF WEST
+        # VIRGINIA' above 'SUPREME COURT OF APPEALS' — and only the first
+        # answers to a name test. Claiming that one alone left the second
+        # standing at the head of the caption, where the party walk read it
+        # as part of the first party: 'SUPREME COURT OF APPEALS State of West
+        # Virginia' was this record's petitioner. Take the run by its
+        # SETTING and the court's name arrives whole however it is broken.
+        if not caption and _is_banner_row(line, ctx):
+            masthead.append(text)
+            ctx.emit(line, "court")
+            continue
+        if masthead and "court" not in ctx.crit:
+            ctx.crit["court"] = _norm(" ".join(masthead))
+        # THE PIVOT ROW CARRIES THE DOCKETS — this court's and the
+        # tribunal's, on one row, exactly as the hand-down sets them.
+        numbers = _DOCKET_ANY.findall(text)
+        if numbers:
+            ctx.crit.setdefault("docket_number", f"No. {numbers[0]}")
+            inner = re.search(r"\(([^)]*(?:No\.|CC-)[^)]*)\)", text)
+            if inner:
+                ctx.crit.setdefault("lower_court_docket",
+                                    [_norm(inner.group(1))])
+            ctx.emit(line, "docket")
+            caption.append(text)
+            continue
+        value = _date_in(text)
+        if value and _is_status(text) is False and len(text) < 40:
+            ctx.crit.setdefault("decision_date", value)
+        caption.append(text)
+        ctx.emit(line, "caption")
+    if not caption:
+        return NOTHING
     stamp.record(ctx.crit, ctx.dropped, ctx.consumed)
     ctx.crit["caption"] = caption
     _name(ctx, [re.sub(r"\).*$", "", r) if _is_pivot(re.sub(r"\).*$", "", r))

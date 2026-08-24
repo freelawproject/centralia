@@ -28,3 +28,7 @@ __pycache__/
 # Local rewrite/debugging artifacts
 /after
 /claudeplan.md
+
+# Per-court resolution cache for the corpus manifest — rebuildable, and it
+# churns on every run. scripts/corpus.txt is the artefact worth keeping.
+scripts/.manifest-cache/
