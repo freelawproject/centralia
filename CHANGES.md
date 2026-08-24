@@ -1,5 +1,44 @@
 # Changes
 
+## 0.0.4
+
+### Added
+
+- **`DEVELOPMENT.md`** — how the engine works and why it works that way, for
+  handing the project to someone else and for reading before a review. The
+  five ideas the design rests on (measured geometry rather than tuned
+  constants; nothing leaves a PDF unaccounted for; evidence chains with
+  core-owned vetoes; courts as data; the typed model), the eleven pipeline
+  stages, a file-by-file map, when geometry can be trusted and when it cannot,
+  the three court lanes, the five oracles, the viewer, the tests, and the
+  release gate — plus what is left, ranked, and where the design is thin.
+- **The test corpus as a list of links.** `assets/` is 10,349 court PDFs and
+  3.1 GB, excluded from git, which left a clone with readers tuned against
+  documents it could not obtain. `scripts/corpus.txt` carries a public
+  CourtListener storage URL for each, and `scripts/fetch_corpus.py` replays
+  them — no credentials, since storage is public. `--approved` pulls only the
+  files a reviewer signed off; `--verify` checks the links without
+  downloading. Rate limiting is treated as rate limiting rather than as a
+  missing file.
+
+### Changed
+
+- **`scotus` is released.** Its 100 records have been marked good for some
+  time; the generated release list had simply not been re-run. 191 courts are
+  now released of 241.
+
+### Fixed
+
+- **wva reads a memorandum decision.** The court publishes a paper the corpus
+  had never sampled, and because it is unsigned — writings open at bylines —
+  nothing opened one: the walk ran past the whole majority and found the
+  dissent's byline on page 4. The decision itself was read as headmatter, its
+  opening paragraph became the attorneys criterion, and the record reported a
+  dissent with no majority. It is now a fourth declared paper, named by the
+  banner it sets below its caption rather than by the words in it, and the
+  masthead is claimed as the whole leading run so the court's second line
+  stops arriving as part of the first party.
+
 ## 0.0.3
 
 ### Added

@@ -1,6 +1,6 @@
 [project]
 name = "centralia"
-version = "0.0.3"
+version = "0.0.4"
 description = "Court PDF opinion extractor: PDF + court id -> typed Document via one fixed pipeline"
 readme = "README.md"
 requires-python = ">=3.12"
@@ -40,4 +40,23 @@ testpaths = ["tests"]
 pythonpath = ["."]
 markers = [
     "slow: needs the corpus and takes minutes (the guard's 739 sentinels)",
+]
+
+[tool.pyright]
+# THE WORKSPACE HOLDS MORE THAN ONE `centralia`. scratchpad/ carries snapshots
+# of the OLD repo — a second courts/ package, still built on the `_statesupreme`
+# family bases this rewrite abolished — and a language server that indexes them
+# resolves this package's imports against the wrong copy. The symptom is a
+# court file reported as importing `._statesupreme`, a module that exists
+# nowhere in centralia/, with the line numbers of a file half its real length.
+# Nothing here is excluded from the BUILD; this only tells the analyzer which
+# tree is the real one.
+exclude = [
+    "scratchpad",       # local-only (git-excluded): old-repo snapshots, 244 MB
+    "_removed",         # documents taken out of the corpus, kept for reference
+    "baseline",         # frozen v1 output, data only
+    "dist",
+    "output",
+    "assets",
+    "**/__pycache__",
 ]
