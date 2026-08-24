@@ -2,17 +2,50 @@
 
 Court PDF opinion extractor: a PDF plus a court id in, a typed document out.
 
-Requires Python 3.12 or newer.
+**[Try it in your browser →](https://freelawproject.github.io/centralia/)**
+No install, nothing uploaded — the real package runs client-side on
+[Pyodide](https://pyodide.org), and your PDF is parsed in the tab.
 
 ```sh
-python -m pip install centralia
+python -m pip install centralia      # Python 3.12+
 ```
 
 ```python
 from centralia import read
 
-r = read("opinion.pdf", court_id="nmariana")   # path, bytes, or file object
+r = read("opinion.pdf", court_id="mont")   # path, bytes, or file object
+
+r["cluster"]["docket_number"]              # 'DA 25-0040'
+[o["author"] for o in r["opinions"]]
+# ['Justice Laurie McKinnon delivered the Opinion of the Court.',
+#  'Justice James Jeremiah Shea, concurring.',
+#  'Justice Jim Rice, dissenting.']
 ```
+
+Three writings, each with its own author, footnotes and text — recovered from
+a PDF that labels none of them.
+
+## The problem it solves
+
+Getting the *text* out of a court PDF is easy; `pdftotext` does it. What is
+hard is that an opinion is a document with **parts**, and the PDF says nothing
+about them. Nothing marks which lines are the caption, where the syllabus ends
+and the opinion begins, which paragraphs belong to the dissent rather than the
+majority, whose footnote is whose, or which line is a page number instead of a
+sentence. All of it has to be recovered from how the page is *set* — position,
+size, leading, indentation, and the rules the printer drew.
+
+And every court sets its pages differently. centralia reads **241** of them.
+
+Thresholds are measured from each document's own geometry rather than tuned
+per court, and nothing is ever dropped silently: every row removed as
+furniture is returned in `removed`, with the page and box it came from, so
+"did we lose anything?" is arithmetic instead of a judgment call.
+
+Of the 241 courts wired, **191 are released** through this API — meaning every
+document in that court's test corpus has been read and checked by a human. The
+rest raise rather than quietly returning a worse reading (see
+[Courts still being worked on](#courts-still-being-worked-on)).
 
 ## What `read` returns
 
@@ -87,3 +120,21 @@ Dates are returned twice: as the court printed them (`date_filed`) and as
 which pages are a raster (`scan_pages`), which pages have no text layer at all
 so their words are absent (`text_missing_pages`), which carry unmapped glyphs
 (`cid_pages`), and what the extractor could not place (`residual`).
+
+
+## Contributing
+
+[**DEVELOPMENT.md**](DEVELOPMENT.md) is the orientation: how the engine works
+and why it works that way, the eleven pipeline stages, a file-by-file map,
+when page geometry can be trusted and when it cannot, how a court is added,
+the five oracles that say whether a reading is right, and what is left to do.
+
+The test corpus is ~10,000 real court PDFs. It is too large for git, so it
+lives as a list of links:
+
+```sh
+uv sync --dev
+uv run python scripts/fetch_corpus.py               # fetch the corpus
+uv run python harness/cli.py render $(ls assets)    # render every court
+uv run python harness/cli.py serve                  # the review viewer
+```
