@@ -365,7 +365,48 @@ def _spells_court(text: str, court_name: str) -> bool:
     where the scanner put the space between them is not.
     """
     flat = "".join((text or "").split()).lower()
-    return "".join(court_name.split()).lower() in flat
+    want = "".join(court_name.split()).lower()
+    if want in flat:
+        return True
+    # …AND A CHAMBERS CAN MISSPELL ITS OWN NAME. nmd/529724.11.0 heads its
+    # sheet 'IN THE UNITED STATES DISTRIC COURT' — one letter short of the
+    # court it is — so the row named no court, the masthead had no anchor,
+    # and all eight rows of the cover came back untinted. One letter is the
+    # tolerance: a slip, not a different court.
+    for n in (len(want) - 1, len(want), len(want) + 1):
+        if n <= 0:
+            continue
+        for i in range(0, len(flat) - n + 1):
+            if _one_edit_apart(want, flat[i:i + n]):
+                return True
+    return False
+
+
+def _one_edit_apart(a: str, b: str) -> bool:
+    """Do these differ by at most one insertion, deletion or substitution?"""
+    la, lb = len(a), len(b)
+    if abs(la - lb) > 1:
+        return False
+    if a == b:
+        return True
+    i = j = 0
+    spent = False
+    while i < la and j < lb:
+        if a[i] == b[j]:
+            i += 1
+            j += 1
+            continue
+        if spent:
+            return False
+        spent = True
+        if la == lb:
+            i += 1
+            j += 1
+        elif la > lb:
+            i += 1
+        else:
+            j += 1
+    return True
 
 
 # TYPOGRAPHIC LIGATURES ARE PRESENTATION, NOT SPELLING. A chambers setting
@@ -496,8 +537,15 @@ def _opens_unfinished(text: str, facts: EcfPaper) -> bool:
     letters = [c for c in flat if c.isalpha()]
     if not letters or not all(c.isupper() for c in letters):
         return False
+    # THE CONJUNCTION IS NOT THE PAPER'S NAME. 'and' is itself a title word —
+    # it has to be, so 'MEMORANDUM OPINION AND ORDER' reads whole — so this
+    # test was satisfied by the very word that ends the row, and every
+    # all-caps PARTY row ending in AND became a title: mnd/220483.58.0 read
+    # 'CEMENT MASONS, PLASTERERS, AND SHOPHANDS SERVICE CORPORATION' as the
+    # paper's name and lost the plaintiff from its case name.
+    _GLUE = {"and", "and/or", "or", "of", "on", "in", "the", "part", "a"}
     words = [w.strip(".,;:()").lower() for w in flat.split()]
-    return any(w in facts.title_words for w in words)
+    return any(w in facts.title_words and w not in _GLUE for w in words)
 
 
 def _is_title_head(text: str, facts: EcfPaper) -> bool:
@@ -845,7 +893,15 @@ _APPEARS_FOR = re.compile(
     re.I)
 _APPEARANCE_END = re.compile(
     r"\b(?:attorneys?|counsel|appearances?)\s+(?:for|on\s+behalf\s+of)\s+"
-    r"[^.]{0,80}\.?\s*$", re.I)
+    r"[^.]{0,80}\.?\s*$"
+    # …OR THE PARTY ALONE. Minnesota closes each appearance without ever
+    # writing 'attorneys': '… Suite 2690, Minneapolis, MN 55402, for
+    # Plaintiff.' Requiring the word, the roster never closed — the walk ran
+    # to its row cap and took the opinion's opening paragraphs with it on 3
+    # of mnd's records (the user: 'mertged start of opnion in to counsel').
+    r"|\bfor\s+(?:the\s+)?(?:plaintiffs?|defendants?|petitioners?|"
+    r"respondents?|appellants?|appellees?|movants?|intervenors?|"
+    r"claimants?|debtors?|creditors?)\b[^.]{0,40}\.?\s*$", re.I)
 # THE BYLINE ENDS THE HEADMATTER. 'IMMERGUT, District Judge.' opens the
 # writing and belongs to core's byline machinery, which types the writing and
 # names its author from it — claiming it here would take the author away.
@@ -2784,7 +2840,21 @@ def read_ecf(model, geom, facts: EcfPaper = DEFAULT, **_):
         # party as plainly as 'Attorneys for Plaintiff.' does and matches no
         # 'for'-phrase at all. Where neither is present the run is still
         # trimmed from the end, so a court printing no roster loses nothing.
-        if not any(_is_status_row(_norm(l.plain), facts) for l in counsel):
+        # THE ROSTER ENDS ON ITS LAST APPEARANCE, and the phrase WRAPS
+        # ('… Minneapolis, MN,' / 'for Respondents.'), so the test is the
+        # text ACCUMULATED to each row rather than the row alone. Everything
+        # below that row is the writing — a sharper cut than trimming the
+        # joined text, and the only one that works where the run overshot
+        # into prose that names no party.
+        _last_appearance = None
+        _acc = ""
+        for _ci, _cl in enumerate(counsel):
+            _acc = _norm(_acc + " " + _cl.plain)
+            if _APPEARANCE_END.search(_acc):
+                _last_appearance = _ci
+        if _last_appearance is not None:
+            del counsel[_last_appearance + 1:]
+        elif not any(_is_status_row(_norm(l.plain), facts) for l in counsel):
             while counsel and not _APPEARANCE_END.search(
                     _norm(" ".join(l.plain for l in counsel))):
                 counsel.pop()              # only what NAMED its party is kept
