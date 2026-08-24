@@ -9863,6 +9863,7 @@ wva	state_of_west_virginia_v._austin_stevens.pdf	https://storage.courtlistener.c
 wva	state_of_west_virginia_v._brendan_w..pdf	https://storage.courtlistener.com/pdf/2026/06/02/state_of_west_virginia_v._brendan_w..pdf
 wva	state_of_west_virginia_v._brendan_w.pdf	https://storage.courtlistener.com/pdf/2026/06/02/state_of_west_virginia_v._brendan_w.pdf
 wva	state_of_west_virginia_v._carl_ray_summerfield.pdf	https://storage.courtlistener.com/pdf/2026/05/13/state_of_west_virginia_v._carl_ray_summerfield.pdf
+wva	state_of_west_virginia_v._edward_dore_beckett_jr.pdf	https://storage.courtlistener.com/pdf/2026/07/29/state_of_west_virginia_v._edward_dore_beckett_jr.pdf
 wva	state_of_west_virginia_v._heath_allen_rose.pdf	https://storage.courtlistener.com/pdf/2026/05/21/state_of_west_virginia_v._heath_allen_rose.pdf
 wva	state_of_west_virginia_v._heath_allen_rose_1.pdf	https://storage.courtlistener.com/pdf/2026/05/21/state_of_west_virginia_v._heath_allen_rose_1.pdf
 wva	state_of_west_virginia_v._james_dee_mckinney_aka_1227.pdf	https://storage.courtlistener.com/pdf/2026/05/29/state_of_west_virginia_v._james_dee_mckinney_aka_1227.pdf
