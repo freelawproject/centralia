@@ -266,7 +266,16 @@ def date_row_value(text: str) -> str | None:
 _STATUS_WORDS = ("plaintiff", "defendant", "appellant", "appellee",
                  "petitioner", "respondent", "intervenor", "movant",
                  "claimant", "cross-appellant", "cross-appellee", "debtor",
-                 "amicus", "amici")
+                 "amicus", "amici",
+                 # A SIDE THE CAPTION NAMES WITHOUT A ROLE WORD. 'Interested
+                 # Party.' is apparatus, not a party's name, and unread as
+                 # such it welded into the name — ca10's
+                 # universitas_education and cafc's nvlsp published
+                 # 'Interested Party - Appellant' as a party (the user,
+                 # 2026-08-24: 'the other is the interested party is the
+                 # same thing its part of caption'). 'Miscellaneous' is the
+                 # district form of the same thing (insd).
+                 "interested", "miscellaneous")
 _PIVOTS = ("v.", "vs.", "v", "vs", "against")
 _ORIGIN_OPENERS = ("appeal from", "on appeal from", "appeal by", "on petition",
                    "petition for", "on writ", "certiorari", "on remand",

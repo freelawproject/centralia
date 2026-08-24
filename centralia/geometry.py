@@ -47,7 +47,28 @@ def measure(model: PdfModel) -> DocGeometry | None:
         return None
     x1s = sorted(l.x1 for l in lines)
     right_x1 = x1s[int(0.95 * (len(x1s) - 1))]
-    full = [l for l in lines if l.x1 >= right_x1 - 36]
+    # A FULL-MEASURE LINE SPANS THE MEASURE, not just its right edge. 'Full'
+    # is asked of the right edge alone, and the RIGHT-HAND COLUMN of a
+    # two-column caption ends at the right margin too: msnd/52361.17.0 is a
+    # one-page judgment whose caption sets 'PETITIONER' at 324-537 and
+    # 'RESPONDENT' at 360-538, and with no interior pages to outvote them the
+    # modal left edge came back as 324 -- so the body column was measured as
+    # the caption's right cell, every alignment test was computed against it,
+    # the masthead read 'L' instead of 'C' and the walk took the parties for
+    # more of the court's name (the user, 2026-08-23: 'this one parses
+    # headmatter badly').
+    # MEASURED BY WIDTH, NOT BY THE ROW IT SHARES. Excluding row-sharing
+    # pieces looks equivalent and is not: pleading paper sets a line-number
+    # gutter, so EVERY body row there shares its row with a gutter piece, and
+    # that rule threw the whole body away -- 4 azd records, cacd/1010966 and
+    # calctapp/bates went to `review` with their paragraphs shattered (15
+    # blocks -> 92) because the measure came back None (guard, 2026-08-23).
+    # Width answers both: a caption cell is half a measure wide, a gutter
+    # number is a few points, and a body line is the measure.
+    x0s = sorted(l.x0 for l in lines)
+    left = x0s[int(0.05 * (len(x0s) - 1))]
+    full = [l for l in lines if l.x1 >= right_x1 - 36
+            and (l.x1 - l.x0) >= 0.5 * (right_x1 - left)]
     if len(full) < 6:
         return None
     body_x0 = float(Counter(round(l.x0) for l in full).most_common(1)[0][0])

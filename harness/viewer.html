@@ -102,6 +102,12 @@ body { margin:0; font:13px system-ui,sans-serif; color:var(--ink);
 /* THE NOTE ROW. Shown for anything not marked `yay`: a file that is right
    needs no sentence, and one that is not needs the sentence more than it
    needs the tier. */
+/* THE GUARD'S OWN WORDS for the file on screen — pinned reading on the left
+   of the arrow, what the engine says now on the right. */
+#gdiff { display:none; padding:4px 10px; background:#fdf6e3;
+         border-bottom:1px solid #e5ddc8; font:11px ui-monospace,monospace;
+         color:#6b5d33; max-height:96px; overflow:auto }
+#gdiff.on { display:block }
 #noterow { display:none; gap:8px; align-items:flex-start; padding:4px 8px;
            border-bottom:1px solid #2a2a2a; background:#161616 }
 #noterow.on { display:flex }
@@ -113,6 +119,7 @@ body { margin:0; font:13px system-ui,sans-serif; color:var(--ink);
 #note:focus { outline:none; border-color:#6b8cba }
 #notestate { font:11px system-ui,sans-serif; color:#666; padding-top:6px;
              min-width:52px; text-align:right }
+.gflag { font-size:10px; margin-left:1px; color:#b8860b }
 .stale { font-size:10px; margin-left:1px }
 .stale.ch { color:#c0392b } .stale.rr { color:#c08a1e } .stale.uk { color:#bbb }
 .mark { font-size:11px; color:#666; margin-left:4px }
@@ -124,12 +131,13 @@ body { margin:0; font:13px system-ui,sans-serif; color:var(--ink);
 <div id="main">
   <div id="bar">
     <b id="title">—</b>
-    <span id="help">↓/↑ file · →/← court · 1–5 mark · 0 clear · n note · a old/new · c CL view · h hide ✅ · p pdf · r re-run · R court</span>
+    <span id="help">↓/↑ file · →/← court · 1–5 mark · 0 clear · n note · a old/new · c CL view · h hide ✅ · g to review · p pdf · r re-run · R court</span>
     <button data-t="nay">✗ nay</button><button data-t="some">◔ some</button>
     <button data-t="good">◑ good</button><button data-t="almost">~ almost</button>
     <button data-t="yay">✅ yay</button>
     <button id="donebtn" title="Mark this whole court complete">✓ court done</button>
     <button id="hidedone" title="Hide the files you marked ✅ yay (h)">⊘ hide ✅</button>
+    <button id="guardonly" title="Show ONLY sentinels whose reading moved since it was pinned (g)">⚑ to review</button>
     <button id="ab">A/B: new</button>
     <button id="clbtn" title="How this record translates into CourtListener fields — and what has no field at all (c)">CL</button>
     <button id="pdfbtn">PDF</button>
@@ -137,6 +145,7 @@ body { margin:0; font:13px system-ui,sans-serif; color:var(--ink);
     <button id="runfile" title="Re-run the engine on THIS pdf (r)">⟳ file</button>
     <button id="runcourt" title="Re-run the engine on this whole court (R)">⟳ court</button>
   </div>
+  <div id="gdiff"></div>
   <div id="noterow">
     <label for="note" title="What is wrong with THIS rendering (n)">note</label>
     <textarea id="note" rows="1" spellcheck="false"
@@ -157,6 +166,7 @@ async function boot() {
   try { STALE = await (await fetch("/api/stale")).json(); } catch (e) { STALE = {}; }
   try { NOTES = await (await fetch("/api/filenotes")).json(); } catch (e) { NOTES = {}; }
   try { QUAL = await (await fetch("/api/quality")).json(); } catch (e) {}
+  try { GREVIEW = await (await fetch("/api/guardreview")).json(); } catch (e) { GREVIEW = {}; }
   if (!QUAL.files) QUAL = {files:{}, courts:{}};
   courts = Object.keys(MAN);
   // Grouped order comes from the server, which owns the classification —
@@ -302,7 +312,18 @@ function drawCourts() {
 // court's full manifest, so a hidden file is still reachable by URL and the
 // mark you set on the current file cannot move the selection under you.
 let HIDEDONE = localStorage.getItem("hideDone") === "1";
-const hidden = k => HIDEDONE && MARKS[k] === "yay";
+// ONLY WHAT MOVED. A guard regression can only be judged by looking at the
+// rendering, so the review list lives here rather than in a terminal.
+let GUARDONLY = localStorage.getItem("guardOnly") === "1";
+let GREVIEW = {};
+// FAIL OPEN, NEVER BLANK. With no review file — an old server without the
+// route, or a guard that has not run — GREVIEW is empty, and a filter that
+// hid every file would look exactly like a broken page (the user,
+// 2026-08-24: 'to review doesnt show me anything?'). An empty list means
+// there is nothing to filter ON, so the filter stands down.
+const anyReview = () => Object.keys(GREVIEW).length > 0;
+const hidden = k => (HIDEDONE && MARKS[k] === "yay")
+                 || (GUARDONLY && anyReview() && !GREVIEW[k]);
 function visibleFiles(c) {
   return (MAN[c] || []).map((s, i) => [s, i]).filter(([s]) => !hidden(c + "/" + s));
 }
@@ -310,6 +331,24 @@ function toggleHideDone() {
   HIDEDONE = !HIDEDONE;
   localStorage.setItem("hideDone", HIDEDONE ? "1" : "0");
   drawFiles(); show();
+}
+function toggleGuardOnly() {
+  GUARDONLY = !GUARDONLY;
+  localStorage.setItem("guardOnly", GUARDONLY ? "1" : "0");
+  // The review list is its own question: hiding the files you already
+  // approved would hide most of what moved, since a sentinel is a file you
+  // approved once.
+  if (GUARDONLY && HIDEDONE) {
+    HIDEDONE = false; localStorage.setItem("hideDone", "0");
+  }
+  drawFiles(); show();
+}
+// A SENTINEL WHOSE READING MOVED, marked in the list so it is findable
+// without the filter on.
+function guardGlyph(k) {
+  return GREVIEW[k]
+    ? `<span class="gflag" title="${GREVIEW[k].length} guard diff(s) — pinned reading changed">⚑</span>`
+    : "";
 }
 function drawFiles() {
   const c = courts[ci] || "";
@@ -324,7 +363,8 @@ function drawFiles() {
   $("#files").innerHTML = vis.map(([s, i]) =>
     `<div class="${i===fi?"on":""}" onclick="pick(${ci},${i})">` +
     `${opChip(QUAL.files[c+"/"+s])}${gradeChip((QUAL.files[c+"/"+s]||{}).g)}` +
-    `${tierGlyph(MARKS[c+"/"+s])}${staleGlyph(c+"/"+s)}${noteGlyph(c+"/"+s)} ${s}</div>`).join("");
+    `${tierGlyph(MARKS[c+"/"+s])}${staleGlyph(c+"/"+s)}${noteGlyph(c+"/"+s)}` +
+    `${guardGlyph(c+"/"+s)} ${s}</div>`).join("");
   const on = $("#files .on"); if (on) on.scrollIntoView({block:"nearest"});
 }
 // ↓/↑ WALK WHAT YOU CAN SEE. Stepping `fi` by one would stop on every hidden
@@ -449,7 +489,17 @@ function show() {
   $("#title").textContent = k + (MARKS[k] ? "  [" + MARKS[k] + "]" : "")
     + (q && q.o !== undefined
        ? `  ·  ${q.o} writing${q.o === 1 ? "" : "s"}` : "")
-    + (q ? `  ·  ${q.g}${q.f.length ? " (" + q.f.join(", ") + ")" : ""}` : "");
+    + (q ? `  ·  ${q.g}${q.f.length ? " (" + q.f.join(", ") + ")" : ""}` : "")
+    + (GREVIEW[k] ? "  ·  ⚑ " + GREVIEW[k].length + " guard diff"
+                    + (GREVIEW[k].length === 1 ? "" : "s") : "");
+  // WHAT MOVED, beside the rendering that moved it. Printed in full so the
+  // judgment is 'is the new reading right', not 'what changed again?'.
+  const gd = $("#gdiff");
+  if (gd) {
+    gd.innerHTML = (GREVIEW[k] || []).map(d =>
+      `<div>${d.replace(/&/g, "&amp;").replace(/</g, "&lt;")}</div>`).join("");
+    gd.classList.toggle("on", !!GREVIEW[k]);
+  }
   // THE CL VIEW IS RENDERED ON DEMAND, so it is always current — where the
   // review sheet is whatever was last written to disk.
   $("#frame").src = (cl ? "/cl/" : old ? "/old/" : "/out/") + k + ".html";
@@ -466,6 +516,12 @@ function show() {
   const done = (CMETA[courts[ci]] || {}).status === "complete";
   $("#donebtn").classList.toggle("on", done);
   $("#hidedone").classList.toggle("on", HIDEDONE);
+  $("#guardonly").classList.toggle("on", GUARDONLY);
+  const n = Object.keys(GREVIEW).length;
+  $("#guardonly").textContent = n ? `⚑ to review (${n})` : "⚑ to review (none)";
+  $("#guardonly").title = n
+    ? "Show ONLY sentinels whose reading moved since it was pinned (g)"
+    : "No review file — run: python -m harness.cli guard   (then restart the viewer)";
   $("#donebtn").textContent = done ? "✓ court done" : "mark court done";
   drawNote(k);
 }
@@ -556,6 +612,7 @@ function pickCourt(c) {
 }
 $("#donebtn").onclick = toggleDone;
 $("#hidedone").onclick = toggleHideDone;
+$("#guardonly").onclick = toggleGuardOnly;
 $("#ab").onclick = () => { old = !old; show(); };
 $("#clbtn").onclick = () => { cl = !cl; show(); };
 $("#runfile").onclick = () => rerun(false);
@@ -589,6 +646,7 @@ document.onkeydown = e => {
   if (e.key === "J" || e.key === "ArrowRight") { e.preventDefault(); return pickCourt(ci + 1); }
   if (e.key === "K" || e.key === "ArrowLeft") { e.preventDefault(); return pickCourt(ci - 1); }
   if (e.key === "h") { e.preventDefault(); return toggleHideDone(); }
+  if (e.key === "g") { e.preventDefault(); return toggleGuardOnly(); }
   if (e.key === "a") { old = !old; show(); }
   if (e.key === "c") { cl = !cl; show(); }
   if (e.key === "p") togglePdf();

@@ -15,6 +15,8 @@ file, and no other court file imports it.
 
 from __future__ import annotations
 
+import re as _re
+
 from ..districts import EcfPaper, read_ecf
 from ..profile import CourtProfile
 from ..resolve.bylines import BylineGrammar
@@ -35,10 +37,50 @@ MAD = register(CourtProfile(
                                      "Chief United States District Judge")),
 ))
 
+_TAGS = _re.compile(r"<[^>]+>")
+
 PAPER = EcfPaper()
+
+
+# THE DATE THIS COURT PRINTS UNDER ITS TITLE. mad centres the paper's name
+# and then the date beneath it — 'OPINION AND ORDER' over 'August 11, 2026' —
+# and a centred row below the caption is what the shared reader's title scan
+# is looking for, so the date joined the paper's NAME on 5 of this court's 27
+# records ('OPINION AND ORDER AUGUST 11, 2026') and no record had a decision
+# date at all (the user, 2026-08-24: 'gotta fix tese MAD ones').
+#
+# Declared here rather than in the shared reader because it is this court's
+# habit: the reader is right that a centred row under the caption is the
+# title, and only mad puts a bare date in that position. What the row IS is
+# unambiguous — nothing but a month, a day and a year — so the title it was
+# glued to is given back its own name and the date is published as one.
+_DATE_ROW = _re.compile(
+    r"^(?:dated?\s*:?\s*)?"
+    r"((?:jan|feb|mar|apr|may|jun|jul|aug|sep|oct|nov|dec)[a-z]*\.?"
+    r"\s+\d{1,2},?\s+\d{4})\.?$", _re.I)
 
 
 @decider("headmatter.read", court="mad")
 def read_headmatter_mad(model, geom, **kw):
     """Read mad's ECF pleading order, or NOTHING."""
-    return read_ecf(model, geom, PAPER, **kw)
+    out = read_ecf(model, geom, PAPER, **kw)
+    if not isinstance(out, dict):
+        return out
+    crit = out.get("criteria") or {}
+    for item in out.get("items") or []:
+        if getattr(item, "role", "") != "title":
+            continue
+        flat = " ".join(_TAGS.sub("", getattr(item, "text", "") or "").split())
+        hit = _DATE_ROW.match(flat)
+        if not hit:
+            continue
+        item.role = "date"
+        if not crit.get("decision_date"):
+            crit["decision_date"] = hit.group(1)
+        # …and the paper's name is what is left of it.
+        title = crit.get("title")
+        if title:
+            cut = _re.sub(_re.escape(hit.group(1)) + r"\.?\s*$", "",
+                          title, flags=_re.I).strip(" ,.;:")
+            crit["title"] = cut or title
+    return out

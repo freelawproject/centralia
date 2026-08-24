@@ -57,10 +57,10 @@
 "sign": 1.0
 },
 "almd": {
-"ab": 0.93,
+"ab": 0.96,
 "g": "B",
-"n": 73,
-"s": 0.86,
+"n": 71,
+"s": 0.81,
 "sign": 0.41
 },
 "alnd": {
@@ -316,11 +316,11 @@
 "sign": null
 },
 "casd": {
-"ab": 0.97,
+"ab": 1.0,
 "g": "A",
-"n": 32,
-"s": 0.12,
-"sign": 0.0
+"n": 25,
+"s": 0.06,
+"sign": null
 },
 "cavc": {
 "ab": 1.0,
@@ -365,10 +365,10 @@
 "sign": 1.0
 },
 "ctd": {
-"ab": 0.98,
+"ab": 1.0,
 "g": "A",
-"n": 41,
-"s": 0.22,
+"n": 39,
+"s": 0.04,
 "sign": 1.0
 },
 "dc": {
@@ -381,8 +381,8 @@
 "dcd": {
 "ab": 1.0,
 "g": "A",
-"n": 52,
-"s": 0.09,
+"n": 50,
+"s": 0.06,
 "sign": 0.15
 },
 "ded": {
@@ -479,8 +479,8 @@
 "gand": {
 "ab": 1.0,
 "g": "A",
-"n": 30,
-"s": 0.08,
+"n": 29,
+"s": 0.09,
 "sign": 0.0
 },
 "gasd": {
@@ -521,8 +521,8 @@
 "hid": {
 "ab": 1.0,
 "g": "A",
-"n": 39,
-"s": 0.15,
+"n": 38,
+"s": 0.16,
 "sign": 0.0
 },
 "iand": {
@@ -533,11 +533,11 @@
 "sign": 0.0
 },
 "iasd": {
-"ab": 0.95,
-"g": "B",
-"n": 20,
-"s": 0.8,
-"sign": 0.5
+"ab": 1.0,
+"g": "A",
+"n": 11,
+"s": 0.09,
+"sign": null
 },
 "idaho": {
 "ab": 1.0,
@@ -584,15 +584,15 @@
 "ilnd": {
 "ab": 1.0,
 "g": "A",
-"n": 42,
-"s": 0.14,
+"n": 39,
+"s": 0.09,
 "sign": 0.11
 },
 "ilsd": {
 "ab": 0.91,
 "g": "B",
-"n": 47,
-"s": 1.03,
+"n": 46,
+"s": 1.05,
 "sign": 1.0
 },
 "ind": {
@@ -626,7 +626,7 @@
 "insd": {
 "ab": 1.0,
 "g": "A",
-"n": 32,
+"n": 31,
 "s": 0.0,
 "sign": 0.0
 },
@@ -710,7 +710,7 @@
 "laed": {
 "ab": 1.0,
 "g": "A",
-"n": 40,
+"n": 39,
 "s": 0.01,
 "sign": null
 },
@@ -724,15 +724,15 @@
 "lawd": {
 "ab": 1.0,
 "g": "A",
-"n": 39,
-"s": 0.05,
+"n": 37,
+"s": 0.03,
 "sign": 0.0
 },
 "mad": {
-"ab": 0.94,
-"g": "B",
-"n": 32,
-"s": 1.72,
+"ab": 1.0,
+"g": "A",
+"n": 27,
+"s": 0.06,
 "sign": 1.0
 },
 "mass": {
@@ -773,7 +773,7 @@
 "mdd": {
 "ab": 0.98,
 "g": "A",
-"n": 43,
+"n": 42,
 "s": 0.15,
 "sign": 0.1
 },
@@ -785,11 +785,11 @@
 "sign": 0.94
 },
 "med": {
-"ab": 0.92,
-"g": "B",
-"n": 39,
-"s": 1.04,
-"sign": 0.0
+"ab": 1.0,
+"g": "A",
+"n": 34,
+"s": 0.01,
+"sign": null
 },
 "mesuperct": {
 "ab": 0.9,
@@ -866,7 +866,7 @@
 "g": "A",
 "n": 42,
 "s": 0.33,
-"sign": 0.14
+"sign": 0.25
 },
 "mo": {
 "ab": 1.0,
@@ -897,18 +897,18 @@
 "sign": 1.0
 },
 "mowd": {
-"ab": 0.97,
+"ab": 1.0,
 "g": "A",
 "n": 32,
-"s": 0.36,
+"s": 0.05,
 "sign": 0.33
 },
 "msnd": {
-"ab": 0.97,
+"ab": 1.0,
 "g": "A",
 "n": 38,
-"s": 0.13,
-"sign": 0.79
+"s": 0.05,
+"sign": 0.78
 },
 "mspb": {
 "ab": 1.0,
@@ -927,7 +927,7 @@
 "mtd": {
 "ab": 1.0,
 "g": "A",
-"n": 39,
+"n": 37,
 "s": 0.08,
 "sign": null
 },
@@ -969,8 +969,8 @@
 "ncwd": {
 "ab": 1.0,
 "g": "A",
-"n": 36,
-"s": 0.1,
+"n": 30,
+"s": 0.12,
 "sign": 0.05
 },
 "nd": {
@@ -981,11 +981,11 @@
 "sign": 0.09
 },
 "ndd": {
-"ab": 0.88,
+"ab": 0.92,
 "g": "A",
-"n": 32,
-"s": 0.47,
-"sign": 1.0
+"n": 26,
+"s": 0.33,
+"sign": null
 },
 "neb": {
 "ab": 1.0,
@@ -1004,9 +1004,9 @@
 "ned": {
 "ab": 1.0,
 "g": "A",
-"n": 36,
-"s": 0.06,
-"sign": 0.5
+"n": 30,
+"s": 0.0,
+"sign": 0.0
 },
 "nev": {
 "ab": 1.0,
@@ -1030,11 +1030,11 @@
 "sign": 1.0
 },
 "nhd": {
-"ab": 0.95,
+"ab": 1.0,
 "g": "A",
-"n": 44,
-"s": 0.23,
-"sign": 0.5
+"n": 39,
+"s": 0.04,
+"sign": 1.0
 },
 "nj": {
 "ab": 1.0,
@@ -1093,18 +1093,18 @@
 "sign": 0.95
 },
 "nmd": {
-"ab": 0.98,
+"ab": 1.0,
 "g": "A",
 "n": 54,
-"s": 0.1,
+"s": 0.05,
 "sign": 0.29
 },
 "nvd": {
-"ab": 0.97,
+"ab": 1.0,
 "g": "A",
-"n": 32,
-"s": 0.16,
-"sign": 0.5
+"n": 31,
+"s": 0.06,
+"sign": 0.0
 },
 "nycivct": {
 "ab": 0.75,
@@ -1116,7 +1116,7 @@
 "nyed": {
 "ab": 1.0,
 "g": "A",
-"n": 32,
+"n": 31,
 "s": 0.06,
 "sign": 0.33
 },
@@ -1128,18 +1128,18 @@
 "sign": 1.0
 },
 "nynd": {
-"ab": 0.97,
+"ab": 1.0,
 "g": "A",
-"n": 34,
-"s": 0.38,
+"n": 33,
+"s": 0.0,
 "sign": 0.5
 },
 "nysd": {
-"ab": 0.81,
-"g": "D",
-"n": 32,
-"s": 5.28,
-"sign": 0.25
+"ab": 0.9,
+"g": "B",
+"n": 21,
+"s": 1.48,
+"sign": null
 },
 "nysupct": {
 "ab": 0.71,
@@ -1324,10 +1324,10 @@
 "sign": 1.0
 },
 "rid": {
-"ab": 0.83,
-"g": "B",
-"n": 35,
-"s": 1.54,
+"ab": 1.0,
+"g": "A",
+"n": 26,
+"s": 0.02,
 "sign": 1.0
 },
 "sc": {
@@ -1485,10 +1485,10 @@
 "sign": 0.0
 },
 "txwd": {
-"ab": 0.97,
+"ab": 1.0,
 "g": "A",
-"n": 32,
-"s": 0.11,
+"n": 22,
+"s": 0.02,
 "sign": 0.0
 },
 "uscfc": {
@@ -1522,8 +1522,8 @@
 "utd": {
 "ab": 1.0,
 "g": "A",
-"n": 33,
-"s": 0.08,
+"n": 28,
+"s": 0.09,
 "sign": 0.0
 },
 "va": {
@@ -1576,10 +1576,10 @@
 "sign": 1.0
 },
 "vtd": {
-"ab": 0.93,
+"ab": 0.94,
 "g": "A",
-"n": 43,
-"s": 0.24,
+"n": 36,
+"s": 0.21,
 "sign": 0.89
 },
 "vtsuperct": {
@@ -1660,11 +1660,11 @@
 "sign": 0.33
 },
 "wvnd": {
-"ab": 0.89,
+"ab": 0.91,
 "g": "C",
-"n": 27,
-"s": 2.11,
-"sign": 0.12
+"n": 22,
+"s": 2.14,
+"sign": 0.0
 },
 "wvsd": {
 "ab": 0.98,
@@ -2376,12 +2376,6 @@
 "s": 0.0
 },
 "akd/gov.uscourts.akd.79568.4.0": {
-"f": [],
-"g": "A",
-"o": 1,
-"s": 0.0
-},
-"akd/gov.uscourts.akd.79708.1.0": {
 "f": [],
 "g": "A",
 "o": 1,
@@ -6169,14 +6163,6 @@
 "o": 1,
 "s": 0.0
 },
-"almd/gov.uscourts.almd.70991.238.0": {
-"f": [
-"hm-unread\u00d713"
-],
-"g": "C",
-"o": 1,
-"s": 3.0
-},
 "almd/gov.uscourts.almd.73791.51.0": {
 "f": [],
 "g": "A",
@@ -6590,14 +6576,6 @@
 "o": 1,
 "s": 0.0
 },
-"almd/gov.uscourts.almd.90264.112.0": {
-"f": [
-"joins\u00d75"
-],
-"g": "C",
-"o": 1,
-"s": 2.5
-},
 "almd/gov.uscourts.almd.90265.112.0_2": {
 "f": [
 "joins\u00d75"
@@ -6948,14 +6926,6 @@
 "o": 1,
 "s": 0.0
 },
-"alsd/gov.uscourts.alsd.75420.62.1": {
-"f": [
-"decap\u00d71"
-],
-"g": "B",
-"o": 1,
-"s": 2.0
-},
 "alsd/gov.uscourts.alsd.75766.41.0": {
 "f": [],
 "g": "A",
@@ -6975,12 +6945,6 @@
 "s": 0.0
 },
 "alsd/gov.uscourts.alsd.76131.29.0": {
-"f": [],
-"g": "A",
-"o": 1,
-"s": 0.0
-},
-"alsd/gov.uscourts.alsd.76255.67.0": {
 "f": [],
 "g": "A",
 "o": 1,
@@ -7324,14 +7288,6 @@
 "o": 1,
 "s": 0.0
 },
-"ared/gov.uscourts.ared.152256.14.0": {
-"f": [
-"joins\u00d71"
-],
-"g": "B",
-"o": 1,
-"s": 0.5
-},
 "ared/gov.uscourts.ared.152641.13.0": {
 "f": [],
 "g": "A",
@@ -7395,26 +7351,6 @@
 "g": "A",
 "o": 1,
 "s": 0.0
-},
-"ared/gov.uscourts.ared.153889.21.11_1": {
-"f": [
-"image-source",
-"scanned-source"
-],
-"g": "A",
-"o": 0,
-"s": 0.0
-},
-"ared/gov.uscourts.ared.153889.21.6_1": {
-"f": [
-"warn:2 stapled documents (covers at pp 1, 2)",
-"pages-without-text\u00d72/12",
-"joins\u00d71",
-"hyph\u00d71"
-],
-"g": "C",
-"o": 2,
-"s": 3.0
 },
 "ariz/9w_halo_v._ador": {
 "f": [],
@@ -9341,12 +9277,6 @@
 "o": 1,
 "s": 0.0
 },
-"azd/gov.uscourts.azd.1477908.20.0": {
-"f": [],
-"g": "A",
-"o": 1,
-"s": 0.0
-},
 "azd/gov.uscourts.azd.1477913.16.0": {
 "f": [],
 "g": "A",
@@ -9390,12 +9320,6 @@
 "s": 0.0
 },
 "azd/gov.uscourts.azd.1507905.6.0": {
-"f": [],
-"g": "A",
-"o": 1,
-"s": 0.0
-},
-"azd/gov.uscourts.azd.1511791.8.0": {
 "f": [],
 "g": "A",
 "o": 1,
@@ -17370,12 +17294,6 @@
 "o": 1,
 "s": 0.0
 },
-"cacd/gov.uscourts.cacd.1002162.33.0": {
-"f": [],
-"g": "A",
-"o": 1,
-"s": 0.0
-},
 "cacd/gov.uscourts.cacd.1002267.10.0": {
 "f": [],
 "g": "A",
@@ -17417,22 +17335,6 @@
 "g": "A",
 "o": 1,
 "s": 0.0
-},
-"cacd/gov.uscourts.cacd.1024702.34.0": {
-"f": [
-"hm-unread\u00d711"
-],
-"g": "C",
-"o": 1,
-"s": 3.0
-},
-"cacd/gov.uscourts.cacd.1024785.17.0": {
-"f": [
-"hm-unread\u00d711"
-],
-"g": "C",
-"o": 1,
-"s": 3.0
 },
 "cacd/gov.uscourts.cacd.1024889.10.0": {
 "f": [
@@ -17506,49 +17408,6 @@
 "o": 1,
 "s": 0.0
 },
-"cacd/gov.uscourts.cacd.1031652.11.0": {
-"f": [],
-"g": "A",
-"o": 1,
-"s": 0.0
-},
-"cacd/gov.uscourts.cacd.1031652.11.1": {
-"f": [
-"no-opinions",
-"warn:no opinion start found"
-],
-"g": "D",
-"o": 0,
-"s": 10.0
-},
-"cacd/gov.uscourts.cacd.1032220.9.0": {
-"f": [],
-"g": "A",
-"o": 1,
-"s": 0.0
-},
-"cacd/gov.uscourts.cacd.1032829.16.0": {
-"f": [
-"joins\u00d71"
-],
-"g": "B",
-"o": 1,
-"s": 0.5
-},
-"cacd/gov.uscourts.cacd.898535.89.0": {
-"f": [],
-"g": "A",
-"o": 1,
-"s": 0.0
-},
-"cacd/gov.uscourts.cacd.969567.115.0": {
-"f": [
-"hm-unread\u00d712"
-],
-"g": "C",
-"o": 1,
-"s": 3.0
-},
 "cacd/gov.uscourts.cacd.972521.25.0": {
 "f": [],
 "g": "A",
@@ -17578,14 +17437,6 @@
 "g": "A",
 "o": 1,
 "s": 0.0
-},
-"cacd/gov.uscourts.cacd.987706.46.0": {
-"f": [
-"hm-unread\u00d711"
-],
-"g": "C",
-"o": 1,
-"s": 3.0
 },
 "cacd/gov.uscourts.cacd.996274.16.0": {
 "f": [
@@ -18225,30 +18076,6 @@
 "o": 1,
 "s": 0.0
 },
-"caed/gov.uscourts.caed.377289.70.1": {
-"f": [],
-"g": "A",
-"o": 1,
-"s": 0.0
-},
-"caed/gov.uscourts.caed.378840.187.0": {
-"f": [],
-"g": "A",
-"o": 1,
-"s": 0.0
-},
-"caed/gov.uscourts.caed.378840.188.0": {
-"f": [],
-"g": "A",
-"o": 1,
-"s": 0.0
-},
-"caed/gov.uscourts.caed.378840.189.1": {
-"f": [],
-"g": "A",
-"o": 1,
-"s": 0.0
-},
 "caed/gov.uscourts.caed.433663.57.0": {
 "f": [
 "decap\u00d71"
@@ -18341,45 +18168,7 @@
 "o": 1,
 "s": 0.0
 },
-"caed/gov.uscourts.caed.482830.9.0": {
-"f": [],
-"g": "A",
-"o": 1,
-"s": 0.0
-},
-"caed/gov.uscourts.caed.484907.27.0": {
-"f": [],
-"g": "A",
-"o": 1,
-"s": 0.0
-},
-"caed/gov.uscourts.caed.485751.13.0": {
-"f": [],
-"g": "A",
-"o": 1,
-"s": 0.0
-},
-"caed/gov.uscourts.caed.485922.17.0": {
-"f": [],
-"g": "A",
-"o": 1,
-"s": 0.0
-},
 "caed/gov.uscourts.caed.492810.8.0": {
-"f": [],
-"g": "A",
-"o": 1,
-"s": 0.0
-},
-"caed/gov.uscourts.caed.492832.42.2": {
-"f": [
-"joins\u00d72"
-],
-"g": "B",
-"o": 1,
-"s": 1.0
-},
-"caed/gov.uscourts.caed.493751.11.0": {
 "f": [],
 "g": "A",
 "o": 1,
@@ -19788,71 +19577,7 @@
 "o": 1,
 "s": 0.0
 },
-"cand/gov.uscourts.cand.364265.1716.0": {
-"f": [],
-"g": "A",
-"o": 1,
-"s": 0.0
-},
-"cand/gov.uscourts.cand.419089.7070.2": {
-"f": [
-"pages-without-text\u00d73/86",
-"joins\u00d72",
-"folio-leak\u00d7385",
-"hm-unread\u00d711"
-],
-"g": "D",
-"o": 1,
-"s": 8.0
-},
-"cand/gov.uscourts.cand.419089.7070.6": {
-"f": [
-"pages-without-text\u00d71/32",
-"hyph\u00d71"
-],
-"g": "B",
-"o": 1,
-"s": 0.5
-},
-"cand/gov.uscourts.cand.419089.7070.8": {
-"f": [
-"joins\u00d73"
-],
-"g": "B",
-"o": 1,
-"s": 1.5
-},
 "cand/gov.uscourts.cand.419606.42.0": {
-"f": [],
-"g": "A",
-"o": 1,
-"s": 0.0
-},
-"cand/gov.uscourts.cand.431519.768.0": {
-"f": [
-"pages-without-text\u00d74/7"
-],
-"g": "A",
-"o": 1,
-"s": 0.0
-},
-"cand/gov.uscourts.cand.431519.770.0": {
-"f": [
-"pages-without-text\u00d74/8"
-],
-"g": "A",
-"o": 1,
-"s": 0.0
-},
-"cand/gov.uscourts.cand.431519.773.0": {
-"f": [
-"pages-without-text\u00d73/8"
-],
-"g": "A",
-"o": 1,
-"s": 0.0
-},
-"cand/gov.uscourts.cand.431519.783.0": {
 "f": [],
 "g": "A",
 "o": 1,
@@ -19881,14 +19606,6 @@
 "g": "A",
 "o": 1,
 "s": 0.0
-},
-"cand/gov.uscourts.cand.450653.226.0": {
-"f": [
-"joins\u00d71"
-],
-"g": "B",
-"o": 1,
-"s": 0.5
 },
 "cand/gov.uscourts.cand.454317.46.0": {
 "f": [
@@ -19992,31 +19709,7 @@
 "o": 1,
 "s": 2.0
 },
-"cand/gov.uscourts.cand.474171.48.0": {
-"f": [],
-"g": "A",
-"o": 1,
-"s": 0.0
-},
 "casd/gov.uscourts.casd.639571.35.0": {
-"f": [],
-"g": "A",
-"o": 1,
-"s": 0.0
-},
-"casd/gov.uscourts.casd.705192.210.0": {
-"f": [],
-"g": "A",
-"o": 1,
-"s": 0.0
-},
-"casd/gov.uscourts.casd.705192.215.0": {
-"f": [],
-"g": "A",
-"o": 1,
-"s": 0.0
-},
-"casd/gov.uscourts.casd.705192.222.0": {
 "f": [],
 "g": "A",
 "o": 1,
@@ -20039,20 +19732,6 @@
 "g": "A",
 "o": 1,
 "s": 0.0
-},
-"casd/gov.uscourts.casd.782425.91.0": {
-"f": [],
-"g": "A",
-"o": 1,
-"s": 0.0
-},
-"casd/gov.uscourts.casd.782425.98.0": {
-"f": [
-"hyph\u00d75"
-],
-"g": "C",
-"o": 1,
-"s": 2.5
 },
 "casd/gov.uscourts.casd.794539.71.0": {
 "f": [
@@ -20132,12 +19811,6 @@
 "o": 1,
 "s": 0.0
 },
-"casd/gov.uscourts.casd.847244.13.1": {
-"f": [],
-"g": "A",
-"o": 1,
-"s": 0.0
-},
 "casd/gov.uscourts.casd.849274.39.0": {
 "f": [],
 "g": "A",
@@ -20157,12 +19830,6 @@
 "s": 0.0
 },
 "casd/gov.uscourts.casd.856973.5.0": {
-"f": [],
-"g": "A",
-"o": 1,
-"s": 0.0
-},
-"casd/gov.uscourts.casd.857345.14.0_1": {
 "f": [],
 "g": "A",
 "o": 1,
@@ -20606,12 +20273,6 @@
 "o": 1,
 "s": 0.5
 },
-"cod/gov.uscourts.cod.233303.106.0": {
-"f": [],
-"g": "A",
-"o": 1,
-"s": 0.0
-},
 "cod/gov.uscourts.cod.241139.171.0": {
 "f": [],
 "g": "A",
@@ -20763,20 +20424,6 @@
 "s": 0.0
 },
 "cod/gov.uscourts.cod.257686.9.0": {
-"f": [],
-"g": "A",
-"o": 1,
-"s": 0.0
-},
-"cod/gov.uscourts.cod.258076.1.0": {
-"f": [
-"joins\u00d71"
-],
-"g": "B",
-"o": 1,
-"s": 0.5
-},
-"cod/gov.uscourts.cod.258089.1.0": {
 "f": [],
 "g": "A",
 "o": 1,
@@ -21858,23 +21505,7 @@
 "o": 1,
 "s": 0.0
 },
-"ctd/gov.uscourts.ctd.170255.73.0": {
-"f": [
-"pages-without-text\u00d72/36",
-"joins\u00d766",
-"hyph\u00d75"
-],
-"g": "D",
-"o": 1,
-"s": 7.5
-},
 "ctd/gov.uscourts.ctd.170308.16.0": {
-"f": [],
-"g": "A",
-"o": 1,
-"s": 0.0
-},
-"ctd/gov.uscourts.ctd.170817.57.0": {
 "f": [],
 "g": "A",
 "o": 1,
@@ -22185,14 +21816,6 @@
 "o": 1,
 "s": 0.0
 },
-"dcd/gov.uscourts.dcd.227759.262.0": {
-"f": [
-"joins\u00d73"
-],
-"g": "B",
-"o": 1,
-"s": 1.5
-},
 "dcd/gov.uscourts.dcd.239046.91.0": {
 "f": [],
 "g": "A",
@@ -22246,12 +21869,6 @@
 "s": 0.5
 },
 "dcd/gov.uscourts.dcd.271442.48.0": {
-"f": [],
-"g": "A",
-"o": 1,
-"s": 0.0
-},
-"dcd/gov.uscourts.dcd.275985.47.0": {
 "f": [],
 "g": "A",
 "o": 1,
@@ -24688,12 +24305,6 @@
 "o": 1,
 "s": 0.0
 },
-"flmd/gov.uscourts.flmd.465048.14.0": {
-"f": [],
-"g": "A",
-"o": 1,
-"s": 0.0
-},
 "flnd/gov.uscourts.flnd.467415.15.0": {
 "f": [],
 "g": "A",
@@ -24842,20 +24453,6 @@
 "o": 1,
 "s": 0.0
 },
-"flnd/gov.uscourts.flnd.543147.27.0": {
-"f": [],
-"g": "A",
-"o": 1,
-"s": 0.0
-},
-"flnd/gov.uscourts.flnd.543147.28.0": {
-"f": [
-"joins\u00d71"
-],
-"g": "B",
-"o": 1,
-"s": 0.5
-},
 "flnd/gov.uscourts.flnd.543507.7.0": {
 "f": [],
 "g": "A",
@@ -24868,36 +24465,10 @@
 "o": 1,
 "s": 0.0
 },
-"flnd/gov.uscourts.flnd.544246.50.0": {
-"f": [
-"joins\u00d71"
-],
-"g": "B",
-"o": 1,
-"s": 0.5
-},
 "flnd/gov.uscourts.flnd.544652.3.0": {
 "f": [],
 "g": "A",
 "o": 1,
-"s": 0.0
-},
-"flnd/gov.uscourts.flnd.545457.5.0": {
-"f": [
-"image-source",
-"scanned-source"
-],
-"g": "A",
-"o": 0,
-"s": 0.0
-},
-"flnd/gov.uscourts.flnd.545457.5.1": {
-"f": [
-"image-source",
-"scanned-source"
-],
-"g": "A",
-"o": 0,
 "s": 0.0
 },
 "flsd/gov.uscourts.flsd.648393.91.0": {
@@ -24930,12 +24501,6 @@
 "o": 1,
 "s": 0.0
 },
-"flsd/gov.uscourts.flsd.684111.293.3_4": {
-"f": [],
-"g": "A",
-"o": 1,
-"s": 0.0
-},
 "flsd/gov.uscourts.flsd.688789.20.0": {
 "f": [],
 "g": "A",
@@ -24960,21 +24525,7 @@
 "o": 1,
 "s": 0.0
 },
-"flsd/gov.uscourts.flsd.691469.58.0": {
-"f": [
-"joins\u00d72"
-],
-"g": "B",
-"o": 2,
-"s": 1.0
-},
 "flsd/gov.uscourts.flsd.691991.59.0": {
-"f": [],
-"g": "A",
-"o": 1,
-"s": 0.0
-},
-"flsd/gov.uscourts.flsd.692544.167.1": {
 "f": [],
 "g": "A",
 "o": 1,
@@ -25046,12 +24597,6 @@
 "o": 1,
 "s": 0.0
 },
-"flsd/gov.uscourts.flsd.713938.23.0": {
-"f": [],
-"g": "A",
-"o": 1,
-"s": 0.0
-},
 "flsd/gov.uscourts.flsd.715390.12.0": {
 "f": [],
 "g": "A",
@@ -25059,12 +24604,6 @@
 "s": 0.0
 },
 "flsd/gov.uscourts.flsd.715467.25.0": {
-"f": [],
-"g": "A",
-"o": 1,
-"s": 0.0
-},
-"flsd/gov.uscourts.flsd.718067.16.0": {
 "f": [],
 "g": "A",
 "o": 1,
@@ -25093,16 +24632,6 @@
 "g": "A",
 "o": 1,
 "s": 0.0
-},
-"flsd/gov.uscourts.flsd.721530.12.0": {
-"f": [
-"joins\u00d712",
-"folio-leak\u00d71",
-"hm-unread\u00d764"
-],
-"g": "D",
-"o": 1,
-"s": 9.0
 },
 "ga/abebe_v._state": {
 "f": [
@@ -25977,12 +25506,6 @@
 "o": 1,
 "s": 0.0
 },
-"gand/gov.uscourts.gand.308656.185.0": {
-"f": [],
-"g": "A",
-"o": 1,
-"s": 0.0
-},
 "gand/gov.uscourts.gand.313856.131.0": {
 "f": [
 "joins\u00d71"
@@ -26643,46 +26166,11 @@
 "o": 1,
 "s": 0.0
 },
-"gud/gov.uscourts.gud.15303.118.0": {
-"f": [],
-"g": "A",
-"o": 1,
-"s": 0.0
-},
-"gud/gov.uscourts.gud.15303.95.0": {
-"f": [],
-"g": "A",
-"o": 1,
-"s": 0.0
-},
-"gud/gov.uscourts.gud.15303.96.0": {
-"f": [],
-"g": "A",
-"o": 1,
-"s": 0.0
-},
 "gud/gov.uscourts.gud.18645.38.0": {
 "f": [],
 "g": "A",
 "o": 1,
 "s": 0.0
-},
-"gud/gov.uscourts.gud.18645.39.0": {
-"f": [
-"image-source",
-"scanned-source"
-],
-"g": "A",
-"o": 0,
-"s": 0.0
-},
-"gud/gov.uscourts.gud.8773.89.0": {
-"f": [
-"hm-unread\u00d730"
-],
-"g": "C",
-"o": 1,
-"s": 3.0
 },
 "haw/akau_v._villareal": {
 "f": [],
@@ -27180,12 +26668,6 @@
 "o": 1,
 "s": 0.0
 },
-"hid/gov.uscourts.hid.157630.239.0": {
-"f": [],
-"g": "A",
-"o": 1,
-"s": 0.0
-},
 "hid/gov.uscourts.hid.157630.300.0": {
 "f": [],
 "g": "A",
@@ -27653,12 +27135,6 @@
 "o": 1,
 "s": 0.0
 },
-"iasd/gov.uscourts.iasd.85819.153.0": {
-"f": [],
-"g": "A",
-"o": 1,
-"s": 0.0
-},
 "iasd/gov.uscourts.iasd.85868.10.0": {
 "f": [],
 "g": "A",
@@ -27671,47 +27147,7 @@
 "o": 1,
 "s": 0.0
 },
-"iasd/gov.uscourts.iasd.87278.67.0": {
-"f": [],
-"g": "A",
-"o": 1,
-"s": 0.0
-},
-"iasd/gov.uscourts.iasd.90344.126.0": {
-"f": [],
-"g": "A",
-"o": 1,
-"s": 0.0
-},
 "iasd/gov.uscourts.iasd.91256.15.0": {
-"f": [],
-"g": "A",
-"o": 1,
-"s": 0.0
-},
-"iasd/gov.uscourts.iasd.92196.47.0": {
-"f": [],
-"g": "A",
-"o": 1,
-"s": 0.0
-},
-"iasd/gov.uscourts.iasd.92576.83.1": {
-"f": [],
-"g": "A",
-"o": 1,
-"s": 0.0
-},
-"iasd/gov.uscourts.iasd.93256.29.0": {
-"f": [
-"no-opinions",
-"warn:no opinion start found",
-"hm-unread\u00d775"
-],
-"g": "F",
-"o": 0,
-"s": 13.0
-},
-"iasd/gov.uscourts.iasd.93765.55.0": {
 "f": [],
 "g": "A",
 "o": 1,
@@ -27728,22 +27164,6 @@
 "g": "A",
 "o": 1,
 "s": 0.0
-},
-"iasd/gov.uscourts.iasd.94306.14.1": {
-"f": [
-"joins\u00d72"
-],
-"g": "B",
-"o": 1,
-"s": 1.0
-},
-"iasd/gov.uscourts.iasd.94306.16.0": {
-"f": [
-"joins\u00d72"
-],
-"g": "B",
-"o": 1,
-"s": 1.0
 },
 "iasd/gov.uscourts.iasd.95066.20.0": {
 "f": [
@@ -28272,14 +27692,6 @@
 "o": 1,
 "s": 0.0
 },
-"idd/gov.uscourts.idd.54699.149.1": {
-"f": [
-"joins\u00d71"
-],
-"g": "B",
-"o": 1,
-"s": 0.5
-},
 "idd/gov.uscourts.idd.55130.94.0": {
 "f": [],
 "g": "A",
@@ -28402,24 +27814,6 @@
 "o": 1,
 "s": 0.0
 },
-"idd/gov.uscourts.idd.58957.21.0": {
-"f": [],
-"g": "A",
-"o": 1,
-"s": 0.0
-},
-"idd/gov.uscourts.idd.59152.40.0": {
-"f": [],
-"g": "A",
-"o": 1,
-"s": 0.0
-},
-"idd/gov.uscourts.idd.59152.41.0": {
-"f": [],
-"g": "A",
-"o": 1,
-"s": 0.0
-},
 "idd/gov.uscourts.idd.59411.23.0": {
 "f": [
 "pages-without-text\u00d71/4"
@@ -28477,12 +27871,6 @@
 "s": 0.0
 },
 "ilcd/gov.uscourts.ilcd.100542.4.0": {
-"f": [],
-"g": "A",
-"o": 1,
-"s": 0.0
-},
-"ilcd/gov.uscourts.ilcd.72794.104.0": {
 "f": [],
 "g": "A",
 "o": 1,
@@ -29320,14 +28708,6 @@
 "o": 1,
 "s": 1.5
 },
-"ilnd/gov.uscourts.ilnd.371084.1045.0": {
-"f": [
-"joins\u00d73"
-],
-"g": "B",
-"o": 1,
-"s": 1.5
-},
 "ilnd/gov.uscourts.ilnd.372617.405.0": {
 "f": [
 "joins\u00d71"
@@ -29415,22 +28795,6 @@
 "g": "A",
 "o": 1,
 "s": 0.0
-},
-"ilnd/gov.uscourts.ilnd.449395.235.0": {
-"f": [
-"joins\u00d71"
-],
-"g": "B",
-"o": 1,
-"s": 0.5
-},
-"ilnd/gov.uscourts.ilnd.449395.237.0": {
-"f": [
-"joins\u00d71"
-],
-"g": "B",
-"o": 1,
-"s": 0.5
 },
 "ilnd/gov.uscourts.ilnd.449395.238.0": {
 "f": [],
@@ -29805,12 +29169,6 @@
 "g": "B",
 "o": 1,
 "s": 0.5
-},
-"ilsd/gov.uscourts.ilsd.84575.282.0": {
-"f": [],
-"g": "A",
-"o": 1,
-"s": 0.0
 },
 "ilsd/gov.uscourts.ilsd.85623.324.0": {
 "f": [],
@@ -31087,12 +30445,6 @@
 "s": 0.0
 },
 "insd/gov.uscourts.insd.231131.73.0": {
-"f": [],
-"g": "A",
-"o": 1,
-"s": 0.0
-},
-"insd/gov.uscourts.insd.55018.28093.0": {
 "f": [],
 "g": "A",
 "o": 1,
@@ -33011,12 +32363,6 @@
 "o": 1,
 "s": 0.0
 },
-"kyed/gov.uscourts.kyed.109639.276.0_4": {
-"f": [],
-"g": "A",
-"o": 1,
-"s": 0.0
-},
 "kyed/gov.uscourts.kyed.109823.27.0": {
 "f": [],
 "g": "A",
@@ -34252,12 +33598,6 @@
 "o": 1,
 "s": 0.0
 },
-"laed/gov.uscourts.laed.275805.16.0": {
-"f": [],
-"g": "A",
-"o": 1,
-"s": 0.0
-},
 "laed/gov.uscourts.laed.275970.16.0": {
 "f": [],
 "g": "A",
@@ -34329,14 +33669,6 @@
 "g": "A",
 "o": 1,
 "s": 0.0
-},
-"lamd/gov.uscourts.lamd.60168.369.0": {
-"f": [
-"hm-unread\u00d728"
-],
-"g": "C",
-"o": 1,
-"s": 3.0
 },
 "lamd/gov.uscourts.lamd.60285.84.0": {
 "f": [],
@@ -34619,14 +33951,6 @@
 "o": 1,
 "s": 0.0
 },
-"lawd/gov.uscourts.lawd.203979.266.0": {
-"f": [
-"hyph\u00d72"
-],
-"g": "B",
-"o": 1,
-"s": 1.0
-},
 "lawd/gov.uscourts.lawd.206587.69.0": {
 "f": [],
 "g": "A",
@@ -34652,12 +33976,6 @@
 "s": 0.0
 },
 "lawd/gov.uscourts.lawd.209293.70.0": {
-"f": [],
-"g": "A",
-"o": 1,
-"s": 0.0
-},
-"lawd/gov.uscourts.lawd.209689.106.0": {
 "f": [],
 "g": "A",
 "o": 1,
@@ -34840,14 +34158,6 @@
 "o": 1,
 "s": 0.0
 },
-"mad/gov.uscourts.mad.255384.145.0": {
-"f": [
-"residual\u00d710"
-],
-"g": "F",
-"o": 1,
-"s": 50.0
-},
 "mad/gov.uscourts.mad.269169.37.0": {
 "f": [],
 "g": "A",
@@ -34862,26 +34172,6 @@
 "o": 1,
 "s": 0.5
 },
-"mad/gov.uscourts.mad.274528.192.0": {
-"f": [
-"hyph\u00d71"
-],
-"g": "B",
-"o": 1,
-"s": 0.5
-},
-"mad/gov.uscourts.mad.274528.193.0": {
-"f": [],
-"g": "A",
-"o": 1,
-"s": 0.0
-},
-"mad/gov.uscourts.mad.274528.212.0": {
-"f": [],
-"g": "A",
-"o": 1,
-"s": 0.0
-},
 "mad/gov.uscourts.mad.274895.50.0": {
 "f": [],
 "g": "A",
@@ -34893,14 +34183,6 @@
 "g": "A",
 "o": 1,
 "s": 0.0
-},
-"mad/gov.uscourts.mad.281241.78.0": {
-"f": [
-"hm-unread\u00d719"
-],
-"g": "C",
-"o": 1,
-"s": 3.0
 },
 "mad/gov.uscourts.mad.284629.17.0": {
 "f": [],
@@ -36576,12 +35858,6 @@
 "o": 1,
 "s": 0.0
 },
-"mdd/gov.uscourts.mdd.588525.38.0": {
-"f": [],
-"g": "A",
-"o": 1,
-"s": 0.0
-},
 "mdd/gov.uscourts.mdd.588832.24.0": {
 "f": [],
 "g": "A",
@@ -36984,14 +36260,6 @@
 "o": 1,
 "s": 0.0
 },
-"med/gov.uscourts.med.62855.39.0": {
-"f": [
-"hm-unread\u00d722"
-],
-"g": "C",
-"o": 1,
-"s": 3.0
-},
 "med/gov.uscourts.med.64607.95.0": {
 "f": [],
 "g": "A",
@@ -36999,12 +36267,10 @@
 "s": 0.0
 },
 "med/gov.uscourts.med.65821.69.0": {
-"f": [
-"residual\u00d74"
-],
-"g": "F",
+"f": [],
+"g": "A",
 "o": 1,
-"s": 20.0
+"s": 0.0
 },
 "med/gov.uscourts.med.66124.37.0": {
 "f": [],
@@ -37092,27 +36358,7 @@
 "o": 1,
 "s": 0.0
 },
-"med/gov.uscourts.med.68666.9.0": {
-"f": [],
-"g": "A",
-"o": 1,
-"s": 0.0
-},
-"med/gov.uscourts.med.68881.50.0": {
-"f": [
-"folio-leak\u00d72"
-],
-"g": "B",
-"o": 1,
-"s": 2.0
-},
 "med/gov.uscourts.med.68889.13.0": {
-"f": [],
-"g": "A",
-"o": 1,
-"s": 0.0
-},
-"med/gov.uscourts.med.68935.112.0": {
 "f": [],
 "g": "A",
 "o": 1,
@@ -37155,12 +36401,10 @@
 "s": 0.0
 },
 "med/gov.uscourts.med.70079.17.0": {
-"f": [
-"residual\u00d73"
-],
-"g": "F",
+"f": [],
+"g": "A",
 "o": 1,
-"s": 15.0
+"s": 0.0
 },
 "med/gov.uscourts.med.70149.22.0": {
 "f": [],
@@ -37196,15 +36440,6 @@
 "f": [],
 "g": "A",
 "o": 1,
-"s": 0.0
-},
-"med/gov.uscourts.med.70756.1.0": {
-"f": [
-"image-source",
-"scanned-source"
-],
-"g": "A",
-"o": 0,
 "s": 0.0
 },
 "med/gov.uscourts.med.70830.11.0": {
@@ -40514,12 +39749,6 @@
 "o": 1,
 "s": 0.0
 },
-"moed/gov.uscourts.moed.221156.45.0": {
-"f": [],
-"g": "A",
-"o": 1,
-"s": 0.0
-},
 "moed/gov.uscourts.moed.221823.59.0": {
 "f": [],
 "g": "A",
@@ -40631,20 +39860,6 @@
 "g": "A",
 "o": 1,
 "s": 0.0
-},
-"moed/gov.uscourts.moed.230861.1.1": {
-"f": [],
-"g": "A",
-"o": 1,
-"s": 0.0
-},
-"moed/gov.uscourts.moed.230880.1.0": {
-"f": [
-"joins\u00d71"
-],
-"g": "B",
-"o": 1,
-"s": 0.5
 },
 "mont/all_families_v._state": {
 "f": [
@@ -41167,12 +40382,10 @@
 "s": 0.0
 },
 "mowd/gov.uscourts.mowd.188347.22.0": {
-"f": [
-"residual\u00d72"
-],
-"g": "D",
+"f": [],
+"g": "A",
 "o": 1,
-"s": 10.0
+"s": 0.0
 },
 "mowd/gov.uscourts.mowd.188385.5.0": {
 "f": [],
@@ -41457,12 +40670,10 @@
 "s": 0.0
 },
 "msnd/gov.uscourts.msnd.52361.17.0": {
-"f": [
-"hm-unread\u00d711"
-],
-"g": "C",
+"f": [],
+"g": "A",
 "o": 1,
-"s": 3.0
+"s": 0.0
 },
 "msnd/gov.uscourts.msnd.52371.6.0": {
 "f": [],
@@ -41683,24 +40894,6 @@
 "s": 0.0
 },
 "mspb/yolanda_lewis-mozejko_v._department_of_health_and_human_services": {
-"f": [],
-"g": "A",
-"o": 1,
-"s": 0.0
-},
-"mssd/gov.uscourts.mssd.117094.311.0": {
-"f": [],
-"g": "A",
-"o": 1,
-"s": 0.0
-},
-"mssd/gov.uscourts.mssd.117094.314.0": {
-"f": [],
-"g": "A",
-"o": 1,
-"s": 0.0
-},
-"mssd/gov.uscourts.mssd.117094.317.0": {
 "f": [],
 "g": "A",
 "o": 1,
@@ -41947,12 +41140,6 @@
 "o": 1,
 "s": 0.0
 },
-"mtd/gov.uscourts.mtd.73809.90.0": {
-"f": [],
-"g": "A",
-"o": 1,
-"s": 0.0
-},
 "mtd/gov.uscourts.mtd.75551.66.0": {
 "f": [],
 "g": "A",
@@ -42158,15 +41345,6 @@
 "s": 0.0
 },
 "mtd/gov.uscourts.mtd.84699.40.0": {
-"f": [
-"image-source",
-"scanned-source"
-],
-"g": "A",
-"o": 0,
-"s": 0.0
-},
-"mtd/gov.uscourts.mtd.84868.44.0": {
 "f": [
 "image-source",
 "scanned-source"
@@ -43049,31 +42227,6 @@
 "o": 1,
 "s": 0.0
 },
-"nced/gov.uscourts.nced.201345.865.0": {
-"f": [
-"hyph\u00d72"
-],
-"g": "B",
-"o": 1,
-"s": 1.0
-},
-"nced/gov.uscourts.nced.201345.886.0": {
-"f": [
-"joins\u00d74"
-],
-"g": "B",
-"o": 1,
-"s": 2.0
-},
-"nced/gov.uscourts.nced.201345.899.0": {
-"f": [
-"no-opinions",
-"warn:text layer unreadable (unmapped CID glyphs)"
-],
-"g": "D",
-"o": 0,
-"s": 10.0
-},
 "nced/gov.uscourts.nced.205280.57.0": {
 "f": [
 "hyph\u00d73"
@@ -43179,12 +42332,6 @@
 "g": "B",
 "o": 1,
 "s": 0.5
-},
-"nced/gov.uscourts.nced.221403.131.0": {
-"f": [],
-"g": "A",
-"o": 1,
-"s": 0.0
 },
 "nced/gov.uscourts.nced.221562.21.0": {
 "f": [],
@@ -43423,14 +42570,6 @@
 "o": 1,
 "s": 0.0
 },
-"ncmd/gov.uscourts.ncmd.104685.15.0": {
-"f": [
-"cid\u00d79"
-],
-"g": "F",
-"o": 1,
-"s": 27.0
-},
 "ncmd/gov.uscourts.ncmd.104744.42.0": {
 "f": [],
 "g": "A",
@@ -43609,22 +42748,6 @@
 "o": 1,
 "s": 0.0
 },
-"ncwd/gov.uscourts.ncwd.119037.32.1": {
-"f": [
-"pages-without-text\u00d71/2"
-],
-"g": "A",
-"o": 1,
-"s": 0.0
-},
-"ncwd/gov.uscourts.ncwd.119038.32.1": {
-"f": [
-"pages-without-text\u00d71/2"
-],
-"g": "A",
-"o": 1,
-"s": 0.0
-},
 "ncwd/gov.uscourts.ncwd.119402.28.0": {
 "f": [
 "joins\u00d72"
@@ -43670,30 +42793,6 @@
 "g": "B",
 "o": 1,
 "s": 1.0
-},
-"ncwd/gov.uscourts.ncwd.121928.66.0": {
-"f": [],
-"g": "A",
-"o": 1,
-"s": 0.0
-},
-"ncwd/gov.uscourts.ncwd.121929.47.0": {
-"f": [],
-"g": "A",
-"o": 1,
-"s": 0.0
-},
-"ncwd/gov.uscourts.ncwd.121929.66.0": {
-"f": [],
-"g": "A",
-"o": 1,
-"s": 0.0
-},
-"ncwd/gov.uscourts.ncwd.121929.80.0": {
-"f": [],
-"g": "A",
-"o": 1,
-"s": 0.0
 },
 "ncwd/gov.uscourts.ncwd.122376.23.0": {
 "f": [],
@@ -44069,37 +43168,7 @@
 "o": 1,
 "s": 0.0
 },
-"ndd/gov.uscourts.ndd.49909.173.0": {
-"f": [
-"hm-unread\u00d723"
-],
-"g": "C",
-"o": 1,
-"s": 3.0
-},
-"ndd/gov.uscourts.ndd.49909.174.0": {
-"f": [
-"hm-unread\u00d732"
-],
-"g": "C",
-"o": 1,
-"s": 3.0
-},
-"ndd/gov.uscourts.ndd.49909.184.0": {
-"f": [
-"joins\u00d71"
-],
-"g": "B",
-"o": 1,
-"s": 0.5
-},
 "ndd/gov.uscourts.ndd.64536.69.0": {
-"f": [],
-"g": "A",
-"o": 1,
-"s": 0.0
-},
-"ndd/gov.uscourts.ndd.64551.114.0": {
 "f": [],
 "g": "A",
 "o": 1,
@@ -44117,22 +43186,7 @@
 "o": 1,
 "s": 0.0
 },
-"ndd/gov.uscourts.ndd.66833.2.0": {
-"f": [
-"image-source",
-"scanned-source"
-],
-"g": "A",
-"o": 0,
-"s": 0.0
-},
 "ndd/gov.uscourts.ndd.67373.84.0": {
-"f": [],
-"g": "A",
-"o": 1,
-"s": 0.0
-},
-"ndd/gov.uscourts.ndd.67917.79.0": {
 "f": [],
 "g": "A",
 "o": 1,
@@ -44836,28 +43890,6 @@
 "o": 1,
 "s": 0.0
 },
-"ned/gov.uscourts.ned.101087.474.0": {
-"f": [
-"joins\u00d72"
-],
-"g": "B",
-"o": 1,
-"s": 1.0
-},
-"ned/gov.uscourts.ned.101087.501.0": {
-"f": [],
-"g": "A",
-"o": 1,
-"s": 0.0
-},
-"ned/gov.uscourts.ned.101087.502.0": {
-"f": [
-"joins\u00d72"
-],
-"g": "B",
-"o": 1,
-"s": 1.0
-},
 "ned/gov.uscourts.ned.101087.689.0": {
 "f": [],
 "g": "A",
@@ -44877,18 +43909,6 @@
 "s": 0.0
 },
 "ned/gov.uscourts.ned.103178.18.0": {
-"f": [],
-"g": "A",
-"o": 1,
-"s": 0.0
-},
-"ned/gov.uscourts.ned.103824.121.0": {
-"f": [],
-"g": "A",
-"o": 1,
-"s": 0.0
-},
-"ned/gov.uscourts.ned.103825.121.0": {
 "f": [],
 "g": "A",
 "o": 1,
@@ -44967,12 +43987,6 @@
 "s": 0.0
 },
 "ned/gov.uscourts.ned.109920.38.0": {
-"f": [],
-"g": "A",
-"o": 1,
-"s": 0.0
-},
-"ned/gov.uscourts.ned.110243.4.0": {
 "f": [],
 "g": "A",
 "o": 1,
@@ -46084,24 +45098,6 @@
 "o": 1,
 "s": 0.0
 },
-"nhd/gov.uscourts.nhd.64907.106.0": {
-"f": [
-"joins\u00d72",
-"hm-unread\u00d729"
-],
-"g": "C",
-"o": 1,
-"s": 4.0
-},
-"nhd/gov.uscourts.nhd.64907.107.0": {
-"f": [
-"joins\u00d71",
-"hm-unread\u00d716"
-],
-"g": "C",
-"o": 1,
-"s": 3.5
-},
 "nhd/gov.uscourts.nhd.65578.39.0": {
 "f": [],
 "g": "A",
@@ -46121,28 +45117,6 @@
 "s": 0.0
 },
 "nhd/gov.uscourts.nhd.66130.11.0": {
-"f": [],
-"g": "A",
-"o": 1,
-"s": 0.0
-},
-"nhd/gov.uscourts.nhd.66250.51.0": {
-"f": [
-"joins\u00d71"
-],
-"g": "B",
-"o": 1,
-"s": 0.5
-},
-"nhd/gov.uscourts.nhd.66250.77.0": {
-"f": [
-"joins\u00d71"
-],
-"g": "B",
-"o": 1,
-"s": 0.5
-},
-"nhd/gov.uscourts.nhd.66250.78.0": {
 "f": [],
 "g": "A",
 "o": 1,
@@ -48484,12 +47458,10 @@
 "s": 0.0
 },
 "nmd/gov.uscourts.nmd.529724.11.0": {
-"f": [
-"hm-unread\u00d78"
-],
-"g": "C",
+"f": [],
+"g": "A",
 "o": 1,
-"s": 3.0
+"s": 0.0
 },
 "nmd/gov.uscourts.nmd.537351.59.0": {
 "f": [],
@@ -48713,14 +47685,6 @@
 "o": 1,
 "s": 0.0
 },
-"nvd/gov.uscourts.nvd.178473.80.0": {
-"f": [
-"hm-unread\u00d755"
-],
-"g": "C",
-"o": 1,
-"s": 3.0
-},
 "nvd/gov.uscourts.nvd.178631.26.0": {
 "f": [],
 "g": "A",
@@ -48810,12 +47774,6 @@
 "g": "C",
 "o": 1,
 "s": 3.0
-},
-"nyed/gov.uscourts.nyed.417383.303.0": {
-"f": [],
-"g": "A",
-"o": 1,
-"s": 0.0
 },
 "nyed/gov.uscourts.nyed.474549.27.0": {
 "f": [],
@@ -49090,16 +48048,6 @@
 "o": 1,
 "s": 0.0
 },
-"nynd/gov.uscourts.nynd.147379.40.0": {
-"f": [
-"no-opinions",
-"warn:no opinion start found",
-"hm-unread\u00d798"
-],
-"g": "F",
-"o": 0,
-"s": 13.0
-},
 "nynd/gov.uscourts.nynd.147545.24.0": {
 "f": [],
 "g": "A",
@@ -49226,12 +48174,6 @@
 "o": 1,
 "s": 0.0
 },
-"nysd/gov.uscourts.nysd.447706.1367.0": {
-"f": [],
-"g": "A",
-"o": 1,
-"s": 0.0
-},
 "nysd/gov.uscourts.nysd.477585.89.0": {
 "f": [],
 "g": "A",
@@ -49239,12 +48181,10 @@
 "s": 0.0
 },
 "nysd/gov.uscourts.nysd.538737.293.0": {
-"f": [
-"residual\u00d74"
-],
-"g": "F",
+"f": [],
+"g": "A",
 "o": 1,
-"s": 20.0
+"s": 0.0
 },
 "nysd/gov.uscourts.nysd.568041.254.0": {
 "f": [],
@@ -49267,32 +48207,6 @@
 "o": 0,
 "s": 0.0
 },
-"nysd/gov.uscourts.nysd.612892.340.0": {
-"f": [],
-"g": "A",
-"o": 1,
-"s": 0.0
-},
-"nysd/gov.uscourts.nysd.613508.469.0": {
-"f": [
-"cid\u00d736"
-],
-"g": "F",
-"o": 1,
-"s": 108.0
-},
-"nysd/gov.uscourts.nysd.624855.117.0": {
-"f": [],
-"g": "A",
-"o": 1,
-"s": 0.0
-},
-"nysd/gov.uscourts.nysd.635987.63.0": {
-"f": [],
-"g": "A",
-"o": 1,
-"s": 0.0
-},
 "nysd/gov.uscourts.nysd.643286.63.0": {
 "f": [
 "no-opinions",
@@ -49302,12 +48216,6 @@
 "g": "D",
 "o": 0,
 "s": 10.0
-},
-"nysd/gov.uscourts.nysd.645021.65.0": {
-"f": [],
-"g": "A",
-"o": 1,
-"s": 0.0
 },
 "nysd/gov.uscourts.nysd.648002.13.0": {
 "f": [],
@@ -49359,21 +48267,6 @@
 "o": 1,
 "s": 0.0
 },
-"nysd/gov.uscourts.nysd.664127.143.0_2": {
-"f": [],
-"g": "A",
-"o": 1,
-"s": 0.0
-},
-"nysd/gov.uscourts.nysd.665741.28.0": {
-"f": [
-"decap\u00d71",
-"hm-unread\u00d76"
-],
-"g": "C",
-"o": 1,
-"s": 5.0
-},
 "nysd/gov.uscourts.nysd.666486.9.0": {
 "f": [],
 "g": "A",
@@ -49417,27 +48310,6 @@
 "g": "A",
 "o": 1,
 "s": 0.0
-},
-"nysd/gov.uscourts.nysd.668228.16.0": {
-"f": [],
-"g": "A",
-"o": 1,
-"s": 0.0
-},
-"nysd/gov.uscourts.nysd.669887.38.0": {
-"f": [],
-"g": "A",
-"o": 1,
-"s": 0.0
-},
-"nysd/gov.uscourts.nysd.671145.1.1": {
-"f": [
-"joins\u00d74",
-"hm-unread\u00d750"
-],
-"g": "C",
-"o": 1,
-"s": 5.0
 },
 "nysupct/1200_aoa_realty_llc_v._1200_aoa_realty_assoc._llc": {
 "f": [
@@ -50967,14 +49839,6 @@
 "o": 1,
 "s": 0.5
 },
-"ohsd/gov.uscourts.ohsd.293738.143.0": {
-"f": [
-"scanned-source"
-],
-"g": "A",
-"o": 1,
-"s": 0.0
-},
 "ohsd/gov.uscourts.ohsd.297087.53.0": {
 "f": [
 "joins\u00d71"
@@ -51165,12 +50029,6 @@
 "s": 0.0
 },
 "ohsd/gov.uscourts.ohsd.309583.9.0": {
-"f": [],
-"g": "A",
-"o": 1,
-"s": 0.0
-},
-"ohsd/gov.uscourts.ohsd.309614.31.0": {
 "f": [],
 "g": "A",
 "o": 1,
@@ -51487,29 +50345,6 @@
 "g": "A",
 "o": 1,
 "s": 0.0
-},
-"okwd/gov.uscourts.okwd.129349.100.0": {
-"f": [
-"joins\u00d72",
-"hyph\u00d71"
-],
-"g": "B",
-"o": 1,
-"s": 1.5
-},
-"okwd/gov.uscourts.okwd.129349.105.0": {
-"f": [],
-"g": "A",
-"o": 1,
-"s": 0.0
-},
-"okwd/gov.uscourts.okwd.129349.97.0": {
-"f": [
-"joins\u00d71"
-],
-"g": "B",
-"o": 1,
-"s": 0.5
 },
 "okwd/gov.uscourts.okwd.131451.18.0": {
 "f": [],
@@ -54920,14 +53755,6 @@
 "o": 1,
 "s": 0.0
 },
-"prd/gov.uscourts.prd.189357.103.0": {
-"f": [
-"hm-unread\u00d720"
-],
-"g": "C",
-"o": 1,
-"s": 3.0
-},
 "prd/gov.uscourts.prd.190501.30.0": {
 "f": [],
 "g": "A",
@@ -55513,29 +54340,6 @@
 "o": 1,
 "s": 0.0
 },
-"rid/gov.uscourts.rid.58912.193.0": {
-"f": [
-"no-opinions",
-"warn:text layer unreadable (unmapped CID glyphs)"
-],
-"g": "D",
-"o": 0,
-"s": 10.0
-},
-"rid/gov.uscourts.rid.59116.110.0": {
-"f": [],
-"g": "A",
-"o": 1,
-"s": 0.0
-},
-"rid/gov.uscourts.rid.59116.121.0": {
-"f": [
-"hm-unread\u00d743"
-],
-"g": "C",
-"o": 1,
-"s": 3.0
-},
 "rid/gov.uscourts.rid.59433.68.0": {
 "f": [],
 "g": "A",
@@ -55578,15 +54382,6 @@
 "o": 1,
 "s": 0.0
 },
-"rid/gov.uscourts.rid.60786.51.0": {
-"f": [
-"no-opinions",
-"warn:text layer unreadable (unmapped CID glyphs)"
-],
-"g": "D",
-"o": 0,
-"s": 10.0
-},
 "rid/gov.uscourts.rid.60834.17.0": {
 "f": [
 "joins\u00d71"
@@ -55594,24 +54389,6 @@
 "g": "B",
 "o": 1,
 "s": 0.5
-},
-"rid/gov.uscourts.rid.60953.97.0": {
-"f": [
-"no-opinions",
-"warn:text layer unreadable (unmapped CID glyphs)"
-],
-"g": "D",
-"o": 0,
-"s": 10.0
-},
-"rid/gov.uscourts.rid.60953.98.0": {
-"f": [
-"no-opinions",
-"warn:text layer unreadable (unmapped CID glyphs)"
-],
-"g": "D",
-"o": 0,
-"s": 10.0
 },
 "rid/gov.uscourts.rid.60962.21.0": {
 "f": [],
@@ -55624,15 +54401,6 @@
 "g": "A",
 "o": 1,
 "s": 0.0
-},
-"rid/gov.uscourts.rid.60977.83.0": {
-"f": [
-"no-opinions",
-"warn:text layer unreadable (unmapped CID glyphs)"
-],
-"g": "D",
-"o": 0,
-"s": 10.0
 },
 "rid/gov.uscourts.rid.61211.10.0": {
 "f": [],
@@ -55671,20 +54439,6 @@
 "s": 0.0
 },
 "rid/gov.uscourts.rid.62198.5.0": {
-"f": [],
-"g": "A",
-"o": 1,
-"s": 0.0
-},
-"rid/gov.uscourts.rid.62302.39.0": {
-"f": [
-"joins\u00d71"
-],
-"g": "B",
-"o": 1,
-"s": 0.5
-},
-"rid/gov.uscourts.rid.62302.43.0": {
 "f": [],
 "g": "A",
 "o": 1,
@@ -60095,12 +58849,6 @@
 "o": 1,
 "s": 0.0
 },
-"tned/gov.uscourts.tned.111512.39.0": {
-"f": [],
-"g": "A",
-"o": 1,
-"s": 0.0
-},
 "tned/gov.uscourts.tned.112635.35.0": {
 "f": [],
 "g": "A",
@@ -60521,14 +59269,6 @@
 "o": 1,
 "s": 0.0
 },
-"tnwd/gov.uscourts.tnwd.105231.148.0": {
-"f": [
-"joins\u00d71"
-],
-"g": "B",
-"o": 1,
-"s": 0.5
-},
 "tnwd/gov.uscourts.tnwd.105297.82.0": {
 "f": [],
 "g": "A",
@@ -60694,12 +59434,6 @@
 "s": 1.0
 },
 "tnwd/gov.uscourts.tnwd.86661.448.0": {
-"f": [],
-"g": "A",
-"o": 1,
-"s": 0.0
-},
-"tnwd/gov.uscourts.tnwd.90168.174.0": {
 "f": [],
 "g": "A",
 "o": 1,
@@ -60988,12 +59722,6 @@
 "g": "C",
 "o": 1,
 "s": 5.0
-},
-"txed/gov.uscourts.txed.219287.86.0": {
-"f": [],
-"g": "A",
-"o": 1,
-"s": 0.0
 },
 "txed/gov.uscourts.txed.222823.10.0": {
 "f": [],
@@ -61404,12 +60132,6 @@
 "o": 1,
 "s": 0.0
 },
-"txsd/gov.uscourts.txsd.1759270.352.0": {
-"f": [],
-"g": "A",
-"o": 1,
-"s": 0.0
-},
 "txsd/gov.uscourts.txsd.1890891.331.0": {
 "f": [
 "joins\u00d71"
@@ -61662,12 +60384,6 @@
 "o": 1,
 "s": 0.0
 },
-"txwd/gov.uscourts.txwd.1172839970.67.0": {
-"f": [],
-"g": "A",
-"o": 1,
-"s": 0.0
-},
 "txwd/gov.uscourts.txwd.1172852411.13.0": {
 "f": [],
 "g": "A",
@@ -61734,12 +60450,6 @@
 "o": 1,
 "s": 0.0
 },
-"txwd/gov.uscourts.txwd.1172883023.42.0": {
-"f": [],
-"g": "A",
-"o": 1,
-"s": 0.0
-},
 "txwd/gov.uscourts.txwd.1172884726.4.0": {
 "f": [],
 "g": "A",
@@ -61770,54 +60480,6 @@
 "o": 1,
 "s": 0.0
 },
-"txwd/gov.uscourts.txwd.1172918702.9.0": {
-"f": [],
-"g": "A",
-"o": 1,
-"s": 0.0
-},
-"txwd/gov.uscourts.txwd.1172922919.7.0": {
-"f": [],
-"g": "A",
-"o": 1,
-"s": 0.0
-},
-"txwd/gov.uscourts.txwd.1172923467.5.0": {
-"f": [],
-"g": "A",
-"o": 1,
-"s": 0.0
-},
-"txwd/gov.uscourts.txwd.1172924650.5.0": {
-"f": [],
-"g": "A",
-"o": 1,
-"s": 0.0
-},
-"txwd/gov.uscourts.txwd.1172924884.6.0": {
-"f": [],
-"g": "A",
-"o": 1,
-"s": 0.0
-},
-"txwd/gov.uscourts.txwd.1172925034.6.0": {
-"f": [],
-"g": "A",
-"o": 1,
-"s": 0.0
-},
-"txwd/gov.uscourts.txwd.1172926697.4.0_2": {
-"f": [],
-"g": "A",
-"o": 1,
-"s": 0.0
-},
-"txwd/gov.uscourts.txwd.1172926930.6.0": {
-"f": [],
-"g": "A",
-"o": 1,
-"s": 0.0
-},
 "txwd/gov.uscourts.txwd.1190873.26.0": {
 "f": [],
 "g": "A",
@@ -61826,12 +60488,11 @@
 },
 "txwd/gov.uscourts.txwd.1213389.112.0": {
 "f": [
-"joins\u00d71",
-"hm-unread\u00d719"
+"joins\u00d71"
 ],
-"g": "C",
+"g": "B",
 "o": 1,
-"s": 3.5
+"s": 0.5
 },
 "uscfc/anderson_v._secretary_of_health_and_human_services": {
 "f": [],
@@ -62751,30 +61412,6 @@
 "o": 1,
 "s": 0.0
 },
-"utd/gov.uscourts.utd.144691.88.0": {
-"f": [],
-"g": "A",
-"o": 1,
-"s": 0.0
-},
-"utd/gov.uscourts.utd.144691.88.1": {
-"f": [],
-"g": "A",
-"o": 1,
-"s": 0.0
-},
-"utd/gov.uscourts.utd.148809.477.0": {
-"f": [],
-"g": "A",
-"o": 1,
-"s": 0.0
-},
-"utd/gov.uscourts.utd.148809.478.0": {
-"f": [],
-"g": "A",
-"o": 1,
-"s": 0.0
-},
 "utd/gov.uscourts.utd.150160.41.0": {
 "f": [],
 "g": "A",
@@ -62854,12 +61491,6 @@
 "s": 0.0
 },
 "utd/gov.uscourts.utd.162084.39.0": {
-"f": [],
-"g": "A",
-"o": 1,
-"s": 0.0
-},
-"utd/gov.uscourts.utd.162647.58.0": {
 "f": [],
 "g": "A",
 "o": 1,
@@ -64138,24 +62769,6 @@
 "o": 1,
 "s": 0.0
 },
-"vid/gov.uscourts.vid.41885.15.0": {
-"f": [],
-"g": "A",
-"o": 1,
-"s": 0.0
-},
-"vid/gov.uscourts.vid.41885.16.0": {
-"f": [],
-"g": "A",
-"o": 1,
-"s": 0.0
-},
-"vid/gov.uscourts.vid.42338.3.0": {
-"f": [],
-"g": "A",
-"o": 1,
-"s": 0.0
-},
 "virginislands/3rc__company_inc._v._boynes_trucking_system_inc.": {
 "f": [
 "scanned-source"
@@ -64959,58 +63572,7 @@
 "o": 1,
 "s": 0.0
 },
-"vtd/gov.uscourts.vtd.41367.24.1": {
-"f": [
-"scanned-source"
-],
-"g": "A",
-"o": 1,
-"s": 0.0
-},
-"vtd/gov.uscourts.vtd.41367.24.7": {
-"f": [],
-"g": "A",
-"o": 1,
-"s": 0.0
-},
-"vtd/gov.uscourts.vtd.41367.24.9": {
-"f": [
-"scanned-source"
-],
-"g": "A",
-"o": 1,
-"s": 0.0
-},
-"vtd/gov.uscourts.vtd.41405.22.0": {
-"f": [],
-"g": "A",
-"o": 1,
-"s": 0.0
-},
-"vtd/gov.uscourts.vtd.41405.23.0": {
-"f": [
-"joins\u00d71",
-"decap\u00d71"
-],
-"g": "C",
-"o": 1,
-"s": 2.5
-},
-"vtd/gov.uscourts.vtd.41405.30.0": {
-"f": [
-"joins\u00d71"
-],
-"g": "B",
-"o": 1,
-"s": 0.5
-},
 "vtd/gov.uscourts.vtd.41551.8.0": {
-"f": [],
-"g": "A",
-"o": 1,
-"s": 0.0
-},
-"vtd/gov.uscourts.vtd.41553.1.0": {
 "f": [],
 "g": "A",
 "o": 1,
@@ -65287,14 +63849,6 @@
 "o": 1,
 "s": 0.0
 },
-"waed/gov.uscourts.waed.108783.265.1": {
-"f": [
-"pages-without-text\u00d72/3"
-],
-"g": "A",
-"o": 1,
-"s": 0.0
-},
 "waed/gov.uscourts.waed.109838.70.0": {
 "f": [],
 "g": "A",
@@ -65312,22 +63866,6 @@
 "g": "A",
 "o": 1,
 "s": 0.0
-},
-"waed/gov.uscourts.waed.113029.430.0": {
-"f": [
-"joins\u00d71"
-],
-"g": "B",
-"o": 1,
-"s": 0.5
-},
-"waed/gov.uscourts.waed.113038.430.0": {
-"f": [
-"joins\u00d71"
-],
-"g": "B",
-"o": 1,
-"s": 0.5
 },
 "waed/gov.uscourts.waed.113327.27.0": {
 "f": [],
@@ -66109,12 +64647,6 @@
 "o": 1,
 "s": 0.0
 },
-"wawd/gov.uscourts.wawd.325986.193.0": {
-"f": [],
-"g": "A",
-"o": 1,
-"s": 0.0
-},
 "wawd/gov.uscourts.wawd.337565.60.0": {
 "f": [],
 "g": "A",
@@ -66125,12 +64657,6 @@
 "f": [
 "pages-without-text\u00d71/12"
 ],
-"g": "A",
-"o": 1,
-"s": 0.0
-},
-"wawd/gov.uscourts.wawd.339711.269.0": {
-"f": [],
 "g": "A",
 "o": 1,
 "s": 0.0
@@ -66146,14 +64672,6 @@
 "g": "A",
 "o": 1,
 "s": 0.0
-},
-"wawd/gov.uscourts.wawd.346178.125.0": {
-"f": [
-"hm-unread\u00d770"
-],
-"g": "C",
-"o": 1,
-"s": 3.0
 },
 "wawd/gov.uscourts.wawd.347446.12.0": {
 "f": [],
@@ -66174,12 +64692,6 @@
 "s": 0.0
 },
 "wawd/gov.uscourts.wawd.352248.37.0": {
-"f": [],
-"g": "A",
-"o": 1,
-"s": 0.0
-},
-"wawd/gov.uscourts.wawd.352679.103.0": {
 "f": [],
 "g": "A",
 "o": 1,
@@ -66253,49 +64765,11 @@
 "o": 1,
 "s": 2.0
 },
-"wawd/gov.uscourts.wawd.365421.81.0": {
-"f": [],
-"g": "A",
-"o": 1,
-"s": 0.0
-},
 "wawd/gov.uscourts.wawd.365541.6.0": {
 "f": [],
 "g": "A",
 "o": 1,
 "s": 0.0
-},
-"wawd/gov.uscourts.wawd.366075.30.0": {
-"f": [],
-"g": "A",
-"o": 1,
-"s": 0.0
-},
-"wawd/gov.uscourts.wawd.366177.10.0": {
-"f": [],
-"g": "A",
-"o": 1,
-"s": 0.0
-},
-"wawd/gov.uscourts.wawd.366321.15.0": {
-"f": [],
-"g": "A",
-"o": 1,
-"s": 0.0
-},
-"wawd/gov.uscourts.wawd.366537.9.0": {
-"f": [],
-"g": "A",
-"o": 1,
-"s": 0.0
-},
-"wawd/gov.uscourts.wawd.367450.1.0": {
-"f": [
-"joins\u00d76"
-],
-"g": "C",
-"o": 1,
-"s": 3.0
 },
 "wied/gov.uscourts.wied.107947.31.0": {
 "f": [],
@@ -66304,12 +64778,6 @@
 "s": 0.0
 },
 "wied/gov.uscourts.wied.108965.31.0": {
-"f": [],
-"g": "A",
-"o": 1,
-"s": 0.0
-},
-"wied/gov.uscourts.wied.111369.55.1": {
 "f": [],
 "g": "A",
 "o": 1,
@@ -66418,24 +64886,6 @@
 "s": 0.0
 },
 "wied/gov.uscourts.wied.116017.5.0": {
-"f": [],
-"g": "A",
-"o": 1,
-"s": 0.0
-},
-"wied/gov.uscourts.wied.116139.149.0_1": {
-"f": [],
-"g": "A",
-"o": 1,
-"s": 0.0
-},
-"wied/gov.uscourts.wied.116212.19.0": {
-"f": [],
-"g": "A",
-"o": 1,
-"s": 0.0
-},
-"wied/gov.uscourts.wied.116212.20.0": {
 "f": [],
 "g": "A",
 "o": 1,
@@ -67840,12 +66290,6 @@
 "o": 1,
 "s": 0.5
 },
-"wvnd/gov.uscourts.wvnd.60838.54.0": {
-"f": [],
-"g": "A",
-"o": 1,
-"s": 0.0
-},
 "wvnd/gov.uscourts.wvnd.61022.103.0": {
 "f": [
 "cid\u00d710"
@@ -67907,26 +66351,6 @@
 "o": 1,
 "s": 0.0
 },
-"wvnd/gov.uscourts.wvnd.63412.8.0_2": {
-"f": [],
-"g": "A",
-"o": 1,
-"s": 0.0
-},
-"wvnd/gov.uscourts.wvnd.63703.33.0": {
-"f": [
-"cid\u00d73"
-],
-"g": "D",
-"o": 1,
-"s": 9.0
-},
-"wvnd/gov.uscourts.wvnd.63708.32.0": {
-"f": [],
-"g": "A",
-"o": 1,
-"s": 0.0
-},
 "wvnd/gov.uscourts.wvnd.63895.7.0": {
 "f": [],
 "g": "A",
@@ -67938,14 +66362,6 @@
 "g": "A",
 "o": 1,
 "s": 0.0
-},
-"wvnd/gov.uscourts.wvnd.64243.1.0": {
-"f": [
-"joins\u00d72"
-],
-"g": "B",
-"o": 1,
-"s": 1.0
 },
 "wvsd/gov.uscourts.wvsd.219587.39.0": {
 "f": [],
@@ -68376,88 +66792,7 @@
 "o": 1,
 "s": 0.0
 },
-"wyd/gov.uscourts.wyd.72513.23.0": {
-"f": [
-"joins\u00d72",
-"cid\u00d72"
-],
-"g": "D",
-"o": 1,
-"s": 7.0
-},
 "wyd/gov.uscourts.wyd.72520.24.0": {
-"f": [],
-"g": "A",
-"o": 1,
-"s": 0.0
-},
-"wyd/gov.uscourts.wyd.73184.22.0": {
-"f": [],
-"g": "A",
-"o": 1,
-"s": 0.0
-},
-"wyd/gov.uscourts.wyd.73271.11.0": {
-"f": [
-"joins\u00d72"
-],
-"g": "B",
-"o": 1,
-"s": 1.0
-},
-"wyd/gov.uscourts.wyd.73294.26.0": {
-"f": [
-"scanned-source",
-"joins\u00d71"
-],
-"g": "B",
-"o": 1,
-"s": 0.5
-},
-"wyd/gov.uscourts.wyd.73343.1.2": {
-"f": [
-"hyph\u00d71"
-],
-"g": "B",
-"o": 1,
-"s": 0.5
-},
-"wyd/gov.uscourts.wyd.73343.1.3": {
-"f": [
-"hyph\u00d71",
-"cid\u00d7208"
-],
-"g": "F",
-"o": 1,
-"s": 624.5
-},
-"wyd/gov.uscourts.wyd.73367.1.0": {
-"f": [
-"parties-noise"
-],
-"g": "B",
-"o": 1,
-"s": 2.0
-},
-"wyd/gov.uscourts.wyd.73941.1.0": {
-"f": [
-"no-opinions",
-"warn:no opinion start found",
-"pages-without-text\u00d71/94",
-"hm-overrun\u00d72167",
-"hm-unread\u00d72167"
-],
-"g": "F",
-"o": 0,
-"s": 19.0
-},
-"wyd/gov.uscourts.wyd.73941.16.0": {
-"f": [],
-"g": "A",
-"o": 1,
-"s": 0.0
-},
-"wyd/gov.uscourts.wyd.74218.1.0": {
 "f": [],
 "g": "A",
 "o": 1,

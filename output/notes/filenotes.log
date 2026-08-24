@@ -453,3 +453,50 @@
 {"t": 1787519567.866463, "key": "iand/gov.uscourts.iand.23062.238.0", "text": "group title together based on boold text on the right al lnext together right?", "sha": "c8583eb13e7f82b8"}
 {"t": 1787519942.5681548, "key": "nvd/gov.uscourts.nvd.177277.99.0", "text": "not getting attorneys right.", "sha": "e7f657b47a4f88fe"}
 {"t": 1787519953.284918, "key": "nysd/gov.uscourts.nysd.538737.293.0", "text": "why is this missingresidual", "sha": "bf1cb7a75046c8cf"}
+{"t": 1787578253.1514392, "key": "mnd/gov.uscourts.mnd.220483.58.0", "text": "doesnt get start of opinion right.", "sha": "c0e8c59d986d861b"}
+{"t": 1787578270.520051, "key": "mnd/gov.uscourts.mnd.222087.25.0", "text": "inocrrectly adds instruction to", "sha": "8022357f1bf5ce9b"}
+{"t": 1787578272.170016, "key": "mnd/gov.uscourts.mnd.222087.25.0", "text": "inocrrectly adds instruction to headmatter", "sha": "8022357f1bf5ce9b"}
+{"t": 1787578306.67078, "key": "mnd/gov.uscourts.mnd.225595.58.0", "text": "move", "sha": "1b15a3f8e01027e1"}
+{"t": 1787578311.383326, "key": "mnd/gov.uscourts.mnd.225595.58.0", "text": "moves title from where it should be in the headmatter", "sha": "1b15a3f8e01027e1"}
+{"t": 1787578333.723868, "key": "mnd/gov.uscourts.mnd.225880.57.0", "text": "doenst parse all", "sha": "1e8f5e928b9c7a17"}
+{"t": 1787578337.042272, "key": "mnd/gov.uscourts.mnd.225880.57.0", "text": "doenst parse all of headmatter correcly", "sha": "1e8f5e928b9c7a17"}
+{"t": 1787578341.7241359, "key": "mnd/gov.uscourts.mnd.225687.27.0", "text": "weird", "sha": "c12462fae3521b2c"}
+{"t": 1787578343.0726552, "key": "mnd/gov.uscourts.mnd.225687.27.0", "text": "weird titli", "sha": "c12462fae3521b2c"}
+{"t": 1787578344.176051, "key": "mnd/gov.uscourts.mnd.225687.27.0", "text": "weird titliing?", "sha": "c12462fae3521b2c"}
+{"t": 1787578349.576389, "key": "mnd/gov.uscourts.mnd.225881.59.0", "text": "missing", "sha": "7fc3d6072b9acbac"}
+{"t": 1787578351.9711308, "key": "mnd/gov.uscourts.mnd.225881.59.0", "text": "missing most of headmatter", "sha": "7fc3d6072b9acbac"}
+{"t": 1787578358.5385878, "key": "mnd/gov.uscourts.mnd.226405.5.0", "text": "moved title from whitespace location", "sha": "cf82afd346d1388d"}
+{"t": 1787578367.02896, "key": "mnd/gov.uscourts.mnd.227309.68.0", "text": "mertged start of opnion in to", "sha": "858bb402df24c2fe"}
+{"t": 1787578368.594549, "key": "mnd/gov.uscourts.mnd.227309.68.0", "text": "mertged start of opnion in to counsel", "sha": "858bb402df24c2fe"}
+{"t": 1787578389.339576, "key": "mnd/gov.uscourts.mnd.229665.3.0", "text": "incorrectly returning the defendants", "sha": "cb1854282e0cd18c"}
+{"t": 1787578390.991495, "key": "mnd/gov.uscourts.mnd.229665.3.0", "text": "incorrectly returning the defendants as a block", "sha": "cb1854282e0cd18c"}
+{"t": 1787578393.740851, "key": "mnd/gov.uscourts.mnd.229665.3.0", "text": "incorrectly returning the defendants not as a block", "sha": "cb1854282e0cd18c"}
+{"t": 1787578400.958416, "key": "mnd/gov.uscourts.mnd.232160.25.0", "text": "incorreclty", "sha": "8a8dc30c738a436b"}
+{"t": 1787578404.33951, "key": "mnd/gov.uscourts.mnd.232160.25.0", "text": "incorreclty parsing attorneys and star", "sha": "8a8dc30c738a436b"}
+{"t": 1787578406.576424, "key": "mnd/gov.uscourts.mnd.232160.25.0", "text": "incorreclty parsing attorneys and start of opinion", "sha": "8a8dc30c738a436b"}
+{"t": 1787578417.232176, "key": "mnd/gov.uscourts.mnd.233301.61.0", "text": "incorrecly putting defendats in title and not in caption...", "sha": "c24ff8e853111ba4"}
+{"t": 1787578419.055948, "key": "mnd/gov.uscourts.mnd.233301.61.0", "text": "incorrecly putting defendats in title and not in caption... not", "sha": "c24ff8e853111ba4"}
+{"t": 1787578421.1300359, "key": "mnd/gov.uscourts.mnd.233301.61.0", "text": "incorrecly putting defendats in title and not in caption... not capturing", "sha": "c24ff8e853111ba4"}
+{"t": 1787578426.8474638, "key": "mnd/gov.uscourts.mnd.233301.61.0", "text": "incorrecly putting defendats in title and not in caption... not capturing atttoreyer or title", "sha": "c24ff8e853111ba4"}
+{"t": 1787578519.243223, "key": "mdd/gov.uscourts.mdd.574444.44.0", "text": "merging the start of the opinion into title...", "sha": "9205d1b0fb8836ac"}
+{"t": 1787578522.741589, "key": "mdd/gov.uscourts.mdd.580062.22.0", "text": "r", "sha": "c579c94a36835daf"}
+{"t": 1787578524.479164, "key": "mdd/gov.uscourts.mdd.580062.22.0", "text": "", "sha": "c579c94a36835daf"}
+{"t": 1787578626.82739, "key": "mad/gov.uscourts.mad.291907.20.0", "text": "fails to", "sha": "31652cc910c1c2bf"}
+{"t": 1787578631.2550259, "key": "mad/gov.uscourts.mad.291907.20.0", "text": "fails to get all the headmatter or title riht", "sha": "31652cc910c1c2bf"}
+{"t": 1787578632.621658, "key": "mad/gov.uscourts.mad.291907.20.0", "text": "fails to get all the headmatter or title riht and _______________________________________)\n\nMEMORANDUM AND ORDER ON DEFENDANT\u2019S MOTION TO DISMISS", "sha": "31652cc910c1c2bf"}
+{"t": 1787578637.4410229, "key": "mad/gov.uscourts.mad.291907.20.0", "text": "fails to get all the headmatter or title riht and _______________________________________)\n\nMEMORANDUM AND ORDER ON DEFENDANT\u2019S MOTION TO DISMISS\nthe long line come on is part of headmatter", "sha": "31652cc910c1c2bf"}
+{"t": 1787578654.523597, "key": "mad/gov.uscourts.mad.296409.10.0", "text": "g", "sha": "487ba2987ea77bf0"}
+{"t": 1787578660.168642, "key": "mad/gov.uscourts.mad.296409.10.0", "text": "gets caption all wrong...", "sha": "487ba2987ea77bf0"}
+{"t": 1787578667.86682, "key": "mad/gov.uscourts.mad.301358.58.0", "text": "gets caption wrong", "sha": "4011d9382aa64f6a"}
+{"t": 1787578969.10972, "key": "pawd/gov.uscourts.pawd.303688.90.0", "text": "this one is merging two lines", "sha": "66ccf8434684f3d0"}
+{"t": 1787578972.564723, "key": "pawd/gov.uscourts.pawd.303688.90.0", "text": "this one is merging two lines of texttogether ... wrid", "sha": "66ccf8434684f3d0"}
+{"t": 1787578974.015285, "key": "pawd/gov.uscourts.pawd.303688.90.0", "text": "this one is merging two lines of texttogether ... werid", "sha": "66ccf8434684f3d0"}
+{"t": 1787578977.595781, "key": "pawd/gov.uscourts.pawd.319460.5.0", "text": "bvad", "sha": "c2933289a9601d2c"}
+{"t": 1787578980.349566, "key": "pawd/gov.uscourts.pawd.319460.5.0", "text": "bad parsing of two", "sha": "c2933289a9601d2c"}
+{"t": 1787578982.376171, "key": "pawd/gov.uscourts.pawd.319460.5.0", "text": "bad parsing of two cases", "sha": "c2933289a9601d2c"}
+{"t": 1787578985.073919, "key": "pawd/gov.uscourts.pawd.319460.5.0", "text": "bad parsing of two cases and adding cousenl", "sha": "c2933289a9601d2c"}
+{"t": 1787578991.517376, "key": "pawd/gov.uscourts.pawd.323842.40.0", "text": "no cousnel thats caption", "sha": "21a665b5605db3fb"}
+{"t": 1787578995.48158, "key": "pawd/gov.uscourts.pawd.329211.17.0", "text": "no counsel thats caption", "sha": "37cb3d58d58d980c"}
+{"t": 1787579000.301106, "key": "pawd/gov.uscourts.pawd.329211.8.0", "text": "no counsel thats caption", "sha": "8804ae8e8b89ca4c"}
+{"t": 1787579007.958724, "key": "pawd/gov.uscourts.pawd.330905.15.0", "text": "again failing to get", "sha": "b046e92a9831579a"}
+{"t": 1787579008.65621, "key": "pawd/gov.uscourts.pawd.330905.15.0", "text": "again failing to get caption", "sha": "b046e92a9831579a"}

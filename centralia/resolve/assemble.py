@@ -2232,7 +2232,22 @@ def assemble(model, geom: DocGeometry | None, segments_by_page: dict,
             if any(cue in _head_txt for cue in (
                     "is DENIED", "are DENIED", "is GRANTED",
                     "IT IS ORDERED", "IT IS HEREBY ORDERED",
-                    "hereby DENIED", "hereby GRANTED")):
+                    "hereby DENIED", "hereby GRANTED",
+                    # …AND A COURT MAY SAY IT IN ORDINARY TYPE. The cues
+                    # above are a court SHOUTING its disposition, which is
+                    # the common form; calctapp staples a modification order
+                    # in front of the opinion it modifies and opens it 'THE
+                    # COURT: It is ordered that the opinion filed herein on
+                    # July 20, 2026, be modified as follows', in sentence
+                    # case. It typed as `order` only while the segment's rail
+                    # was mismeasured at 312; with the rail measured right it
+                    # fell through to `majority` — the front matter of
+                    # calctapp/bates_v._city_of_temecula_ca41 is an order
+                    # either way (guard, 2026-08-23). Only the ordering
+                    # phrases are case-folded here: 'is denied' in sentence
+                    # case is something an opinion says about an argument.
+                    "It is ordered", "It is hereby ordered",
+                    "it is ordered", "it is hereby ordered")):
                 op_type = "order"
             # …AND THE KIND THE COURT'S OWN TITLE STATES WINS. Nothing else
             # here can name it: an unsigned head types `majority` or `order`

@@ -61,6 +61,7 @@ _ENGINE_MTIME: list = [0.0, 0.0]        # [checked_at, value]
 
 _RASTER_LOCK = threading.Lock()
 _NOTES_LOCK = threading.Lock()
+_BLESS_LOCK = threading.Lock()
 _STATUS_LOCK = threading.Lock()
 
 
@@ -506,6 +507,36 @@ def _safe_under(root: Path, rel: str) -> Path | None:
     return p if p.is_file() and p.is_relative_to(root.resolve()) else None
 
 
+def _bless_sentinel(key: str) -> None:
+    """Re-pin one guard sentinel to its reading NOW, and clear its flag.
+
+    Silent when the key is not pinned: most files are not sentinels, and a
+    mark on one of those is nothing to do with the guard.
+    """
+    import guard as _guard
+    with _BLESS_LOCK:
+        try:
+            pins = _guard._load()
+            if key not in pins:
+                return
+            _, sig = _guard._sig_one(key)
+            if sig.get("error"):
+                return
+            pins[key] = sig
+            _guard._save(pins)
+        except Exception:
+            return                      # never let a mark fail on the guard
+        # …and drop it from what the viewer shows as still needing review, so
+        # the ⚑ clears without waiting for the next full guard run.
+        try:
+            rev_path = OUTPUT_DIR / "notes" / "guard-review.json"
+            rev = json.loads(rev_path.read_text()) if rev_path.exists() else {}
+            if rev.pop(key, None) is not None:
+                rev_path.write_text(json.dumps(rev, indent=1, sort_keys=True))
+        except Exception:
+            pass
+
+
 class Handler(SimpleHTTPRequestHandler):
     def log_message(self, *a):  # quiet
         pass
@@ -548,6 +579,13 @@ class Handler(SimpleHTTPRequestHandler):
         if self.path == "/api/quality":
             q = OUTPUT_DIR / "notes" / "quality.json"
             return self._send(200, q.read_bytes() if q.exists() else b"{}")
+        # THE SENTINELS WHOSE READING MOVED. Written by `guard --review`:
+        # {court/stem: [diff, …]}. The viewer filters on it so a regression
+        # is judged by looking at the rendering, which is the only way it can
+        # honestly be judged.
+        if self.path == "/api/guardreview":
+            g = OUTPUT_DIR / "notes" / "guard-review.json"
+            return self._send(200, g.read_bytes() if g.exists() else b"{}")
         if self.path.startswith("/api/notes/"):
             court = unquote(self.path.rsplit("/", 1)[1])
             p = MARKS_DIR / f"{court}.md"
@@ -605,6 +643,20 @@ class Handler(SimpleHTTPRequestHandler):
                     marks[key] = tier
                 _log_mark(key, tier)
                 _save_marks(marks)
+            # ✅ IS THE BLESSING. Approving a rendering and re-pinning its
+            # structural signature were two registries and two commands, so
+            # a reviewer could clear a whole court by eye and the guard would
+            # still flag every file of it — the pin still held the reading
+            # from before the fix (the user, 2026-08-24: 'well.. when
+            # reclick yay that should be a blessing?'). Saying 'this is
+            # right' is the only evidence a pin ever had, so it is recorded
+            # in both places at once.
+            #
+            # Only for an EXISTING sentinel: 'yay' means the reading is
+            # right, not that the file should become a new sentinel — pins
+            # are chosen deliberately with `guard --add`.
+            if tier == "yay":
+                _bless_sentinel(key)
             return self._send(200, b'{"ok":true}')
         if self.path == "/api/filenotes":
             key = data.get("key")

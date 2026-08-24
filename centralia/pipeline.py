@@ -113,6 +113,45 @@ _re_roster_row = _re.compile(
 # AN APPEARANCE ROW, NOT A SENTENCE ABOUT ONE. A district order says 'counsel
 # for plaintiff filed a motion' in prose all the time; an appearance block
 # says nothing but who it appeared for, and stops.
+# THE DATE A COURT PUTS ON ITS PAPER WHEN THE HEADMATTER NEVER DID. A
+# district signs above its own name and dates the signature: 'Dated: August
+# 6, 2026', a bare 'August 18, 2026' at the rail, or the ordinal recital
+# 'SO ORDERED, this 17th day of August, 2026'. Measured on mad, where 21 of
+# 27 records carry their ONLY date there and came back with none at all (the
+# user, 2026-08-24: 'gotta fix tese MAD ones'), and on msnd/52361.17.0, whose
+# one-page judgment states its date the ordinal way.
+_MONTHS = ("january|february|march|april|may|june|july|august|september"
+           "|october|november|december")
+_re_signed_date = _re.compile(
+    rf"\b(?:dated?\s*:?\s*)?({_MONTHS})\s+(\d{{1,2}}),?\s+(\d{{4}})\b", _re.I)
+_re_ordinal_date = _re.compile(
+    rf"\bthis\s+(\d{{1,2}})(?:st|nd|rd|th)\s+day\s+of\s+({_MONTHS}),?\s+(\d{{4}})\b",
+    _re.I)
+
+
+# THE ROW THAT SAYS THE DATE IS THE PAPER'S OWN.
+_re_dated_row = _re.compile(
+    r"\bdated\b|\bdone\s+and\s+ordered\b|\bso\s+ordered\b"
+    r"|\bentered\s+this\b|\bsigned\s+this\b|\bthis\s+\d{1,2}(?:st|nd|rd|th)"
+    r"\s+day\s+of\b", _re.I)
+
+
+def _signed_date(text: str) -> str | None:
+    """The date a signing block states, in the form the readers publish."""
+    m = _re_ordinal_date.search(text)
+    if m:
+        return f"{m.group(2).title()} {int(m.group(1))}, {m.group(3)}"
+    m = _re_signed_date.search(text)
+    if m:
+        return f"{m.group(1).title()} {int(m.group(2))}, {m.group(3)}"
+    return None
+
+
+# WHAT ONLY A COURT SAYS. A disposition is the court speaking, and it
+# outranks a party's appearance printed on the same page.
+_re_ordering = _re.compile(
+    r"\b(?:so\s+ordered|it\s+is\s+(?:hereby\s+)?ordered"
+    r"|signed\s+this|entered\s+this)\b", _re.I)
 _re_appearance_row = _re.compile(
     r"^(?:attorneys?|counsel)\s+(?:for|on\s+behalf\s+of)\b", _re.I)
 
@@ -2665,6 +2704,48 @@ def _extract_model(model, court_id: str, pdf_path) -> ExtractionResult:
                 trace.event("court.body_reclaimed",
                             f"{len(_moved)} rows below the read headmatter")
 
+    # THE AIR BETWEEN THE HEADMATTER'S OWN GROUPS. A court divides its
+    # cover with blank lines as often as with rules — ca6 sets a line of air
+    # above 'Decided and Filed:' and above 'Before: SILER, MOORE, …' — and a
+    # reader that keeps only the rows loses the grouping the page states.
+    # The pitch is the document's own: the modal gap between consecutive
+    # headmatter rows (8.7pt on that record), and anything appreciably wider
+    # is air the page left. Recorded in units of that pitch so a renderer can
+    # honour it at any type size, and only for rows whose provenance says
+    # where they stood — a two-column caption is one item and takes its air
+    # as a whole.
+    if doc.headmatter:
+        _hm_pos = {l.id: (l.page, l.top, l.bottom)
+                   for pm in model.pages for l in pm.lines}
+
+        def _hm_span(_it):
+            _ids = tuple(getattr(getattr(_it, "prov", None), "line_ids", ())
+                         or ())
+            _ps = [_hm_pos[i] for i in _ids if i in _hm_pos]
+            if not _ps:
+                return None
+            return (min(_ps)[0], min(q[1] for q in _ps),
+                    max(q[2] for q in _ps))
+
+        # THE TYPE IS THE RULER, not the other gaps. Measured against the
+        # median gap this found nothing at all: a cover with four spaced
+        # groups has as many wide gaps as tight ones, so the median sat at
+        # 12.5pt on a page whose rows are 8.7pt apart and every gap looked
+        # ordinary. A row's own size does not move: consecutive rows of 12pt
+        # type leave ~0.7 of a size between them, and a blank line adds a
+        # whole one.
+        _spans = [_hm_span(_it) for _it in doc.headmatter]
+        for _i, (_a, _b) in enumerate(zip(_spans, _spans[1:]), start=1):
+            _it = doc.headmatter[_i]
+            if not (_a and _b) or _a[0] != _b[0] or not hasattr(
+                    _it, "space_before"):
+                continue
+            _size = (getattr(_it, "size", 0.0)
+                     or (geom.body_size if geom else 0.0) or 12.0)
+            _air = ((_b[1] - _a[2]) - 0.8 * _size) / _size
+            if _air >= 0.3:
+                _it.space_before = round(min(_air, 3.0), 2)
+
     # An EMPTY WRITING is not a writing. The rescue anchor can open one at a
     # segment that turns out to hold nothing, and it renders as a phantom
     # 'order' beside the real opinion.
@@ -3170,8 +3251,28 @@ def _extract_model(model, court_id: str, pdf_path) -> ExtractionResult:
         _closed_by_counsel = (
             _appear_close and _roster_rows >= 2
             and not any(w in _t.lower() for _t in _closing for w in _office))
-        if not _judicial and (_appeared_for or _named_itself
-                              or _closed_by_counsel):
+        # …AND THE COURT'S OWN APPEARANCE LIST IS NOT A PARTY'S BLOCK. Both
+        # routes above read an appearance and neither asks WHOSE, so a court
+        # that prints its counsel of record at the foot of its opinion looked
+        # exactly like a paper filed by one of them.
+        #
+        # THE COURT NAMES EVERYONE; A PARTY NAMES ITSELF. nmd closes its
+        # opinions with a roster of every firm in the case — 'Attorneys for
+        # Defendant HCSC Insurance Services Co.', '… Molina Healthcare …',
+        # '… Presbyterian Health Plan …' on one record and six such rows on
+        # another — while a party's paper closes on ONE appearance, its own
+        # (the user, 2026-08-24: 'why does this … say its a filing?').
+        #
+        # AND NO PARTY WRITES 'SO ORDERED'. nysd endorses a letter-motion by
+        # stamping its order beneath counsel's own block, so that page
+        # carries a party's appearance AND the court's disposition; the
+        # disposition is the court speaking and outranks anything above it.
+        _appear_rows = sum(1 for _t in _closing
+                           if _re_appearance_row.match(_t) and len(_t) <= 80)
+        _court_roster = _appear_rows >= 2 or any(
+            _re_ordering.search(_t) for _t in _closing)
+        if not _judicial and not _court_roster and (
+                _appeared_for or _named_itself or _closed_by_counsel):
             meta.doc_type = m.DocType.FILING
             doc.warnings.append(
                 _FILING_FLAG + ": the signer "
@@ -3440,4 +3541,41 @@ def _extract_model(model, court_id: str, pdf_path) -> ExtractionResult:
         status = "review"
     elif _src:
         status = "scanned"
+    # THE SIGNING BLOCK DATES THE PAPER, where the headmatter never did.
+    # Asked LAST, when `doc.criteria` is final: placed with the signature
+    # lift it ran before the headmatter's own criteria were merged and
+    # OVERWROTE a date the caption had already stated correctly —
+    # mad/238521.179.0 went from its own 'August 11, 2026' to a 'March 12,
+    # 2026' recited inside the signing block. Only the court's own signature
+    # and the rows it closes on are read: a date anywhere else on the sheet
+    # could be a deadline the order sets or a filing it recites.
+    if not doc.criteria.decision_date and doc.opinions:
+        from .audit import strip_tags as _stdate
+        _last_op = doc.opinions[-1]
+        # A BODY PARAGRAPH MUST ANNOUNCE THE DATE TO COUNT. Inside the
+        # claimed signature a bare date is the court's own; in the body it is
+        # as likely to be something the order RECITES — ded/90534.32.0 closes
+        # on 'Dentsply's Motion to Dismiss, D.I. 14, is granted in part …'
+        # and the paragraph names a 2020 date, which this fallback published
+        # as the decision date of a 2026 opinion. So a body block is read
+        # only where it says the date is the paper's: 'Dated', the recital
+        # 'this 20th day of May 2026' (alsd), or an order pronounced with it.
+        for _sb in _last_op.signature:
+            _sd = _signed_date(" ".join(
+                _stdate(getattr(_sb, "text", "") or "").split()))
+            if _sd:
+                doc.criteria.decision_date = _sd
+                trace.event("date.from-signature", _sd)
+                break
+        else:
+            for _sb in _last_op.blocks[-3:]:
+                _t = " ".join(_stdate(getattr(_sb, "text", "") or "").split())
+                if not _re_dated_row.search(_t):
+                    continue
+                _sd = _signed_date(_t)
+                if _sd:
+                    doc.criteria.decision_date = _sd
+                    trace.event("date.from-closing-row", _sd)
+                    break
+
     return ExtractionResult(doc, trace, status=status)

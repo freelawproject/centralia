@@ -128,6 +128,15 @@ class HmLine:
     bold: bool = False
     italic: bool = False
     rel: float = 0.0
+    # THE AIR THE PAGE LEFT ABOVE THIS ROW, in blank lines of the headmatter's
+    # own pitch: 0.0 where the row simply follows the one above it, ~1.0 where
+    # the court set a blank line between two groups. ca6 prints its appeal-from
+    # rows, its 'Decided and Filed' and its 'Before:' panel with a line of air
+    # between each and no rule to divide them; rendered flush they read as one
+    # block (the user, 2026-08-24: 'id like to add a little vertical space
+    # betwween unique sections … see there is some spacing in teh real
+    # thing'). Measured, never invented — see `pipeline` where it is set.
+    space_before: float = 0.0
     # What a court reader identified this row AS. The vocabulary, as of
     # 2026-08-19 — every one of these renders with its own tint and margin
     # label in `render/html.py`, and the legend names the ones a document
@@ -171,6 +180,8 @@ class CaptionBlock:
     rail_rows: int = 0
     style_id: str | None = None
     fp: dict = field(default_factory=dict)
+    # The air the page left above the box — see `HmLine.space_before`.
+    space_before: float = 0.0
     prov: Prov = field(default_factory=lambda: Prov(1))
 
 

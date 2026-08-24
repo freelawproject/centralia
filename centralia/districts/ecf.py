@@ -217,6 +217,17 @@ STATUS_WORDS = (
     "claimant", "claimants", "intervenor", "intervenors", "debtor",
     "debtors", "appellant", "appellants", "appellee", "appellees",
     "garnishee", "garnishees", "applicant", "applicants", "amicus", "amici",
+    # A PARTY'S SIDE IS WHATEVER THE CAPTION CALLS IT. insd captions a third
+    # compartment 'TAE STURE,' over 'Miscellaneous.' and the word is that
+    # party's status, not a docket heading — but `_is_docket_label` spells
+    # 'misc(ellaneous)' to catch 'MISC. NO.' whose number wrapped, so a
+    # fourth party was published as a second docket on insd/…217901.127.0
+    # and insd/…217949.91.0 (the user, 2026-08-24: 'mislellanous is part of
+    # the caption tis definig thien party at hte end'). 'Interested' is the
+    # same thing — 'Interested Party.' welded into the party name on ca10
+    # and cafc ('Interested Party - Appellant'); 'party', 'in' and
+    # 'interest' are already glue.
+    "miscellaneous", "interested",
 )
 STATUS_GLUE = ("and", "the", "third", "party", "cross", "in", "interest",
                "of", "pro", "se", "counter")
@@ -888,6 +899,37 @@ def _is_panel_row(flat: str) -> bool:
     return bool(len(flat) <= 140 and _PANEL_ROW.match(flat)
                 and _PANEL_OFFICE.search(flat))
 
+# A PARTY STACK IS NOT A ROSTER. Where the caption band closes before the
+# parties do — the rail's glyphs stop early (pawd), a foot rule falls between
+# two consolidated boxes (ilnd), or the band was measured short (gand) — the
+# rows left over fall to the roster walk, and a bare status row makes them
+# look like the pro-se appearance the walk was taught to keep. So four courts
+# reported their own caption as counsel, and gand lost its docket with it
+# ('CIVIL ACTION FILE' / 'NO. 1:15-CV-1427-TWT' read as attorneys).
+#
+# WHAT SEPARATES THEM IS WHAT A ROSTER SAYS: an appearance names who it
+# appeared FOR, or says 'pro se', or carries the apparatus of a firm — a
+# suite, a street, an email, an Esq. A run with none of that, which states a
+# party's STATUS or a DOCKET, is the caption still speaking.
+_COUNSEL_APPARATUS = re.compile(
+    r"\besq\b|\bpllc\b|\bllp\b|\bp\.\s?c\.|@|\bsuite\b|\bstreet\b|"
+    r"\bavenue\b|\bave\b|\bblvd\b|\bplaza\b|\bfloor\b|\bp\.?o\.?\s+box\b|"
+    r"\bpro\s+se\b|\bcounsel\b|\battorney", re.I)
+
+
+def _is_party_stack(rows: list, facts: EcfPaper) -> bool:
+    """Is this run the caption's own party stack rather than a roster?"""
+    texts = [_norm(l.plain) for l in rows]
+    joined = " ".join(texts)
+    if _APPEARS_FOR.search(joined) or _APPEARANCE_END.search(joined):
+        return False                       # it named who it appeared for
+    if _COUNSEL_APPARATUS.search(joined):
+        return False                       # a firm, an address, an office
+    return any(_is_status_row(t, facts) for t in texts) or any(
+        _docket_value(t, facts) is not None or _is_docket_label(t)
+        for t in texts)
+
+
 _APPEARS_FOR = re.compile(
     r"\b(?:attorneys?|counsel|appearances?)\s+(?:for|on\s+behalf\s+of)\b",
     re.I)
@@ -938,7 +980,7 @@ def _is_name_row(text: str, facts: "EcfPaper") -> bool:
     return all(w[:1].isupper() or not w[:1].isalpha() for w in words)
 
 
-def _is_typed_rule(text: str) -> bool:
+def _is_typed_rule(text: str, facts: "EcfPaper | None" = None) -> bool:
     """A typed fence: a run of hyphens, closed by an 'X' where the chambers
     types one. Not a drawn rule and not a title underline — the court typed
     it as text, so it arrives as a row."""
@@ -954,7 +996,22 @@ def _is_typed_rule(text: str) -> bool:
     # over the corpus: 127 records across 9 courts close this way — miwd 40,
     # mied 29, flsd 25, flnd 22, flmd 7, and one each in nev, mich, ilsd,
     # gand.
-    body = flat.rstrip("Xx/ ")
+    # …AND THE RAIL'S OWN GLYPH IS THE RAIL, NOT TEXT. A typed caption rail
+    # runs down the page in ')' or 'X' or ':' and lands ON the fence row that
+    # closes the box: rid/…60066.28.0 closes its first compartment with
+    # '___________________________________)'. Against 'Xx/ ' alone that row
+    # read as ordinary text — the box never closed, the band carried on to
+    # the NEXT PAGE and took its clerk stamp in as a caption cell, and the
+    # record's SECOND caption box opened the writing as body prose with the
+    # rail glyphs still in it. The glyphs are the court's own declared fact
+    # (`rail_chars`), not a new constant. Measured over page 1 of the whole
+    # corpus: 299 records across 38 courts close a fence this way — ')' on
+    # idaho 20, scd 19, ncwd 18, wash 15, dcd 7, mad 6 …; 'X'/'x' on the
+    # Second Circuit districts (ctd 15, nyed 14, nysd 9, nynd 1); ':' on
+    # njtaxct and mdd. `rstrip` eats only the TAIL, so an interior glyph
+    # still fails the dash test and a column of bare rail glyphs strips to
+    # nothing, which `bool(body)` rejects.
+    body = flat.rstrip("Xx/ " + (facts.rail_chars if facts is not None else ""))
     # EVERY DASH THE WORD PROCESSOR MIGHT HAVE PUT THERE. nyed types its
     # '-----X' with U+2011 NON-BREAKING HYPHENS, and set against four
     # codepoints the whole fence read as ordinary text: the masthead was
@@ -1613,7 +1670,7 @@ def read_ecf(model, geom, facts: EcfPaper = DEFAULT, **_):
         # here, the centring gate refused the row and 16 of 24 records came
         # back unread.
         for k in named:
-            if any(_is_typed_rule(l.plain) and l.top > live[k].top
+            if any(_is_typed_rule(l.plain, facts) and l.top > live[k].top
                    and l.top < ph * facts.closer_band for l in live[k + 1:]) \
                     or any(r.top > live[k].top for r in dfence):
                 anchor = k
@@ -1713,7 +1770,7 @@ def read_ecf(model, geom, facts: EcfPaper = DEFAULT, **_):
            # its own name; walked into the masthead run, the rule then ENDED
            # that run at its first row and the record was refused for having
            # no masthead (cacd/1021353).
-           and not _is_typed_rule(live[mast_at - 1].plain)):
+           and not _is_typed_rule(live[mast_at - 1].plain, facts)):
         mast_at -= 1
     overlay = live[:mast_at]
     if not pre_counsel and overlay:
@@ -1748,7 +1805,7 @@ def read_ecf(model, geom, facts: EcfPaper = DEFAULT, **_):
     # court sets its masthead flush left, which the centred-masthead gate
     # below would refuse.
     fence = [l for l in live[mast_at:]
-             if l.top < ph * facts.closer_band and _is_typed_rule(l.plain)]
+             if l.top < ph * facts.closer_band and _is_typed_rule(l.plain, facts)]
 
     # ---- the masthead: the run of CENTRED rows the anchor sits in -------
     band_hi = ph * facts.closer_band
@@ -1779,7 +1836,7 @@ def read_ecf(model, geom, facts: EcfPaper = DEFAULT, **_):
         # 612pt sheet — so the centring test took it as a third masthead row
         # and the record reported the court as 'IN THE UNITED STATES DISTRICT
         # COURT / FOR THE DISTRICT OF WYOMING / ______'.
-        if _is_typed_rule(line.plain):
+        if _is_typed_rule(line.plain, facts):
             break
         if left_set:
             if dbelow and line.top > dbelow[0].top:
@@ -1887,7 +1944,7 @@ def read_ecf(model, geom, facts: EcfPaper = DEFAULT, **_):
         # single row and the box is not recognised — but that row is still
         # where the caption begins, and left in the band it renders as a
         # caption cell made of underscores (wyd, 10 of 10 records).
-        if j < len(live) and _is_typed_rule(live[j].plain):
+        if j < len(live) and _is_typed_rule(live[j].plain, facts):
             band_lo = live[j].bottom
             j += 1
 
@@ -1941,7 +1998,7 @@ def read_ecf(model, geom, facts: EcfPaper = DEFAULT, **_):
             if _is_asterisk_band(line.plain, facts):
                 closer = line
                 break
-            if (_is_typed_rule(line.plain)
+            if (_is_typed_rule(line.plain, facts)
                     and sum(1 for l in live[j:]
                             if band_lo - 2 <= l.top < line.top - 2) >= 2):
                 closer = line
@@ -1961,10 +2018,20 @@ def read_ecf(model, geom, facts: EcfPaper = DEFAULT, **_):
         if foot is not None:
             cap_band = (band_lo, foot.top)
             in_band = [l for l in in_band if l.top < foot.top]
-        elif (_capfoot := _caption_foot_rule(
+        elif rail is None and (_capfoot := _caption_foot_rule(
                 pm, band_lo, band_hi,
                 [l for l in live[j:] if band_lo <= l.top <= band_hi],
                 body_x0)) is not None:
+            # ONLY WHERE THERE IS NO RAIL — which is what this rule was
+            # written for and what its own docstring says. A rail'd caption
+            # can also lack a foot (no rule at the rail's end), and there the
+            # full-measure rule this finds is not the caption's foot at all:
+            # on a CONSOLIDATED sheet it is the line between two caption
+            # boxes, so the band closed on the first box and the second —
+            # party stack, docket, judge and its ')' rail glyphs — fell to
+            # the roster walk and came back as 14 counsel rows
+            # (ilnd/376313.594.0, which reads 0 on main; the user,
+            # 2026-08-24: 'it produces abunch of attorneys?').
             # THE CHAMBERS DREW THE CAPTION'S FOOT. See
             # `_caption_foot_rule`: with no rail there is no `foot`, and the
             # band would otherwise run past the appearances to the title.
@@ -2261,7 +2328,17 @@ def read_ecf(model, geom, facts: EcfPaper = DEFAULT, **_):
             # only as a second route, for a chambers that changes face.
             _same_face = (mast and line.font == mast[0].font
                           and abs(line.size - mast[0].size) < 0.6)
-            if not (_same_face or _DIVISION.match(_norm(line.plain))):
+            # …AND THE FACE ALONE IS NOT ENOUGH WHERE THE WHOLE PAGE IS ONE
+            # FACE. mad centres its entire caption in the masthead's own type
+            # and size, so the face test claimed the FIRST PARTY as more of
+            # the court: 'KAESER & BLAIR, INC.,' was published with role
+            # 'court' (the user, 2026-08-24: 'this is atypical'). A row that
+            # continues the court's name either names a court or names a
+            # division; a party does neither.
+            if not ((_same_face
+                     and (_names_court(line.plain, facts)
+                          or _DIVISION.match(_norm(line.plain))))
+                    or _DIVISION.match(_norm(line.plain))):
                 continue
             # …BUT THE COURT'S FACE IS NOT THE COURT'S NAME. flsd sets its
             # docket in the masthead's own bold, centred on the axis one row
@@ -2278,6 +2355,28 @@ def read_ecf(model, geom, facts: EcfPaper = DEFAULT, **_):
             in_band.remove(line)
 
     # ---- the caption band, row by visual row ---------------------------
+    # A CAPTION THAT IS ONE CENTERED STACK HAS NO COLUMNS. The `cfence`
+    # branch below already says what to do with one — 'every row is a lone
+    # piece on the page axis, so the x0 test would send the party names into
+    # the right-hand column and tint them case info' — but it only ever ran
+    # for a chambers that DRAWS three short strokes on the axis. mad draws
+    # nothing and types nothing: it centres the docket, the parties, the
+    # pivots, the statuses, the paper's name and the date all on the page
+    # axis, one row apiece. Every party name went to the right-hand column
+    # as 'case info' and the record published no parties at all.
+    # The evidence is the band's own shape: nothing is drawn or typed for a
+    # divider, and EVERY row is a lone piece whose midpoint sits on the
+    # measure's axis. A two-column caption cannot look like that — its rows
+    # carry two pieces, and a lone piece in one leans to its own side.
+    _stack_axis = body_x0 + (measure or (pw * 0.76)) / 2
+    _rows_seen: dict = {}
+    for _l in in_band:
+        _rows_seen.setdefault(round(_l.top / 2.5), []).append(_l)
+    centered_stack = (
+        mid is None and not cfence and not fence and len(_rows_seen) >= 4
+        and all(len(v) == 1 for v in _rows_seen.values())
+        and all(abs((v[0].x0 + v[0].x1) / 2 - _stack_axis) <= 8.0
+                for v in _rows_seen.values()))
     rows: list[list] = []
     rail_only: list = []
     # A TITLE STANDING INSIDE A CAPTION ROW. Where a chambers sets three
@@ -2395,7 +2494,9 @@ def read_ecf(model, geom, facts: EcfPaper = DEFAULT, **_):
             # title was never recognised. For a two-piece row this is the
             # same split as before.
             ordered = sorted(row, key=lambda l: l.x0)
-            if cfence:
+            if centered_stack:
+                l_parts = list(ordered)      # one column: the party stack
+            elif cfence:
                 # THE CENTRED FENCE DIVIDES TOP FROM BOTTOM, not left from
                 # right. This caption is one centred stack — every row is a
                 # lone piece on the page axis, so the x0 test below would
@@ -2536,7 +2637,12 @@ def read_ecf(model, geom, facts: EcfPaper = DEFAULT, **_):
                     crit.setdefault("other_dockets", []).append(_norm(flat))
                 open_title = False
                 continue
-            if _is_docket_label(flat):
+            # A BARE STATUS WORD IS NOT A DOCKET HEADING. Tried in this
+            # order because both tests answer to 'Miscellaneous.' and only
+            # one of them is right: `_is_status_row` demands EVERY word be a
+            # status or glue word, so 'MISC. NO.', 'Misc. Action No.' and
+            # ksd's bare 'CIVIL ACTION' still reach the label test below.
+            if _is_docket_label(flat) and not _is_status_row(flat, facts):
                 cellrow.role = "docket"
                 want_docket = True
                 open_title = False
@@ -2858,6 +2964,17 @@ def read_ecf(model, geom, facts: EcfPaper = DEFAULT, **_):
             while counsel and not _APPEARANCE_END.search(
                     _norm(" ".join(l.plain for l in counsel))):
                 counsel.pop()              # only what NAMED its party is kept
+    if counsel and _is_party_stack(counsel, facts):
+        # THE CAPTION, NOT THE ROSTER — see `_is_party_stack`. Emitted as what
+        # it is, and the docket it carries is read where the box lost it.
+        for line in counsel:
+            emit(line, "caption")
+            _dv2 = _docket_value(_norm(line.plain), facts)
+            if _dv2 and not crit.get("docket_number"):
+                crit["docket_number"] = _dv2
+            elif _dv2 and _dv2 not in crit.get("other_dockets", []):
+                crit.setdefault("other_dockets", []).append(_dv2)
+        counsel = []
     if counsel:
         for line in counsel:
             emit(line, "counsel")
@@ -2966,7 +3083,7 @@ def read_ecf(model, geom, facts: EcfPaper = DEFAULT, **_):
             # paragraphs instead (the user, 2026-08-20: 'headmatter extends
             # to the title of the document'). The rule is the box talking;
             # it is recorded so the claim stays total, and stepped over.
-            if _is_typed_rule(line.plain):
+            if _is_typed_rule(line.plain, facts):
                 if line.id not in consumed:
                     dropped.append(m.Dropped(
                         text=_norm(line.plain), prov=m.Prov(1, (line.id,)),

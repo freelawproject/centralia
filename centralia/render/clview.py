@@ -26,6 +26,7 @@ from html import escape
 from .. import model as m
 from ..dates import to_iso
 from .casebody import render_casebody
+from .facsimile import render_hm_inline
 from .html import opinion_text, render_headmatter, render_opinion
 
 # --------------------------------------------------------------------------
@@ -527,96 +528,10 @@ def _headmatter_section(doc: m.Document) -> str:
     # THE SAME COVER, SAID PORTABLY. Drawn in the same island, with the same
     # nothing applied to it — so the difference on the screen is the
     # difference the markup makes.
-    port = _portable_hm(doc.headmatter)
+    port = render_hm_inline(doc.headmatter)
     out.append('<div class="lab">the same rows with the layout stated '
                "INLINE — what an ingest could be handed instead</div>")
     out.append(f'<div class="island">{port}</div>')
     out.append("<details><summary>that html</summary>"
                f'<pre class="x">{escape(port)}</pre></details>')
     return "".join(out)
-
-
-# --------------------------------------------------------------------------
-# the same cover, said in a way that survives the trip
-# --------------------------------------------------------------------------
-# THE LAYOUT HAS TO BE IN THE MARKUP, not in a stylesheet the receiving page
-# has never seen. Every carrier below is inline: alignment as `text-align`,
-# a hanging indent as `margin-left`, a two-column caption as a TABLE ROW PER
-# PRINTED ROW — which is the thing that actually matters, because it keeps
-# each docket number beside the party row the court set it beside instead of
-# dumping every number after every party — and a rule the page draws as an
-# <hr> that draws. Nothing here needs a class to mean something.
-def _portable_hm(items: list, base_size: float = 12.0) -> str:
-    out: list[str] = []
-    for item in items:
-        match item:
-            case m.HmLine():
-                out.append(_portable_row(item, base_size))
-            case m.CaptionBlock():
-                out.append(_portable_caption(item, base_size))
-            case m.Rule():
-                width = {"full": "100%", "left": "48%", "right": "48%",
-                         "center": "40%"}.get(item.span, "100%")
-                margin = "0 auto" if item.span == "center" else (
-                    "0 0 0 auto" if item.span == "right" else "0")
-                out.append(f'<hr style="border:0;border-top:1px solid #999;'
-                           f'width:{width};margin:.45em {margin}">')
-            case m.Divider():
-                pass                       # a boundary, not a mark
-            case m.Gap():
-                out.append(f'<div style="height:{item.lines}em"></div>')
-            case m.ImageBlock():
-                dim = ""
-                if item.width and item.height:
-                    dim = f' width="{item.width:.0f}" height="{item.height:.0f}"'
-                out.append(f'<img src="{item.src}"{dim} alt="">')
-    return "".join(out)
-
-
-def _portable_style(row: m.HmLine, base_size: float) -> str:
-    bits = []
-    if row.align is m.Align.CENTER:
-        bits.append("text-align:center")
-    elif row.align is m.Align.RIGHT:
-        bits.append("text-align:right")
-    if base_size and row.size and abs(row.size - base_size) >= 1.0:
-        bits.append(f"font-size:{row.size / base_size:.2f}em")
-    if row.rel:
-        bits.append(f"margin-left:{row.rel:.0f}pt")
-    return ";".join(bits)
-
-
-def _portable_row(row: m.HmLine, base_size: float) -> str:
-    text = row.text or ""
-    if not text.strip():
-        return '<div style="height:.9em"></div>'
-    style = _portable_style(row, base_size)
-    s = f' style="{style}"' if style else ""
-    return f"<div{s}>{text}</div>"
-
-
-def _portable_caption(block: m.CaptionBlock, base_size: float) -> str:
-    """A two-column caption as a table, ONE ROW PER PRINTED ROW.
-
-    The cells are already paired by the row they came off the page on, so
-    the pairing is the thing to keep: it is what puts 'Case No.
-    3:25-cv-00316-SLG' beside its own action instead of after it."""
-    rows = []
-    rail = block.rail if block.rail and block.rail != "|" else ""
-    border = ("border-left:1px solid #999"
-              if block.rail == "|" else "")
-    for left, right in zip(block.left, block.right):
-        lt = (left.text or "") if left is not None else ""
-        rt = (right.text or "") if right is not None else ""
-        ls = _portable_style(left, base_size) if left is not None else ""
-        rs = _portable_style(right, base_size) if right is not None else ""
-        rows.append(
-            '<tr>'
-            f'<td style="width:52%;vertical-align:top;padding:.05em .4em .05em 0;'
-            f'{ls}">{lt or "&nbsp;"}</td>'
-            f'<td style="width:1em;text-align:center;vertical-align:top;'
-            f'padding:.05em .3em;{border}">{escape(rail)}</td>'
-            f'<td style="width:47%;vertical-align:top;padding:.05em 0 .05em .4em;'
-            f'{rs}">{rt or "&nbsp;"}</td></tr>')
-    return ('<table style="width:100%;border-collapse:collapse;'
-            f'margin:.3em 0">{"".join(rows)}</table>')

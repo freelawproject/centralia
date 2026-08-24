@@ -35,14 +35,15 @@ from .pipeline import ExtractionResult, extract
 from .released import HELD_BACK, RELEASED
 from .render import (opinion_text, render_body, render_casebody,
                      render_headmatter, render_html, render_opinion)
-from .render.facsimile import render_hm_items
+from .render.facsimile import render_hm_inline, render_hm_items
 
 __all__ = [
     "read", "extract", "ExtractionResult", "released_courts",
     "UnknownCourt", "CourtNotReleased",
     "Document", "Criteria", "Meta", "Opinion",
     "render_html", "render_body", "render_opinion", "render_casebody",
-    "render_headmatter", "opinion_text", "to_iso", "all_iso", "__version__",
+    "render_headmatter", "render_hm_inline", "opinion_text",
+    "to_iso", "all_iso", "__version__",
 ]
 
 __version__ = "0.0.2"
@@ -283,6 +284,15 @@ def _hm_block(items, html: str) -> dict:
         "rows": rows,
         "by_role": by_role,
         "html": html,
+        # THE SAME ROWS WITH THE LAYOUT IN THE MARKUP. `html` carries this
+        # package's own classes, which mean nothing to a consumer without its
+        # stylesheet: a centered masthead reads flush left and a two-column
+        # caption collapses into one, so every docket number ends up after
+        # every party instead of beside its own. This one states alignment,
+        # indents, rules and the caption's columns INLINE, and is what an
+        # ingest should be handed (the user, 2026-08-24: 'i want to try using
+        # this'). Both are returned; neither replaces the other.
+        "html_inline": render_hm_inline(items),
         "text": "\n".join(r["text"] for r in rows),
         "untinted": sum(1 for r in rows if not r["role"]),
     }
