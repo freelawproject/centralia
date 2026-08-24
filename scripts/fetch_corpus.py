@@ -20,6 +20,7 @@ Usage:
 from __future__ import annotations
 
 import argparse
+import json
 import sys
 import time
 import urllib.error
@@ -35,6 +36,25 @@ BACKOFF = 2.0    # seconds, doubled per retry, capped at 120
 ROOT = Path(__file__).resolve().parent.parent
 ASSETS = ROOT / "assets"
 MANIFEST = ROOT / "scripts" / "corpus.txt"
+MARKS = ROOT / "output" / "notes" / "marks.json"
+# Tiers the reviewer uses, worst to best. 'yay' is the sign-off that gates a
+# court's release; anything below it is a file someone still has doubts about.
+GOOD = ("yay",)
+
+
+def marks() -> dict[str, str]:
+    """{court/stem: mark} — the reviewer's verdicts, which ship WITH the repo.
+
+    The manifest deliberately does not carry these. A mark changes whenever
+    someone reviews another file, and a copy of a moving list is a lie with a
+    timestamp on it; marks.json is tracked precisely so there is one place to
+    ask. Absent (a partial checkout) -> everything is simply unmarked."""
+    if not MARKS.is_file():
+        return {}
+    try:
+        return json.loads(MARKS.read_text(encoding="utf-8"))
+    except Exception:  # noqa: BLE001 - an unreadable marks file is not fatal
+        return {}
 
 
 def entries(courts: list[str]) -> list[tuple[str, str, str]]:
@@ -167,16 +187,34 @@ def main() -> None:
                          "downloading nothing (writes scripts/corpus-dead.txt)")
     ap.add_argument("--sample", type=int, metavar="N",
                     help="with --verify, check a spread of N urls instead of all")
+    ap.add_argument("--approved", action="store_true",
+                    help="only files the reviewer signed off (marked 'yay') — "
+                         "the known-good subset, and a smaller download")
     args = ap.parse_args()
 
     rows = entries(args.courts)
+    mk = marks()
+    if args.approved:
+        before = len(rows)
+        rows = [r for r in rows if mk.get(f"{r[0]}/{r[1][:-4]}") in GOOD]
+        print(f"--approved: {len(rows)} of {before} files are signed off")
+
     if args.list:
-        have, miss = Counter(), Counter()
+        have, miss, ok, bad = Counter(), Counter(), Counter(), Counter()
         for court, name, _ in rows:
             (have if (ASSETS / court / name).exists() else miss)[court] += 1
+            mark = mk.get(f"{court}/{name[:-4]}")
+            if mark in GOOD:
+                ok[court] += 1
+            elif mark:
+                bad[court] += 1
         for court in sorted(set(have) | set(miss)):
-            print(f"  {court:<16} {have[court]:>5} present, {miss[court]:>5} missing")
-        print(f"\n{sum(have.values())} of {len(rows)} files present")
+            flag = f"  {bad[court]} MARKED BAD" if bad[court] else ""
+            print(f"  {court:<16} {have[court]:>5} present, {miss[court]:>5} missing, "
+                  f"{ok[court]:>5} signed off{flag}")
+        print(f"\n{sum(have.values())} of {len(rows)} files present; "
+              f"{sum(ok.values())} signed off, {sum(bad.values())} marked bad, "
+              f"{len(rows) - sum(ok.values()) - sum(bad.values())} unreviewed")
         return
 
     if args.verify:

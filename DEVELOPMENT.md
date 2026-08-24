@@ -75,6 +75,41 @@ viewer, the oracles — is standard library.
 That is the complete list (`harness/cli.py`, `COMMANDS`). Note that **`trace`
 is referenced in several docstrings but is not implemented** — see §13.
 
+### First run, in order
+
+```sh
+uv sync --dev
+uv run python scripts/fetch_corpus.py               # 1. the PDFs (~3 GB, slow)
+uv run python harness/cli.py render $(ls assets)    # 2. render every court
+uv run python harness/cli.py quality                # 3. the grades
+uv run python harness/cli.py serve                  # 4. the viewer, port 8002
+```
+
+Step 2 is the one that is easy to get wrong. **Do not reach for
+`harness/rerender.sh` to bootstrap** — it loops over `ls output`, and a fresh
+clone has no rendered courts yet, so it renders nothing and exits cleanly as
+though it had done the work. It is for *re*-rendering an already-populated
+tree. `render` itself refuses to run with no court named, for the same reason.
+
+Step 3 is optional but cheap (seconds — it reads the emitted HTML, not the
+PDFs). Without it the viewer simply shows no grades; `/api/quality` returns
+`{}` and the page degrades rather than breaking. Same for `coverage`, which is
+slower because it shells out to `pdftotext` per file.
+
+**You do not have to re-review anything.** `output/notes/marks.json` is tracked
+— 9,829 verdicts (9,689 `yay`, 139 `nay`, 1 `good`, and 520 files not yet
+reviewed) travel with the clone. That is the whole reason `.gitignore` excludes
+`output/*` but keeps `output/notes/`: renders are rebuildable, judgments are
+not. `tests/fixtures/guard.json` (739 sentinels) ships too, so the guard works
+immediately.
+
+If you want a smaller, known-good corpus, `fetch_corpus.py --approved` pulls
+only the 9,408 files that are signed off. `--list` shows the split per court:
+
+```
+  ilcd    42 present, 0 missing,   7 signed off  28 MARKED BAD
+```
+
 **The corpus is not in git.** `assets/` is 10,349 court PDFs and 3.1 GB. They
 all came from CourtListener and are public there, so `scripts/corpus.txt`
 carries one URL per file and `fetch_corpus.py` replays it. No credentials
