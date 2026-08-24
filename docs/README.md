@@ -9,10 +9,11 @@ filesystem and parsed client-side.
 ## Run it locally
 
 Serve it, do not open it as a file. Pyodide boots from `file://` (it is imported
-from the CDN over https) and `centralia` installs from `file://` too (PyPI sends
-`Access-Control-Allow-Origin: *`), so a PDF you upload yourself will read. What
-Chrome blocks at a `file://` origin is same-origin `fetch()` — so `courts.json`
-and the bundled samples never arrive, and the sample buttons do nothing.
+from the CDN over https), `centralia` installs from `file://` too (PyPI sends
+`Access-Control-Allow-Origin: *`), and the court list comes out of the installed
+package — so a PDF you upload yourself reads fine there. The one thing that
+still needs a same-origin `fetch()` is the bundled samples, and Chrome blocks
+that at a `file://` origin, so those buttons do nothing.
 
 ```sh
 cd docs && python3 -m http.server 8765
@@ -71,12 +72,16 @@ with `./docs/build.sh` and point the install at it instead.
 dependency (`pdfplumber>=0.11.4`) is already in place, deliberately without
 `pypdfium2`, which has no Pyodide wheel.
 
-`docs/courts.json` is a copy of `output/notes/court_status.json`, used only to
-group the court dropdown by review status; regenerate it with:
+The court dropdown groups by `centralia.released.RELEASED`, read out of the
+installed package at boot — there is no list to copy here and nothing to
+regenerate. That list is itself generated from the reviewer's marks by
+`harness.cli released --write`, so the page shows exactly what the running
+release approves: 190 approved, 51 still in review, of 241 wired.
 
-```sh
-python3 -c "import json;d=json.load(open('output/notes/court_status.json'));print(json.dumps(dict(sorted(d.items())),separators=(',',':')))" > docs/courts.json
-```
+There used to be a `courts.json` copied in beside the page for this. It froze at
+38 courts while 190 were signed off, which read as "these readers are not ready"
+for work finished weeks earlier. A file that must be hand-copied to stay true
+will eventually be false; the package cannot disagree with itself.
 
 ## Known limits
 
@@ -85,10 +90,10 @@ python3 -c "import json;d=json.load(open('output/notes/court_status.json'));prin
   call sites in `pipeline.py` (masthead crops :1495, figures :1526, signature
   graphics :1587) are already inside `try/except`, so they skip silently —
   output is text-only. Seals and signature images do not appear.
-- **URL fetch depends on the PDF's host, and Python cannot route around it.**
-  A static page can only `fetch()` a PDF if that server sends
-  `Access-Control-Allow-Origin`. The page has a URL box; whether it works is the
-  host's decision, not ours, and not the browser's or Pyodide's.
+- **There is no "fetch by URL" box, and that is a host decision, not an
+  oversight.** A static page can only `fetch()` a PDF if the server holding it
+  sends `Access-Control-Allow-Origin`. A URL box was built and then taken out,
+  because the host people would actually paste is the one that refuses:
 
   | host | `ACAO` | preflight | fetches? |
   |---|---|---|---|
@@ -96,10 +101,13 @@ python3 -c "import json;d=json.load(open('output/notes/court_status.json'));prin
   | `storage.courtlistener.com` | absent | 403 | no |
   | `govinfo.gov`, `ca1.uscourts.gov` | absent | — | no |
 
-  The wildcard on the dev bucket means any origin, so a URL there works from
-  GitHub Pages and from a local server alike. Production is a bucket-policy
-  change away from the same — it is Free Law Project's own bucket, and the dev
-  one already carries the config:
+  A box that works for an internal dev bucket and fails for every public
+  CourtListener link is worse than no box: it reads as a broken page rather than
+  as a policy the page does not control. Upload the PDF instead.
+
+  Production is a bucket-policy change away from working — it is Free Law
+  Project's own bucket, and the dev one already carries the config. Put this on
+  `storage.courtlistener.com` and the URL box becomes worth restoring:
 
   ```json
   [{"AllowedOrigins": ["*"], "AllowedMethods": ["GET", "HEAD"],

@@ -79,21 +79,6 @@
     </div>
   </div>
 
-  <div class="row">
-    <div style="flex:1 1 420px">
-      <label for="url">…or fetch a PDF by URL</label>
-      <input type="url" id="url" placeholder="https://…/opinion.pdf" disabled
-             style="width:100%; font:inherit; padding:7px 9px; border:1px solid var(--line);
-                    border-radius:6px; background:var(--bg); color:var(--ink)">
-    </div>
-    <button id="fetchurl" disabled>Fetch</button>
-  </div>
-  <p class="note">The host must send <code>Access-Control-Allow-Origin</code> —
-    the browser enforces that below Python, so no amount of Pyodide routes around
-    it. CourtListener's dev bucket sends it; production
-    <code>storage.courtlistener.com</code> does not. When a fetch is refused,
-    download the PDF and drop it below.</p>
-
   <div id="drop">
     <strong>Drop a court PDF here</strong> — or click to pick one
     <input type="file" id="file" accept="application/pdf" class="hide">
@@ -111,19 +96,18 @@
 
 <script>
 // From file:// Pyodide boots (the CDN import is https) and the packages install
-// (PyPI sends Access-Control-Allow-Origin: *), so an UPLOADED pdf does read.
-// What stays broken is fetching our own files beside this page — Chrome blocks
-// same-origin fetch() at a file:// origin — so courts.json and the bundled
-// samples never arrive: the court dropdown loses its review-status grouping and
-// the sample buttons do nothing. Say so rather than let it look like a bug.
+// (PyPI sends Access-Control-Allow-Origin: *), so an UPLOADED pdf reads fine and
+// the court list is right — it comes out of the wheel, not off this server. The
+// one thing left that needs a same-origin fetch is the bundled samples, and
+// Chrome blocks that at a file:// origin. Say so rather than let it look broken.
 if (location.protocol === "file:") {
   document.addEventListener("DOMContentLoaded", () => {
     document.getElementById("log").innerHTML =
       '<span class="e">Opened from file:// — the samples will not load.</span>\n' +
       '<span class="d">Pyodide boots and centralia installs from PyPI, so a pdf you\n' +
-      'upload yourself will read fine. But fetching files beside this page is\n' +
-      'blocked at a file:// origin, so courts.json and the bundled samples never\n' +
-      'arrive. For the whole page, serve the dir:</span>\n\n' +
+      'upload yourself will read fine. Only the bundled samples need a fetch from\n' +
+      'this directory, and that is blocked at a file:// origin. For those, serve\n' +
+      'the dir:</span>\n\n' +
       '    <strong>cd docs &amp;&amp; python3 -m http.server 8765</strong>\n' +
       '    <strong>open http://127.0.0.1:8765</strong>\n\n' +
       '<span class="d">On GitHub Pages this is a non-issue — already served over https.</span>\n\n';
@@ -177,30 +161,40 @@ version("centralia")
 `);
   log(`centralia ${version} installed`, "g");
 
-  // The catch must sit on the FETCH, not on .json(): at a file:// origin the
-  // fetch itself rejects, and with the guard only on .json() that rejection
-  // escaped and killed the whole boot after centralia had installed fine.
-  // courts.json is decoration — it groups the dropdown by review status — so
-  // losing it must cost the dropdown its grouping, not the page its reader.
-  const status = await fetch("courts.json")
-    .then(r => (r.ok ? r.json() : {}))
-    .catch(() => ({}));
-  const courts = JSON.parse(await py.runPythonAsync(`
+  // Which courts are approved is the RELEASE's own answer, read out of the
+  // installed wheel — not a json file copied in beside this page. That copy went
+  // stale the moment a court was signed off (38 listed against 190 released),
+  // and a stale list here reads as 'the reader is not ready' for work that was
+  // finished weeks ago. centralia.released is generated from the reviewer's
+  // marks, ships inside the package, and so cannot disagree with the code that
+  // is actually running.
+  const meta = JSON.parse(await py.runPythonAsync(`
 import json
 from centralia.courts import PROFILES
-json.dumps(sorted(([cid, p.court_label or cid] for cid, p in PROFILES.items())))
+try:
+    from centralia.released import RELEASED
+except ImportError:      # a release older than the released list
+    RELEASED = frozenset()
+json.dumps({
+    "courts": sorted([cid, p.court_label or cid] for cid, p in PROFILES.items()),
+    "released": sorted(RELEASED),
+})
 `));
-  fillCourts(courts, status);
+  const courts = meta.courts;
+  fillCourts(courts, new Set(meta.released));
   log(`ready — ${courts.length} court readers registered`, "g");
-  document.querySelectorAll("button, select, #url").forEach(b => b.disabled = false);
+  document.querySelectorAll("button, select").forEach(b => b.disabled = false);
 }
 
-function fillCourts(courts, status) {
+function fillCourts(courts, released) {
   const sel = $("court");
   sel.innerHTML = "";
-  const groups = { complete: "Complete", started: "In progress", "": "Wired (unreviewed)" };
+  // Two groups, because the release list only makes two claims: a court whose
+  // every document a reviewer has passed, and one still being worked on. Both
+  // read here — the extractor is not gated, only `centralia.read` is.
+  const groups = { yes: "Approved", no: "Still in review" };
   for (const [key, label] of Object.entries(groups)) {
-    const rows = courts.filter(([id]) => (status[id] || "") === key);
+    const rows = courts.filter(([id]) => (released.has(id) ? "yes" : "no") === key);
     if (!rows.length) continue;
     const g = document.createElement("optgroup");
     g.label = `${label} — ${rows.length}`;
@@ -277,7 +271,7 @@ fileIn.onchange = async () => {
 
 for (const b of document.querySelectorAll(".sample")) {
   b.onclick = async () => {
-    // Same file:// trap as courts.json, but on a click rather than at boot:
+    // The file:// trap, but on a click rather than at boot:
     // unguarded, the rejection is unhandled and the button just does nothing.
     // Say why, and point at the fix.
     let r;
@@ -295,31 +289,6 @@ for (const b of document.querySelectorAll(".sample")) {
         b.dataset.pdf.split("/").pop());
   };
 }
-
-// Fetch a PDF the user names by URL. This only ever works when the HOST opts in
-// with Access-Control-Allow-Origin: the check happens in the browser, beneath
-// Python, so pyfetch/urllib/requests all fail the same way (measured — see
-// README). Report a refusal as the CORS fact it is rather than as a bad URL.
-async function runUrl() {
-  const url = $("url").value.trim();
-  if (!url) return;
-  const court = $("court").value;
-  const name = (url.split("?")[0].split("/").pop() || "opinion.pdf");
-  log(`fetching ${name}…`);
-  let r;
-  try {
-    r = await fetch(url);
-    if (!r.ok) throw new Error(`HTTP ${r.status}`);
-  } catch (err) {
-    log(`could not fetch ${url}: ${err.message || err}`, "e");
-    log("if that says 'failed to fetch', the host sent no " +
-        "Access-Control-Allow-Origin — download the pdf and drop it below instead", "d");
-    return;
-  }
-  run(new Uint8Array(await r.arrayBuffer()), court, name);
-}
-$("fetchurl").onclick = runUrl;
-$("url").onkeydown = e => { if (e.key === "Enter") runUrl(); };
 
 $("download").onclick = () => {
   const a = document.createElement("a");
