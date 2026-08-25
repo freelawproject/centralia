@@ -36,17 +36,29 @@ from .released import HELD_BACK, RELEASED
 from .render import (opinion_text, render_body, render_casebody,
                      render_headmatter, render_html, render_opinion)
 from .render.facsimile import render_hm_inline, render_hm_items
+from .render.html import _hm_signature, _hm_texts, render_opinion_ingest
+from .render.inline import footnote_slug, inline_to_html, mark_slugs
 
 __all__ = [
     "read", "extract", "ExtractionResult", "released_courts",
     "UnknownCourt", "CourtNotReleased",
     "Document", "Criteria", "Meta", "Opinion",
     "render_html", "render_body", "render_opinion", "render_casebody",
+    "render_opinion_ingest",
     "render_headmatter", "render_hm_inline", "opinion_text",
     "to_iso", "all_iso", "__version__",
 ]
 
-__version__ = "0.0.3"
+# THE VERSION IS THE INSTALLED VERSION, not a literal. The literal said
+# "0.0.3" while 0.0.4 shipped — a number nothing updates is a number that
+# lies, and this one is now stamped into every payload (`versions`), where
+# a consumer decides payload shape by it.
+try:
+    from importlib.metadata import version as _dist_version
+    __version__ = _dist_version("centralia")
+except Exception:                                           # noqa: BLE001
+    # A source tree that was never installed still answers, plainly.
+    __version__ = "0+unknown"
 
 
 class UnknownCourt(KeyError):
@@ -243,6 +255,8 @@ def _opinions(doc: Document) -> list[dict]:
     `ordering_key`, which is what CourtListener calls the same field.
     """
     out = []
+    # The ANNOUNCEMENT dedupe needs the cover's author rows, computed once.
+    hm_sig = _hm_signature(doc)
     for n, op in enumerate(doc.opinions, start=1):
         pages = sorted({p for b in (*op.blocks, *op.signature)
                         for p in ([getattr(b, "prov", None).page]
@@ -255,7 +269,12 @@ def _opinions(doc: Document) -> list[dict]:
             "author_title": op.author_title or None,
             "pages": pages,
             "n_blocks": len(op.blocks),
-            "html": render_opinion(op),
+            # WHAT AN INGEST STORES, not what the review page draws: no
+            # chip, an inline caption, and footnotes wired under this
+            # writing's own namespace (`order`), so several writings on one
+            # host page cannot collide (the user, 2026-08-24, reviewing the
+            # CourtListener install). The review page keeps its own render.
+            "html": render_opinion_ingest(op, ns=f"o{n}", hm_sig=hm_sig),
             "text": opinion_text(op),
             "footnotes": [{"label": f.label, "text": _blocks_text(f.blocks)}
                           for f in op.footnotes],
@@ -298,11 +317,51 @@ def _hm_block(items, html: str) -> dict:
     }
 
 
+def _inline_headmatter(doc: Document) -> str:
+    """The portable cover WITH its own notes.
+
+    `html_inline` is what an ingest stores, and the cover's footnotes used
+    to sit beside it as data (`headmatter.footnotes`) that no stored blob
+    could show -- the `*` on a substituted party name was a dangling mark.
+    The notes now render into the blob itself, wired to their marks under
+    the `hm` namespace, and styled inline like everything else in it,
+    because this block travels with no stylesheet of ours.
+    """
+    from html import escape as _esc
+    body = render_hm_inline(doc.headmatter, fn_ns="hm")
+    fns = doc.headmatter_footnotes
+    if not fns:
+        return body
+    seen = mark_slugs(_hm_texts(doc.headmatter))
+    rows = []
+    for fn in fns:
+        slug = footnote_slug(fn.label)
+        if slug in seen:
+            lbl = (f'<a href="#ref-hm-{slug}" style="text-decoration:none;'
+                   f'font-weight:bold">{_esc(fn.label)}</a>')
+        else:
+            # The note is real but its mark was never read; a back-link
+            # would land nowhere, so the label stays a label.
+            lbl = f"<b>{_esc(fn.label)}</b>"
+        text = " ".join(
+            inline_to_html(getattr(b, "text", "") or "") for b in fn.blocks
+        ).strip()
+        rows.append(f'<div id="fn-hm-{slug}" style="margin:.35em 0">'
+                    f"{lbl} {text}</div>")
+    return (body
+            + '<hr style="border:0;border-top:1px solid #999;width:100%;'
+              'margin:1.1em 0">'
+            + f'<div style="font-size:.9em">{"".join(rows)}</div>')
+
+
 def _headmatter(doc: Document) -> dict:
     """The cover, with the notes it carries."""
     out = _hm_block(doc.headmatter, render_headmatter(doc))
     out["footnotes"] = [{"label": f.label, "text": _blocks_text(f.blocks)}
                         for f in doc.headmatter_footnotes]
+    # The cover's own block gets the note-carrying, mark-anchored form;
+    # `_hm_block`'s plain one stands for the endmatter, which has no notes.
+    out["html_inline"] = _inline_headmatter(doc)
     return out
 
 
@@ -416,7 +475,8 @@ def read(src, court_id: str, *,
     out = {
         "status": result.status,
         "court_id": court_id,
-        "versions": dict(result.versions),
+        "versions": {"centralia": __version__,
+                     **dict(result.versions)},
         "cluster": _cluster(doc),
         "opinions": _opinions(doc),
         "headmatter": _headmatter(doc),

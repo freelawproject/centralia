@@ -14,8 +14,8 @@ from html import escape
 
 from .. import model as m
 from ..sections import SECTIONS
-from .facsimile import render_hm_items
-from .inline import inline_to_html
+from .facsimile import render_hm_inline, render_hm_items
+from .inline import footnote_slug, inline_to_html, mark_slugs
 
 _CSS = """
 /* A HIGHLIGHTER'S FILL, reproduced. The page painted a colour behind these
@@ -184,7 +184,8 @@ span.ctr { display:block; text-align:center }
 """
 
 
-def _render_blocks(blocks: list, plain_paras: bool = False) -> str:
+def _render_blocks(blocks: list, plain_paras: bool = False,
+                   fn_ns: str | None = None) -> str:
     """Every block carries data-pg (its source page) so the viewer can sync
     the original-PDF pane to the reader's position; a small chip marks each
     page transition."""
@@ -207,19 +208,23 @@ def _render_blocks(blocks: list, plain_paras: bool = False) -> str:
                 if getattr(b, "role", "") == "disposition":
                     names.append("disposition")
                 cls = f' class="{" ".join(names)}"' if names else ""
-                out.append(f"<p{cls}{attr}>{inline_to_html(b.text)}</p>")
+                out.append(f"<p{cls}{attr}>{inline_to_html(b.text, fn_ns)}</p>")
             case m.Blockquote():
-                out.append(f"<blockquote{attr}>{inline_to_html(b.text)}</blockquote>")
+                out.append(f"<blockquote{attr}>"
+                           f"{inline_to_html(b.text, fn_ns)}</blockquote>")
             case m.Heading():
-                out.append(f'<h3 class="bhead"{attr}>{inline_to_html(b.text)}</h3>')
+                out.append(f'<h3 class="bhead"{attr}>'
+                           f"{inline_to_html(b.text, fn_ns)}</h3>")
             case m.ListItem():
                 tag = "ol" if b.ordered else "ul"
-                out.append(f"<{tag}{attr}><li>{inline_to_html(b.text)}</li></{tag}>")
+                out.append(f"<{tag}{attr}><li>"
+                           f"{inline_to_html(b.text, fn_ns)}</li></{tag}>")
             case m.TableBlock():
                 rows = []
                 for i, row in enumerate(b.rows):
                     tag = "th" if (b.has_header and i == 0) else "td"
-                    cells = "".join(f"<{tag}>{inline_to_html(c)}</{tag}>" for c in row)
+                    cells = "".join(f"<{tag}>{inline_to_html(c, fn_ns)}</{tag}>"
+                                    for c in row)
                     rows.append(f"<tr>{cells}</tr>")
                 out.append(f'<table class="tb"{attr}>{"".join(rows)}</table>')
             case m.ImageBlock():
@@ -256,12 +261,27 @@ def _render_endmatter(blocks: list) -> str:
     return "".join(out)
 
 
-def _render_footnotes(fns: list) -> str:
+def _render_footnotes(fns: list, fn_ns: str | None = None,
+                      seen: set[str] | None = None) -> str:
+    """The notes block. With ``fn_ns`` each note carries its anchor and a
+    back-link to its mark — but ONLY where the mark was actually read
+    (``seen``): a note whose reference never made it into the text keeps a
+    plain label rather than linking to nowhere. Note bodies render their own
+    marks un-anchored — a namespaced mark inside a note would duplicate the
+    main text's id."""
     if not fns:
         return ""
     rows = []
     for fn in fns:
-        rows.append(f'<div class="fn"><span class="lbl">{escape(fn.label)}</span>'
+        lbl = f'<span class="lbl">{escape(fn.label)}</span>'
+        head = '<div class="fn">'
+        if fn_ns:
+            slug = footnote_slug(fn.label)
+            head = f'<div class="fn" id="fn-{fn_ns}-{slug}">'
+            if seen is None or slug in seen:
+                lbl = (f'<a class="lbl" href="#ref-{fn_ns}-{slug}">'
+                       f"{escape(fn.label)}</a>")
+        rows.append(f"{head}{lbl}"
                     f"<div>{_render_blocks(fn.blocks, plain_paras=True)}</div></div>")
     return f'<div class="fns">{"".join(rows)}</div>'
 
@@ -315,6 +335,70 @@ def render_opinion(op: m.Opinion) -> str:
     `render_casebody` buries the same content inside its XML.
     """
     return _render_opinion(op)
+
+
+def _block_texts(blocks: list) -> list[str]:
+    """The raw markup strings a run of blocks carries, table cells included.
+    This is what the footnote back-links are checked against."""
+    out: list[str] = []
+    for b in blocks:
+        if t := getattr(b, "text", "") or "":
+            out.append(t)
+        for row in getattr(b, "rows", None) or []:
+            out.extend(c or "" for c in row)
+    return out
+
+
+def _hm_texts(items: list) -> list[str]:
+    """Every row's markup in a headmatter-shaped block, caption cells too."""
+    out: list[str] = []
+    for it in items:
+        if isinstance(it, m.HmLine):
+            out.append(it.text or "")
+        elif isinstance(it, m.CaptionBlock):
+            for row in (*it.left, *it.right):
+                if row is not None:
+                    out.append(row.text or "")
+    return out
+
+
+def render_opinion_ingest(op: m.Opinion, ns: str, hm_sig: str = "") -> str:
+    """One writing as an INGEST stores it, not as the review page draws it.
+
+    Three things separate it from `render_opinion` (the user, 2026-08-24,
+    reviewing the CourtListener install: the chip badge duplicates the type
+    the host page already prints, and markup that needs this package's
+    stylesheet means nothing on a page that has never seen it):
+
+      * no chip — the type is on the object; a host prints its own heading
+      * a consolidated writing's own caption is stated INLINE (the
+        `render_hm_inline` technique), not in classes only our CSS knows
+      * footnotes are WIRED — the mark anchors to its note and the note
+        links back, namespaced by ``ns`` because a host shows several
+        writings on one page and each restarts its numbering at 1
+
+    ``hm_sig`` is `_hm_signature(doc)`, for the same announcement-vs-byline
+    dedupe `_render_opinion` does.
+    """
+    parts = ['<div class="opinion">']
+    if op.caption:
+        parts.append(render_hm_inline(op.caption, fn_ns=ns))
+    _same = op.author and hm_sig and "".join(
+        _TAG.sub("", op.author).split()) in hm_sig
+    if op.author and not _same:
+        parts.append(f'<div class="byline">{inline_to_html(op.author)}</div>')
+    parts.append(_render_blocks(op.blocks, fn_ns=ns))
+    if op.signature:
+        # Stacked '/s/ Name' lines keep their breaks — the page sets one
+        # signer per line ('/s/ Ackerman /s/ Borrello' joined is wrong).
+        sig_html = _render_blocks(op.signature, True, fn_ns=ns).replace(
+            " /s/ ", "<br>/s/ ")
+        parts.append(f'<div class="sig">{sig_html}</div>')
+    seen = mark_slugs(
+        _block_texts([*op.blocks, *op.signature]) + _hm_texts(op.caption))
+    parts.append(_render_footnotes(op.footnotes, fn_ns=ns, seen=seen))
+    parts.append("</div>")
+    return "".join(parts)
 
 
 def opinion_text(op: m.Opinion) -> str:

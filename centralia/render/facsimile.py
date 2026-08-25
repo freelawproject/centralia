@@ -92,14 +92,15 @@ def render_hm_items(items: list, base_size: float = 12.0) -> str:
 # each docket number beside the party row the court set it beside instead of
 # dumping every number after every party — and a rule the page draws as an
 # <hr> that draws. Nothing here needs a class to mean something.
-def render_hm_inline(items: list, base_size: float = 12.0) -> str:
+def render_hm_inline(items: list, base_size: float = 12.0,
+                     fn_ns: str | None = None) -> str:
     out: list[str] = []
     for item in items:
         match item:
             case m.HmLine():
-                out.append(_inline_row(item, base_size))
+                out.append(_inline_row(item, base_size, fn_ns))
             case m.CaptionBlock():
-                out.append(_inline_caption(item, base_size))
+                out.append(_inline_caption(item, base_size, fn_ns))
             case m.Rule():
                 width = {"full": "100%", "left": "48%", "right": "48%",
                          "center": "40%"}.get(item.span, "100%")
@@ -154,10 +155,16 @@ def _inline_style(row: m.HmLine, base_size: float) -> str:
     return ";".join(bits)
 
 
-def _inline_row(row: m.HmLine, base_size: float) -> str:
-    text = row.text or ""
-    if not text.strip():
+def _inline_row(row: m.HmLine, base_size: float,
+                fn_ns: str | None = None) -> str:
+    # THE VOCABULARY DOES NOT TRAVEL RAW. The review row runs inline_to_html
+    # (see _hm_line); this one shipped `row.text` as-is, so a cover row
+    # carrying <footnotemark> or <pagenumber/> reached the ingest as model
+    # tags no browser knows. Converted here like everywhere else — and with
+    # `fn_ns`, a cover mark becomes a real anchor to its note.
+    if not (row.text or "").strip():
         return '<div style="height:.9em"></div>'
+    text = inline_to_html(row.text, fn_ns)
     style = _inline_style(row, base_size)
     # THE AIR THE PAGE LEFT, carried through. A court groups its cover with
     # blank lines as much as with rules — ca6 sets one above 'Decided and
@@ -172,7 +179,8 @@ def _inline_row(row: m.HmLine, base_size: float) -> str:
     return f"<div{s}>{text}</div>"
 
 
-def _inline_caption(block: m.CaptionBlock, base_size: float) -> str:
+def _inline_caption(block: m.CaptionBlock, base_size: float,
+                    fn_ns: str | None = None) -> str:
     """A two-column caption as a table, ONE ROW PER PRINTED ROW.
 
     The cells are already paired by the row they came off the page on, so
@@ -183,8 +191,8 @@ def _inline_caption(block: m.CaptionBlock, base_size: float) -> str:
     border = ("border-left:1px solid #999"
               if block.rail == "|" else "")
     for left, right in zip(block.left, block.right):
-        lt = (left.text or "") if left is not None else ""
-        rt = (right.text or "") if right is not None else ""
+        lt = inline_to_html(left.text, fn_ns) if left is not None else ""
+        rt = inline_to_html(right.text, fn_ns) if right is not None else ""
         ls = _inline_style(left, base_size) if left is not None else ""
         rs = _inline_style(right, base_size) if right is not None else ""
         rows.append(
