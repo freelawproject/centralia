@@ -1,5 +1,40 @@
 # Changes
 
+## 0.0.5 (unreleased)
+
+### Added
+
+- **An ingest-facing writing render, and it is what the payload carries.**
+  `opinions[].html` was `render_opinion` — the review page's own drawing of a
+  writing, with a type chip a host page has no use for and, on a consolidated
+  record, a caption set in classes only this package's stylesheet knows. The
+  new `render_opinion_ingest` (public) drops the chip, states the caption
+  inline (the `render_hm_inline` technique), and WIRES the footnotes: each
+  mark is an anchor to its note and each note links back, namespaced by the
+  writing's `order` (`ref-o2-7` / `fn-o2-7`), so several writings on one host
+  page — each restarting its notes at 1 — cannot collide. A note whose mark
+  was never read keeps a plain label rather than linking to nowhere, and a
+  symbol label gets a codepoint slug (`*` → `u42`) so both ends agree on an
+  id the character itself could not be. The review page keeps its own render.
+- **The cover's notes travel in `html_inline`.** `headmatter.footnotes` was
+  data beside the blob; nothing a stored cover could show, so a substituted
+  party's `*` was a dangling mark. The notes now render into `html_inline`
+  itself, wired under the `hm` namespace, styled inline like everything else
+  in that block.
+- **The payload says which centralia wrote it.** `versions` now carries the
+  installed package version alongside the pipeline's, so a consumer can
+  decide payload shape by it instead of sniffing the markup.
+
+### Fixed
+
+- **`html_inline` no longer ships the model's vocabulary raw.** The review
+  rows run `inline_to_html`; the portable rows did not, so a cover line
+  carrying `<footnotemark>` or `<pagenumber/>` reached an ingest as tags no
+  browser knows. Converted like everywhere else.
+- **`__version__` said "0.0.3" while 0.0.4 shipped.** It is now read from the
+  installed distribution — a literal nothing updates is a number that lies,
+  and it is stamped into every payload now.
+
 ## 0.0.4
 
 ### Added
