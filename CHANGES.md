@@ -1,6 +1,6 @@
 # Changes
 
-## 0.0.5 (unreleased)
+## 0.0.5
 
 ### Added
 
