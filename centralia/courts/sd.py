@@ -538,7 +538,8 @@ class _Ctx:
             kind=kind or "furniture"))
         self.consumed.update(p.id for p in parts)
 
-    def rule(self, page: int, ids: tuple = (), span: str = "center") -> None:
+    def rule(self, page: int, ids: tuple = (),
+             span: m.RuleSpan = "center") -> None:
         self.items.append(m.Rule(prov=m.Prov(page, ids), typed=True,
                                  span=span))
         self.consumed.update(ids)

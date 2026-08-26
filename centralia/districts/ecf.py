@@ -94,6 +94,13 @@ _CAPTION_FOOT_REACH = 40.0
 
 _RAIL_STATUS_TAIL = True
 
+# THE CLERK'S STAMP. How many rows must overflow the measure's right edge
+# before the block is called a stamp, and how far down the sheet it may
+# stand. Three rows is the shortest stamp measured; a stamp is applied at
+# the HEAD of the sheet, and a third of the page is well past every one.
+_STAMP_ROWS_MIN = 3
+_STAMP_BAND = 0.33
+
 STYLE_GLYPH_RAIL = "ecf order, glyph rail"
 STYLE_DRAWN_RAIL = "ecf order, drawn rail"
 STYLE_FLUSH_STATUS = "ecf order, flush-right status"
@@ -261,7 +268,18 @@ class EcfPaper:
     # ('ENFORCEMENT ("ICE"), et al.'), so it counts as a divider only as a
     # COLUMN — four or more stacked within 3pt of one x. Measured: the
     # shortest rail in kyed is 9 glyphs.
-    rail_chars: str = ")]:*§}|"
+    # …AND A BOX-DRAWING VERTICAL IS ONE TOO. vid rules its caption with
+    # U+2551 '║' — eight of them stacked at x288 on
+    # vid/…41531.24.0 — which the set above does not name, so the rail
+    # went unrecognised, the record fell to the flush-right reading, and
+    # the glyphs came back inside the values: the court read 'DISTRICT
+    # COURT OF THE VIRGIN ISLANDS DIVISION OF ST. CROIX ║' and the case
+    # name 'JULIE BEBERMAN, Plaintiff, ║ v. ║ SECRETARY OF STATE
+    # MARCO RUBIO, ║ ║ ____' (the user, 2026-08-25: 'can you fix
+    # vid'). Unlike ')' these are not prose: nothing in a party name is a
+    # box-drawing character, and the single-stroke '│' is the same
+    # stroke from the same block.
+    rail_chars: str = ")]:*§}|║│"
     rail_floor: int = 4
     rail_column: float = 3.0
     # A glyph belongs to the rail when it stands in the rail's own column.
@@ -319,7 +337,22 @@ class EcfPaper:
     # run to five rows (alnd's 'FILED / 2026 May-11 PM 03:10 / U.S. DISTRICT
     # COURT / N.D. OF ALABAMA'), so the band is generous — but not so
     # generous that a body line naming the court could be mistaken for it.
-    masthead_band: float = 0.35
+    # MEASURED AGAIN, 2026-08-25, over the 3,190 district records that print
+    # a findable masthead: 0.35 cut off seven of them and read NOTHING on
+    # any — casd/…325362.129.0 sets its court's name at 0.355 and cand/
+    # …446569.128.0 at 0.354, both on pleading paper that reserves nine to
+    # twelve numbered lines above it, and cand stacks the U.S. Attorney's
+    # appearance block on top of that as well. No anchor, so no headmatter
+    # at all: 'hm-unread×10' and 'hm-unread×63' (the user, 2026-08-25:
+    # 'cant this one prase teh headmatter?').
+    # THE BAND ABOVE THEM IS EMPTY, which is what makes 0.40 safe rather
+    # than merely bigger. The seven real mastheads run 0.354-0.392; the next
+    # row down the corpus is 0.478, and it and everything below it is BODY
+    # PROSE naming a court (nmd), a sheet whose masthead is drawn rather
+    # than typed (paed/658030), or a centred-fence paper that prints no
+    # masthead at all (txed). The ceiling sits in the gap between the two
+    # populations, which is the warning above honoured, not waived.
+    masthead_band: float = 0.40
     # HOW DEEP A DRAWN BOX MAY REACH. A caption is normally done by half way
     # down the sheet, but a CONSOLIDATED caption is not: akd stacks two cases
     # in one box whose drawn rail runs to 644 of a 792pt page (81%), and a
@@ -508,6 +541,12 @@ CONNECTIVES = ("and", "of", "the", "on", "to", "for", "in", "a", "an",
                "upon", "with", "re", "as")
 
 
+# THE SUBDIVISION OF A NUMBERED RULE — '26(f)', '16(b)', '12(b)(6)'. Attached
+# to its number, so an ordinary parenthetical the court writes into its paper's
+# name is untouched.
+_SUBDIVISION = re.compile(r"(?<=\d)\s*(?:\([A-Za-z0-9]{1,4}\))+")
+
+
 def _paper_case(text: str) -> bool:
     """Is the row set the way a court sets its paper's NAME — capitals, with
     only connectives allowed in lower case?
@@ -519,7 +558,20 @@ def _paper_case(text: str) -> bool:
     what makes it the paper's name is that the court set it in capitals under
     a word that names a paper. A bold body sentence ('This case is before the
     court on plaintiff Kristin') fails on the very first word."""
-    words = [w for w in re.split(r"[^A-Za-z]+", _norm(text)) if w]
+    # A RULE'S SUBDIVISION IS NOT A LOWER-CASE WORD. ndd names its
+    # scheduling papers after the rules they are issued under — 'ORDER FOR
+    # RULE 26(f) PLANNING / MEETING AND FOR RULE 16(b) / SCHEDULING
+    # CONFERENCE, AND / ORDER REGARDING DISCOVERY / DISPUTES' — and the
+    # letter split out of '26(f)' arrived here as the word 'f'. Neither
+    # capitalised nor a connective, it failed the whole row, so the title's
+    # first TWO rows were not the paper's name: the run opened at row four
+    # and the record's title was its tail alone, with rows one to three left
+    # tinted 'case info' (the user, 2026-08-25: 'all the NDD gotta group the
+    # tntire title together and not split it up'). The subdivision of a
+    # numbered rule is part of a citation the court is naming, not a word
+    # the court set in lower case.
+    words = [w for w in re.split(r"[^A-Za-z]+", _SUBDIVISION.sub("", _norm(text)))
+             if w]
     if not words:
         return False
     # CAPITALS OR TITLE CASE. Most chambers shout the paper's name; nvd sets
@@ -559,9 +611,35 @@ def _opens_unfinished(text: str, facts: EcfPaper) -> bool:
     return any(w in facts.title_words and w not in _GLUE for w in words)
 
 
-def _is_title_head(text: str, facts: EcfPaper) -> bool:
-    """Does the row OPEN a paper name?"""
-    if not (_letters(text).startswith(facts.title_openers)
+def _is_title_head(text: str, facts: EcfPaper,
+                   marked: bool = False) -> bool:
+    """Does the row OPEN a paper name?
+
+    THE OPENER LIST CANNOT BE FINISHED, which `_body_face` already says in
+    so many words: a district judge names the paper after whatever the
+    motion said. Measured on the corpus, the list of twenty rejects real
+    titles outright — 'STATEMENT OF LEGAL PRINCIPLES RELEVANT TO PENDING
+    MOTIONS FOR SUMMARY JUDGMENT' (lamd/…55488.190.0) and 'BENCH TRIAL
+    OPINION AND ORDER' (arwd/…74008.170.0) were both left out of the band,
+    fell into the caption's right column as `case-info`, and took the
+    record's title and docket with them; iand/…23062.238.0 sets a FOUR-row
+    name and the list cut it in half, keeping 'CONTEMPT, REPORT, AND /
+    RECOMMENDATION' and dropping 'CERTIFICATION OF FACTS / REGARDING
+    DEFENDANT'S' (the user, 2026-08-25: 'instead of identifying the title
+    it jams it into the caption even though it also matches the other
+    styles').
+
+    `marked` IS THE PAGE'S OWN EVIDENCE, measured by the caller, that the
+    court set this row apart from its prose — a face the document does not
+    use for its body, or capitals standing off the body rail on the
+    measure's axis. Where the page says so, the opener list is not asked:
+    the row still has to READ like a paper's name (`_paper_case`) and still
+    has to clear the judge, byline and status vetoes below. Nothing is
+    loosened for an unmarked row, so a court that never sets its title
+    apart is untouched.
+    """
+    if not (marked
+            or _letters(text).startswith(facts.title_openers)
             or _opens_unfinished(text, facts)):
         return False
     # A NAMED JUDGE IS NOT A PAPER. 'Magistrate Judge John Smith' opens on a
@@ -590,6 +668,33 @@ def _is_title_tail(text: str, facts: EcfPaper) -> bool:
             or _JUDGE_CELL.match(flat) or _HON_CELL.match(flat):
         return False
     return _is_title_row(text, facts) or _paper_case(text)
+
+
+def _names_paper_between(lines, lo: float, hi: float, facts: EcfPaper, pm,
+                         centred, body_x0: float, measure, pw: float) -> bool:
+    """Has the court ALREADY NAMED ITS PAPER between `lo` and `hi`?
+
+    The same row the undrawn caption's closer walk looks for, asked one
+    question earlier — see `read_ecf`'s `rail is None` branch, whose tests
+    this shares rather than inventing new ones: alone on its row, beginning
+    left of the measure's axis, opening a paper name, and set in the court's
+    own emphasis.
+    """
+    axis = body_x0 + (measure or (pw * 0.76)) / 2
+    for line in lines:
+        if line.top >= hi:
+            break
+        if line.top <= lo:
+            continue
+        if any(o is not line and abs(o.top - line.top) <= 2.5 for o in lines):
+            continue                       # shares its row: a caption cell
+        if line.x0 > axis:
+            continue                       # a right-column cell, not a title
+        flat = _norm(line.plain)
+        if _is_title_head(flat, facts) and not _is_status_row(flat, facts) \
+                and (line.all_bold or centred(line) or _underlined(pm, line)):
+            return True
+    return False
 
 
 def _letter_spaced(text: str) -> bool:
@@ -757,8 +862,33 @@ _ROW_DATE = re.compile(
     r"|\d{1,2}\s*/\s*\d{1,2}\s*/\s*\d{2,4})", re.I)
 
 
+# A DATE AS A COURT WRITES IT, with no 'Date:' label in front of it —
+# '_ROW_DATE' wants the label and matches neither 'JULY 22, 2026' (pamd/
+# …152458.6.0) nor the form a Pennsylvania judge opens an order with, 'AND
+# NOW, THIS 5TH DAY OF AUGUST 2026' (paed/…648547.44.0). Both stood a line
+# under the paper's name and were welded into it.
+# The names a paper gives its own PARTS, never its whole self.
+_PART_HEADINGS = frozenset({
+    "TABLE OF CONTENTS", "TABLE OF AUTHORITIES", "CONTENTS",
+    "TABLE OF EXHIBITS", "INDEX", "APPENDIX",
+})
+
+_NAMED_DATE = re.compile(
+    r"\b(?:\d{1,2}(?:st|nd|rd|th)?\s+day\s+of\s+)?"
+    r"(?:jan|feb|mar|apr|may|jun|jul|aug|sep|oct|nov|dec)[a-z]*\.?"
+    r"\s*\d{0,2}(?:st|nd|rd|th)?\s*,?\s*\d{4}\b", re.I)
+
+
 def _unlabelled_docket(text: str) -> bool:
     return bool(_CASE_NUMBER.match(_norm(text)))
+
+
+# HOW FAR APART TWO ROWS MAY STAND AND STILL BE ONE GROUP, in the caption's
+# own pitch. Half a pitch of slack over a single step: nvd sets a title block
+# tighter than its pitch (0.33 and 0.67 of it), ohnd leaves three pitches
+# above its title, and every caption measured falls on one side or the other
+# with nothing near 1.5.
+_GROUP_PITCH = 1.5
 
 
 def _is_pivot_row(text: str, facts: EcfPaper) -> bool:
@@ -844,6 +974,17 @@ def _ends_masthead(text: str, facts: "EcfPaper") -> bool:
     if _JUDGE.search(flat):
         return True
     if _docket_value(flat, facts) is not None or _is_docket_label(flat):
+        return True
+    # …AND A CASE NUMBER SET BARE, with no 'No.' in front of it. Several
+    # districts centre the number directly under the division and
+    # `_docket_value` will not read it without its label, so the masthead run
+    # took it as a fourth line of the court's own name: ncwd/…118091.28.0
+    # reported the court as 'UNITED STATES DISTRICT COURT WESTERN DISTRICT OF
+    # NORTH CAROLINA CHARLOTTE DIVISION 3:24-CV-01051-MEO-WCM' and came back
+    # with no docket at all (the user, 2026-08-25: 'needs to stop grouping
+    # the docket number with the court it does on many'). `_bare_docket` is
+    # the same test the caption's own columns already use for the form.
+    if _bare_docket(flat):
         return True
     if _is_title_head(flat, facts):
         return True
@@ -1021,6 +1162,38 @@ def _is_typed_rule(text: str, facts: "EcfPaper | None" = None) -> bool:
     return bool(body) and set(body) <= {
         "-", "\u2010", "\u2011", "\u2012", "\u2013", "\u2014",
         "\u2015", "_"}
+
+
+def _is_leader(text: str) -> bool:
+    """Is the row a LEADER — a rule set as a run of periods?
+
+    Distinct from `_all_rule`, which reads the dashes and underscores a
+    chambers types its box edges with. A leader is what a contents list or a
+    caption's foot is ruled with, and read as language it is a caption cell
+    made of dots. Measured on what the row IS, so a sentence that happens to
+    carry an ellipsis is untouched.
+    """
+    flat = "".join(_norm(text).split())
+    if len(flat) < 12:
+        return False
+    return sum(1 for ch in flat if ch == ".") >= 0.8 * len(flat)
+
+
+def _all_rule(text: str) -> bool:
+    """Is the row NOTHING BUT rule characters, at any length?
+
+    `_is_typed_rule` answers a different question — is this row the box's
+    typed EDGE — and sets a 20-character floor so an ordinary hyphen cannot
+    close a caption. A short fragment is still not language: gasd/
+    …114952.26.0 sets a five-underscore stub under its title, and set in the
+    court's own bold on the page axis it satisfied the measured test for a
+    title's WRAP and joined the criterion, which came back 'ORDER _________'.
+    Rule characters spell nothing at any length.
+    """
+    flat = _norm(text).strip()
+    return bool(flat) and set(flat) <= {
+        "-", "\u2010", "\u2011", "\u2012", "\u2013", "\u2014",
+        "\u2015", "_", " "}
 
 
 _CID = re.compile(r"\(cid:(\d+)\)")
@@ -1280,6 +1453,36 @@ def _glyph_rail(lines: list, facts: EcfPaper) -> dict | None:
         if best is None or found["n"] > best["n"]:
             best = found
     return best
+
+
+def _rail_runs_on(line, rail, lines: list, facts: EcfPaper) -> bool:
+    """Does the rail carry on BELOW ``line``? Then ``line`` did not close it.
+
+    A CONSOLIDATED SHEET STACKS TWO CAPTION BOXES, and the chambers rules
+    between them with the same asterisks it closes with. Taken as the
+    closer, that middle line ends the caption at the first box and the
+    second — party stack, docket, the lot — falls out of the caption
+    entirely: mdd/…560357.117.0 read box one correctly and left box two as
+    eighteen loose rows (the user, 2026-08-25: 'not respecting whtiespace
+    merging cirinal case docekt in teh second case into the caption'). What
+    separates the two is the rail: a real closer stands under its foot, and
+    a line between boxes has the rail passing straight through it. Counted
+    from the candidate's own BOTTOM, so a band that happens to set one of
+    its own asterisks at the rail's x does not vote for itself."""
+    if rail is None or not rail.get("glyph"):
+        return False
+    # BELOW MEANS BELOW IN READING ORDER. `top` restarts at the head of each
+    # page, so a bare y counts a page-1 glyph as standing under a page-2
+    # rule and every rule on the later page then looks like a line BETWEEN
+    # boxes. rid/…60066.28.0 closes its second box on page 2 at top 147.6,
+    # under which no rail glyph stands at all.
+    _below = (line.page, line.bottom + 2)
+    n = sum(1 for l in lines if (l.page, l.top) > _below
+            for i, c in enumerate(l.chars)
+            if (c.get("text") or "") == rail["glyph"]
+            and abs(c["x0"] - rail["x"]) < facts.rail_column
+            and _standing_alone(l, i))
+    return n >= facts.rail_floor
 
 
 def _drawn_rail(pm, band: tuple, facts: EcfPaper) -> dict | None:
@@ -1606,11 +1809,53 @@ def read_ecf(model, geom, facts: EcfPaper = DEFAULT, **_):
             return _refuse("all-line-numbers")
 
 
+
     def align(line) -> str:
         return line_alignment(line, pw, geom,
                               banner_center_min_size=body_size + 2.0)
 
     measure = getattr(geom, "column", None) if geom else None
+    # HOW THE PAGE MARKS ITS PAPER'S NAME, measured once for every walk that
+    # looks for a title. `_body_face` states the principle — a title is set
+    # in a type the document does not use for its prose — and the axis says
+    # the court centred it rather than ranging it at the rail, which is what
+    # separates a paper's name from a party's. Both are the page's own
+    # evidence, so a court that sets nothing apart is left to the word list.
+    _bodyface = _body_face(model)
+    _tl_axis = body_x0 + (measure or (pw - 2 * body_x0)) / 2
+
+    def _setapart(line) -> bool:
+        """Is the row set apart from the document's own prose?
+
+        THE AXIS IS WHEREVER THE PAGE'S OWN MEASURE PUTS IT, and `body_x0` is
+        not always the rail: where a court indents every opening line, core
+        measures the INDENT as the body's left edge and the axis computed
+        from it sits right of the sheet's centre. ared/…141817.127.0 gives
+        body_x0 108 against a rail of 72, moving the axis to 324 while the
+        court centres 'AMENDMENT TO JUDGMENT AND COMMITMENT ORDER' at 307.5
+        — 16.5pt out, so a 6pt window called the row unmarked, the opener
+        list was asked instead, and 'amendment' is not 'amended'. The title
+        was tinted as a caption cell and the record reported none.
+        `centred` already answers this question against the same axis with
+        the tolerance the rest of the reader uses, so it is asked here too
+        rather than keeping a second, tighter measure of the same thing.
+        """
+        # …AND A PAPER'S NAME IS NEVER THE FULL MEASURE. `_body_face` reads
+        # the document's prose off the pages AFTER the first, and a one-page
+        # order has none — it falls back to page one, where the caption's
+        # bold outnumbers the body, so ordinary roman prose then differs from
+        # the "body" face and reads as set apart. With `centred` admitting a
+        # justified row (its midpoint sits on the axis by construction), the
+        # title run walked straight into the opinion: ared/…152660.11.0 came
+        # back named 'ORDER RAMSDELL HASN'T FILED A DAMAGES STIPULATION. DOC.
+        # 10. BECAUSE …' and alsd/…74379.56.0 the same. The court sets its
+        # name short of the measure; its prose fills it.
+        if (line.x1 - line.x0) >= 0.9 * (measure or (pw * 0.76)):
+            return False
+        return (_bodyface is not None
+                and _face(line) != _bodyface
+                and (centred(line)
+                     or abs((line.x0 + line.x1) / 2 - _tl_axis) <= 6.0))
     # THE MEASURE, WHERE CORE COULD NOT TAKE IT. `geometry.measure` returns
     # None on a short pleading-paper record — cacd/980704 is two pages, and
     # most of what is on them is the line-number rail — and the fallbacks
@@ -1625,6 +1870,57 @@ def read_ecf(model, geom, facts: EcfPaper = DEFAULT, **_):
         _lefts = Counter(round(l.x0) for l in live)
         body_x0 = float(_lefts.most_common(1)[0][0])
         measure = max(l.x1 for l in live) - body_x0
+
+    # ---- THE CLERK'S STAMP STANDS OUTSIDE THE MEASURE -------------------
+    # A filing stamp is applied AFTER the paper is typeset, so it is the one
+    # thing on the sheet that does not respect the text column: vawd's clerk
+    # sets seven rows out at x468-585 against a measure ending at 540, and
+    # they interleave with the masthead and the caption's first rows. Only
+    # the row sharing the masthead's own top was caught, so 'LAURA A.
+    # AUSTIN, CLERK' and 'DEPUTY CLERK' were tinted case info, the filing
+    # date became the caption's right column and 'BY: /s/ Hannah Warren'
+    # was read as the JUDGE (the user, 2026-08-25: 'we need to remove the
+    # stamps in vawd to the right … the deputy clerk stuff').
+    # Overflow names the block and the block claims its own rows: a stamp
+    # row that happens to fit inside the measure ('FILED') still stands in
+    # the column its neighbours cut, and nothing the court itself typeset
+    # begins that far right in the head of the sheet.
+    _margin: list = []
+    _right_edge = body_x0 + (measure or (pw - 2 * body_x0))
+    # …AND A MARGIN STAMP BEGINS RIGHT OF THE BODY RAIL. Collected on its
+    # RIGHT edge alone, the clerk's full-width header row joins the run — it
+    # reaches past the measure like the stamp does — and the column derived
+    # from the two spans the whole sheet, so every row in the top third is
+    # dropped as margin furniture: ded/…94121.49.0 lost its masthead AND its
+    # caption (`live` opened on 'MEMORANDUM OPINION' at top 291.9), and the
+    # record was refused for having no court to anchor on. Measured on the
+    # records this walk was written for, whose stamps stand at x0 518-534 of
+    # a 612pt sheet against a rail at 72; the header row starts at 64.8, left
+    # of the rail, which nothing the court typeset in its margin does.
+    # …AND THE CLERK'S HEADER IS NOT A MARGIN STAMP. It reaches past the
+    # measure exactly as a margin stamp does, so collected on the right edge
+    # alone it joins the run and the column derived from the two spans the
+    # sheet — every row of the top third then falls as margin furniture.
+    # Measured: ded/…94121.49.0 lost its masthead AND caption that way
+    # (`live` opened on 'MEMORANDUM OPINION' at top 291.9) and was refused
+    # for having no court to anchor on; vtd/…29737.262.0 and waed/
+    # …114934.19.0 the same, their headers indented to x0 124.7 and so not
+    # separable by the rail either. The header is the OVERLAY, which this
+    # reader already recognises and claims a few lines below; what stands in
+    # the MARGIN is what this walk is for.
+    _over = [l for l in live
+             if l.top < ph * _STAMP_BAND and l.x1 > _right_edge + 2.0
+             and not _looks_like_overlay(l.plain)]
+    if len(_over) >= _STAMP_ROWS_MIN:
+        _slo = min(l.x0 for l in _over) - 2.0
+        _shi = max(l.x1 for l in _over) + 2.0
+        _margin = [l for l in live if l.top < ph * _STAMP_BAND
+                   and l.x0 >= _slo and l.x1 <= _shi]
+        if len(_margin) >= _STAMP_ROWS_MIN:
+            _drop = {l.id for l in _margin}
+            live = [l for l in live if l.id not in _drop]
+        else:
+            _margin = []
 
     def centred(line) -> bool:
         return align(line) == "C" or _on_axis(line, pw, body_x0, measure)
@@ -1741,6 +2037,36 @@ def read_ecf(model, geom, facts: EcfPaper = DEFAULT, **_):
             pre_counsel = head
             break
 
+    if anchor is None:
+        # ---- AN OCR'D SHEET CANNOT SPELL ITS COURT'S NAME ---------------
+        # Every route above asks the masthead to SAY which court this is,
+        # and an OCR layer over a raster cannot: oknd/…66486.56.0 sets its
+        # masthead in a blackletter face and the engine read it 'mniteis
+        # States? ®igtrict Court' / 'for tl)e ^ortl)ern ^isitrict of
+        # (0felal)oma'. No anchor, so the reader refused and all eight
+        # headmatter rows came back unclaimed — while the docket, both
+        # parties, the pivot and both status rows underneath were perfectly
+        # legible (the user, 2026-08-25: 'can we attempt to rebuild the
+        # headmatter on pages iwth an ocr'd first page').
+        # Where the words cannot be trusted the TYPE still can: a masthead
+        # is centred, stands at the head of the sheet, and is set larger
+        # than the body. Gated on the document being an OCR scan, so no
+        # born-digital paper can reach a route that never reads a word.
+        from ..classify import ocr_text_layer as _ocr
+        if _ocr(model):
+            _bs = body_size or 12.0
+            for k, line in enumerate(live):
+                if line.top > ph * facts.closer_band:
+                    break
+                if not line.plain.strip() or _looks_like_overlay(line.plain):
+                    continue
+                if not centred(line):
+                    continue
+                if (line.size or 0.0) < _bs + 1.5:
+                    continue
+                anchor = k
+                break
+
     cfence: list = []
     if anchor is None:
         # …AND SOME PAPERS NEVER NAME THEIR COURT AT ALL. The sheet opens on
@@ -1764,13 +2090,29 @@ def read_ecf(model, geom, facts: EcfPaper = DEFAULT, **_):
     mast_at = (next((k for k, l in enumerate(live) if l.top > cfence[0].top),
                     len(live))
                if cfence else anchor)
+    # …AND NEVER BACK OVER A ROW SET IN ANOTHER TYPE. The walk takes any
+    # CENTRED row above the anchor, and a clerk's stamp wraps its tail onto a
+    # row of its own that is centred by accident of length: tnwd/
+    # …101491.32.0 stamps 'Case 2:24-cv-02105-SHM-tmp … Page 1 of 9' and then
+    # 'PageID 364' beneath it at 274-338 of a 612pt sheet, midpoint 306. Read
+    # as part of the masthead it became the record's FIRST headmatter row,
+    # tinted as though the court had named itself that (the user, 2026-08-25:
+    # 'needs to remove the batestamp from the top of the headmatter page').
+    # A MASTHEAD IS ONE BLOCK OF TYPE — tnwd sets its own name in
+    # CourierNewPS-BoldMT and the clerk stamps in LiberationSans — so the
+    # anchor's own face bounds the walk. The FACE only, never the size or the
+    # weight: a chambers that sets its first line larger than the rest is
+    # still naming itself.
+    _anchor_font = _face(live[anchor])[0] if not cfence else None
     while (mast_at > 0 and centred(live[mast_at - 1])
            and not _looks_like_overlay(live[mast_at - 1].plain)
            # …AND NEVER BACK OVER A TYPED RULE. cacd rules the sheet ABOVE
            # its own name; walked into the masthead run, the rule then ENDED
            # that run at its first row and the record was refused for having
            # no masthead (cacd/1021353).
-           and not _is_typed_rule(live[mast_at - 1].plain, facts)):
+           and not _is_typed_rule(live[mast_at - 1].plain, facts)
+           and (not _anchor_font
+                or _face(live[mast_at - 1])[0] == _anchor_font)):
         mast_at -= 1
     overlay = live[:mast_at]
     if not pre_counsel and overlay:
@@ -1787,8 +2129,23 @@ def read_ecf(model, geom, facts: EcfPaper = DEFAULT, **_):
         # an appearance, and no clerk's stamp ever says that.
         _stand = [l for l in overlay if l.plain.strip()
                   and not _looks_like_overlay(l.plain)]
+        # THE RUN STANDS AT THE RAIL BY ITS ROWS, NOT BY EVERY PIECE. An
+        # appearance sets some of itself in two columns — a label at the
+        # indent and its value out beside it — and cand/…446569.128.0 puts
+        # 'Telephone:' and 'Fax:' at 108 with their numbers at 180. Tested
+        # piece by piece those two numbers stand past the rail, the whole
+        # block failed, and the U.S. Attorney's appearance — three lawyers
+        # with bar numbers, the address, the e-mail and 'Attorneys for
+        # United States of America' — was dropped as the clerk's stamp (the
+        # user, 2026-08-25: 'why is this removing stuff at the top its all
+        # attorney stuff'). What the test means to ask is where the run
+        # BEGINS, and a row begins at its leftmost piece.
+        _srows: dict = {}
+        for _l in _stand:
+            _srows.setdefault(round(_l.top / 2.5), []).append(_l)
         if (len(_stand) >= 3
-                and all(l.x0 <= body_x0 + 60 for l in _stand)
+                and all(min(l.x0 for l in _r) <= body_x0 + 60
+                        for _r in _srows.values())
                 and _APPEARS_FOR.search(
                     _norm(" ".join(l.plain for l in _stand)))):
             pre_counsel = _stand
@@ -1828,7 +2185,7 @@ def read_ecf(model, geom, facts: EcfPaper = DEFAULT, **_):
     # centring — it ends where the fence opens the caption.
     mast = []
     j = mast_at
-    side: list = []
+    side: list = list(_margin)
     while j < len(live) and not cfence:
         line = live[j]
         # A TYPED RULE IS NEVER THE COURT'S NAME. wyd centres the box's top
@@ -1876,10 +2233,16 @@ def read_ecf(model, geom, facts: EcfPaper = DEFAULT, **_):
     # user, 2026-08-23: 'we are putting it on the right side isntead of
     # leaving it below court'). It is its own centred row, exactly like the
     # assigned-judge row below, and it is emitted as one.
+    # …AND THE NUMBER SET BARE, with no 'No.' before it. ncwd centres
+    # '3:24-CV-01051-MEO-WCM' under 'CHARLOTTE DIVISION' and `_docket_value`
+    # will not read it without its label, so the row fell to the caption band
+    # and was cut on the column axis it straddles (230-385 of a 612pt sheet):
+    # the docket came back as '3:24-CV-010', the half of itself left of 306.
     docketrow: list = []
     while j < len(live) and centred(live[j]) and (
             _docket_value(live[j].plain, facts) is not None
-            or _is_docket_label(_norm(live[j].plain))):
+            or _is_docket_label(_norm(live[j].plain))
+            or _bare_docket(_norm(live[j].plain))):
         docketrow.append(live[j])
         j += 1
 
@@ -1913,9 +2276,20 @@ def read_ecf(model, geom, facts: EcfPaper = DEFAULT, **_):
     _box = [] if cfence else [r for r in dfence
                               if r.top >= mast[-1].top
                               and r.top <= ph * facts.box_band]
+    # …AND THE FOOT HAS TO BE WHERE A CAPTION CAN END. Two strokes are read
+    # as a box wherever the second one falls, and a court that rules its
+    # FOOTNOTE separator near the foot of the sheet offers a second stroke
+    # 557pt below the first: wiwd/…55879.12.0 rules at 116.5 and 674.0 of a
+    # 792pt page, so the band spanned five sixths of the sheet and the whole
+    # opinion — seventeen rows of it — came back in the caption's left column
+    # (the user, 2026-08-25: 'its putting the opinion in teh caption'). How
+    # deep a caption may reach is already measured as `closer_band`; a stroke
+    # below that is not this box's foot. The compartment walk below may still
+    # reach past it, because there the page has SAID the structure continues.
     dboxed = (not boxed and len(_box) >= 2
               and _box[0].top <= mast[-1].bottom + facts.rail_head_slack
-              and _box[1].top - _box[0].top >= body_size)
+              and _box[1].top - _box[0].top >= body_size
+              and _box[1].top <= ph * facts.closer_band)
     if cfence:
         # THE FIRST STROKE OPENS THE CAPTION AND THE LAST CLOSES IT. What
         # falls between them is the docket and the party stack; the strokes
@@ -1928,12 +2302,87 @@ def read_ecf(model, geom, facts: EcfPaper = DEFAULT, **_):
     elif boxed:
         j += 1
         band_lo = fence[0].bottom
-        closer = fence[1]
-        cap_band = (band_lo, closer.top)
+        # A CONSOLIDATED SHEET STACKS TWO TYPED BOXES, and `fence[1]` is then
+        # the FIRST box's foot, not the caption's. rid/…60066.28.0 rules its
+        # sheet three times — 104.4 opening box one, 320.7 closing it, 335.2
+        # opening box two — and the band closed on the second rule, so box
+        # two's seventeen party rows and the rail glyphs beside them opened
+        # the writing.
+        # THE RAIL SAYS WHICH RULE CLOSES, which is the fact `_rail_runs_on`
+        # already states for the undrawn box: a real foot stands under the
+        # rail's end, while a rule BETWEEN boxes has the rail passing through
+        # it. WITHOUT A GLYPH RAIL NOTHING MOVES — `_rail_runs_on` answers
+        # False for a rail of None — and where no rule closes the box the
+        # FIRST rule still does, so a sheet whose caption simply runs deep is
+        # read exactly as before.
+        _brail2 = _glyph_rail([l for l in live[j:]
+                               if band_lo - 2 <= l.top <= ph * facts.box_band],
+                              facts)
+        closer = None
+        for _f in fence[1:]:
+            if _rail_runs_on(_f, _brail2, live[j:], facts):
+                continue
+            closer = _f
+            break
+        if closer is not None:
+            cap_band = (band_lo, closer.top)
+        else:
+            # THE RAIL'S OWN FOOT, where no rule closes the box at all —
+            # rid's second box closes on page 2, which this reader does not
+            # see. Only ever with a glyph rail in hand; without one `closer`
+            # is fence[1] as before.
+            cap_band = (band_lo, _brail2["bottom"] if _brail2 else fence[1].top)
+            if _brail2 is None:
+                closer = fence[1]
     elif dboxed:
         closer = None
         band_lo = _box[0].top
-        band_hi = _box[1].top
+        # A TABLE IS A BOX WITH ROWS. Taking the SECOND stroke as the box's
+        # foot assumes a chambers draws exactly two — its top edge and its
+        # bottom. Three Louisiana and Georgia templates rule their caption as
+        # a TABLE instead, and every interior cell rule arrives as another
+        # stroke: gand/…347954.36.0 draws four (tops 129.7, 152.0, 189.2,
+        # 221.5) and laed/…277514.7.0 and lawd/…220824.7.0 draw four more.
+        # The band closed on the rule between rows ONE and TWO, so the
+        # caption kept its first party and nothing else: 'v.', 'CRIMINAL
+        # ACTION NO.', the docket and 'JOHN EDWARD CARTER' all opened the
+        # writing, and the record came back with no title and no docket (the
+        # user, 2026-08-25: 'where it misses the start of an obvious one').
+        #
+        # THE RAIL SAYS HOW DEEP THE BOX IS. The divider the same template
+        # draws down the middle spans the WHOLE table — measured at
+        # 130.44→221.52 on gand and 114.18→189.72 on laed, each landing
+        # exactly on the box's last stroke — and it is already measured on
+        # every one of these records. It simply is not read until 100 lines
+        # further down, by which point `if closer is None and not dboxed:`
+        # has skipped every correction. So the foot is the last stroke the
+        # rail REACHES, which leaves a genuine two-stroke box untouched.
+        _bfoot = _box[1]
+        _brail = _drawn_rail(pm, (_box[0].top, _box[-1].top), facts)
+        if _brail is not None:
+            for _s in _box[1:]:
+                if _s.top <= _brail["bottom"] + facts.rail_head_slack:
+                    _bfoot = _s
+        # …AND A STACKED BOX RULES ITS COMPARTMENTS TO THE SAME DEPTH. A
+        # consolidated sheet draws one box per case, one under the other, and
+        # with nothing ruled down the middle the rail cannot say how far the
+        # structure reaches: wiwd/…55726.23.0 rules at 110.2, 323.6 and 545.6
+        # — two compartments of 213.4 and 222.0 — and the band closed on the
+        # first, so the second case's parties, its docket and its own copy of
+        # the paper's name opened the writing ('OPINION and ORDER' as the
+        # opinion's first block, with the title already read).
+        # EQUAL DEPTH IS THE EVIDENCE, and it is the page's own: a rule that
+        # closes a second compartment stands the same distance below the
+        # first as the first stands below the top. A rule belonging to
+        # something else further down the sheet does not.
+        elif len(_box) >= 3:
+            _step = _box[1].top - _box[0].top
+            for _k in range(2, len(_box)):
+                _gap = _box[_k].top - _box[_k - 1].top
+                if abs(_gap - _step) > 0.15 * max(_step, 1.0):
+                    break
+                _bfoot = _box[_k]
+        band_hi = _bfoot.top
         cap_band = (band_lo, band_hi)
     else:
         band_lo = (bench[-1] if bench
@@ -1996,18 +2445,75 @@ def read_ecf(model, geom, facts: EcfPaper = DEFAULT, **_):
             if line.top > band_hi:
                 break
             if _is_asterisk_band(line.plain, facts):
+                if _rail_runs_on(line, gdeep, live[j:], facts):
+                    continue          # between two boxes, not the closer
                 closer = line
                 break
             if (_is_typed_rule(line.plain, facts)
                     and sum(1 for l in live[j:]
                             if band_lo - 2 <= l.top < line.top - 2) >= 2):
+                if _rail_runs_on(line, gdeep, live[j:], facts):
+                    continue
+                # THE PAPER'S OWN NAME OUTRANKS A RUN OF UNDERSCORES. A
+                # SIGNATURE BLANK is typed in the same characters as a box
+                # edge, and on a SHORT paper it rides up into the closer
+                # band: ared/…142474.116.0 is a three-sentence order whose
+                # judge signs at top 406.6 of a 792pt sheet — inside the
+                # 435.6 (55%) the band allows. Read as the box's edge it
+                # closed the caption 180pt below where the caption ends, and
+                # the title, all four body rows and the signature itself
+                # came back as caption cells with the opinion empty (the
+                # user, 2026-08-25: 'its a simple one it shouldnt fail').
+                # PAGE LENGTH IS NOT THE FACT — the same court's
+                # …144534.15.0 is also one page, but its order fills the
+                # sheet and the blank falls to top 666, clear of the band.
+                #
+                # WHERE THE COURT HAS ALREADY NAMED THE PAPER ABOVE THE
+                # RULE, the name is the closer and the rule is furniture
+                # beneath it. Three readers further down this walk — the
+                # title, the full-measure body row, the last status row —
+                # each read that page correctly and none was consulted,
+                # because a closer found HERE pre-empts all of them.
+                #
+                # A CLOSER STANDS ACROSS THE CAPTION, and that is what
+                # separates the two forms — not where the title falls. A box
+                # edge spans the box, so it begins at the BODY RAIL; a judge
+                # signs on the right half, so a signature blank begins right
+                # of the measure's axis. Measured: mied types both of its
+                # rules at x0 72.0 against an axis of 305, ared's blank
+                # begins at 332.6.
+                # THE TITLE ALONE IS NOT ENOUGH, and this was measured the
+                # hard way: mied/…386351.99.0 sets a FOUR-ROW title that
+                # STRADDLES its rule, so a paper name does stand above it,
+                # and rejecting the rule on that account alone cut the pinned
+                # title from 4 rows to 1 (and …358560.113.0 from 3 to 1).
+                # Both facts are required: the rule must sit where a judge
+                # signs AND the court must have already named its paper.
+                if line.x0 > body_x0 + (measure or (pw * 0.76)) / 2 \
+                        and _names_paper_between(live[j:], band_lo, line.top,
+                                                 facts, pm, centred,
+                                                 body_x0, measure, pw):
+                    continue
                 closer = line
                 break
         cap_band = (band_lo, closer.top if closer else band_hi)
 
     # ---- the divider ----------------------------------------------------
+    # THE BAND IS A RANGE ON A SHEET. `top` restarts at the head of every
+    # page, so a band expressed as two bare y values sweeps in any row of any
+    # LATER page that happens to fall between them. rid/…60066.28.0 closes
+    # its box on page 1 at top 320.7 and the whole of page 2's own band —
+    # its clerk stamp, a second party stack, and the paper's name at 176.5 —
+    # lands inside [116.4, 320.7] by coincidence of position: the stamp was
+    # split down the rail into a party cell and a docket cell, the number
+    # came back with 'Case 1:25-cv-00351-JJM-AEM Docume' welded into the
+    # party, and 'ORDER' was consumed as a caption cell so no walk below
+    # could read it. The band carries the page it was measured on.
+    _pg_lo = mast[-1].page if mast else 1
+    _pg_hi = closer.page if closer is not None else _pg_lo
     in_band = [l for l in live[j:]
-               if l.top >= cap_band[0] and l.top <= cap_band[1] + 2
+               if (l.page, l.top) >= (_pg_lo, cap_band[0])
+               and (l.page, l.top) <= (_pg_hi, cap_band[1] + 2)
                and l is not closer and l not in fence]
     if not in_band:
         return _refuse("band-empty")
@@ -2051,6 +2557,43 @@ def read_ecf(model, geom, facts: EcfPaper = DEFAULT, **_):
             # title's own test is strong enough to look deeper: alone on its
             # row, opening a paper name, set in the court's own emphasis.
             deep_hi = ph * facts.box_band
+            # …BUT NEVER BELOW WHERE THE PROSE BEGINS. The deep scan exists
+            # because a long party stack pushes the paper's name past the
+            # closer band, and a caption that long sets only SHORT rows above
+            # it. Where a full-measure row stands first, the writing has
+            # begun and nothing under it names the paper: wiwd/…55879.12.0
+            # sets 'OPINION AND ORDER' in the caption's RIGHT column — right
+            # of the axis, so correctly passed over — and the scan ran on to
+            # the opinion's own section heading 'OPINION' at top 522, closing
+            # the caption there and taking eight rows of the writing into it
+            # (the user, 2026-08-25: 'its putting the opinion in teh
+            # caption'). The body's first row is the ceiling.
+            # …AND ONLY WHERE THE GEOMETRY IS THE COURT'S OWN. On a scanned
+            # sheet every coordinate is the scanner's guess: a row's width is
+            # whatever OCR made of it, so 'the body's first full-measure row'
+            # picks noise and cuts the band short — measured, 25 scanned
+            # records moved from 'scanned' to 'review' when this ceiling
+            # applied to them. A raster covering the sheet is the page saying
+            # so (`image_area`), and there the deep scan keeps its old reach.
+            # `image_area` is the FRACTION of the sheet a raster covers, not
+            # an area in points.
+            _rastered = (pm.image_area or 0) >= 0.5
+            _bfirst = None if _rastered else False
+            _col0 = (getattr(geom, "column", 0.0) or (pw * 0.76)) if geom \
+                else (pw * 0.76)
+            if _bfirst is False:
+                _bfirst = None
+                for line in live[j:]:
+                    if line.top <= band_lo or line.top > deep_hi:
+                        continue
+                    if any(o is not line and abs(o.top - line.top) <= 2.5
+                           for o in live[j:]):
+                        continue
+                    if (line.x1 - line.x0) >= 0.82 * _col0:
+                        _bfirst = line
+                        break
+            if _bfirst is not None:
+                deep_hi = min(deep_hi, _bfirst.top)
             title_row = None
             for line in live[j:]:
                 if line.top > deep_hi:
@@ -2078,6 +2621,18 @@ def read_ecf(model, geom, facts: EcfPaper = DEFAULT, **_):
                 if line.x0 > body_x0 + (measure or (pw * 0.76)) / 2:
                     continue
                 flat = _norm(line.plain)
+                # THE WORD LIST STILL GOVERNS WHERE THE TITLE MOVES THE
+                # BAND. `marked` is the page's own evidence and it reads the
+                # paper's name correctly — but HERE the name is not being
+                # labelled, it is being used to CLOSE THE CAPTION, and a row
+                # newly recognised as a title moves the band on courts whose
+                # band was already right. Measured: njd/…536839.56.0 is a
+                # letter opinion on chambers letterhead whose band closed at
+                # 'LETTER OPINION' and orphaned its docket, and
+                # ord/…160308.326.0 — the record the branch below is written
+                # for — lost its byline and took fifteen rows of the opinion
+                # into the caption. Neither is a title the page failed to
+                # mark; both are captions the band already read correctly.
                 if _is_title_head(flat, facts) \
                         and not _is_status_row(flat, facts) \
                         and (line.all_bold or centred(line)
@@ -2136,8 +2691,43 @@ def read_ecf(model, geom, facts: EcfPaper = DEFAULT, **_):
                                if band_lo <= l.top <= last_status.top + 2.5
                                and l is not closer and l not in fence]
                 else:
-                    cap_band = (band_lo, body_row.top - 2)
-                    in_band = [l for l in in_band if l.top < body_row.top - 1]
+                    # THE MEASURED NAME, BUT ONLY WHERE IT SHRINKS THE BAND.
+                    # The word list cannot spell every paper a district judge
+                    # names ('STATEMENT OF LEGAL PRINCIPLES …' — lamd; 'BENCH
+                    # TRIAL OPINION AND ORDER' — arwd), and both fell into the
+                    # caption's right column as `case-info`, taking the
+                    # record's title and docket with them. `_setapart` is the
+                    # page's own evidence and reads them correctly.
+                    # BUT A MEASURED ROW MAY ONLY CLOSE THE BAND EARLIER THAN
+                    # THE BODY DOES, NEVER LATER. Unbounded it reached PAST
+                    # the body's first row on ord/…160308.326.0 — the record
+                    # the `last_status` branch below is written for — and the
+                    # band grew from 14 cells to 30, taking the byline
+                    # ('CLARKE, United States Magistrate Judge') and fifteen
+                    # rows of the opinion into the caption with it. The body
+                    # row is the ceiling: above it a marked row is the paper's
+                    # name, below it the paper has already begun.
+                    _mrow = None
+                    for line in live[j:]:
+                        if line.top >= body_row.top:
+                            break
+                        if line.top <= band_lo:
+                            continue
+                        if any(o is not line and abs(o.top - line.top) <= 2.5
+                               for o in live[j:]):
+                            continue
+                        if line.x0 > body_x0 + (measure or (pw * 0.76)) / 2:
+                            continue
+                        _mf = _norm(line.plain)
+                        if _is_title_head(_mf, facts, _setapart(line)) \
+                                and not _is_status_row(_mf, facts) \
+                                and (line.all_bold or centred(line)
+                                     or _underlined(pm, line)):
+                            _mrow = line
+                            break
+                    _close = _mrow if _mrow is not None else body_row
+                    cap_band = (band_lo, _close.top - 2)
+                    in_band = [l for l in in_band if l.top < _close.top - 1]
             else:
                 cap_band = (band_lo, title_row.top - 2)
                 in_band = [l for l in live[j:]
@@ -2167,6 +2757,43 @@ def read_ecf(model, geom, facts: EcfPaper = DEFAULT, **_):
                              if rail["bottom"] + 1 < l.top
                              <= rail["bottom"] + 2.2 * (body_size or 12.0)),
                             key=lambda l: l.top)
+            # …AND THE CAPTION'S TAIL, WHEREVER THE PAPER'S NAME STANDS
+            # BELOW IT. The status rule above admits ONE row and only a bare
+            # status word, and a chambers that stops its rail short of the
+            # last PARTY is not covered by it: txed/…210323.131.0 rules
+            # fourteen '§' glyphs down to top 194.5 and then sets 'JOSE
+            # DANIEL MENDIGANO-MORENO' at 198.2 and its defendant number
+            # '(3)' at 212.0 beneath them. Both fell out of the box, opened
+            # the writing as a heading and a paragraph, and the paper's own
+            # two-row name followed them into the body (the user, 2026-08-25:
+            # 'not getting the start of the opinion right').
+            # THE NAME IS THE FLOOR, and the rows between the rail's foot and
+            # the name are the caption's own tail. Bounded three ways so this
+            # cannot become the band-growth that cost ord/…160308.326.0 its
+            # byline: the name must be one the WORD LIST knows (never a
+            # merely measured row), every row in between must be a short
+            # caption cell rather than the full-measure prose a paper opens
+            # with, and the run is capped at the roster's own row budget.
+            _tail_to = None
+            for _l in sorted((l for l in live[j:] if l.top > rail["bottom"] + 1
+                              and l.top <= band_hi), key=lambda l: l.top):
+                _tf = _norm(_l.plain)
+                if _is_title_head(_tf, facts) and not _is_status_row(_tf, facts) \
+                        and (_l.all_bold or centred(_l) or _underlined(pm, _l)):
+                    _tail_to = _l
+                    break
+                if (_l.x1 - _l.x0) >= 0.82 * (measure or (pw * 0.76)):
+                    break                  # the writing has already begun
+                if _is_typed_rule(_l.plain, facts) or _all_rule(_l.plain):
+                    break
+            if _tail_to is not None:
+                _tail = [l for l in live[j:]
+                         if rail["bottom"] + 1 < l.top < _tail_to.top - 1
+                         and l is not closer and l not in fence]
+                if 0 < len(_tail) <= facts.counsel_max_rows:
+                    in_band.extend(_tail)
+                    cap_band = (band_lo, max(l.bottom for l in _tail))
+                    _below = []
             for _l in _below[:1]:
                 if _is_status_row(_norm(_l.plain), facts):
                     in_band.append(_l)
@@ -2245,6 +2872,67 @@ def read_ecf(model, geom, facts: EcfPaper = DEFAULT, **_):
                                  prov=m.Prov(1, (_edge.id,)), kind="rule"))
         consumed.add(_edge.id)
 
+    # THE LINE BETWEEN TWO BOXES. A consolidated sheet rules between its
+    # caption boxes with the same asterisks it closes with. `_rail_runs_on`
+    # now steps over that row when choosing the closer, so the caption
+    # reaches both boxes — but the row itself is still furniture, and left
+    # in the band it renders as a caption cell and joins the party value:
+    # 'CHARLES AUSTIN JENKINS ***************** UNITED STATES OF AMERICA'
+    # (mdd/…560357.117.0). Recorded, not merely stepped over, so the claim
+    # stays total.
+    _seps = [l for l in in_band if _is_asterisk_band(l.plain, facts)]
+    for _sep in _seps:
+        dropped.append(m.Dropped(text=_norm(_sep.plain),
+                                 prov=m.Prov(1, (_sep.id,)), kind="rule"))
+        consumed.add(_sep.id)
+    if _seps:
+        in_band = [l for l in in_band if l not in _seps]
+
+    # THE COURT NAMED A SECOND TIME. A consolidated sheet does not always
+    # rule between its boxes — pawd/…319460.5.0 sets a whole second caption
+    # under the first, its own masthead included, so 'IN THE UNITED STATES
+    # DISTRICT COURT' and 'FOR THE WESTERN DISTRICT OF PENNSYLVANIA' stand
+    # INSIDE the band. Left there they were cut on the rail the box divides
+    # its columns with, MID-WORD — 'IN THE UNITED STATE' against 'S DISTRICT
+    # COURT', 'FOR THE WESTERN DISTR' against 'ICT OF PENNSYLVANIA' — and the
+    # halves joined the party value, which came back 'MONROE BLANKS, III, IN
+    # THE UNITED STATE FOR THE WESTERN DISTR MONROE BLANKS, III' (the user,
+    # 2026-08-25: 'that includes the court twice?').
+    # IT IS THE SAME COURT, ALREADY NAMED. The masthead above states it, so
+    # the repetition is the second box's own letterhead and furniture of it —
+    # recorded like the separator rule above, never merely stepped over, so
+    # the claim over the band stays total.
+    # A REPEAT IS A ROW THE MASTHEAD ALREADY STATES, WORD FOR WORD. Judged
+    # by `_names_court` alone this took rows that name the court for the
+    # FIRST time — a masthead line the walk above left inside the band — and
+    # the headmatter lost half the court's own name (waed/…99296.193.0, 2
+    # court rows down to 1; vawd, 3 down to 2). Only an exact repetition of
+    # what stands above is the second box's letterhead.
+    _mast_said = {_norm(l.plain).upper() for l in mast}
+    # A DOTTED LEADER IS A RULE, NOT A CAPTION CELL. pamd rules the foot of
+    # its caption with two rows of periods running the whole measure; left in
+    # the band they were cut on the column axis and joined the party value,
+    # which came back 'JESSICA SAGE, FCI-Lewisburg Warden, . . . . . …' for
+    # two hundred characters. Recorded like the separator rule above.
+    _leaders = [l for l in in_band if _is_leader(_norm(l.plain))]
+    for _ld in _leaders:
+        dropped.append(m.Dropped(text=_norm(_ld.plain)[:80],
+                                 prov=m.Prov(1, (_ld.id,)), kind="rule"))
+        consumed.add(_ld.id)
+    if _leaders:
+        in_band = [l for l in in_band if l not in _leaders]
+
+    _remast = ([l for l in in_band
+                if _names_court(l.plain, facts)
+                and _norm(l.plain).upper() in _mast_said]
+               if _mast_said else [])
+    for _rm in _remast:
+        dropped.append(m.Dropped(text=_norm(_rm.plain),
+                                 prov=m.Prov(1, (_rm.id,)), kind="court"))
+        consumed.add(_rm.id)
+    if _remast:
+        in_band = [l for l in in_band if l not in _remast]
+
     court_rows: list[str] = []
     for line in pre_counsel:
         emit(line, "counsel")
@@ -2256,7 +2944,13 @@ def read_ecf(model, geom, facts: EcfPaper = DEFAULT, **_):
         emit(line, "court")
     for line in docketrow:
         emit(line, "docket")
+        # THE ROW MAY STATE THE NUMBER BARE. `_docket_value` reads a labelled
+        # number and returns nothing for 'ncwd's '3:24-CV-01051-MEO-WCM',
+        # which the walk above now admits — read as a row but never as a
+        # value, the record was tinted correctly and still reported no docket.
         _dv = _docket_value(line.plain, facts)
+        if _dv is None and _bare_docket(_norm(line.plain)):
+            _dv = _norm(line.plain)
         if _dv and not crit.get("docket_number"):
             crit["docket_number"] = _dv
         elif _dv:
@@ -2372,8 +3066,23 @@ def read_ecf(model, geom, facts: EcfPaper = DEFAULT, **_):
     _rows_seen: dict = {}
     for _l in in_band:
         _rows_seen.setdefault(round(_l.top / 2.5), []).append(_l)
+    # THE PIVOT IS WORTH A ROW. Four rows was a proxy for 'this is a party
+    # stack and not one stray centred line', but a caption that states its
+    # docket ABOVE the band has only three rows left in it — mad/…296409.10.0
+    # centres 'CIVIL ACTION NO. 26-10939-RGS' one row under the district,
+    # where the masthead walk claims it as the docket, and leaves
+    # 'LORENZO TORRES' / 'v.' / 'UNITED STATES OF AMERICA' behind. Three
+    # rows, every one of them alone and on the axis to a tenth of a point,
+    # and the floor refused them: the parties went to the right-hand column
+    # and the record published a caption of ['v.'] (the user, 2026-08-25:
+    # 'its a differnet veritical format? i think its struggling beacsue of
+    # it'). A row that is nothing but the pivot says what the stack IS, and
+    # no stray centred heading carries one.
+    _stack_pivot = any(_is_pivot_row(v[0].plain, facts)
+                       for v in _rows_seen.values())
     centered_stack = (
-        mid is None and not cfence and not fence and len(_rows_seen) >= 4
+        mid is None and not cfence and not fence
+        and len(_rows_seen) >= (3 if _stack_pivot else 4)
         and all(len(v) == 1 for v in _rows_seen.values())
         and all(abs((v[0].x0 + v[0].x1) / 2 - _stack_axis) <= 8.0
                 for v in _rows_seen.values()))
@@ -2469,6 +3178,11 @@ def read_ecf(model, geom, facts: EcfPaper = DEFAULT, **_):
     right: list = []
     left_plain: list[str] = []
     right_plain: list[str] = []
+    # THE INDENTS THE LEFT COLUMN HAS OPENED ON. A cell keeps one x0 — its
+    # first piece's — so a subject that opens 'IN RE:' at the rail and sets
+    # its words at 144 remembers only 72, and the wrap standing at 144 on the
+    # next row matches nothing. Every piece's own edge is kept instead.
+    _left_x0s: set = set()
     for row in rows:
         l_parts: list = []
         r_parts: list = []
@@ -2508,13 +3222,45 @@ def read_ecf(model, geom, facts: EcfPaper = DEFAULT, **_):
                 (r_parts if ordered[0].top < cfence[1].top
                  else l_parts).extend(ordered)
             elif len(ordered) >= 2:
-                cut = max(range(len(ordered) - 1),
-                          key=lambda i: ordered[i + 1].x0 - ordered[i].x1)
+                # THE COLUMNS PART NEAREST THE MEASURE'S AXIS. The widest gap
+                # is a good proxy only while the row's own indents are
+                # narrower than the gutter, and a caption that opens 'IN RE:'
+                # indents its subject further than that: wied/…83239.138.0
+                # sets 'IN RE:' at 72, 'APPOINTMENT OF ADDITIONAL' at 144 and
+                # 'General Order No. 26-4' at 360 — a 30.2pt step before the
+                # subject against 21.4pt before the docket — so the cut fell
+                # after 'IN RE:' and the subject was welded to the docket out
+                # in the right column, leaving the record with none (the
+                # user, 2026-08-25: 'needs to group in case caption better').
+                # THE AXIS REPRODUCES THE GAP RULE where the gap rule was
+                # right: nywd's three-piece row ('V.' / 'Plaintiffs,' /
+                # 'DECISION AND ORDER') still parts before the paper's name,
+                # because that gap is the one nearest the axis too. The
+                # widest gap breaks a tie, so a row whose pieces straddle the
+                # axis evenly parts where the page left the most air.
+                _axis3 = body_x0 + (measure or (pw * 0.76)) / 2
+                cut = min(range(len(ordered) - 1),
+                          key=lambda i: (abs(((ordered[i].x1
+                                               + ordered[i + 1].x0) / 2)
+                                             - _axis3),
+                                         -(ordered[i + 1].x0 - ordered[i].x1)))
                 l_parts = ordered[:cut + 1]
                 r_parts = ordered[cut + 1:]
             elif (ordered[0].x0 <= body_x0 + facts.lone_piece_reach
                   or _is_pivot_row(ordered[0].plain, facts)
-                  or _is_status_row(ordered[0].plain, facts)):
+                  or _is_status_row(ordered[0].plain, facts)
+                  # …OR IT STANDS ON THE LEFT COLUMN'S OWN INDENT. A lone
+                  # piece is placed by its distance from the rail, and a
+                  # caption that indents its subject further than the reach
+                  # puts that subject's WRAP in the docket's column: wied/
+                  # …83239.138.0 sets 'IN RE:' at 72 and 'APPOINTMENT OF
+                  # ADDITIONAL' at 144, and 'PANEL ATTORNEYS' — the same
+                  # subject, the same 144 — came back beside the docket. A
+                  # piece that opens exactly where a left cell above it
+                  # opened is that cell continuing, whatever its distance
+                  # from the rail.
+                  or any(abs(ordered[0].x0 - _x) <= 1.5
+                         for _x in _left_x0s)):
                 # THE PIVOT AND THE STATUS BELONG TO THE PARTIES. Placed by
                 # x0 alone, a chambers that indents 'v.' or 'Plaintiff,'
                 # further than the reach put them in the right column, where
@@ -2523,6 +3269,7 @@ def read_ecf(model, geom, facts: EcfPaper = DEFAULT, **_):
                 l_parts = [ordered[0]]
             else:
                 r_parts = [ordered[0]]
+        _left_x0s.update(p.x0 for p in l_parts)
         left.append(cell(l_parts, "L") if l_parts else blank())
         right.append(cell(r_parts, "R") if r_parts else blank())
         for p in l_parts + r_parts:
@@ -2566,10 +3313,55 @@ def read_ecf(model, geom, facts: EcfPaper = DEFAULT, **_):
             if not crit.get("judges"):
                 crit["judges"] = _norm(_rt).rstrip(".")
 
+    # THE AIR THE PAGE LEFT, measured in the caption's own pitch. A run of
+    # rows the court set tight together is one thing it is saying; a row a
+    # blank line away is another, and the walks below group by ADJACENCY IN
+    # `rows` — which is not adjacency on the page, because the rail-only rows
+    # have already been taken out of it. ohnd/…323129.7.0 sets 'MAGISTRATE
+    # JUDGE' / 'JONATHAN D. GREENBERG', then two rows carrying nothing but
+    # the rail, then 'REPORT AND RECOMMENDATION'. With the rail rows gone the
+    # judge's name stands directly above the paper's name in this list, so
+    # the backward absorb took it and the record's paper was named 'JONATHAN
+    # D. GREENBERG REPORT AND RECOMMENDATION' (the user, 2026-08-25: 'we
+    # should use spacing to group better in all heamdatters').
+    # THE PITCH IS THE PAGE'S OWN, never a constant: nvd/…162581.112.0 is
+    # line-numbered pleading paper at 27.6pt whose three-row title is set
+    # TIGHTER than that (18.6 and 9.0 between its rows), while ohnd runs at
+    # 13.8pt and leaves 41.4pt — three pitches — above its title. Read
+    # against each sheet's own step both answer correctly; read against a
+    # number, one of them cannot.
+    _steps = sorted(rows[_i + 1][0].top - rows[_i][0].top
+                    for _i in range(len(rows) - 1)
+                    if rows[_i + 1][0].page == rows[_i][0].page
+                    and rows[_i + 1][0].top > rows[_i][0].top)
+    _pitch = _steps[len(_steps) // 2] if _steps else 0.0
+
+    def _tight(above: int, below: int) -> bool:
+        """Do these two rows stand together, with no blank line between?"""
+        if not _pitch or not (0 <= above < len(rows)
+                              and 0 <= below < len(rows)):
+            return False
+        _a, _b = rows[above][0], rows[below][0]
+        if _a.page != _b.page:
+            return False
+        return _b.top - _a.top <= _pitch * _GROUP_PITCH
+
     for column, texts in ((left, left_plain), (right, right_plain)):
         open_title = False
         want_docket = False
+        # ROWS THE WALK PASSED OVER, newest last, each with its row index —
+        # see the backward absorb at the title branch below. Contiguity is
+        # checked against the index, so a row claimed by any test in between
+        # breaks the run without this needing to be cleared there.
+        _loose: list = []
+        # HAS THIS COLUMN NAMED THE CASE YET? The pivot divides one side of a
+        # caption from the other, so every cell below it in the party column
+        # is a party — see the bench test below, which is the only reader
+        # that needs to know.
+        _past_pivot = False
         for _ri, (cellrow, flat) in enumerate(zip(column, texts)):
+            if _is_pivot_row(flat, facts):
+                _past_pivot = True
             if not flat:
                 open_title = False
                 continue
@@ -2604,7 +3396,42 @@ def read_ecf(model, geom, facts: EcfPaper = DEFAULT, **_):
                     crit["judges"] = _norm(_by.group(1))
                 open_title = False
                 continue
+            # A JUDGE CAN BE THE DEFENDANT. `_JUDGE_CELL` reads an office
+            # and a surname, which is exactly how a prisoner civil-rights
+            # caption names the person sued: kywd/…143909.11.0 captions
+            # 'ANTONIO LEE O'BANNON' / 'v.' / 'JUDGE JULIE KAELIN', and the
+            # defendant was tinted 'panel' and listed as the bench while
+            # the case name came out as the plaintiff alone (the user,
+            # 2026-08-25: 'incorrectly tags panel instead of caption
+            # beacuse the defnedant is a judge?'). The caption settles it
+            # on the same row: a party stands opposite its STATUS, and the
+            # bench never does — nothing prints 'DEFENDANT' beside the
+            # judge who is hearing the case. Left column only, where the
+            # parties are.
+            # …AND WHERE THE CHAMBERS RULES ITS CAPTION, THE STATUS IS NOT
+            # OPPOSITE. The test above reads the cell across the row, and on
+            # a caption divided by a drawn or typed rail what stands there is
+            # the rail's own glyph: moed/…224598.26.0 sets 'HON. JOHN F.
+            # NEWSHAM,' at the body rail with ')' beside it and 'Defendant.'
+            # on the row below, so the judge who was SUED was still listed as
+            # the bench and the case name was 'JOHNATHAN MCFARLAND' alone
+            # (the user, 2026-08-25: 'shoulndt this … be better at not
+            # confusing panel and caption'). kyed/…110486.5.0 ('JUDGE LUCY
+            # VANMETER, et al.,') and nced/…223777.8.0 ('JUDGE KEVIN
+            # BOXBERGER, in his') are the same caption, the same way.
+            # THE PIVOT IS WHAT THE PAGE STATES INSTEAD. A caption's party
+            # column names one side, says 'v.', then names the other; a cell
+            # BELOW that pivot is on the second side of a case, which is a
+            # place only a party stands. Measured: the bench cells this
+            # corpus reads correctly — ohsd's 68, ohnd's 49, ilnd's 41 — are
+            # every one of them in the caption's OTHER column, right of the
+            # rail, where no pivot is ever set.
             _bench = _JUDGE_CELL.match(flat) or _HON_CELL.match(flat)
+            if _bench and column is left and (
+                    _past_pivot
+                    or (_ri < len(right_plain)
+                        and _is_status_row(_norm(right_plain[_ri]), facts))):
+                _bench = None
             if _bench:
                 cellrow.role = "panel"
                 # THE OFFICE ALONE NAMES NOBODY. 'United States District
@@ -2670,10 +3497,60 @@ def read_ecf(model, geom, facts: EcfPaper = DEFAULT, **_):
             if not _is_status_row(flat, facts) \
                     and (_is_title_head(flat, facts)
                          or (open_title and _is_title_tail(flat, facts))):
+                # A TITLE CAN OPEN MID-BLOCK. The opener list cannot be
+                # finished — `_is_title_head` says so itself — so the row
+                # the list happens to know is not always the block's FIRST:
+                # nvd/…168135.46.0 sets 'STIPULATION AND [PROPOSED]' /
+                # 'ORDER TO EXTEND DEADLINE TO' / 'RESPOND TO PLAINTIFF
+                # RND' / … as one run in the right column, and the walk
+                # opened on 'ORDER' — the one word it recognised — leaving
+                # the paper named from its second row down (the user,
+                # 2026-08-25: 'how come this doesnt get the full thing?').
+                # The walk already runs a title FORWARD to the end of its
+                # block; this is the same move backward, over rows it
+                # passed unclaimed, and it stops at the first gap or at any
+                # row another test took.
+                if column is right and not open_title:
+                    _back, _want = [], _ri - 1
+                    for _lri, _lcell, _lflat in reversed(_loose):
+                        if _lri != _want or not _is_title_tail(_lflat, facts):
+                            break
+                        # …AND THE PAGE HAS TO HAVE SET THEM TOGETHER.
+                        if not _tight(_lri, _lri + 1):
+                            break
+                        _back.append((_lcell, _lflat))
+                        _want -= 1
+                    for _lcell, _lflat in reversed(_back):
+                        _lcell.role = "title"
+                        title_parts.append(_title_text(_lflat, facts))
+                        anchor_ids.extend(_lcell.prov.line_ids)
                 cellrow.role = "title"
                 title_parts.append(_title_text(flat, facts))
                 anchor_ids.extend(cellrow.prov.line_ids)
                 open_title = True
+                continue
+            # THE TITLE'S OWN WRAP NEEDS NO VOCABULARY. `_is_title_tail`
+            # reads the words, and a paper's name wraps wherever the measure
+            # runs out — mid-phrase, on a possessive, on nothing the list
+            # knows: nvd/…162581.112.0 sets 'Order Regarding Otis Elevator' /
+            # 'Corporation's Motion for Summary' / 'Judgment and Related
+            # Filings' as one tight block in the caption's right column, and
+            # the middle row matched neither head nor tail. Tinted case
+            # info, it fell out; the third row then opened a SECOND title,
+            # and the paper came out named 'ORDER REGARDING OTIS ELEVATOR
+            # JUDGMENT AND RELATED FILINGS' (the user, 2026-08-25: 'why
+            # doesnt this all get grouped together since its bolded and
+            # single spaced tightly together?').
+            # What closes the block is not a word but a GAP: an empty cell
+            # in the column ends the run two branches up, and every fact the
+            # caption states in its own right — docket, date, jury demand,
+            # bench, citation, status — has already been tested and taken
+            # above. A row under an open title that says none of those is
+            # the title still going.
+            if open_title and column is right:
+                cellrow.role = "title"
+                title_parts.append(_title_text(flat, facts))
+                anchor_ids.extend(cellrow.prov.line_ids)
                 continue
             open_title = False
             if column is left:
@@ -2685,6 +3562,8 @@ def read_ecf(model, geom, facts: EcfPaper = DEFAULT, **_):
                 # edge, and it is caption content there just as it is when
                 # it sits indented under the name.
                 cellrow.role = "caption"
+            else:
+                _loose.append((_ri, cellrow, flat))
     drew_foot = False
     # THE RAIL'S OWN RUN is not the caption's rhythm: rows that held only
     # the divider are empty on both sides and render as phantom blanks.
@@ -2903,7 +3782,8 @@ def read_ecf(model, geom, facts: EcfPaper = DEFAULT, **_):
             # the title scan (nynd prints its title below the roster), and
             # for the far commoner order — box, title, body — the title
             # stands first in this run and would be swallowed as counsel.
-            if _is_title_head(flat, facts) and not _is_status_row(flat, facts):
+            if _is_title_head(flat, facts, _setapart(line)) \
+                    and not _is_status_row(flat, facts):
                 # …UNLESS THE ROSTER STANDS BELOW THE PAPER'S NAME. The
                 # comment above is the common order -- box, title, body -- but
                 # ded/76405.199.0 prints 'MEMORANDUM OPINION' first and its
@@ -2920,6 +3800,42 @@ def read_ecf(model, geom, facts: EcfPaper = DEFAULT, **_):
                            for l in _run[_k + 1:_k + 1 + facts.counsel_max_rows]):
                     break
                 _named_above.append(line)
+                # …AND THE NAME'S OWN WRAP GOES WITH IT. A paper's name is
+                # stepped over one row at a time, so only the rows the word
+                # list happens to know were claimed and the rest fell through
+                # to the roster: hid sets 'ORDER ADOPTING FINDINGS AND
+                # RECOMMENDATION TO (1) DISMISS' over 'COMPLAINT WITHOUT
+                # LEAVE TO AMEND AND (2) DENY APPLICATION TO' over 'PROCEED
+                # WITHOUT PAYMENT OF FEES OR COSTS AS MOOT (ECF No. 5)' and
+                # two rows more, and the name came back cut after the second.
+                # THE WRAP IS TAKEN ON THE PAGE'S TERMS — the court's own
+                # centring and its own pitch — because the words run out long
+                # before the name does. Hawaii joins the parts of a
+                # multi-part name with a bare lower-case 'and' on a row of
+                # its own, so the pitch is measured against the run's OWN
+                # spacing rather than a paragraph floor: …172005.62.0 sets
+                # its five rows at gaps of 1.6 and 15.2pt and both are the
+                # name still going.
+                _prv = line
+                for _nx in _run[_k + 1:]:
+                    if _nx.top <= _prv.bottom:
+                        continue
+                    if not centred(_nx):
+                        break
+                    if _nx.top - _prv.bottom > 2.2 * (_nx.size or 12.0):
+                        break
+                    _nf = _norm(_nx.plain)
+                    if _is_status_row(_nf, facts) or _all_rule(_nx.plain) \
+                            or _BYLINE_HEAD.match(_nf):
+                        break
+                    if (_nx.x1 - _nx.x0) >= 0.82 * (measure or (pw * 0.76)) \
+                            and not _paper_case(_nf):
+                        break              # the writing has begun
+                    if not (_is_title_tail(_nf, facts)
+                            or _setapart(_nx)):
+                        break
+                    _named_above.append(_nx)
+                    _prv = _nx
                 continue
             # …OR THE OFFICER SIGNS OVER HIS OFFICE, on two rows. nynd closes
             # its appearances block with 'DANIEL J. STEWART' over 'United
@@ -2952,17 +3868,41 @@ def read_ecf(model, geom, facts: EcfPaper = DEFAULT, **_):
         # below that row is the writing — a sharper cut than trimming the
         # joined text, and the only one that works where the run overshot
         # into prose that names no party.
+        # …AND AN APPEARANCE IS A LABEL, NOT A PHRASE IN A SENTENCE. The
+        # test above is a search over accumulated text, so any prose that
+        # happens to say 'counsel for …' closes the roster wherever it
+        # stands: ilnd/…502555.107.0_1 is a protective order whose second
+        # paragraph reads '… counsel for potential witnesses, and other
+        # persons to whom …', and on that phrase the walk kept the paper's
+        # name and FIFTEEN rows of the order as counsel, leaving the opinion
+        # to open mid-sentence at 'disclosure (collectively, "authorized
+        # persons")' (the user, 2026-08-25: 'not recognizing it and keeping
+        # going?').
+        # WIDTH IS THE FACT, AND IT IS THE CLOSING ROW'S WIDTH, NOT THE
+        # ROSTER'S. A roster's own rows run the full measure like any prose —
+        # ded/…76405.199.0 sets four appearance rows at 1.00 of the measure —
+        # but the row that CLOSES an appearance is a short label standing by
+        # itself: ded's 'Attorneys for Plaintiffs' is 0.24 of it, and a
+        # wrapped phrase closes on a short row too ('… Minneapolis, MN,' /
+        # 'for Respondents.'). ilnd's match falls in the middle of a row that
+        # runs the whole measure, which no label does.
+        _col = measure or (pw * 0.76)
+
+        def _closes_appearance(acc: str, line) -> bool:
+            return (_APPEARANCE_END.search(acc) is not None
+                    and (line.x1 - line.x0) < 0.82 * _col)
+
         _last_appearance = None
         _acc = ""
         for _ci, _cl in enumerate(counsel):
             _acc = _norm(_acc + " " + _cl.plain)
-            if _APPEARANCE_END.search(_acc):
+            if _closes_appearance(_acc, _cl):
                 _last_appearance = _ci
         if _last_appearance is not None:
             del counsel[_last_appearance + 1:]
         elif not any(_is_status_row(_norm(l.plain), facts) for l in counsel):
-            while counsel and not _APPEARANCE_END.search(
-                    _norm(" ".join(l.plain for l in counsel))):
+            while counsel and not _closes_appearance(
+                    _norm(" ".join(l.plain for l in counsel)), counsel[-1]):
                 counsel.pop()              # only what NAMED its party is kept
     if counsel and _is_party_stack(counsel, facts):
         # THE CAPTION, NOT THE ROSTER — see `_is_party_stack`. Emitted as what
@@ -2985,7 +3925,13 @@ def read_ecf(model, geom, facts: EcfPaper = DEFAULT, **_):
         if not crit.get("judges"):
             crit["judges"] = _norm(signer[0].plain).rstrip(".")
 
-    if not title_parts and counsel and _named_above:
+    # THE PAPER'S NAME DOES NOT DEPEND ON A ROSTER. `_named_above` holds the
+    # rows this walk STEPPED OVER because they name the paper, and gating
+    # their emission on `counsel` made the title conditional on an unrelated
+    # fact: hid/…176817.7.0 and …172005.62.0 lost their names outright the
+    # moment the roster walk stopped mistaking their orders for appearances,
+    # because the rows had been claimed here and nothing emitted them.
+    if not title_parts and _named_above:
         for line in _named_above:
             _said = _title_text(_norm(line.plain), facts)
             emit(line, "title",
@@ -3023,11 +3969,26 @@ def read_ecf(model, geom, facts: EcfPaper = DEFAULT, **_):
         crit.setdefault("panel", []).append(_pf)
 
     if not title_parts:
+        # THE FLOOR IS A PLACE ON A SHEET, NOT A NUMBER. `top` restarts at
+        # the head of every page, so a bare y compares a page-2 coordinate
+        # against a page-1 caption as though they lay on one ruler. A caption
+        # that closes on page 2 therefore hides every row below it: rid/
+        # …60066.28.0 opens its box on page 1, closes it on page 2, and sets
+        # 'ORDER' under that close at top 176.5 — numerically ABOVE the page-1
+        # floor of 320.7, so the walk stepped over the paper's own name and
+        # went on doing so for the rest of the document (the user, 2026-08-25:
+        # 'couldnt we identify the title as the centered line on the second
+        # page after the caption?' — the walk was already written to do
+        # exactly that, and could not reach it). Compared as (page, y) the
+        # order is the reading order, which is what every test here means.
+        _floor_pg = mast[-1].page if mast else 1
         _floor = cap_band[1]
         if closer is not None:
-            _floor = max(_floor, closer.bottom)
+            _floor_pg, _floor = max((_floor_pg, _floor),
+                                    (closer.page, closer.bottom))
         if foot is not None:
-            _floor = max(_floor, foot.top)
+            _floor_pg, _floor = max((_floor_pg, _floor),
+                                    (foot.page, foot.top))
         # THE TITLE MAY STAND BELOW THE ROSTER. nynd prints APPEARANCES, the
         # roster, the officer's announcement and only THEN
         # 'REPORT-RECOMMENDATION and ORDER' — so this scan, run from the
@@ -3035,9 +3996,11 @@ def read_ecf(model, geom, facts: EcfPaper = DEFAULT, **_):
         # the title was never read on any of the court's 24 records. Run
         # after the roster instead, from below whatever it claimed.
         if counsel:
-            _floor = max(_floor, max(l.bottom for l in counsel))
+            _floor_pg, _floor = max([(_floor_pg, _floor)]
+                                    + [(l.page, l.bottom) for l in counsel])
         if signer is not None:
-            _floor = max(_floor, signer[1].bottom)
+            _floor_pg, _floor = max((_floor_pg, _floor),
+                                    (signer[1].page, signer[1].bottom))
         # THE PAGE'S OWN MARKING, measured. A row set in a face the
         # document does not use for its prose, standing on the measure's
         # axis, directly under the box, is the paper's name — whatever words
@@ -3053,14 +4016,7 @@ def read_ecf(model, geom, facts: EcfPaper = DEFAULT, **_):
         # first row starts at x0=74 against a rail of 72 and is nonetheless
         # centred to a tenth of a point: every row of that title has its
         # midpoint at 306.0 on a 612pt sheet).
-        _bodyface = _body_face(model)
-        _axis = body_x0 + (measure or (pw - 2 * body_x0)) / 2
-
-        def _marked(line) -> bool:
-            """Is the row marked as the paper's name by type and position?"""
-            return (_bodyface is not None
-                    and _face(line) != _bodyface
-                    and abs((line.x0 + line.x1) / 2 - _axis) <= 6.0)
+        _marked = _setapart          # measured once, above
 
         # THE NAME STANDS DIRECTLY UNDER THE BOX. Without that the first
         # centred heading of a paper that prints no title at all ('
@@ -3071,8 +4027,10 @@ def read_ecf(model, geom, facts: EcfPaper = DEFAULT, **_):
         # of the band; a later row joins it as a wrap or not at all.
         first = True
         prev = None
+        head_centred = False
+        head_face = None
         for line in live[j:]:
-            if line.top <= _floor + 1:
+            if (line.page, line.top) <= (_floor_pg, _floor + 1):
                 continue
             # A TYPED RULE IS NOT A TITLE, AND NOT A REASON TO STOP LOOKING.
             # wyd closes its box with a row of em dashes 0.03pt BELOW the
@@ -3083,7 +4041,7 @@ def read_ecf(model, geom, facts: EcfPaper = DEFAULT, **_):
             # paragraphs instead (the user, 2026-08-20: 'headmatter extends
             # to the title of the document'). The rule is the box talking;
             # it is recorded so the claim stays total, and stepped over.
-            if _is_typed_rule(line.plain, facts):
+            if _is_typed_rule(line.plain, facts) or _all_rule(line.plain):
                 if line.id not in consumed:
                     dropped.append(m.Dropped(
                         text=_norm(line.plain), prov=m.Prov(1, (line.id,)),
@@ -3102,24 +4060,153 @@ def read_ecf(model, geom, facts: EcfPaper = DEFAULT, **_):
             # inventing a distance down the sheet that a title may not pass.
             if finder.kind(pm, line) is not None:
                 continue
+            # A SERVICE LIST STANDS BETWEEN THE CAPTION AND THE PAPER'S
+            # NAME. vid addresses its order to counsel before naming it —
+            # 'TO: Julie Beberman, Esq.' / 'Peter James Lynch, Esq.' /
+            # 'Adam Francis Sleeper, Esq., U.S. Attorney' — and this walk
+            # breaks on the first row that is not set apart, so it stopped
+            # at 'TO:' and never reached 'ORDER TRANSFERRING VENUE' 28pt
+            # below it (vid/…41531.24.0 and .31.0, which read their title
+            # only while their rail went unrecognised and the caption was
+            # read the wrong way). Stepped over BEFORE the title opens, and
+            # only where the row names counsel's own apparatus — an Esq., a
+            # firm, an address — so no run of body prose can be crossed to
+            # reach a heading. Emitted, not merely skipped: what the reader
+            # steps over it claims.
+            if prev is None and _COUNSEL_APPARATUS.search(_norm(line.plain)):
+                emit(line, "counsel")
+                continue
             _mk = _marked(line)
+            # A WRAP SET TO THE FULL MEASURE IS STILL THE NAME. `_on_axis`
+            # refuses any row beginning within 12pt of the body rail — its
+            # docstring names hid as the reason, a caption row carrying both
+            # columns being wide enough to sit on the axis by accident — and
+            # a paper's name wrapped to the measure has the same shape.
+            # SYMMETRY IS WHAT THE ACCIDENT LACKS: a two-column row is wide
+            # because it holds two cells and its margins do not match, while
+            # a centred wrap carries the SAME air either side (hid/
+            # …176817.7.0: 3.6pt left, 3.6pt right of a 72/540 measure).
+            # ONLY EVER FOR A WRAP. Justified prose is symmetric by
+            # definition, so this may not open a title — `prev` is not None
+            # only once a head has been taken on its own evidence.
+            _rx1 = geom.right_x1 if geom else (pw - body_x0)
+            _symraw = abs((line.x0 - body_x0) - (_rx1 - line.x1)) <= 4.0
+            # …AND A WRAP IS SET IN THE TYPE ITS HEAD WAS SET IN. Symmetry
+            # alone admits anything the measure justifies, and a roster is
+            # justified too: lamd/…69238.59.0 came back named 'MEMORANDUM
+            # OPINION RUSSELL D. PAUL, BERGER MONTAGUE PC, WILMINGTON, DE;
+            # …', its appearances welded onto its name and `attorneys` cut
+            # to the fragment below them. The head's own face is the bound.
+            _sym = (prev is not None and _symraw
+                    and _face(line) == head_face)
             if not (line.all_bold or centred(line)
-                    or _underlined(pm, line) or _mk):
+                    or _underlined(pm, line) or _mk or _sym):
                 break
             flat = _norm(line.plain)
             if prev is None:
                 if _is_status_row(flat, facts):
                     break
-                if not (_is_title_head(flat, facts)
+                if not (_is_title_head(flat, facts, _mk)
                         or (_mk and first)):
                     break
+                # A NAME SET TO THE FULL MEASURE OPENS CENTRED TOO, and the
+                # run's own tests depend on knowing it: hid/…172005.62.0
+                # sets its first row at 82.8-529.2 of a 72/540 measure —
+                # 10.8pt of air either side — which `_on_axis` refuses for
+                # starting near the rail. Read as ranged left, the wider
+                # pitch a multi-part name needs was never allowed and the
+                # name was cut at its joining 'and'.
+                head_centred = centred(line) or _symraw
+                head_face = _face(line)
             else:
+                # A WRAPPED TITLE STAYS ON THE AXIS. The pitch test below
+                # measures the GAP and nothing else, and a numbered heading
+                # opens close enough under the paper's name to pass it:
+                # mdd/…574444.44.0 sets 'I.' 6.9pt under 'MEMORANDUM
+                # OPINION' on a 12pt page, well inside the 0.75-of-size
+                # paragraph floor, so the title walk took 'I.' and
+                # 'INTRODUCTION' and the opinion lost its own first heading
+                # (the user, 2026-08-25: 'swallowing up the start of the
+                # opinion I. INtroduction??? a centered aligned memornadum
+                # opinion after teh caption is obviously the start'). What
+                # tells them apart is not distance but ALIGNMENT: a title
+                # that opens centred wraps centred, and a heading numbered
+                # in the margin stands flush at body_x0.
+                # …AND A WRAP SET SO WIDE IT REACHES THE RAIL IS STILL
+                # CENTRED. `_on_axis` refuses any row beginning within 12pt
+                # of the body rail, and its own docstring names hid as the
+                # reason: a caption row carrying BOTH columns is wide enough
+                # to sit on the axis by accident. A paper's name wrapped to
+                # the full measure is the same shape and is thrown away with
+                # it — hid/…176817.7.0 sets 'PROCEED WITHOUT PAYMENT OF FEES
+                # OR COSTS AS MOOT (ECF No. 5)' at 75.6-536.4 against a rail
+                # of 72 and a measure ending at 540, and the name was cut
+                # after its second row.
+                # SYMMETRY IS WHAT THE ACCIDENT LACKS. A two-column caption
+                # row is wide because it holds two cells, and its margins do
+                # not match; a centred wrap is set with the SAME air either
+                # side — hid's is 3.6pt left and 3.6pt right. Measured
+                # against the document's own measure, and only ever for a
+                # wrap under a head that was itself centred.
+                if head_centred and not (centred(line) or _sym):
+                    break
                 # THE PARAGRAPH BREAK ENDS THE TITLE. A wrapped title sits at
                 # the paper's own line pitch under its first row (measured on
                 # almd: 16.0pt on a 14pt page); the body opens a paragraph
                 # below it (31.7pt). Bold alone runs straight on into a bold
                 # opening sentence.
-                if line.top - prev.bottom > (line.size or 12.0) * 0.75:
+                # …AND A MULTI-PART NAME IS SET WITH AIR BETWEEN ITS PARTS.
+                # The 0.75-of-size floor is a PARAGRAPH test, and Hawaii
+                # joins the halves of a name with a bare lower-case 'and' on
+                # a row of its own: hid/…172005.62.0 runs 'ORDER DENYING …
+                # (ECF Nos. 36 and 37)' / 'and' / 'GRANTING DEFENDANTS' … '
+                # at gaps of 1.6 and 15.2pt, and the name was cut at the
+                # joiner. A CENTRED wrap is allowed the wider gap because
+                # alignment already tells it from the opinion's first
+                # heading — mdd/…574444.44.0's 'I.' stands flush at the body
+                # rail 6.9pt below its title and is refused on alignment,
+                # not distance — and a paragraph's own opening still breaks
+                # the run at 31.7pt.
+                _pitch = (1.5 if head_centred else 0.75) * (line.size or 12.0)
+                if line.top - prev.bottom > _pitch:
+                    break
+                # A DATE IS NOT PART OF A PAPER'S NAME, and neither is a bare
+                # section number. The wider pitch a multi-part name needs
+                # reaches rows a court sets UNDER its title as facts of their
+                # own, and each was welded into the criterion: paed/
+                # …648547.44.0 came back named 'ORDER AND NOW, THIS 5TH DAY
+                # OF AUGUST 2026, UPON CONSIDERATION OF DEFENDANT RICHARD'
+                # and lost its decision date with it, pamd/…152458.6.0
+                # 'MEMORANDUM OPINION JULY 22, 2026', and dcd's walker
+                # 'MEMORANDUM OPINION I.' — the opinion's own first heading,
+                # which `_ENUMERATED` does not catch when the enumerator
+                # stands alone on its row with nothing after it.
+                # A DOCUMENT'S OWN APPARATUS IS NOT ITS NAME. A paper that
+                # opens with a contents list sets that heading in the title's
+                # face, on the axis, one line under it — arwd/…74008.170.0
+                # sets 'TABLE OF CONTENTS' 14.6pt below 'BENCH TRIAL OPINION
+                # AND ORDER', inside the gap hid leaves between the parts of
+                # its own name (15.2pt), so no pitch tells them apart. These
+                # are the names of PARTS, and no court names its paper one.
+                if _norm(flat).strip().upper().rstrip(".") in _PART_HEADINGS:
+                    break
+                if _NAMED_DATE.search(flat) or re.fullmatch(
+                        r"(?:[IVXLC]+|[0-9]{1,2}|[A-Z])\s*[.)]?", flat.strip()):
+                    break
+                # AN ENUMERATED HEADING IS NEVER THE NAME'S WRAP, whatever
+                # type it is set in. `_is_title_tail` already refuses one,
+                # but `_mk` stood beside it as an alternative and a court
+                # that sets its first heading in the title's own face walked
+                # straight through: almd/…84659.39.0 came back named
+                # 'MEMORANDUM OPINION I. INTRODUCTION'.
+                # …AND A SECTION NUMBER IS I THROUGH XX, NOT 104. `_ENUMERATED`
+                # accepts any run of [IVXLC], so 'CIV. P. 15(b)' — the wrap of
+                # 'PURSUANT TO FED. R.' on wyd/…64324.93.0 — reads as a Roman
+                # enumerator and the name lost its last row. A court numbers
+                # its sections with I, V and X; L and C in the first token of
+                # a heading are a word, not a numeral.
+                if re.match(r"^\s*(?:[IVX]{1,5}|[0-9]{1,2}|[A-Z])\s*[.)]\s+\S",
+                            flat):
                     break
                 if not (_is_title_tail(flat, facts) or _mk):
                     break
@@ -3130,6 +4217,30 @@ def read_ecf(model, geom, facts: EcfPaper = DEFAULT, **_):
             prev = line
             first = False
 
+
+    # A LETTER OPINION STATES ITS DOCKET UNDER ITS NAME. Chambers that
+    # write to the parties rather than caption the paper print letterhead,
+    # the date, the paper's name, and only then the subject block — 'Re:
+    # Hunter’s Roofing Services LLC v. Samartino Family Roofing' over
+    # 'Civil Action No. 23-22524 (JXN)(JBC)' (njd/…536839.56.0, top 242 of
+    # a 792pt sheet). The band closes at the name, which is right, and the
+    # number then stands below every reader that looks for one.
+    # ONLY WHERE NOTHING FOUND A DOCKET AT ALL, and only in the rows
+    # immediately under the name, so no court that captions its papers in
+    # the ordinary way can be reached by this at all.
+    if not crit.get("docket_number") and anchor_ids:
+        _tl_bottom = max((l.bottom for l in live if l.id in set(anchor_ids)),
+                         default=None)
+        if _tl_bottom is not None:
+            for _line in live:
+                if _line.top <= _tl_bottom or _line.id in consumed:
+                    continue
+                if _line.top > _tl_bottom + 6 * (body_size or 12.0):
+                    break
+                _dv3 = _docket_value(_norm(_line.plain), facts)
+                if _dv3:
+                    crit["docket_number"] = _dv3
+                    break
 
     # THE DOCKET NAMES THE BENCH. A district clerk hangs the assigned
     # judges off the case number — '23-cv-61078-ALTMAN/Strauss' is Judge
@@ -3146,7 +4257,16 @@ def read_ecf(model, geom, facts: EcfPaper = DEFAULT, **_):
     if court_rows:
         crit["court"] = _norm(" ".join(court_rows))
     if title_parts:
-        crit["title"] = _norm(" ".join(title_parts))
+        # A CONSOLIDATED SHEET NAMES THE PAPER ONCE PER COMPARTMENT. Each box
+        # carries its own copy of the name, and joined they read 'OPINION AND
+        # ORDER OPINION AND ORDER' (wiwd/…55726.23.0, two cases heard
+        # together). The parts of a WRAPPED name are all different from one
+        # another — 'CERTIFICATION OF FACTS' / 'REGARDING DEFENDANT'S' — so
+        # dropping an exact repeat cannot shorten one.
+        _seen_t: set = set()
+        _uniq = [t for t in title_parts
+                 if not (t in _seen_t or _seen_t.add(t))]
+        crit["title"] = _norm(" ".join(_uniq))
     if caption_rows:
         crit["caption"] = caption_rows
         # THE LEAD CASE NAMES THE RECORD. Joining every compartment's rows

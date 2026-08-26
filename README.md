@@ -52,6 +52,7 @@ rest raise rather than quietly returning a worse reading (see
 ```python
 r["status"]        # valid | review | scanned | failed
 r["court_id"]      # the id you passed, echoed back
+r["form"]          # 'AO 245C' where the paper is a pre-printed form, else None
 r["cluster"]       # the case: citation, docket, dates (as printed + ISO), panel, parties
 r["opinions"]      # one entry per writing: author, pages, footnotes, html and text
 r["headmatter"]    # the caption block: rows, by_role, text, html, html_inline,
@@ -76,6 +77,39 @@ the honest measure of how much of a caption was actually read.
 `removed` is the audit trail: nothing is dropped silently, so a running head,
 a folio, an e-filing stamp, a chambers letterhead or a caption-box graphic all
 appear here with the page and box they came from.
+
+### Forms: papers that were filled in, not written
+
+Not every document a court files is something a judge composed. A sentence is
+entered on **AO 245B**, a defendant is ordered to appear on **AO 467**, a
+district takes its minutes on its clerk's own template — pre-printed sheets
+whose words belong to the form and whose blanks belong to the court. Read as
+prose they come apart quietly: the caption walk takes the form's field labels
+for parties, and every prose measure comes back clean because there is no
+prose in them to be wrong about.
+
+`r["form"]` names the form where the sheet names itself, and is `None` for a
+paper a judge wrote. `r["diagnostics"]["is_form"]` is the same answer as a
+boolean, for a caller that only needs to branch:
+
+```python
+r = read("judgment.pdf", court_id="nced")
+
+r["form"]                       # 'AO 245C'
+r["diagnostics"]["is_form"]     # True
+r["cluster"]["parties"]         # …read off a grid of blanks. Do not trust it.
+```
+
+The value is what the paper prints — an Administrative Office number
+(`'AO 245C'`, `'AO 467'`), a court's own template (`'minutes'`), or the bare
+`'form'` where a sheet captions its blanks without naming itself. The form is
+recorded **beside** `doc_type`, not inside it, because the two answer different
+questions: AO 245B is a *judgment* and AO 467 an *order*, and both are forms.
+
+Treat it as a gate, not a decoration. On a form, `cluster` is what the caption
+reader made of a table of labelled blanks, and `status` will often still say
+`valid` — the reading accounted for every line on the page, which is the only
+thing that status has ever claimed.
 
 ### The HTML an ingest stores
 
@@ -138,7 +172,8 @@ Dates are returned twice: as the court printed them (`date_filed`) and as
 `diagnostics` carries the page-level facts a caller needs to decide for itself:
 which pages are a raster (`scan_pages`), which pages have no text layer at all
 so their words are absent (`text_missing_pages`), which carry unmapped glyphs
-(`cid_pages`), and what the extractor could not place (`residual`).
+(`cid_pages`), whether the paper was filled in rather than written (`is_form`),
+and what the extractor could not place (`residual`).
 
 
 ## Contributing

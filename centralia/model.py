@@ -185,12 +185,18 @@ class CaptionBlock:
     prov: Prov = field(default_factory=lambda: Prov(1))
 
 
+# WHERE THE RULE SITS ON THE MEASURE. Named, because a court file that builds
+# its own rules has to say the same four words, and spelling the parameter
+# `str` instead widened it back to anything (sd, ca7).
+RuleSpan = Literal["full", "left", "right", "center"]
+
+
 @dataclass
 class Rule:
     """The page drew (or typed) a horizontal rule — render it."""
 
     prov: Prov
-    span: Literal["full", "left", "right", "center"] = "full"
+    span: RuleSpan = "full"
     typed: bool = False
 
 
@@ -390,9 +396,12 @@ class Meta:
     #   text_missing_pages  an image and almost no text: those words are NOT
     #                       in this document, and that is the one that matters
     #   cid_pages           text present but unmapped — garbage, not absent
+    #   outlined_pages      words drawn as vector paths: present on the
+    #                       page, absent from every text layer
     scan_pages: list = field(default_factory=list)
     text_missing_pages: list = field(default_factory=list)
     cid_pages: list = field(default_factory=list)
+    outlined_pages: list = field(default_factory=list)
     # WHAT THE PAPER IS, as a value rather than a sentence. `doc.warnings`
     # already says it in prose, but a consumer that must DECIDE something —
     # the review banner, the casebody projection, whatever ingests this
@@ -403,6 +412,15 @@ class Meta:
     #               the glyphs are a machine's reading of an image.
     #   "scan"      a scan with no usable text layer; not parsed.
     source_kind: str = ""
+    # THE ADMINISTRATIVE OFFICE FORM this paper is, where it says so — 'AO
+    # 245B', 'AO 472', 'GAS245B'. A form is filled in, not written: its words
+    # are the AO's and the blanks are the court's, so a consumer that treats
+    # it as the court's own prose is reading the wrong thing. Recorded beside
+    # `doc_type` rather than inside it because the two are different
+    # questions: AO 245B is a JUDGMENT and AO 472 an ORDER, and both are
+    # forms (the user, 2026-08-25: 'i want you to get the forms marked so
+    # that i can flag them when i want').
+    form: str = ""
 
 
 # --------------------------------------------------------------------------

@@ -186,6 +186,17 @@ def mac_ordered_fonts(chars_by_page) -> set:
             continue
         if any(t in known for t in flat.split() if len(t) >= 6):
             proven.add(font)
+    # A SUBSET TAG IS NOT A FONT. 'BOLPDB+Garamond' and 'BOMBLF+Garamond' are
+    # two subsets of ONE face, and a document that has proved the ordering on
+    # the first has proved it for the second. mdd/417774 sets its opinion in
+    # the one (161 glyphs, proven above) and the judge's '/s/' in the other —
+    # three glyphs, which no vocabulary test can ever pass and which poppler
+    # itself reads as a single 'V'. Decoded, they spell the signature the page
+    # prints over 'Richard D. Bennett, United States Senior District Judge'.
+    faces = {f.split("+", 1)[-1] for f in proven}
+    for font in unmapped - proven:
+        if font.split("+", 1)[-1] in faces:
+            proven.add(font)
     return proven
 
 
@@ -211,6 +222,29 @@ def decode_cid_glyphs(chars: list, event, proven=frozenset()) -> None:
             continue
         by_font.setdefault(str(c.get("fontname")), []).append((i, n))
     decoded = 0
+    # A SYMBOL FONT IS NOT SET IN THE MAC TEXT ORDER, and asking the text
+    # offset to decode one gives nonsense: SymbolMT's list bullet arrives as
+    # '(cid:120)' and poppler falls back to the standard encoding and prints
+    # 'x' ('including:x Ms. Abrams's son'), while the page draws a round
+    # bullet (the user, 2026-08-25: 'also vawd has new CID issues'). These
+    # are the codes proven against the rendered page, one entry per glyph
+    # actually met in the corpus — 120 is the only one SymbolMT sets in all
+    # of vawd, twelve times, and every one of them opens a list item.
+    for i, c in enumerate(chars):
+        m = _CID.match(c.get("text") or "")
+        if not m:
+            continue
+        face = str(c.get("fontname") or "").split("+")[-1]
+        sub = _SYMBOL_GLYPHS.get((face, int(m.group(1))))
+        if sub:
+            chars[i]["text"] = sub
+            decoded += 1
+    for i, c in enumerate(chars):
+        face = str(c.get("fontname") or "").split("+")[-1]
+        sub = _SYMBOL_LETTERS.get((face, c.get("text") or ""))
+        if sub:
+            chars[i]["text"] = sub
+            decoded += 1
     for font, hits in by_font.items():
         # A font the DOCUMENT has already proved needs no page's permission.
         if font in proven:
@@ -322,14 +356,42 @@ def decode_cid_glyphs(chars: list, event, proven=frozenset()) -> None:
                 if ch and chars[i]["text"] != ch:
                     chars[i]["text"] = ch
                     decoded += 1
+    # A GLYPH THAT ADVANCES LIKE A SPACE AND KEEPS NO COMPANY IS A SPACE.
+    # Some codes belong to no ordering at all: mdd/417774 sets one glyph of
+    # TimesNewRomanPSMT into sixteen pages of Garamond, code 3031, and
+    # poppler reads it as a Tamil length mark. But the PAGE says what it is —
+    # 2.59pt of advance at 13pt type, 0.199 em against Garamond's own space
+    # at 0.249, standing between '§' and '3B1.1'. That is the non-breaking
+    # space a word processor reached to a fallback font to set.
+    # The two guards are what keep this from guessing at letters: the advance
+    # must sit inside the space band, and the font must have brought no other
+    # glyph to the page — a fallback pulled in for one character, not a font
+    # the document actually sets text in.
+    spaced = 0
+    for i, c in enumerate(chars):
+        if not _CID.match(c.get("text") or ""):
+            continue
+        size, w = c.get("size") or 0.0, c.get("width") or 0.0
+        if size <= 0.0 or not 0.0 < w <= _SPACE_EM * size:
+            continue
+        font = str(c.get("fontname"))
+        if sum(1 for d in chars if str(d.get("fontname")) == font) > 1:
+            continue
+        chars[i]["text"] = " "
+        spaced += 1
     for i in reversed(notdef):
         del chars[i]
-    if decoded or notdef:
+    if decoded or notdef or spaced:
         event("cid-glyphs",
               f"decoded {decoded} cid glyphs (+29), "
-              f"dropped {len(notdef)} .notdef")
+              f"dropped {len(notdef)} .notdef, "
+              f"{spaced} lone narrow glyphs read as space")
 
 
+
+# The widest advance still read as a space, in ems. Garamond sets its own
+# space at 0.249 em; a narrow/thin space runs under that, a letter over it.
+_SPACE_EM = 0.35
 
 _CID_RE = __import__("re").compile(r"^\(cid:(\d+)\)$")
 
@@ -341,7 +403,24 @@ _CID_RE = __import__("re").compile(r"^\(cid:(\d+)\)$")
 # against poppler's text for the same page, and each vote was unanimous
 # (31/31 for the apostrophe, 7/7, 6/6, 3/3). My own recollection of the order
 # was off by one past glyph 178, which is exactly why the table is measured.
-_MAC_TAIL = {134: "\u00a7", 179: "\u201c", 180: "\u201d", 182: "\u2019"}
+# GLYPHS PROVEN AGAINST THE RENDERED PAGE, by (face, code). A subset symbol
+# font is addressed by glyph index and carries no ToUnicode, so neither the
+# Mac text order nor the standard encoding reads it — only looking does.
+_SYMBOL_GLYPHS = {("SymbolMT", 120): "\u2022"}
+
+# …AND THE SAME GLYPH WHERE THE FONT'S OWN ENCODING DECODED IT TO A LETTER.
+# A symbol face carries a usable encoding often enough that no '(cid:N)'
+# survives — the code simply comes back as whatever letter sits at that
+# position in the text order, and the page draws something else entirely.
+# gamd/…138156.14.0 sets its form's checkboxes in WPTypographicSymbols,
+# whose open box decodes to 'G': the record rendered 'G Defendant appeared'
+# down the sheet where the form prints a box to tick (the user, 2026-08-25:
+# 'some of the forms instead of boxes are rendering G's'). By (face, letter),
+# proven against the rendered page, one entry per glyph met in the corpus.
+_SYMBOL_LETTERS = {("WPTypographicSymbols", "G"): "\u2610"}
+
+_MAC_TAIL = {134: "\u00a7", 179: "\u201c", 180: "\u201d",
+             182: "\u2019", 238: "\u2013"}
 # …AND THE CODE A DISPLAYED CHARACTER CAME FROM. pdfminer does not always
 # print '(cid:N)': where it has a partial encoding it prints the glyph
 # StandardEncoding gives for that code, so the code has to be read back OUT
@@ -718,6 +797,16 @@ _STACKED_ROW_COLLISION = 0.25
 _STACKED_ROW_BALANCE = 0.85
 
 
+def _is_leader_row(line) -> bool:
+    """Is the row a LEADER — a rule set as a run of periods, not language?"""
+    chars = [c for c in _printable(line)
+             if (c.get("text") or "").strip()]
+    if len(chars) < 12:
+        return False
+    dots = sum(1 for c in chars if (c.get("text") or "").strip() == ".")
+    return dots >= 0.8 * len(chars)
+
+
 def merge_interleaved(lines: list, event) -> list:
     """An italic span set on a slightly offset baseline becomes its own line
     ('Bell Atl. Corp. v. Twombly' floating 4.8pt above its roman host) and
@@ -754,6 +843,22 @@ def merge_interleaved(lines: list, event) -> list:
         if (min(prev.get("top", 999), ln.get("top", 999)) < 220
                 and prev_arial != line_arial):
             size_compatible = False
+        # A DOTTED LEADER IS NOT A HOST. This merge exists for an italic span
+        # floating off its roman baseline, and it reads the taller row as the
+        # host and the shorter as a fragment filling its gaps. A rule typed or
+        # scanned as a row of periods answers that description perfectly and
+        # is not text at all: pamd/…152570.9.0 rules its caption with two
+        # 23pt dotted lines 4.7pt under 'Respondent' (14pt), and the party's
+        # own status was shredded through them — the caption rendered
+        # '. . R. . .e.s. .p. .o. .n. d.' / '.e. .n. .t. . . . .' (the user,
+        # 2026-08-25: 'the caption is weirdly rendering'). The size gate
+        # passes it by a hair (23 <= 1.8 x 14) and the balance and collision
+        # tests are satisfied for free, because a leader IS mostly gap.
+        # Measured on what the row says, so an ordinary sentence carrying an
+        # ellipsis is untouched.
+        if _is_leader_row(prev) or _is_leader_row(ln):
+            out.append(ln)
+            continue
         if merged_chars and size_compatible and v_overlap > 0.45 * min_h:
             union = max(c["x1"] for c in merged_chars) - min(c["x0"] for c in merged_chars)
             glyphs = sum(c["x1"] - c["x0"] for c in merged_chars)
@@ -969,6 +1074,20 @@ def tag_highlighted_chars(rects: list, lines: list) -> int:
 # collect_rules takes rects under 2.5pt in one dimension.
 _REDACT_MIN_W = 6.0
 _REDACT_MAX_W = 72.0
+# …AND A BOX THE LINE ENCLOSES IS A REDACTION AT ANY WORD'S LENGTH. The cap
+# above is a guess inside the empty band, and it guessed too low: waed redacts
+# an ADDRESS, not a name — 'Address of Offender: ███ Spokane, Washington
+# 99201' (waed/95832.132.0) — and the bar is 92.2pt, so it was never a
+# candidate and the street vanished with nothing to say it had been there (the
+# user, 2026-08-25: 'also has a redaction … why isnt that obvious?').
+# WHAT MAKES IT A REDACTION IS NOT ITS LENGTH BUT WHERE IT STANDS: the line's
+# own glyphs abut it on BOTH sides (0pt left, 1pt right on that page), so the
+# bar replaced words inside a sentence. The measured non-redactions cannot
+# answer that test at any width: njd/512314.29 and nynd/141588.92 black out
+# whole LINES (124.4-470.9pt), and a wholly redacted line keeps no glyphs at
+# all, let alone one on each side of the fill. The cap here stands just under
+# that population's floor so the two never meet.
+_REDACT_MAX_W_ENCLOSED = 120.0
 _REDACT_MIN_H = 4.0
 _REDACT_MAX_H = 26.0
 # How far from the box its line's nearest glyph may sit and still make the box
@@ -1002,6 +1121,70 @@ def _is_black_glyph(c) -> bool:
     if isinstance(nsc, (list, tuple)):
         return bool(nsc) and all(v == 0 for v in nsc)
     return nsc in (0, 0.0)
+
+
+def fill_rule_glyphs(lines: list, event) -> None:
+    """A run of '_' with words typed ON it is an UNDERLINE, not text.
+
+    A chambers fills a blank by OVERPRINTING: the form's rule is a run of
+    '_' glyphs and the answer is set at the same x, a point or two lower.
+    Sorted by x0 the two interleave, and ord's signature block came out
+    'Dated this _1_2_t_h_ day of __M_a_y________ 2026.' over
+    '__s/_M__ic_h_a_e_l_ J_. _M__cS__h_an_e_____________' (the user,
+    2026-08-25: 'better its underliend text not jumbled text?').
+
+    Where a word stands on the rule, the rule is that word's underline: the
+    '_' glyphs go and the glyphs over them are marked the same way
+    `tag_underlined_chars` marks a hairline rect's. A run with nothing on
+    it is a blank the court left blank, and is kept exactly as it is.
+    """
+    n = 0
+    for line in lines:
+        chars = line.get("chars") or []
+        unders = [c for c in chars if (c.get("text") or "") == "_"]
+        if len(unders) < 2:
+            continue
+        ink = [c for c in chars if (c.get("text") or "").strip()
+               and (c.get("text") or "") != "_"]
+        if not ink:
+            continue
+        unders.sort(key=lambda c: c["x0"])
+        runs: list = [[unders[0]]]
+        for c in unders[1:]:
+            if c["x0"] - runs[-1][-1]["x1"] <= 1.5:
+                runs[-1].append(c)
+            else:
+                runs.append([c])
+        drop: set = set()
+        for run in runs:
+            lo, hi = run[0]["x0"], run[-1]["x1"]
+            over = [c for c in ink if c["x1"] > lo + 0.5 and c["x0"] < hi - 0.5]
+            if not over:
+                continue                      # a blank left blank
+            # THE WHOLE ANSWER IS UNDERLINED, its spaces included: marking
+            # only the inked glyphs broke one name into three underlines
+            # ('s/Michael' 'J.' 'McShane').
+            span_lo = min(c["x0"] for c in over)
+            span_hi = max(c["x1"] for c in over)
+            for c in chars:
+                if (c.get("text") or "") == "_":
+                    continue
+                mid = (c["x0"] + c["x1"]) / 2
+                if span_lo <= mid <= span_hi:
+                    c["_underline"] = True
+            drop.update(id(c) for c in run)
+        if not drop:
+            continue
+        kept = [c for c in chars if id(c) not in drop]
+        if not any((c.get("text") or "").strip() for c in kept):
+            continue
+        n += len(drop)
+        line["chars"] = kept
+        line["x0"] = min(c["x0"] for c in kept)
+        line["x1"] = max(c["x1"] for c in kept)
+        line["text"] = "".join(c.get("text") or "" for c in kept)
+    if n:
+        event("fill-rule", f"{n} '_' rule glyphs read as underlines")
 
 
 def convert_bar_glyphs(lines: list, event) -> None:
@@ -1060,8 +1243,124 @@ def _is_black_fill(rect) -> bool:
         return False
     nsc = rect.get("non_stroking_color")
     if isinstance(nsc, (list, tuple)):
-        return bool(nsc) and all(v == 0 for v in nsc)
+        if not nsc:
+            return False
+        # FOUR COMPONENTS ARE CMYK, WHERE ALL-ZERO IS WHITE — no ink at all.
+        # Read as gray or RGB it says black, so every white-filled square on
+        # the sheet was a redaction: nced/…205156.132.0 sets the AO-247
+        # form's checkboxes as 13.3pt white squares and the order came back
+        # 'Upon motion of ██ the defendant ███ the Director of the Bureau of
+        # Prisons ███ the court' (the user, 2026-08-25: 'this doesnt have
+        # redactions but checkboxes'). Black in CMYK is K=1, and what the
+        # test wants to know is whether the fill renders dark.
+        if len(nsc) == 4:
+            c, m, y, k = (float(v) for v in nsc)
+            return max((1 - c) * (1 - k), (1 - m) * (1 - k),
+                       (1 - y) * (1 - k)) <= 0.15
+        return all(v == 0 for v in nsc)
     return nsc in (0, 0.0)
+
+
+# A FORM'S CHECKBOX. Square, and about the size of a capital.
+_CHECKBOX_MIN_W = 7.0
+_CHECKBOX_MAX_W = 22.0
+# How far a box's width and height may differ and still be called square.
+# The chrome of a checkbox — frame, bevel, interior — is square to within a
+# per cent; a tick drawn inside it is not.
+_CHECKBOX_SQUARE = 0.12
+CHECKED_GLYPH = "\u2611"        # ☑
+UNCHECKED_GLYPH = "\u2610"      # ☐
+
+
+def _box_is_ticked(r, curves) -> bool:
+    """Is anything drawn INSIDE the box that is not the box itself?
+
+    Every part of an empty checkbox is a SQUARE concentric with it — nced
+    draws its frame at 13.32x13.32, its bevel twice at 11.28x11.28 and its
+    interior at 6.84x6.96. The tick is the one thing that is not: 8.70 wide
+    by 10.27 tall, in 27 path points where the chrome takes six or sixteen.
+    """
+    bw = r["x1"] - r["x0"]
+    bh = r["bottom"] - r["top"]
+    for c in curves:
+        if not (c["x0"] >= r["x0"] - 0.5 and c["x1"] <= r["x1"] + 0.5
+                and c["top"] >= r["top"] - 0.5
+                and c["bottom"] <= r["bottom"] + 0.5):
+            continue
+        w, h = c["x1"] - c["x0"], c["bottom"] - c["top"]
+        if w <= 0 or h <= 0:
+            continue
+        if abs(w - h) <= _CHECKBOX_SQUARE * max(w, h):
+            continue                        # the box's own chrome
+        if w >= 0.4 * bw or h >= 0.4 * bh:
+            return True
+    return False
+
+
+def insert_checkbox_glyphs(rects: list, curves: list, lines: list, event,
+                           skip: set | None = None) -> set:
+    """Read a form's checkboxes as ☐ / ☑, in place. Returns the rect ids used.
+
+    A SQUARE IS NOT A REDACTION. A redaction bar covers words and is far
+    wider than it is tall; a checkbox is square and the size of a capital,
+    and what it says — which box the court ticked — is the whole content of
+    an order made on a form. Read as redactions, the three boxes of the
+    AO-247 said only that something had been blacked out, and which of the
+    defendant, the Director or the court had moved was lost.
+    """
+    boxes = []
+    for r in rects:
+        if skip and id(r) in skip:
+            continue
+        w = r["x1"] - r["x0"]
+        h = r.get("height", r["bottom"] - r["top"])
+        if not (_CHECKBOX_MIN_W <= w <= _CHECKBOX_MAX_W):
+            continue
+        if abs(w - h) > _CHECKBOX_SQUARE * max(w, h):
+            continue
+        boxes.append(r)
+    if not boxes:
+        return set()
+    used: set = set()
+    n = 0
+    for line in lines:
+        chars = line.get("chars") or []
+        ink = [c for c in chars if (c.get("text") or "").strip()]
+        if not ink:
+            continue
+        top = min(c["top"] for c in ink)
+        bottom = max(c["bottom"] for c in ink)
+        added: list = []
+        for r in boxes:
+            if id(r) in used:
+                continue
+            cy = (r["top"] + r["bottom"]) / 2
+            if not (top - 1.0 <= cy <= bottom + 1.0):
+                continue
+            # IT STANDS IN THE SENTENCE, not out on its own: a box with no
+            # word beside it is a form's blank field, not a run-in choice.
+            near = min((max(r["x0"] - c["x1"], c["x0"] - r["x1"], 0.0)
+                        for c in ink), default=None)
+            if near is None or near > _REDACT_INLINE_GAP:
+                continue
+            template = min(ink, key=lambda c: max(r["x0"] - c["x1"],
+                                                  c["x0"] - r["x1"], 0.0))
+            g = dict(template)
+            g["text"] = (CHECKED_GLYPH if _box_is_ticked(r, curves)
+                         else UNCHECKED_GLYPH)
+            g["x0"], g["x1"] = r["x0"], r["x1"]
+            added.append(g)
+            used.add(id(r))
+            n += 1
+        if added:
+            merged = sorted(chars + added, key=lambda c: c["x0"])
+            line["chars"] = merged
+            line["x0"] = min(c["x0"] for c in merged)
+            line["x1"] = max(c["x1"] for c in merged)
+            line["text"] = "".join(c.get("text") or "" for c in merged)
+    if n:
+        event("checkbox", f"{n} form checkbox(es) read as \u2610/\u2611")
+    return used
 
 
 def insert_redaction_boxes(rects: list, lines: list, event,
@@ -1078,10 +1377,30 @@ def insert_redaction_boxes(rects: list, lines: list, event,
             continue
         w = r["x1"] - r["x0"]
         h = r.get("height", r["bottom"] - r["top"])
-        if _REDACT_MIN_W <= w <= _REDACT_MAX_W and _REDACT_MIN_H <= h <= _REDACT_MAX_H:
+        if (_REDACT_MIN_W <= w <= _REDACT_MAX_W_ENCLOSED
+                and _REDACT_MIN_H <= h <= _REDACT_MAX_H):
             boxes.append(r)
     if not boxes:
         return
+    # THE ROW ENCLOSES THE BOX, NOT ONE LINE OBJECT. This pass runs before the
+    # row is merged, so a form's label and its value are still two lines:
+    # waed/95832.132.0 holds 'Address of Offender: ' and ' Spokane, Washington
+    # 99201' as separate pieces of top 213.0, and the bar between them has a
+    # neighbour on one side of each. Judged per line neither encloses it and
+    # the redaction was refused; judged across the row — every piece standing
+    # in the same band — it is enclosed, which is what the page shows.
+    row_ink: dict = {}
+    for r in boxes:
+        cy = (r["top"] + r["bottom"]) / 2
+        acc: list = []
+        for ln in lines:
+            lnk = [c for c in (ln.get("chars") or []) if (c.get("text") or "").strip()]
+            if not lnk:
+                continue
+            if (min(c["top"] for c in lnk) - 1.0 <= cy
+                    <= max(c["bottom"] for c in lnk) + 1.0):
+                acc.extend(lnk)
+        row_ink[id(r)] = acc
     n_boxes = 0
     for line in lines:
         chars = line.get("chars") or []
@@ -1115,6 +1434,19 @@ def insert_redaction_boxes(rects: list, lines: list, event,
                         for c in ink), default=None)
             if near is None or near > _REDACT_INLINE_GAP:
                 continue
+            # WIDER THAN A WORD, SO THE LINE HAS TO VOUCH FOR IT: a glyph of
+            # its own within the inline gap on EACH side — see
+            # `_REDACT_MAX_W_ENCLOSED`. `near` above is one-sided and cannot
+            # say this: a bar that blacked out the tail of a line answers it
+            # with the word to its left.
+            if r["x1"] - r["x0"] > _REDACT_MAX_W:
+                _row = row_ink.get(id(r)) or ink
+                _l = [c["x1"] for c in _row if c["x1"] <= r["x0"] + 0.5]
+                _r = [c["x0"] for c in _row if c["x0"] >= r["x1"] - 0.5]
+                if not _l or not _r \
+                        or r["x0"] - max(_l) > _REDACT_INLINE_GAP \
+                        or min(_r) - r["x1"] > _REDACT_INLINE_GAP:
+                    continue
             template = min(ink, key=lambda c: max(r["x0"] - c["x1"],
                                                   c["x0"] - r["x1"], 0.0))
             n = max(1, int(round((r["x1"] - r["x0"]) / glyph_w)))

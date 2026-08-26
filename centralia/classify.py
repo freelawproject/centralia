@@ -97,6 +97,19 @@ def _body_fonts(page) -> set:
     lines = list(page.lines)
     stamped = {l.row for l in lines if l.row is not None
                and _looks_like_efiling_stamp(" ".join((l.plain or "").split()))}
+    # …AND THE PAGE ID BELOW IT IS THE STAMP'S OWN. CM/ECF sets its Pageid
+    # on a SECOND row, not as a split piece of the first, so the row test
+    # above does not reach it: oknd/…66486.56.0 stamps 'Case
+    # 4:23-cv-00290-JDR-CDL  Document 56  Filed…' and a bare '31' beneath
+    # it, both in 'KRSWRU+LiberationSans'. The numeral kept the clerk's
+    # embedded face in the page's own font set, and one subsetted face is
+    # what this module reads as born-digital — so 31 rastered pages whose
+    # OCR renders the masthead 'mniteis States? ®igtrict Court' were never
+    # called a scan (the user, 2026-08-25: 'shouldnt this one be identifed
+    # as a non digitla document').
+    stamp_faces = {c.get("fontname") for l in lines
+                   if _looks_like_efiling_stamp(" ".join((l.plain or "").split()))
+                   for c in (l.chars or ()) if c.get("fontname")}
     out: set = set()
     for line in lines:
         t = " ".join((line.plain or "").split())
@@ -105,6 +118,11 @@ def _body_fonts(page) -> set:
         if _looks_like_efiling_stamp(t) or (line.row is not None
                                             and line.row in stamped):
             continue
+        if stamp_faces and t.isdigit() and len(t) <= 6:
+            _f = {c.get("fontname") for c in (line.chars or ())
+                  if c.get("fontname")}
+            if _f and _f <= stamp_faces:
+                continue
         for c in line.chars or ():
             f = c.get("fontname")
             if f:
@@ -157,9 +175,15 @@ def ocr_text_layer(model: PdfModel) -> bool:
         fonts = _body_fonts(page)
         if not fonts:
             continue        # an image with no text at all: `triage` owns it
+        # WHAT MATTERS IS THAT NOTHING IS EMBEDDED, which is what this
+        # function's own docstring says: born-digital paper embeds at least
+        # one subsetted face. Naming the standard 14 was one way to embed
+        # nothing, not the only one — oknd's OCR layer names 'Century',
+        # which is neither subsetted nor base-14, and the page went
+        # uncounted. A sheet wholly covered by a raster whose type embeds
+        # nothing is a scan, whatever the substituted face is called.
         if any(_is_ocr_font(f) for f in fonts) or all(
-                "+" not in f and (f.startswith("*") or f in _BASE_14)
-                for f in fonts):
+                "+" not in f for f in fonts):
             ocr_pages += 1
     # NO DOCUMENT-WIDE OVERRIDE. An OCR face on ONE page does not make the
     # document a scan: nced 205280.57 is a born-digital CM/ECF filing —
@@ -327,6 +351,16 @@ def classify_doc_type(model: PdfModel, geom) -> tuple[DocType, str | None]:
     """(doc_type, matched heading or None). UNKNOWN when no heading speaks —
     later stages (byline found, /s/ signature) may refine."""
     cands = _heading_candidates(model, geom)
+    # A CAPTION'S RAIL GLYPH IS NOT PART OF THE HEADING. Where a chambers
+    # divides its caption columns with ')' and sets the paper's name in the
+    # right one, the glyph arrives welded to the front of the row: gasd/
+    # …127345.13.0 offers ') JUDGMENT IN A CRIMINAL CASE', which matches no
+    # heading at all, so the record classified UNKNOWN and the fallback below
+    # made it an ORDER — an AO judgment FORM read as the court's own writing.
+    # The stripped form is offered ALONGSIDE the row, never instead of it, so
+    # a heading that really opens on punctuation is still matched as it reads.
+    _bare = [c.lstrip(")]:*§}|( ").strip() for c in cands]
+    cands = cands + [b for b in _bare if b and b not in cands]
     joined = ["  ".join(cands[i:i + 2]) for i in range(len(cands) - 1)]  # wraps
     for key, dt in _HEADINGS:
         for cand in (*cands, *joined):

@@ -975,6 +975,27 @@ _ONE_LINE_SIG = re.compile(
 _ATTEST_ROW = re.compile(r"^(?:WE|I)\s+(?:CONCUR|DISSENT)", re.I)
 
 
+def _reads_like_name(text: str) -> bool:
+    """Is this a person's NAME, or a sentence that happens to begin 's/'?
+
+    THE MARKER IS NOT ENOUGH. A court that quotes its own signature rule
+    writes the marker in its prose: ilcd/…89931.138.0 wraps 'including
+    signatures, with the suggested modification to "Use' / 's/name" in its
+    place.  C.D. Ill. Local Rule 5.11(A)(2).  The sealed,' across a line
+    break, and the whole remainder of that second row came back as the
+    author — stripped of its 's/' and hoisted out of page 13 to the head of
+    the opinion, above the byline (the user, 2026-08-25: 'where is this …
+    in this pdf'). What a conformed signature returns is a name, and a name
+    is short, carries no digits, and closes no quotation.
+    """
+    flat = " ".join(text.replace("_", " ").split())
+    if not flat or len(flat) > 60 or len(flat.split()) > 8:
+        return False
+    if any(ch.isdigit() for ch in flat):
+        return False
+    return not any(ch in flat for ch in '"\u201c\u201d()[]{}:;!?/\\')
+
+
 def conformed_signature_author(lines_text: list[str]) -> str | None:
     """'/s/ Name' plus its adjacent judicial title line — the author of an
     unsigned order. Also ca10's ORDER AND JUDGMENT signer: 'Entered for the
@@ -989,7 +1010,13 @@ def conformed_signature_author(lines_text: list[str]) -> str | None:
                      if t.lower().startswith(p)), None)
         if _pfx is None:
             continue
-        name = t[len(_pfx):].strip()
+        # …AND THE RULE IT IS SIGNED OVER IS NOT PART OF THE NAME. A
+        # chambers types the signature line as underscores and sets the
+        # conformed name on it — '/s/ Sue E. Myerscough____________' — and
+        # the whole string was published as the author.
+        name = t[len(_pfx):].strip().rstrip("_ ").strip()
+        if name and not _reads_like_name(name):
+            continue                     # prose that opens with the marker
         if i + 1 < len(lines_text):
             nxt = lines_text[i + 1].strip()
             if any(w in nxt.lower() for w in titles):

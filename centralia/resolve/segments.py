@@ -206,8 +206,16 @@ class Segmenter:
         return self.bands
 
     def segment_page(self, lines: list[Line], page: int) -> list[Segment]:
+        # THE PAGE MODEL ALREADY DECIDED READING ORDER. `Line.id` is handed
+        # out in it, and for a page with one column that IS (top, x0) — the
+        # builder sorts by exactly that before numbering. For a page with
+        # two, it is the order that reads DOWN each column instead of across
+        # the gutter (see `_column_order`), and re-sorting here threw that
+        # away: ncmd/…100664.528.0 came back alternating between its columns
+        # sentence by sentence (the user, 2026-08-25: 'ncmd likes to
+        # sometimes publish two column opinions').
         lines = sorted((l for l in lines if l.plain.strip()),
-                       key=lambda l: (l.top, l.x0))
+                       key=lambda l: l.id)
         if not lines:
             return []
         page_bands = self._page_bands(lines) if page > 1 else self.bands

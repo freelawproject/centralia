@@ -589,6 +589,15 @@ async function mark(tier) {
   if (tier === null) delete MARKS[k]; else MARKS[k] = tier;
   delete STALE[k];                    // you just judged what is on screen
   await fetch("/api/marks", {method:"POST", body: JSON.stringify({key:k, tier})});
+  // ✅ RE-PINS THE SENTINEL, AND THE COUNT HAS TO SAY SO. The server drops
+  // the key from guard-review.json (`_bless_sentinel`), but GREVIEW is
+  // fetched once at load and nothing here refreshed it — so the ⚑, the
+  // 'guard diff' line and the '⚑ to review (n)' counter all went on showing
+  // the pre-blessing number until the page was reloaded, and a reviewer
+  // walking the flagged files had no way to see the pile going down (the
+  // user, 2026-08-25: 'im hitting five and its not updating the to review
+  // number'). Dropped here too, on the same evidence the server used.
+  if (tier === "yay") delete GREVIEW[k];
   drawFiles(); show();
 }
 document.querySelectorAll("#bar button[data-t]").forEach(b =>
