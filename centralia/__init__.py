@@ -422,6 +422,16 @@ def _diagnostics(doc: Document, status: str) -> dict:
         # (akd/62768.505.0) as one very wide dash, so counting the runs
         # counts the redactions.
         "redactions": _redaction_runs(doc),
+        # WAS THIS PAPER WRITTEN, OR FILLED IN? A judgment on AO 245B is a
+        # pre-printed sheet whose words are the Administrative Office's and
+        # whose blanks are the court's, so every prose measure below it means
+        # something else: the caption walk reads the form's field labels as
+        # parties, and the grade comes back clean because there is no prose
+        # for the metrics to find anything wrong with. A consumer that
+        # branches on this should not have to scrape the review sheet's chip
+        # for it — see `Meta.form`, and the top-level `form`, which names
+        # WHICH form where this is true.
+        "is_form": bool(mt.form),
         "headmatter_rows": len(hm_rows),
         "headmatter_untinted": sum(1 for i in hm_rows if not i.role),
         "dates_unparsed": [k for k, v in (
@@ -475,6 +485,13 @@ def read(src, court_id: str, *,
     out = {
         "status": result.status,
         "court_id": court_id,
+        # WHICH FORM THIS PAPER IS, or None where a judge wrote it. Stands
+        # beside `court_id` rather than inside `cluster` because it is a fact
+        # about the SHEET, not about the case the sheet decides — and because
+        # an ingest has to see it before it reads anything else: on a form,
+        # `cluster` holds what the caption walk made of a grid of labelled
+        # blanks. `diagnostics.is_form` is the same answer as a boolean.
+        "form": doc.meta.form or None,
         "versions": {"centralia": __version__,
                      **dict(result.versions)},
         "cluster": _cluster(doc),

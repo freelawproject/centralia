@@ -342,6 +342,72 @@ def _syllabus_page_numbers(model, geom, rows=None) -> set:
     return pages
 
 
+# --------------------------------------------------------------------------
+# writing.covers — the caption the Court prints again over every separate
+# writing
+# --------------------------------------------------------------------------
+# A concurrence or a dissent that opens a fresh page opens it the way the
+# opinion opened: the masthead, the docket fenced in rules, the parties, the
+# origin, and the date the case came down. The Court prints that block once
+# per writing, so a record of five papers prints it five times.
+#
+# Core carves the writings out of one stream, and a caption standing between
+# two of them falls to the writing ABOVE it — the block the printer set to
+# introduce the dissent came out as the last thing JUSTICE ALITO said (the
+# user, 2026-08-25, reading callais). Measured across scotus's 100: 68
+# records carry one, 140 captions in all, and never once on a record of a
+# single writing.
+#
+# WHICH COPY IS THE DOCUMENT'S. The first is: `headmatter.read` claims it as
+# the cover, and dropping it would take the caption off the record entirely.
+# Every later one restates it, so every later one goes — recorded as removed
+# (kind 'cover'), never silently.
+#
+# WHY THE BRACKETED DATE ENDS THE RUN, AND WHAT THAT PROTECTS. A writing's
+# cover closes on the decision date alone, in brackets ('[June 30, 2026]').
+# The SYLLABUS cover closes on a docket-and-dates row instead ('No. 24-43.
+# Argued January 13, 2026-Decided June 30, 2026*') and prints no bracketed
+# row at all — so keying the run to that row cannot reach the syllabus
+# cover, which is `syllabus.trim`'s to drop and the only place the ARGUED
+# date is printed.
+_COVER_DATE = re.compile(r"^\[[^\]]{4,40}\]$")
+
+# A CONSOLIDATED cover states every docket's parties and origin before the
+# date, so the run is long: west virginia sets 19 rows over two dockets.
+_COVER_SPAN = 48
+
+
+@decider("writing.covers", court="scotus")
+def writing_covers_scotus(model=None, geom=None, **_):
+    """Every writing's cover after the first, as rows to remove.
+
+    Returns only `drop`: the Court's own bylines already say where each
+    writing begins, so there are no `starts` to declare.
+    """
+    if model is None:
+        return NOTHING
+    runs: list[list[int]] = []
+    for pm in model.pages:
+        rows = sorted((l for l in pm.lines if l.plain.strip()),
+                      key=lambda l: l.top)
+        # THE MASTHEAD IS THE LARGEST TYPE, not the wordiest row: core's
+        # worded test also matches body prose naming this court, and on
+        # b._p._j. it found a banner on five pages of argument.
+        at = next((i for i, l in enumerate(rows)
+                   if _is_slip_banner(l, geom)), None)
+        if at is None:
+            continue
+        end = next((j for j in range(at + 1,
+                                     min(at + _COVER_SPAN, len(rows)))
+                    if _COVER_DATE.match(_norm(rows[j].plain))), None)
+        if end is None:
+            continue                      # the syllabus cover, or no cover
+        runs.append([l.id for l in rows[at:end + 1]])
+    if len(runs) < 2:
+        return NOTHING                    # one cover is the document's own
+    return {"starts": {}, "drop": [i for run in runs[1:] for i in run]}
+
+
 @decider("headmatter.read", court="scotus")
 def read_headmatter_scotus(model, geom, **_):
     """The first writing's cover, read as the apparatus it is.
@@ -506,7 +572,7 @@ def read_headmatter_scotus(model, geom, **_):
             break
 
         if _is_origin_opener(text) or _is_origin_row(text):
-            if _wraps(line, "lower-court"):
+            if last is not None and _wraps(line, "lower-court"):
                 _merge(line, last[1])
                 last = (line, last[1], "lower-court")
                 continue
@@ -519,14 +585,14 @@ def read_headmatter_scotus(model, geom, **_):
         # all. Read as 'not a caption' it ended the cover mid-caption.
         _pivot = text.rstrip(".").strip().lower() in ("v", "vs")
         if _pivot or _is_caption_row(text):
-            if _wraps(line, "caption"):
+            if last is not None and _wraps(line, "caption"):
                 _merge(line, last[1])
                 last = (line, last[1], "caption")
                 continue
             # …and a caption's OWN runover may open with a lower-case word
             # only in the origin, never here: a caps row that follows the
             # origin at wrap distance is the origin's continuation.
-            if _wraps(line, "lower-court"):
+            if last is not None and _wraps(line, "lower-court"):
                 _merge(line, last[1])
                 last = (line, last[1], "lower-court")
                 continue

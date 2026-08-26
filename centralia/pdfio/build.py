@@ -14,6 +14,8 @@ from __future__ import annotations
 
 import pdfplumber
 
+from collections import Counter
+
 from . import quirks
 from .model import ImageRef, Line, PageModel, PdfModel
 from .rules import collect_rules
@@ -26,6 +28,21 @@ _SPLIT_VRULE_MIN_H = 30.0
 # A same-row gap at least this wide (and 4x the line's own word gap) separates
 # two visual columns pdfplumber merged onto one baseline.
 _COLUMN_GAP_MIN = 18.0
+# A TWO-COLUMN BODY. How many rows must carry prose on BOTH sides of one
+# gutter before the page is read down its columns instead of across them.
+# Six is the floor because a CAPTION is also two pieces at a steady cut —
+# party name against docket, either side of the rail — and no caption has
+# six rows whose right-hand cell is as long as its left.
+_COLUMN_ROWS_MIN = 6
+# TEXT CONVERTED TO OUTLINES. How many glyph-sized filled paths must stand
+# on one baseline before the run is called a row of drawn text. Twelve is a
+# short line and far more than any rule, box corner or bullet draws.
+_OUTLINE_ROW_MIN = 12
+# Both cells must reach this much of the page's own half-measure. Measured
+# on ncmd/…100664.528.0: its columns run 219pt and 216pt against a
+# half-measure of 234 (94%), while the caption's widest right-hand cell is
+# a lone rail glyph at 7%.
+_COLUMN_CELL_FILL = 0.55
 
 
 def _text_lines(source) -> list:
@@ -98,24 +115,72 @@ def _split_at_vrules(raw_lines: list, v_rules: list, event) -> list:
     return out
 
 
-def _split_wide_gaps(raw_lines: list, event) -> list:
-    """Split a visual row at a column-wide x-gap — two caption columns held by
-    whitespace alone (the Open Range), a stamp beside a banner, a rail glyph
-    between columns. The threshold is measured against the line's own word
-    gap so justified prose never qualifies."""
-    out = []
-    n_split = 0
-    for ln in raw_lines:
-        chars = sorted(ln.get("chars") or [], key=lambda c: c["x0"])
-        printable = [c for c in chars if (c.get("text") or "").strip()]
-        if len(printable) < 2:
-            out.append(ln)
-            continue
-        gap_floor = max(_COLUMN_GAP_MIN, 4.0 * inferred_space_gap(chars))
-        cuts = []
-        for a, b in zip(printable, printable[1:]):
-            if (b["x0"] - a["x1"]) >= gap_floor:
-                cuts.append((a["x1"] + b["x0"]) / 2)
+def _outlined_rows(curves: list) -> int:
+    """Rows of TEXT DRAWN AS OUTLINES, which no text layer holds.
+
+    A chambers that flattens its headings to vector paths leaves nothing to
+    extract: the glyphs arrive as small filled curves, twelve to sixty of
+    them on a shared baseline, and every text-layer reader — poppler
+    included — returns blank where the words are. Counted so the document
+    can SAY so instead of publishing with no court and no title.
+    """
+    marks = [c for c in curves
+             if c.get("fill")
+             and 0.8 <= (c["x1"] - c["x0"]) <= 40.0
+             and 2.0 <= (c["bottom"] - c["top"]) <= 30.0]
+    if len(marks) < _OUTLINE_ROW_MIN:
+        return 0
+    baselines: dict = {}
+    for c in marks:
+        baselines.setdefault(round(c["bottom"] / 3.0), []).append(c)
+    return sum(1 for run in baselines.values()
+               if len(run) >= _OUTLINE_ROW_MIN)
+
+
+def _row_pieces(chars: list, page_w: float) -> list[list]:
+    """One visual row's chars, cut into column pieces.
+
+    WIDEST GAP FIRST, THEN MEASURE AGAIN. The threshold is measured against
+    the line's own word gap — but a row that spans two columns has two word
+    gaps in it, and one figure cannot stand for both. ncmd sets a 216pt
+    justified column beside an unjustified one, so a row of
+    ncmd/…100104.24.0 came in with a 36.3pt gutter, three 26pt
+    justification stretches and 8.6pt spaces, while `inferred_space_gap`
+    read the LEFT column's 3.12pt and put the floor at 18: all four gaps
+    cleared it and the citation came apart into one piece per word, leaving
+    'v.' alone on its own line to be promoted to a heading (the user,
+    2026-08-25: 'it used the v. to split new lines? like its headmatter or
+    somethign?').
+    Cutting only at the widest gap and re-measuring each piece gives the
+    justified column its own floor — 4 x 8.6 = 34.4pt, which its 26pt
+    stretches do not reach — and leaves every row that has one cut to make
+    splitting exactly as it did before.
+    """
+    printable = [c for c in chars if (c.get("text") or "").strip()]
+    if len(printable) < 2:
+        return [chars]
+    # AN ASTERISK BAND IS ALL GAP. A chambers that closes its caption with
+    # '*   *   *   *   *' sets those asterisks a column-width apart by
+    # design, so every one of its own gaps clears the floor and the row came
+    # apart into one line per asterisk — twelve of them on
+    # mdd/…417774.108.0. Shredded, the band is no longer the band: the ECF
+    # reader's closer test (`_is_asterisk_band`) never matches a lone '*',
+    # the caption runs on to its 55% ceiling, and the shards come back as
+    # caption cells and party text (the user, 2026-08-25: 'the astericks
+    # rail should be repsected in teh heamdatter as a full line acorss').
+    # A row that is nothing but asterisks has no columns to find.
+    if len(printable) >= 3 and all(
+            (c.get("text") or "") == "*" for c in printable):
+        return [chars]
+
+    gap_floor = max(_COLUMN_GAP_MIN, 4.0 * inferred_space_gap(chars))
+    widest, cut_at = 0.0, None
+    for a, b in zip(printable, printable[1:]):
+        gap = b["x0"] - a["x1"]
+        if gap >= gap_floor and gap > widest:
+            widest, cut_at = gap, (a["x1"] + b["x0"]) / 2
+
+    if cut_at is None:
         # A LEADING NUMERAL fragment (stationery line number, margin folio)
         # splits at a much smaller gap: '1   that omits such hearing…' is
         # the draft paper's line number welded to the text (ca2). Digits
@@ -129,29 +194,35 @@ def _split_wide_gaps(raw_lines: list, event) -> list:
                 break
         if 0 < len(lead) <= 3 and len(lead) < len(printable):
             nxt = printable[len(lead)]
-            gap = nxt["x0"] - lead[-1]["x1"]
-            cut_at = (lead[-1]["x1"] + nxt["x0"]) / 2
-            page_w = ln.get("_page_width") or 612.0
             # MARGIN fragments only: the stationery number starts far left
             # of any text rail ('583 P.3d 553' opens a CITATION at the note
             # rail and must stay whole).
-            if (gap >= 12.0 and lead[0]["x0"] <= 0.1 * page_w
-                    and cut_at not in cuts):
-                cuts.append(cut_at)
-                cuts.sort()
-        if not cuts:
-            out.append(ln)
-            continue
-        buckets: list[list] = [[] for _ in range(len(cuts) + 1)]
-        for c in chars:
-            mid = (c["x0"] + c["x1"]) / 2
-            for i, x in enumerate(cuts):
-                if mid < x:
-                    buckets[i].append(c)
-                    break
-            else:
-                buckets[-1].append(c)
-        pieces = [b for b in buckets if any((c.get("text") or "").strip() for c in b)]
+            if (nxt["x0"] - lead[-1]["x1"] >= 12.0
+                    and lead[0]["x0"] <= 0.1 * page_w):
+                cut_at = (lead[-1]["x1"] + nxt["x0"]) / 2
+
+    if cut_at is None:
+        return [chars]
+    left = [c for c in chars if (c["x0"] + c["x1"]) / 2 < cut_at]
+    right = [c for c in chars if (c["x0"] + c["x1"]) / 2 >= cut_at]
+    if not any((c.get("text") or "").strip() for c in left) \
+            or not any((c.get("text") or "").strip() for c in right):
+        return [chars]
+    return _row_pieces(left, page_w) + _row_pieces(right, page_w)
+
+
+def _split_wide_gaps(raw_lines: list, event) -> list:
+    """Split a visual row at a column-wide x-gap — two caption columns held by
+    whitespace alone (the Open Range), a stamp beside a banner, a rail glyph
+    between columns. The threshold is measured against the line's own word
+    gap so justified prose never qualifies; see `_row_pieces`, which applies
+    it one cut at a time so a row spanning two differently-set columns is
+    judged by each column's own spacing."""
+    out = []
+    n_split = 0
+    for ln in raw_lines:
+        chars = sorted(ln.get("chars") or [], key=lambda c: c["x0"])
+        pieces = _row_pieces(chars, float(ln.get("_page_width") or 612.0))
         if len(pieces) < 2:
             out.append(ln)
             continue
@@ -169,6 +240,133 @@ def _split_wide_gaps(raw_lines: list, event) -> list:
     if n_split:
         event("column-gap-split", f"split {n_split} rows at column gaps")
     return out
+
+
+def _column_order(raw: list, event) -> list:
+    """Reading order for a page whose BODY is set in two columns.
+
+    THE PAGE SORTS BY (top, x0), which is the reading order of every page
+    that has one column and the wrong one for a page that has two: the rows
+    interleave and the prose comes back alternating between the columns —
+    ncmd/…100664.528.0 read 'This matter comes before the Court /
+    Amendment. United States ex rel. / on pending motions to seal filed at /
+    Oberg v. Nelnet, Inc., 105 F.4th 161,' (the user, 2026-08-25: 'ncmd
+    likes to sometimes publish two column opinions').
+
+    The evidence is the page's own: the wide-gap splitter has already cut
+    each row at its gutter, so a two-column page arrives as a stack of
+    two-piece rows agreeing on one cut, each piece carrying most of a
+    half-measure of prose. Where they do, the columns are emitted one after
+    the other; a row that SPANS the gutter — the masthead, the paper's name,
+    a full-measure heading — belongs to neither, so it closes the pair of
+    columns above it and opens the next. That keeps a page that turns
+    two-column halfway down in its own order, and leaves every one-column
+    page exactly as it was.
+    """
+    rows: dict = {}
+    for ln in raw:
+        key = ln.get("_row")
+        if key is not None:
+            rows.setdefault(key, []).append(ln)
+    pairs = []
+    for pieces in rows.values():
+        if len(pieces) != 2:
+            continue
+        a, b = sorted(pieces, key=lambda l: l["x0"])
+        pairs.append(((a["x1"] + b["x0"]) / 2.0, a, b))
+    if len(pairs) < _COLUMN_ROWS_MIN:
+        return raw
+    half = (max(l["x1"] for l in raw) - min(l["x0"] for l in raw)) / 2.0
+    # THE GUTTER IS WHERE NOTHING IS WRITTEN, and it is not the middle of
+    # any one row's gap: a row whose left cell ends early — the last line of
+    # a paragraph — or whose right cell is indented moves that midpoint,
+    # and clustering on it scattered ncmd/…102848.20.0's page 1 across
+    # x275–x344 with only four rows in the mode, so the page read across the
+    # gutter while pages 2–4 of the same order read down it. The column
+    # edges are what hold still: the question to ask is which x EVERY wide
+    # two-piece row leaves empty.
+    wide_rows = [(a, b) for _c, a, b in pairs
+                 if (a["x1"] - a["x0"]) >= _COLUMN_CELL_FILL * half
+                 and (b["x1"] - b["x0"]) >= _COLUMN_CELL_FILL * half]
+    if len(wide_rows) < _COLUMN_ROWS_MIN:
+        return raw
+    best_x, wide = None, []
+    for x in sorted({round(b["x0"]) for _a, b in wide_rows}):
+        hit = [(a, b) for a, b in wide_rows if a["x1"] <= x <= b["x0"]]
+        if len(hit) > len(wide):
+            best_x, wide = float(x), hit
+    if best_x is None or len(wide) < _COLUMN_ROWS_MIN:
+        return raw
+    gutter = best_x
+
+    # …AND WHAT THE ROW-BY-ROW SPLIT OVERCUT. `_row_pieces` judges one row
+    # at a time against its own word gap, which cannot separate a gutter
+    # from JUSTIFICATION: ncmd sets a 216pt column whose words are pushed
+    # apart with explicit offsets rather than space glyphs, so the measured
+    # space stays 3.12pt while the rendered stretch reaches 26pt — three
+    # times a normal space and two-thirds of the real gutter. Row by row
+    # there is nothing to tell them apart, and 'See Nemet Chevrolet, Ltd. v.
+    # Consumeraffairs.com, Inc.' came apart into one piece per word with
+    # 'v.' left alone on a line and promoted to a heading (the user,
+    # 2026-08-25: 'it used the v. to split new lines? like its headmatter or
+    # somethign?'). The gutter is a page fact, and the page has just stated
+    # it: a two-column row has exactly two cells, so anything more is
+    # justification and is put back.
+    fused: dict = {}
+    for pieces in rows.values():
+        if len(pieces) < 3:
+            continue
+        for side in (0, 1):
+            group = [p for p in pieces
+                     if ((p["x0"] + p["x1"]) / 2 < gutter) == (side == 0)]
+            if len(group) < 2:
+                continue
+            group.sort(key=lambda l: l["x0"])
+            cs = sorted((c for p in group for c in (p.get("chars") or [])),
+                        key=lambda c: c["x0"])
+            whole = dict(group[0])
+            whole["chars"] = cs
+            whole["x0"] = min(c["x0"] for c in cs)
+            whole["x1"] = max(c["x1"] for c in cs)
+            whole["text"] = "".join(c.get("text") or "" for c in cs)
+            fused[id(group[0])] = whole
+            for p in group[1:]:
+                fused[id(p)] = None
+    if fused:
+        raw = [fused.get(id(ln), ln) if id(ln) in fused else ln
+               for ln in raw]
+        raw = [ln for ln in raw if ln is not None]
+        event("column-refuse",
+              f"{sum(1 for v in fused.values() if v is None)} shards "
+              f"put back into their column")
+
+    ordered: list = []
+    lefts: list = []
+    rights: list = []
+
+    def _flush() -> None:
+        ordered.extend(lefts)
+        ordered.extend(rights)
+        lefts.clear()
+        rights.clear()
+
+    for ln in raw:                       # already in (top, x0) order
+        if ln["x1"] <= gutter:
+            lefts.append(ln)
+        elif ln["x0"] >= gutter:
+            rights.append(ln)
+        else:
+            _flush()
+            ordered.append(ln)
+    _flush()
+    event("two-column",
+          f"{len(wide)} rows read down a gutter at x{gutter:.0f}")
+    return ordered
+
+
+# Read a glyph's orientation off its MATRIX rather than pdfplumber's
+# `upright`. Named so the two readings can be compared on one corpus.
+ROTATION_FROM_MATRIX = True
 
 
 def build_page(page, page_no: int, id_start: int,
@@ -193,12 +391,45 @@ def build_page(page, page_no: int, id_start: int,
     # Rotated glyphs: furniture by orientation, surfaced not disappeared.
     # Assembled in the PDF's own char order — sorted by position, sideways
     # text mirrors ('Thousands' -> 'sdnasuohT').
-    rot = [c for c in chars if c.get("upright", True) is False]
+    #
+    # ORIENTATION IS THE MATRIX, NOT `upright`. pdfplumber decides `upright`
+    # from the matrix's VERTICAL terms alone, so a glyph turned a quarter
+    # turn about the other axis still answers True: cand sets its pleading
+    # paper's margin legend sideways — 'United States District Court' and
+    # 'Northern District of California' interleaved down the left edge — and
+    # every one of its 61 glyphs reported upright. This test never fired,
+    # and the fragments went into line assembly, where they WELD to the
+    # pleading paper's line numbers ('uoC rof 13', 'cC 14', 'tatS siD 16')
+    # and from there into the middle of the court's own sentences: '… the
+    # motion i t la cC 14 requests the sealing of Exhibits G, K and Q' (the
+    # user, 2026-08-25: 'needs to remove the sidebar numebrs and sideways
+    # text'). Measured: 23 of cand's 27 records carry the legend.
+    # A quarter turn puts the horizontal scale at zero and the shear at one,
+    # so both terms are required — a degenerate all-zero matrix is not
+    # evidence of anything and passes.
+    def _sideways(c) -> bool:
+        mx = c.get("matrix")
+        if not mx or len(mx) < 2 or not ROTATION_FROM_MATRIX:
+            return c.get("upright", True) is False
+        return abs(mx[0]) < 0.01 and abs(mx[1]) > 0.01
+
+    rot = [c for c in chars if _sideways(c)]
     if rot:
         pm.rotated_text = "".join((c.get("text") or "") for c in rot).strip()
         pm.event("rotated-text", f"{len(rot)} sideways glyphs captured")
+        # …AND TAKEN OUT OF THE STREAM. Capturing them was only ever half of
+        # it: left in `chars` they reach `extract_text_lines` below and are
+        # read as body text. `pm.rotated_text` is the surfaced record — see
+        # pipeline, which files it as a `Dropped` of kind 'rotated' — so
+        # nothing is lost by removing them here.
+        _rot_ids = {id(c) for c in rot}
+        chars[:] = [c for c in chars if id(c) not in _rot_ids]
 
     pm.h_rules, pm.v_rules, pm.has_diagonal = collect_rules(page, page_no)
+    pm.outlined_rows = _outlined_rows(page.curves)
+    if pm.outlined_rows:
+        pm.event("outlined-text",
+                 f"{pm.outlined_rows} row(s) drawn as outlines, no text layer")
 
     raw = _text_lines(page)
     raw = quirks.merge_interleaved(raw, pm.event)
@@ -226,9 +457,18 @@ def build_page(page, page_no: int, id_start: int,
     # after the splits on purpose: a blacked-out name always touches the words
     # beside it, so it never needs to make a column, and injecting it earlier
     # could only ever invent one.
-    quirks.insert_redaction_boxes(page.rects, raw, pm.event, skip=_cell_rects)
+    # A FORM'S CHECKBOX FIRST, so a square is never mistaken for a bar.
+    _ticks = quirks.insert_checkbox_glyphs(page.rects, page.curves, raw,
+                                           pm.event, skip=_cell_rects)
+    quirks.insert_redaction_boxes(page.rects, raw, pm.event,
+                                  skip=_cell_rects | _ticks)
     # …and the bar that is a GLYPH rather than a rect (see convert_bar_glyphs).
     quirks.convert_bar_glyphs(raw, pm.event)
+    # A FILLED-IN BLANK is a rule of '_' with the answer typed on top of it.
+    # After the splits on purpose: the rule glyphs hold the row together, and
+    # removing them first would open a column-wide gap where the unused tail
+    # of the blank used to be.
+    quirks.fill_rule_glyphs(raw, pm.event)
 
     # A stacked one-glyph column is a RAIL. Tagged here so nothing downstream
     # has to re-measure it — the footnote resolver in particular, which would
@@ -270,6 +510,7 @@ def build_page(page, page_no: int, id_start: int,
                 ln["top"] = true_top
 
     raw.sort(key=lambda l: (l["top"], l["x0"]))
+    raw = _column_order(raw, pm.event)
     row_ids: dict = {}
     for i, ln in enumerate(raw):
         row = ln.get("_row")

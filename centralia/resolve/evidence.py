@@ -90,7 +90,15 @@ def providers_for(point: str, court: str) -> list[Provider]:
 
 NOTHING = object()          # "this decider has nothing to say"
 
-_DECIDERS: dict[tuple[str, str], list[Provider]] = {}
+# A DECIDER IS NOT A PROVIDER, and typing it as one made every `@decider` in
+# all 241 court files a red squiggle. A provider yields `Evidence`; a decider
+# returns the ANSWER for its point — a set of line ids, a {"starts", "drop"}
+# map, a list of rows — or `NOTHING`, which is a bare `object()`. None of
+# those are `Iterable[Evidence]`, so a checker was right to object and the
+# annotation was what was wrong. Nothing here is enforced at runtime: `wrap`
+# appends the function and returns it.
+Decider = Callable[..., Any]
+_DECIDERS: dict[tuple[str, str], list[Decider]] = {}
 
 
 def decider(point: str, court: str):
@@ -99,17 +107,17 @@ def decider(point: str, court: str):
         @decider("syllabus.pages", court="scotus")
         def syllabus_pages(model, geom, **_): ...
     """
-    def wrap(fn: Provider) -> Provider:
+    def wrap(fn: Decider) -> Decider:
         _DECIDERS.setdefault((point, court), []).append(fn)
         return fn
     return wrap
 
 
-def deciders_for(point: str, court: str) -> list[Provider]:
+def deciders_for(point: str, court: str) -> list[Decider]:
     return _DECIDERS.get((point, court), [])
 
 
-def court_decides(point: str, court: str, trace: "Trace", **ctx):
+def court_decides(point: str, court: str, trace: "Trace", **ctx) -> Any:
     """The court's answer for ``point``, or NOTHING. First non-NOTHING wins;
     the chain is one level deep by construction."""
     for fn in deciders_for(point, court):

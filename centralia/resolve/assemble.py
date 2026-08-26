@@ -178,6 +178,19 @@ def _is_outline_label(line, segmenter) -> bool:
 # which point every runover reads as a fresh paragraph and every item head
 # reads as a quotation. Measured on almd, where the last page of a decretal
 # order came back as five paragraphs broken mid-sentence.
+# …AND A COURT MAY PUT THE NUMBER IN PARENTHESES. `_OUTLINE` is the OUTLINE
+# hierarchy — 'I' over 'A' over '1' over 'a', centred between paragraphs — and
+# a decretal list is a different thing set a different way: pamd/…145277.24.0
+# numbers what it orders '(1)' '(2)' '(3)' at x108 with the item's text and
+# its runovers at x144. Unmatched, each marker voted as a left edge and the
+# consequence is the one written above: item (1) came out a QUOTATION and
+# items (2) and (3) welded into one paragraph (the user, 2026-08-25: 'the
+# whtieapce should be better rpsesented in teh body text'). The geometry
+# tests below are what make the row a marker; this only has to spell the
+# forms a court uses to write one.
+_LIST_MARK = re.compile(r"^\(?(?:[IVXLCDM]{1,5}|[A-Za-z]|\d{1,2})[.)]?$", re.I)
+
+
 def _is_list_marker(line, lines, i: int, left: float | None = None) -> bool:
     """Is ``line`` a lone list marker with its item's text beside it?
 
@@ -188,13 +201,146 @@ def _is_list_marker(line, lines, i: int, left: float | None = None) -> bool:
     voting) moved the measured rail and merged real paragraphs: five of six
     pinned records lost a ¶ each, and state_v._shay lost four."""
     text = " ".join((line.plain or "").split())
-    if not _OUTLINE.match(text):
+    if not _LIST_MARK.match(text):
         return False
     if left is not None and line.x0 > left + 60:
         return False
     nxt = lines[i + 1] if i + 1 < len(lines) else None
     return (nxt is not None and abs(nxt.top - line.top) < 2
             and nxt.page == line.page and nxt.x0 > line.x1)
+
+
+# AN ITEM THAT CARRIES ITS OWN NUMBER. `_is_list_marker` reads the form where
+# the court sets the number in a slot of its own with the item beside it; a
+# district that types '1.' and the sentence on ONE row states the same thing
+# and matched nothing, so consecutive items welded into a paragraph: flmd/
+# …459104.10.0's four numbered directions came back as two blocks, and wiwd/
+# …55879.12.0's as '2. All pending motions are DENIED as moot. 3. Petitioner
+# is DENIED … 4. The clerk … shall enter judgment' (the user, 2026-08-25:
+# 'this stuff needs to retain its spacing to retain meaning'). A wrapped line
+# does not open on a number and a stop.
+_INLINE_ITEM = re.compile(r"^(?:<[^>]+>)*\(?\d{1,2}[.)]\s+\S")
+
+# WHAT A COURT SETS ON A LINE OF ITS OWN TO CLOSE. The date it signs under,
+# the words it orders by, the clerk's entry line — each stands alone on the
+# page and each was welded into the sentence above it, which finishes its own
+# sentence and so passes every test the walk makes: pawd/…228376.1094.0 came
+# back 'An appropriate order follows. Dated: July 8, 2026' and tned/
+# …107949.169.0 ran '… [Doc. 123]. SO ORDERED.' together with 'ENTER:' (the
+# user, 2026-08-25: 'the date needs to be its own line when its its own line
+# at the end of the document'). Matched only at the HEAD of a row, so the
+# same words inside a sentence are untouched.
+_CLOSING_ROW = re.compile(
+    r"^(?:<[^>]+>)*\s*(?:dated?\s*:|date\s*:|entered?\s*:|enter\s*:"
+    r"|so\s+ordered|it\s+is\s+so\s+ordered|by\s+the\s+court)\b", re.I)
+
+# HOW MUCH OF A GAP IS A BLANK LINE, in the run's own leading. One step is a
+# wrap and two is a blank line, so the cut goes between them.
+_AIR_OPENS = 1.5
+
+
+def _row_lead(lines) -> float:
+    """The leading this run is set on: the SMALLEST step between its rows.
+
+    NOT the median, and this is the whole difference. A decretal order sets
+    each item as one or two rows with a blank line between — pamd/…145277.24.0
+    steps 33.6, 16.9, 16.8, 33.6, 33.7 — so the median step IS the
+    leading-plus-air and a median-based reader would find air nowhere on the
+    page. A page cannot set two rows closer together than its leading, so the
+    smallest real step is it. Steps under four fifths of the type size are
+    not two rows at all (a superscript, a split piece) and do not vote.
+    """
+    sizes = sorted(l.size for l in lines if getattr(l, "size", 0))
+    floor = (sizes[len(sizes) // 2] * 0.8) if sizes else 4.0
+    tops: list = []
+    for l in lines:
+        if not tops or l.page != tops[-1][0] or l.top > tops[-1][1] + 2.0:
+            tops.append((l.page, l.top))
+    steps = [b[1] - a[1] for a, b in zip(tops, tops[1:])
+             if a[0] == b[0] and b[1] - a[1] >= floor]
+    return min(steps) if steps else 0.0
+
+
+_SENTENCE_END = (".", ":", ";", "?", "!", "\u201d", '"', ")", "]")
+
+
+def _finished(text: str) -> bool:
+    """Has this row finished what it was saying?"""
+    t = (text or "").strip()
+    return not t or t.endswith(_SENTENCE_END)
+
+
+def _weld_unspaced(segs: list, lead: float, parser=None) -> list:
+    """Rejoin a segment the page never separated from the one above it.
+
+    A CHANGE OF WEIGHT IS NOT A CHANGE OF BLOCK. pamd/…145277.24.0 closes the
+    first thing it orders with one bold word — '… under the Social Security
+    Act is' / 'AFFIRMED;' — and the weight alone cut the word into a segment
+    of its own, where the short-bold-row test typed it a HEADING and the
+    sentence lost its verb (the user, 2026-08-25: 'affirmed shouldnt be its
+    own line! its part of hte sentetnece').
+    Three things have to agree before a segment is welded back, and all three
+    are the page's own: it stands one leading under the row above with no
+    blank line between them, that row has not finished its sentence, and it
+    opens on the same left edge the row above ran over to. A heading never
+    completes the sentence above it, and the page never sets one flush with
+    the prose it heads and no air around it.
+    """
+    if not lead:
+        return segs
+
+    def _pair_lead(prev) -> float:
+        """The leading of the run being welded TO, where it states one.
+
+        The document figure is the smallest step anywhere on the sheet, and
+        a sheet has more than one leading: nmd/…562552.14.0 sets its body on
+        32.2 while something in its front matter steps 16.1, so the
+        document threshold came out 24.2 — below the body's own single
+        spacing — and the weld could never fire on a body row at all. Its
+        order ended '… is hereby' with 'continued to October 27, 2026.' cut
+        off beneath it as a heading (the user, 2026-08-25: 'why is the last
+        line here separated?'). A run of three rows or more has already
+        said what leading it is set on.
+        """
+        _r: list = []
+        for _l in prev.lines:
+            if not _r or _l.page != _r[-1][0] or _l.top > _r[-1][1] + 2.0:
+                _r.append((_l.page, _l.top))
+        return _row_lead(prev.lines) if len(_r) >= 3 else lead
+
+    out: list = []
+    for seg in segs:
+        prev = out[-1] if out else None
+        _lead = _pair_lead(prev) if prev is not None and prev.lines else lead
+        if (prev is not None and seg.lines and prev.lines
+                and seg.kind not in ("table", "separator", "notice")
+                and prev.kind not in ("table", "separator", "notice")
+                and seg.lines[0].page == prev.lines[-1].page
+                and 0 < seg.lines[0].top - prev.lines[-1].top < _lead * _AIR_OPENS
+                and not _finished(prev.lines[-1].plain)
+                and abs(seg.lines[0].x0 - prev.lines[-1].x0) <= 2.0
+                # …BUT A BYLINE IS NEVER WELDED TO THE ROW ABOVE IT. This
+                # pass runs before the bylines are read precisely so a stray
+                # row cannot open a writing — but a row that NAMES A JUDGE
+                # and states what they did is not stray, and the three tests
+                # above are all satisfied by a running head: ca2's
+                # havlish_v._taliban repeats '23-258 (L); 23-354 (L)' over
+                # 'Havlish v. Taliban; Aliganga v. Taliban' at the head of
+                # every sheet, which finishes no sentence and sets the same
+                # left edge as the text beneath it. On page 5 that head
+                # swallowed 'NARDINI, Circuit Judge, joined by LOHIER,
+                # Circuit Judge, concurring in the denial of rehearing en
+                # banc:' into one blockquote, the byline never opened a
+                # writing, and the record came back three writings instead
+                # of four — the concurrence gone (the user, 2026-08-25: 'did
+                # lose a concurrence'). The segmenter had already cut it
+                # correctly; this pass undid the cut.
+                and not (parser is not None
+                         and parser.parse(seg.lines[0].plain.strip()))):
+            prev.lines.extend(seg.lines)
+            continue
+        out.append(seg)
+    return out
 
 
 def _mode_x0(lines) -> float | None:
@@ -311,6 +457,11 @@ def _leader_split(text: str) -> tuple[list[tuple[str, str]], str] | None:
     return pieces, text[pos:].strip()
 
 
+# HOW MANY LEADER ROWS MAKE A CONTENTS LIST. Two: one row is an ornament or
+# a quotation's ellipsis (see `_LEADER_SCAN`), a pair is a list.
+_LEADER_SEG_MIN = 2
+
+
 def _leader_cells(line) -> tuple[str, str] | None:
     """``(label, number)`` when a LINE is one row of a leader table."""
     return _leader_text_cells(line.plain or "")
@@ -367,6 +518,22 @@ def _paragraph_blocks(seg: Segment, segmenter: Segmenter,
     # whose first line indents less than its own body would otherwise read
     # as one fresh paragraph per line.
     fence = rail + 2 * step
+    # WHOSE LEADING? THIS RUN'S, where the run is long enough to state one.
+    # A DOCUMENT HAS MORE THAN ONE LEADING and the smallest is rarely the
+    # body's: ohnd/…323129.7.0 sets its caption on 13.8 and its prose on
+    # 27.6, so a document-wide figure called every single body row 'air' and
+    # the opinion came apart into one paragraph per line. A segment of three
+    # rows or more has already said what leading it is set on — its own
+    # smallest step — and only a gap wider than that is a blank line. Below
+    # three rows there is no step to learn from (a two-row segment has
+    # exactly one, which would always look like a wrap), and the document
+    # figure stands in.
+    _rows: list = []
+    for _l in seg.lines:
+        if not _rows or _l.page != _rows[-1][0] or _l.top > _rows[-1][1] + 2.0:
+            _rows.append((_l.page, _l.top))
+    lead = (_row_lead(seg.lines) if len(_rows) >= 3
+            else getattr(segmenter, "body_lead", 0.0) or _row_lead(seg.lines))
     paras: list[list[Line]] = []
     labels: dict[int, Line] = {}
     prev = None
@@ -416,11 +583,31 @@ def _paragraph_blocks(seg: Segment, segmenter: Segmenter,
                 after_label = False
                 continue                   # a runover of the item above
             bullet_x0 = None               # back at the measure: list over
+        # THE BLANK LINE THE COURT LEFT OPENS A BLOCK. Until now this walk
+        # read the INDENT and nothing else, so a court that separates its
+        # blocks by air alone was read as one running paragraph: pamd sets
+        # 'In accordance with the accompanying Memorandum Opinion, it is' and
+        # 'ORDERED that:' a blank line apart, and because the second row
+        # OUTDENTS to the rail instead of indenting off it, the indent test
+        # saw no opener and printed the two as one sentence. Its items (2)
+        # and (3) welded the same way. The air is the page's own statement
+        # that one thing has ended and another begun, and it is measured in
+        # the run's own leading — see `_row_lead`.
+        air = (bool(paras) and not same_row and prev is not None
+               and line.page == prev.page and lead > 0
+               and line.top - prev.top >= lead * _AIR_OPENS)
         opens = bool(paras) and not same_row and (
-            _bullet
+            air
+            or _bullet
             or _is_para_mark(line)
             or _is_list_marker(line, seg.lines, i,
                                min((l.x0 for l in seg.lines), default=None))
+            # …AND THE SAME ITEM WITH ITS NUMBER TYPED INLINE, standing at or
+            # right of the run's own left edge — a runover returns TO that
+            # edge and never opens on a numeral.
+            or (_INLINE_ITEM.match(" ".join((line.plain or "").split()))
+                and line.x0 >= min((l.x0 for l in seg.lines), default=line.x0))
+            or _CLOSING_ROW.match(" ".join((line.plain or "").split()))
             or (abs(line.x0 - rail) >= step
                 and (line.x0 < fence or returns)))
         # A label OPENS what follows it. Without this the next line joins
@@ -572,6 +759,27 @@ def _segment_blocks(seg: Segment, segmenter: Segmenter,
     # digit paragraph beside it. Geometry, not case, decides.
     if seg.kind == "table":
         return _table_blocks(seg, segmenter, vocab)
+    # A CONTENTS PAGE IS NOT A QUOTATION. Every row of one is a leader row —
+    # label, dot leader, page number — and `_paragraph_blocks` already knows
+    # what to do with those: "a leader row opens its own block and closes
+    # it". But a contents list INDENTS BY LEVEL (arwd/…74008.170.0 sets its
+    # roman entries at 72, its lettered ones at 84 and its numbered ones at
+    # 96 against a body rail of 72), so the segmenter reads the deeper levels
+    # as quotations and the quotation path joins the rows into one block:
+    # ten entries came out as a single blockquote, and three more welded into
+    # one row — '1. Residency Requirement … 27 2. Domicile Requirement … 33
+    # 3. Pay-Per-Signature/Commission Ban … 37' (the user, 2026-08-25: 'needs
+    # better formating for table of contents the stuff that goes ..........').
+    # THE DOTS STAY, and that is not an oversight — see `_split_leader_rows`,
+    # where it was settled: the page prints prose with leader dots and
+    # declares no table, so folding them into a TableBlock invents a
+    # structure the document never made. `_split_leader_rows` takes apart a
+    # PARAGRAPH that welded such rows; it never sees a Blockquote, which is
+    # why this segment escaped it. The welding is the whole defect and the
+    # whole fix: the rows are routed to the walk that keeps them apart.
+    if (len(seg.lines) >= _LEADER_SEG_MIN
+            and all(_leader_cells(l) is not None for l in seg.lines)):
+        return _paragraph_blocks(seg, segmenter, vocab)
     if len(seg.lines) == 1 and _is_outline_label(seg.lines[0], segmenter):
         return [m.Heading(text=" ".join(seg.lines[0].plain.split()),
                           prov=_prov(seg.lines))]
@@ -632,11 +840,19 @@ def _segment_blocks(seg: Segment, segmenter: Segmenter,
             return [m.Blockquote(text=text, prov=_prov(seg.lines))]
         _qstep = getattr(segmenter, "para_indent_min", 12.0)
         _qright = max(l.x1 for l in seg.lines)
+        # …AND AN ITEM THAT CARRIES ITS OWN NUMBER CUTS TOO. A quotation
+        # splits on the indent its opener takes, and a numbered run inside
+        # one takes no indent at all: wiwd/…55879.12.0 closes 'IT IS ORDERED
+        # that:' with four directions, and items 2, 3 and 4 came back as one
+        # block ('… DENIED as moot. 3. Petitioner is DENIED … 4. The clerk
+        # …'). See `_INLINE_ITEM`.
         _cuts = [i for i in range(1, len(seg.lines))
-                 if seg.lines[i].x0 - _qrail >= _qstep
-                 and seg.lines[i - 1].x0 - _qrail < _qstep
-                 and seg.lines[i - 1].x1 <= _qright - 12.0
-                 and seg.lines[i].top - seg.lines[i - 1].top > 2.0]
+                 if (seg.lines[i].x0 - _qrail >= _qstep
+                     and seg.lines[i - 1].x0 - _qrail < _qstep
+                     and seg.lines[i - 1].x1 <= _qright - 12.0
+                     and seg.lines[i].top - seg.lines[i - 1].top > 2.0)
+                 or _INLINE_ITEM.match(
+                     " ".join((seg.lines[i].plain or "").split()))]
         if _cuts:
             out = []
             for a, b in zip([0] + _cuts, _cuts + [len(seg.lines)]):
@@ -1122,6 +1338,14 @@ def assemble(model, geom: DocGeometry | None, segments_by_page: dict,
         for a, b in zip(bounds, bounds[1:]):
             if seg.lines[a:b]:
                 split_stream.append(Segment(seg.page, seg.lines[a:b], seg.kind))
+
+    # A ROW THE PAGE NEVER SEPARATED IS NOT A SEGMENT — welded back BEFORE
+    # the byline starts are read, because an unwelded one can open a WRITING.
+    # pamd/…145277.24.0 sets 'AFFIRMED;' bold on the row under '… Act is',
+    # and standing alone that row both opened a writing of its own and typed
+    # as a heading. See `_weld_unspaced` for the three tests.
+    _body_lead = _row_lead([_l for _s in stream for _l in _s.lines])
+    split_stream = _weld_unspaced(split_stream, _body_lead, parser)
 
     def head_byline(seg):
         """(byline, byline_source_text, lines_consumed) for a segment head —
@@ -2366,6 +2590,8 @@ def assemble(model, geom: DocGeometry | None, segments_by_page: dict,
                          and l.page == head_line.page}
         result.consumed_ids.update(_claimed)
         attesting = False
+        segmenter.body_lead = _body_lead
+        writing_segs = _weld_unspaced(writing_segs, _body_lead, parser)
         for seg in writing_segs:
             if _claimed:
                 kept_lines = [l for l in seg.lines if l.id not in _claimed]

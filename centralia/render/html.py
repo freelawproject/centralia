@@ -518,6 +518,9 @@ def render_html(doc: m.Document, title: str | None = None) -> str:
     meta = doc.meta
     title = title or f"{meta.court_id} — {meta.doc_type}"
     chips = [f'<span class="chip">{escape(meta.doc_type)}</span>']
+    if getattr(meta, "form", ""):
+        chips.append(f'<span class="chip warn">form · '
+                     f'{escape(meta.form)}</span>')
     if meta.doc_style:
         chips.append(f'<span class="chip kind">{escape(meta.doc_style)}</span>')
     for w in doc.warnings:

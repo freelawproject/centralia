@@ -211,6 +211,14 @@ class PageModel:
     ink_chars: int = 0          # printable upright glyph count (scan triage)
     cid_chars: int = 0          # unmapped (cid:N) glyph count
     image_area: float = 0.0     # summed image area / page area, 0..1
+    # ROWS OF TEXT CONVERTED TO OUTLINES. Filled glyph-sized paths standing
+    # on one baseline, which no text layer holds and no reader can recover:
+    # paed/…658030.12.0 draws its masthead and 'MEMORANDUM OPINION AND
+    # ORDER' this way, and the record published with no court and no title
+    # and said nothing about either (the user, 2026-08-25: 'why dont i see
+    # … memorandum and opinion order on the text output?'). Counted here so
+    # the loss is surfaced rather than silent — poppler misses these too.
+    outlined_rows: int = 0
     # Every distinct /BaseFont the page's glyphs name, kept WHOLE — with the
     # subset tag that `Line.font` strips off. The tag is the evidence: a
     # born-digital page embeds its faces and pdfminer reports them subsetted

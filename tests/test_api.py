@@ -17,7 +17,7 @@ import pytest
 import centralia
 from conftest import needs_corpus  # noqa: F401
 
-TOP_KEYS = {"status", "court_id", "versions", "cluster", "opinions",
+TOP_KEYS = {"status", "court_id", "form", "versions", "cluster", "opinions",
             "headmatter", "endmatter", "sections", "removed", "diagnostics",
             "html", "review_html", "casebody", "warnings"}
 
@@ -41,6 +41,7 @@ DIAG_KEYS = {
     "cid_pages", "residual", "residual_content", "removed_counts", "redactions",
     "opinion_count", "unbylined_opinions", "footnote_count",
     "headmatter_rows", "headmatter_untinted", "dates_unparsed", "warnings",
+    "is_form",
 }
 
 

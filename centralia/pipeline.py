@@ -136,6 +136,167 @@ _re_dated_row = _re.compile(
     r"\s+day\s+of\b", _re.I)
 
 
+# THE REVISION STAMP a judgment FORM carries at the head of every sheet —
+# '(Rev. 11/25)'. The form NUMBER beside it cannot be read on its own: a
+# district prefixes the AO's number with its own ('GAS245B' — gasd), sets a
+# pen glyph in front of it ('✎AO 245D' — iand), or prints none at all, and a
+# pattern loose enough for those also matches a bare docket standing in the
+# same band ('EDCR20-00019-KK-1' — cacd/…770740.1371.0, which is not a form
+# code at all). The revision is what no opinion carries.
+# THE SEPARATOR IN THE REVISION IS NOT ALWAYS A SLASH. A subset font that
+# lost its ToUnicode map hands the '/' back as an escape, so the stamp reads
+# '(Rev. 11(cid:18)25)' — nced/…208700.202.0's AO 245C, which named no form
+# at all against a pattern that insisted on the character. '(Rev.' is the
+# distinctive part; whatever stands between the two numbers is not.
+# …AND THE DISTRICT STAMPS ITS OWN INITIALS INSIDE THE PARENTHESIS. A court
+# that amends the AO's sheet says so where the revision stands — casd prints
+# '(CASD Rev. 1/19)' on AO 245D and '(CASDRev. 08/14)', no space at all, on
+# AO 245B. Insisting on 'Rev' immediately after the bracket read neither as a
+# form (the user, 2026-08-25, four times over: 'this is a form … why cnat we
+# tag them?'), and both are judgments filled in on a pre-printed sheet.
+_AO_REV = _re.compile(
+    r"\(\s*(?:[A-Za-z]{2,6}\s*)?Rev\.?\s*\d{1,2}\D{1,12}\d{2,4}\s*\)", _re.I)
+# …AND A COURT'S OWN MINUTE TEMPLATE NAMES ITSELF IN ITS HEADING AND AGAIN
+# IN ITS FOOTER. cacd heads every one 'CIVIL MINUTES – GENERAL' over a grid
+# of labelled fields (Case No. | Date | Title, Deputy Clerk, Court Reporter,
+# Proceedings:). Measured over 2,099 records: three carry the phrase, all of
+# them that form.
+_MINUTES = _re.compile(r"\b(?:CIVIL|CRIMINAL)\s+MINUTES\b", _re.I)
+_AO_FORM = _re.compile(r"^[^A-Za-z0-9]{0,3}AO\s*\d{1,3}[A-Z]?\b", _re.I)
+# A FORM THAT PRINTS NO REVISION STILL PRINTS ITS NUMBER, and the AO is not
+# the only body that issues one. The probation office's violation petition
+# heads waed/…95832.132.0 with 'PROB 12C' — no revision, no title, nothing
+# else on the row — so a test that keys on the revision stamp cannot see it
+# at all. Read ONLY where the code opens the row in the head band, which is
+# where a form prints its own name and where no court's prose begins: the
+# two records that merely MENTION a form (mnd/…226579.5.0's 'return a
+# Marshal Service Form (Form USM 285)', sdd/…85997.7.0's 'submit an AO 239
+# Application') say so mid-sentence at 55% of the sheet.
+# 'JS' IS DELIBERATELY ABSENT. cacd stamps 'JS-3' and 'JS-6' on ordinary
+# minute orders as a case-status code, not a form number, and no record in
+# the corpus heads a sheet with a JS form at all.
+_SERIES_FORM = _re.compile(
+    r"^[^A-Za-z0-9]{0,3}"
+    r"(?P<code>(?:AO|CJA|PROB|EOIR|USM)[\s.-]?\d{1,3}\s?[A-Z]?)\b", _re.I)
+
+
+# A DISTRICT'S PREFIX IS GLUED TO THE NUMBER, never a word beside it. gasd
+# issues the AO's judgment as 'GAS245B', which is why the prefix is allowed
+# at all — but spelled with a gap it also reached backwards across the space
+# into the e-filing stamp printed on the same band, and the form came out
+# named after the stamp: 'DOCUMENT AO 245B' (nysd/…624127.124.0), 'SDNY AO
+# 245B' (…627069.131.0), 'OF AO 245B' (waed/…98410.132.0).
+# …AND THE AO ISSUES ONE SHEET FOR TWO FORMS. iand/…69000.105.0 heads
+# 'AO 245 B&C', the judgment and the amended judgment on one template.
+_AO_NAME = _re.compile(
+    r"([A-Z]{0,4}AO\s*\d{1,3}(?:\s?[A-Z](?:&[A-Z])?)?"
+    r"|[A-Z]{2,4}\d{2,3}[A-Z]?)", _re.I)
+
+
+# THE INSTRUCTIONS A FORM PRINTS UNDER ITS BLANKS — '(Name of Counsel)',
+# '(Last 4 digits)', 'MONTH DAY YEAR'. A district that uses its own template
+# rather than the AO's prints no form number and no revision, so nothing in
+# the head declares it: cacd/…770740.1371.0 and …770761.1367.0 are judgment
+# forms headed only 'United States District Court' and a 'JS-3' code. What
+# they DO print is a caption for every blank, which no court sets in its own
+# prose. Measured over 1,749 records: two or more such cells appear on the
+# cacd form and on nothing else at all.
+_FORM_INSTR = _re.compile(
+    r"^\((?:name|last|month|day|year|type|print|check|if|specify|date|city"
+    r"|state|signature|title|attach|list)\b[^)]{0,44}\)$", _re.I)
+_FORM_LEGEND = _re.compile(r"^(?:MONTH\s+DAY\s+YEAR"
+                           r"|DATE\s+OF\s+(?:BIRTH|ENTRY))$", _re.I)
+_FORM_INSTR_MIN = 2
+
+
+def _prints_form_instructions(model) -> bool:
+    """Does the paper caption its own blanks? See `_FORM_INSTR`."""
+    n = 0
+    for pm in model.pages[:2]:
+        for line in pm.lines:
+            flat = " ".join(line.plain.split())
+            if _FORM_INSTR.match(flat) or _FORM_LEGEND.match(flat):
+                n += 1
+                if n >= _FORM_INSTR_MIN:
+                    return True
+    return False
+
+
+# A FONT THE OCR ENGINE INVENTED. A born-digital PDF embeds a subset of a
+# real face and reuses it — 'ABCDEF+TimesNewRomanPSMT' on every page. An OCR
+# engine has no font to embed: it synthesizes one per page and names it after
+# the face it guessed, with an arbitrary id — '*Times New Roman-3206' on page
+# one, '*Times New Roman-4021' on page two. txsd/…2092603.7.0 reads that way
+# on all four sheets and was reported born-digital, so its footnotes came
+# back wrong with nothing to say why (the user, 2026-08-25: 'we need to do
+# better about identifying ocr scans so we can flag that … we need to know
+# that'). Measured over 1,166 records: four carry such a name, every one of
+# them a scan with a page image under the text.
+_OCR_FONT = _re.compile(r"^\*.+-\d{2,6}$")
+
+
+def _ocr_synthesized(model) -> bool:
+    """Was this text layer SYNTHESIZED by an OCR engine? See `_OCR_FONT`."""
+    for pm in model.pages[:3]:
+        for line in pm.lines:
+            for c in (line.chars or ()):
+                name = str(c.get("fontname") or "").split("+")[-1]
+                if _OCR_FONT.match(name):
+                    return True
+    return False
+
+
+def _names_ao_form(model) -> str:
+    """WHICH form the paper says it is, or ''. See `Meta.form`."""
+    for pm in model.pages[:1]:
+        band = [l for l in pm.lines
+                if l.plain.strip() and l.top <= pm.height * 0.12]
+        joined = " ".join(" ".join(l.plain.split()) for l in band)
+        if not _AO_REV.search(joined):
+            continue
+        # The code stands immediately before the revision it is issued under.
+        head = joined[:_AO_REV.search(joined).start()]
+        m = None
+        for m in _AO_NAME.finditer(head):
+            pass
+        if m:
+            return " ".join(m.group(1).split()).upper()
+        return "form"
+    # …AND THE CODE ALONE, where the sheet stamps no revision. See
+    # `_SERIES_FORM`: the head band and the row's own opening are the whole
+    # test, because the number is all such a sheet prints.
+    for pm in model.pages[:1]:
+        for line in pm.lines:
+            if not line.plain.strip() or line.top > pm.height * 0.12:
+                continue
+            hit = _SERIES_FORM.match(" ".join(line.plain.split()))
+            if hit:
+                return " ".join(hit.group("code").split()).upper()
+    for pm in model.pages[:1]:
+        if _MINUTES.search(" ".join(l.plain for l in pm.lines)):
+            return "minutes"
+    return "form" if _prints_form_instructions(model) else ""
+
+
+def _states_ao_form(model) -> bool:
+    """Does the paper print an Administrative Office FORM NUMBER at its head?
+
+    The AO issues the judgment, the summons and the warrant as numbered
+    forms, and each sheet carries its number and revision ('AO 245B (Rev.
+    11/25) Judgment in a Criminal Case'). A court's own writing never does.
+    Read on the first sheet only, above the caption, where the number sits.
+    """
+    for pm in model.pages[:1]:
+        band = [l for l in pm.lines
+                if l.plain.strip() and l.top <= pm.height * 0.12]
+        if _AO_REV.search(" ".join(l.plain for l in band)):
+            return True
+        for line in band:
+            if _AO_FORM.match(" ".join(line.plain.split())):
+                return True
+    return False
+
+
 def _signed_date(text: str) -> str | None:
     """The date a signing block states, in the form the readers publish."""
     m = _re_ordinal_date.search(text)
@@ -183,6 +344,22 @@ def _px(image) -> int:
     if src and len(src) == 2:
         return int(src[0]) * int(src[1])
     return 0
+
+
+# HOW LITTLE TEXT A FULL-SHEET RASTER MAY CARRY before its words are taken
+# to be in the picture rather than in the text layer. Measured on nysd: an
+# endorsed FORM fills 4.3% of the sheet, endorsed LETTERS whose text is all
+# present fill 19.5% and 33%, and a page of prose about half.
+_RASTER_TEXT_COVER = 0.12
+
+
+def _text_cover(pm) -> float:
+    """What fraction of the sheet the page's own text lines cover."""
+    if not pm.width or not pm.height:
+        return 1.0
+    area = sum(max(0.0, l.x1 - l.x0) * max(0.0, l.bottom - l.top)
+               for l in pm.lines if l.plain.strip())
+    return area / (pm.width * pm.height)
 
 
 def _page_list(pages: list[int]) -> str:
@@ -503,6 +680,45 @@ def _extract_model(model, court_id: str, pdf_path) -> ExtractionResult:
     meta.cid_pages = [pm.number for pm in model.pages
                       if pm.ink_chars and
                       pm.cid_chars / pm.ink_chars > CID_MAX_FRAC]
+    # WORDS DRAWN RATHER THAN WRITTEN. A chambers that flattens its headings
+    # to vector outlines leaves nothing for any text layer to hold, so the
+    # words are on the page and not in the document — paed/…658030.12.0
+    # draws its masthead and 'MEMORANDUM OPINION AND ORDER' that way and
+    # published `valid` with no court and no title and no complaint of any
+    # kind (the user, 2026-08-25: 'why dont i see … memorandum and opinion
+    # order on the text output?'). Named the same way image-only pages are:
+    # what the reader needs is which pages, and that the text is not here.
+    # A SHEET THAT IS A PICTURE, with a note typed over it. The test above
+    # asks whether a page carries almost NO text, and a memo endorsement
+    # carries just enough to escape it: nysd/…611698.117.0 is form AO 154
+    # filled in and flattened to a raster covering 99.5% of the sheet, with
+    # the judge's 'Application GRANTED…' set underneath it. 294 characters —
+    # over the 120 floor — so the record published `valid` with no
+    # complaint, while the caption, the case number, the parties and both
+    # attorneys were all in the picture (the user, 2026-08-25: 'this is a
+    # form right').
+    # COVERAGE is what separates it from a page merely printed over a
+    # background image, which is common and loses nothing: measured on nysd,
+    # the endorsed form's text fills 4.3% of the sheet while the endorsed
+    # LETTERS beside it — whose text layers are complete — fill 19.5% and
+    # 33%. A page of prose fills about half.
+    _thin = [pm.number for pm in model.pages
+             if pm.image_area > SCAN_IMAGE_AREA
+             and pm.number not in _img_only
+             and _text_cover(pm) < _RASTER_TEXT_COVER]
+    if _thin and verdict != "scan":
+        doc.warnings.append(
+            f"{len(_thin)} page(s) ({_page_list(_thin)}): the sheet is a "
+            f"page image with only a note set over it — what it says is in "
+            f"the picture, not in this document")
+    _outlined = [pm.number for pm in model.pages if pm.outlined_rows]
+    meta.outlined_pages = list(_outlined)
+    if _outlined:
+        _rows = sum(pm.outlined_rows for pm in model.pages)
+        doc.warnings.append(
+            f"{_rows} line(s) on {len(_outlined)} page(s) "
+            f"({_page_list(_outlined)}) are drawn as outlines, not text: "
+            f"those words are not in this document")
     if _img_only and verdict != "scan" and len(_img_only) < model.n_pages:
         # NAME THE PAGES, AND SAY WHAT IS LOST. Printed as first-to-last the
         # note read as a RANGE — nev/engle_julie_2 carries no text on pages 4
@@ -572,6 +788,20 @@ def _extract_model(model, court_id: str, pdf_path) -> ExtractionResult:
 
     doc_type, heading = classify_doc_type(model, geom)
     meta.doc_type = doc_type
+    # …AND WHERE THE TEXT WAS MACHINE-READ, SAY SO. `triage` calls a scan by
+    # the raster it can see; an OCR layer rich enough hides that, and the
+    # record then claims a fidelity it does not have. The font names are the
+    # engine's own signature — see `_ocr_synthesized`. Only ever ADDED: a
+    # verdict already reached above ('scan', 'ocr-scan') stands.
+    if not meta.source_kind and _ocr_synthesized(model):
+        meta.source_kind = "ocr-scan"
+        doc.warnings.append(
+            "OCR text layer (machine-read): the words are the scanner's "
+            "reading of an image, and every coordinate is its guess")
+        trace.event("source", "ocr-scan by synthesized font names")
+    meta.form = _names_ao_form(model)
+    if meta.form:
+        trace.event("form", f"the paper names itself {meta.form!r}")
     if heading:
         trace.event("doc-type", f"{doc_type} via {heading!r}")
 
@@ -3067,11 +3297,38 @@ def _extract_model(model, court_id: str, pdf_path) -> ExtractionResult:
             # signing row — or if it carries no lines at all, which is what
             # a graphic is — and the walk stops at the first block that does
             # not qualify, so a body paragraph is a floor.
+            _line_at = {l.id: l for pm in model.pages for l in pm.lines}
+            _meas_x0 = geom.body_x0 if geom else 72.0
+            _meas_x1 = ((getattr(geom, "right_x1", None) or 540.0)
+                        if geom else 540.0)
+            _meas = max(_meas_x1 - _meas_x0, 1.0)
+
+            def _is_stacked(b) -> bool:
+                """Rows the page STACKS, not prose it wraps.
+
+                A paragraph runs to the measure and wraps; an appearance, an
+                address or a signature is a column of short rows. ord/
+                …172179.21.0 closes with 'Proposed Order submitted by:' over
+                the firm, the street, the telephone, the e-mail and 'Of
+                Attorneys for Plaintiff' — seven rows of 147-355pt against a
+                468pt measure — and because that block is not a SIGNING row
+                the tail walk stopped on it, so the judge's own signature
+                above it was never claimed and rendered flush left, and the
+                seven rows came back welded into one paragraph (the user,
+                2026-08-25: 'why are we not putting signature on the right
+                and preserving the new lines at the end where its clearly
+                neeeed?').
+                """
+                _ls = [_line_at[i] for i in _ids(b) if i in _line_at]
+                if len(_ls) < 3:
+                    return False
+                return all(l.x1 <= _meas_x1 - 0.15 * _meas for l in _ls)
+
             def _is_sig_block(b) -> bool:
                 ids = _ids(b)
                 if not ids:
                     return isinstance(b, m.ImageBlock)
-                return ids <= _run_ids
+                return ids <= _run_ids or _is_stacked(b)
 
             _cut = len(_op_sig.blocks)
             while _cut > 0 and _is_sig_block(_op_sig.blocks[_cut - 1]):
@@ -3124,17 +3381,43 @@ def _extract_model(model, court_id: str, pdf_path) -> ExtractionResult:
                         _rows.append([_l])
                 if len(_rows) <= 1:
                     return [b]
+                # …AND EACH ROW KEEPS THE PLACE THE PAGE SET IT. Ranging the
+                # whole block right moved an appearance block that the page
+                # sets at the body rail out to the middle of the sheet: ord
+                # signs at x0 288 of a 612pt sheet and sets 'Proposed Order
+                # submitted by:' and its five rows at 72, and both belong
+                # where the court put them.
+                def _al(_r) -> str:
+                    _x0 = min(x.x0 for x in _r)
+                    return "right" if _x0 > _meas_x0 + 0.35 * _meas else ""
+
                 return [m.Paragraph(
                     text="  ".join(_lmk(x) for x in sorted(_r,
                                                            key=lambda y: y.x0)),
                     prov=m.Prov(_r[0].page, tuple(x.id for x in _r)),
-                    align="right") for _r in _rows]
+                    align=_al(_r)) for _r in _rows]
 
             _sig_items = [x for _k, b in _keyed for x in _as_rows(b)]
             for _i2, _b2 in enumerate(_sig_items):
                 if isinstance(_b2, m.Heading):
                     _sig_items[_i2] = m.Paragraph(
                         text=_b2.text, prov=_b2.prov, align="right")
+            # …AND A ROW THAT WAS ALREADY ITS OWN BLOCK KEEPS ITS PLACE TOO.
+            # `_as_rows` hands back a single-line block unchanged, so a court
+            # that sets each signing row as its own block never had one
+            # aligned: ord/…172179.21.0 signs at x0 288 of a 612pt sheet and
+            # the judge's name, the s/ line and his office all rendered flush
+            # left against the body. Read off the page rather than assumed,
+            # so the appearance block the same court sets at the rail below
+            # it stays where it belongs.
+            for _i3, _b3 in enumerate(_sig_items):
+                if not isinstance(_b3, m.Paragraph) or getattr(_b3, "align", ""):
+                    continue
+                _ls3 = [_line_at[i] for i in _ids(_b3) if i in _line_at]
+                if _ls3 and min(l.x0 for l in _ls3) > _meas_x0 + 0.35 * _meas:
+                    _sig_items[_i3] = m.Paragraph(
+                        text=_b3.text, prov=_b3.prov, align="right",
+                        continuation=_b3.continuation, role=_b3.role)
             _op_sig.signature = _sig_items + list(_op_sig.signature)
             trace.event("signature.claimed",
                         f"{len(_tail)} moved, {_new} new, p{_last_pg}")
@@ -3297,7 +3580,18 @@ def _extract_model(model, court_id: str, pdf_path) -> ExtractionResult:
         from .audit import strip_tags as _stj
         _words = sum(len(_stj(getattr(b, "text", "") or "").split())
                      for op in doc.opinions for b in op.blocks)
-        if _words >= 120:
+        # …UNLESS THE PAPER STATES THAT IT IS A FORM. The word count reads a
+        # bare form as empty, and the Administrative Office's judgment form
+        # is anything but: almd/…85545.1118.0 is an AO 245B carrying the
+        # count of conviction, the term, and every condition of supervision
+        # — 288 rows over seven sheets — so the test reclassified it as the
+        # court's own ORDER and it was graded as a writing that had no
+        # opinion in it (the user, 2026-08-25: 'i think this should be
+        # flagged as a form and not processed as an opinion').
+        # THE FORM NUMBER IS THE PAPER'S OWN DECLARATION, printed at the head
+        # of every sheet the AO issues ('AO 245B (Rev. 11/25) Judgment in a
+        # Criminal Case', 'Sheet 1'), and no opinion carries one.
+        if _words >= 120 and not _states_ao_form(model):
             meta.doc_type = m.DocType.ORDER
 
     # 10c WHERE IT STOOD. Every removal and every unclaimed row gets the box
