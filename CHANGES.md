@@ -1,5 +1,66 @@
 # Changes
 
+## 0.0.6
+
+### Added
+
+- **The payload says whether the paper is a form.** A judgment on AO 245B is
+  a pre-printed sheet whose words belong to the Administrative Office and
+  whose blanks belong to the court. Read as prose it comes apart quietly:
+  the caption walk takes the form's field labels for parties, and every
+  quality measure comes back clean because there is no prose in it to be
+  wrong about — `nced/…117182.460.0` reported `valid` with half its first
+  sheet in `parties`. `r["form"]` now names the form the sheet names itself
+  (`'AO 245C'`, `'AO 467'`, `'minutes'`), and `r["diagnostics"]["is_form"]`
+  is the same answer as a boolean. It stands beside `court_id` rather than
+  inside `cluster` because it is a fact about the SHEET, not the case, and
+  an ingest has to see it before it reads anything else. Recorded beside
+  `doc_type`, never inside it: AO 245B is a *judgment* and AO 467 an
+  *order*, and both are forms.
+- **The forms the detector could not see.** A district stamps its own
+  initials inside the revision — casd prints `(CASD Rev. 1/19)` on AO 245D
+  and `(CASDRev. 08/14)`, no space at all, on AO 245B — and a sheet that
+  prints no revision still prints its number, so a head-band row opening on
+  AO/CJA/PROB/EOIR/USM is now read on the code alone (waed's `PROB 12C`,
+  scd's `Prob 12A`). `JS` is deliberately absent: cacd's `JS-3` and `JS-6`
+  are case-status stamps, not form numbers. Measured over all 10,494
+  records: 24 forms read correctly, and the two papers that merely MENTION
+  one in their prose still refuse — every real slug stands in the top 6% of
+  the sheet and begins its row, both mentions at 55%, mid-sentence.
+- **nmd's appearances, which are printed after the writing.** This court
+  sets its roster at the FOOT of the opinion, under the signature, where
+  nothing looked for it: `endmatter` was 0 on all 17 records that print one
+  while the names sat in the writing as prose — and because the assembler
+  joins short adjacent lines, five attorneys arrived welded into a sentence
+  (`'Jacob Payne Jesse Gallegos Alexander Flores Robert Sanchez Brian
+  Colon'`). Claimed now, one row per line the page printed, the page's own
+  indentation kept, and the sheets it spans crossed without taking the
+  e-filing stamp or the folio along with it.
+
+### Fixed
+
+- **paed's judge-and-date row belonged to neither block it stood between.**
+  This court sets the judge ranged left and the filing date ranged right on
+  one typed row between its caption and its opinion. The shared reader knows
+  a caption and a body, so it put the row in whichever it touched: where the
+  row stands above the paper's name the judge joined the last party
+  (`'MOHAMED KHELIL-CHERFI Diamond, J.'`), and where it stands below, it
+  opened the writing as a heading. Either way the filing date was lost — 1
+  of the 33 records that print the row came back with one. Read now in both
+  placements and both forms, including the reversed one where the name and
+  the office stand on separate rows: 33 records carry `judges` and 28 a
+  filing date that was simply gone.
+- **The form's own number is not the e-filing stamp beside it.** The
+  district prefix that lets `GAS245B` be read was spelled with a gap, so it
+  reached backwards across the space into the stamp printed on the same
+  band and named three forms `DOCUMENT AO 245B`, `SDNY AO 245B` and
+  `OF AO 245B`. Glued to the number, as `GAS245B` actually is.
+- **The reviewer's guard count now goes down as they work.** Marking a
+  sentinel `yay` re-pins it and drops it from the review file, but the
+  viewer fetched that file once at load and never refreshed it — so the ⚑,
+  the per-file diff line and the `⚑ to review (n)` counter all went on
+  showing the pre-blessing number until the page was reloaded.
+
 ## 0.0.5
 
 ### Added
