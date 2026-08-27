@@ -176,6 +176,13 @@ so their words are absent (`text_missing_pages`), which carry unmapped glyphs
 and what the extractor could not place (`residual`).
 
 
+## License
+
+centralia is licensed under the permissive BSD license — the same license
+[juriscraper](https://github.com/freelawproject/juriscraper) ships under. See
+[LICENSE](LICENSE).
+
+
 ## Contributing
 
 [**DEVELOPMENT.md**](DEVELOPMENT.md) is the orientation: how the engine works
