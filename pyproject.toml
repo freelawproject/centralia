@@ -4,11 +4,6 @@ version = "0.0.6"
 description = "Court PDF opinion extractor: PDF + court id -> typed Document via one fixed pipeline"
 readme = "README.md"
 requires-python = ">=3.12"
-# THE SAME LICENSE JURISCRAPER SHIPS UNDER — the permissive BSD, two clauses,
-# Free Law Project's own (the user, 2026-08-27: 'centralia needs a license the
-# same as juriscraper'). Named as an SPDX expression rather than a classifier,
-# which is what PEP 639 asks for, and `license-files` is what puts the LICENSE
-# itself inside the wheel and the sdist instead of leaving it in the repo.
 license = "BSD-2-Clause"
 license-files = ["LICENSE"]
 authors = [

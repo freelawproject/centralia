@@ -178,9 +178,7 @@ and what the extractor could not place (`residual`).
 
 ## License
 
-centralia is licensed under the permissive BSD license — the same license
-[juriscraper](https://github.com/freelawproject/juriscraper) ships under. See
-[LICENSE](LICENSE).
+centralia is licensed under the permissive BSD license - See [LICENSE](LICENSE).
 
 
 ## Contributing
