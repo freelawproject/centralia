@@ -419,6 +419,183 @@ def read_parties(rows: list[str], trace: Trace) -> list[str]:
     return sides
 
 
+# --------------------------------------------------------------------------
+# a band the court sets as PROSE, said as the paragraphs it is
+# --------------------------------------------------------------------------
+# THE PRECIS IS A PARAGRAPH, NOT SIXTY-THREE ROWS. Connecticut's Reporter
+# sets its syllabus, its 'Procedural History' and its appearances as running
+# prose, and a reader that emits one row per printed line publishes a grey
+# wall: 8pt lines flush against each other with the Reporter's own
+# hyphenation left standing, so `criteria.history` read 'the defendant's
+# deter- mination' and a CL syllabus field would have carried it (the user,
+# 2026-08-26: 'it should be treated and grouped into pararaphs in my opinion
+# asdoes proceddural hsitory stection … so that it looks nice').
+#
+# CORE, NOT A COURT FILE. conn and connappct read the same paper under two
+# landmarks and neither may import the other, so the measure and the join
+# live here where both reach them — and any court whose Reporter sets a band
+# as prose reaches them too.
+
+
+_TAG = re.compile(r"<[^>]+>")
+# TWO RUNS OF THE SAME EMPHASIS THAT MEET AT A WRAP ARE ONE RUN:
+# '<em>Rich-</em> <em>ard D. Carella</em>' is one italic name, and the seam is
+# what a rejoined word would otherwise carry through the middle of it.
+_SEAM = re.compile(r"</(strong|em|u|i|b)>\s*<\1>")
+
+
+def join_rows(rows: list[list[Line]], vocab: set[str] | None = None) -> str:
+    """One paragraph's printed rows, said as the paragraph they are.
+
+    A hyphen at a row's end is sometimes the WORD'S ('deter-' 'mination',
+    'ref-' 'erendum') and sometimes the token's ('9-328'); which one it is
+    cannot be seen in the row, so the DOCUMENT'S OWN VOCABULARY decides —
+    the discriminator `resolve.assemble` uses to join a wrapped body
+    paragraph, so a cover and a body can never disagree about a broken word.
+    Unproved, the hyphen stays and the wrap is welded ('non-' + 'compete').
+
+    A PARAGRAPH THAT CROSSES A PAGE TURN carries the turn inside it, marked
+    where it falls: conn tears its precis mid-sentence at every page bottom.
+    """
+    from .footnotes import line_markup
+    out = ""
+    page = None
+    for row in rows:
+        piece = ""
+        for line in sorted(row, key=lambda l: l.x0):
+            mark = line_markup(line).strip()
+            if mark:
+                piece = (piece + " " + mark) if piece else mark
+        if not piece:
+            continue
+        if page is not None and row[0].page != page:
+            out += f' <pagenumber value="{row[0].page}"/>'
+        page = row[0].page
+        if not out:
+            out = piece
+            continue
+        # THE HYPHEN IS NOT ALWAYS THE LAST CHARACTER. The Reporter sets
+        # counsel's names in italic and breaks them like any other word, so
+        # the row ends '<em>Rich-</em>' — and a test on the markup's own last
+        # character saw a tag, not the break, and left 'Rich- ard D. Carella'
+        # standing in the appearances and in `criteria.attorneys`. The
+        # decision is taken on the TEXT; the tags are put back around it.
+        bare = _TAG.sub("", out)
+        if bare.endswith(("-", "\u2013", "\u2014")):
+            proved = False
+            if vocab:
+                word = []
+                for ch in reversed(bare[:-1]):
+                    if ch.isalpha() or ch in "\u2019'":
+                        word.append(ch)
+                    else:
+                        break
+                head = _TAG.sub("", piece).split()[0].strip(
+                    "\u201c\u201d\"'\u2019\u2018()[]{}.,;:!?")
+                proved = bool(word) and (
+                    "".join(reversed(word)) + head).lower() in vocab
+            if proved:
+                cut = out.rfind(bare[-1])
+                out = out[:cut] + out[cut + 1:]
+            # A LINE-BREAK HYPHEN NEVER EARNS A SPACE: proved, the word closes
+            # up ('deter-' + 'mination'); unproved, the hyphen stays and the
+            # wrap is welded ('non-' + 'compete', never 'non- compete').
+            out = _SEAM.sub("", out + piece)
+        else:
+            # THE SEAM IS MENDED HERE TOO, but the space the join earned is
+            # kept: a court's name broken over two bold rows came out as
+            # '<strong>STATE OF WEST VIRGINIA</strong> <strong>SUPREME COURT
+            # OF APPEALS</strong>', two runs of one emphasis with nothing
+            # between them but the join.
+            out = _SEAM.sub(" ", out + " " + piece)
+    return out
+
+
+def paragraph_bands(rows: list[list[Line]], right_x1: float,
+                    open_x0: float | None = None
+                    ) -> list[tuple[list[list[Line]], float]]:
+    """A band's printed rows, split where the PAGE breaks its paragraphs.
+
+    TWO KINDS OF BAND, and the page states which it is. Where a band opens
+    its paragraphs on an INDENT — Connecticut's appearances open at 184.0 and
+    run over at 174.0 — pass `open_x0` and the indent is the break. Where it
+    does not, the AIR IS THE ONLY SIGNAL: measured on
+    `conn/amadasun_v._armstrong…` page 2, every precis row opens at x0=174.0
+    and consecutive rows of a paragraph sit 1.31pt apart while the Reporter's
+    paragraph band is 7.1-7.3pt — a whole blank line of 8pt type.
+
+    THE RULER IS THE DOCUMENT'S OWN: the modal gap between THIS band's rows,
+    never a constant, because the precis is set in 8pt and the history
+    paragraph beneath it in 11pt. Fewer than three gaps is no evidence of a
+    pitch at all, and with no evidence the band stays one paragraph — the
+    floor, not a guess.
+
+    A PAGE TURN IS NOT A PARAGRAPH BREAK. conn tears its precis mid-sentence
+    at every page bottom, and no air can be measured across the tear. What
+    the page does state is whether the row above ran the full measure: a
+    paragraph's LAST line stops short of `right_x1`, a torn one does not. The
+    band such a break deserves is unmeasurable there, so it is taken from
+    THIS band's other breaks — the document's own paragraph air.
+
+    Returns each paragraph with the air above it, in units of the type's own
+    size, for the row to carry as `HmLine.space_before`.
+    """
+    if not rows:
+        return []
+    gaps = [round(b[0].top - max(l.bottom for l in a), 1)
+            for a, b in zip(rows, rows[1:]) if a[-1].page == b[0].page]
+    pitch = None
+    if len(gaps) >= 3:
+        pitch = max(set(gaps), key=lambda g: (gaps.count(g), -g))
+    paras: list[list] = [[rows[0]]]
+    airs: list = [0.0]
+    for a, b in zip(rows, rows[1:]):
+        size = b[0].size or 8.0
+        same_page = a[-1].page == b[0].page
+        gap = b[0].top - max(l.bottom for l in a) if same_page else None
+        air = (round(min((gap - pitch) / size, 3.0), 2)
+               if same_page and pitch is not None else None)
+        if open_x0 is not None:
+            broke = b[0].x0 >= open_x0
+        elif same_page:
+            broke = pitch is not None and gap - pitch >= 0.4 * size
+        else:
+            broke = max(l.x1 for l in a) <= right_x1 - size
+        if broke:
+            paras.append([b])
+            airs.append(air if air and air > 0 else None)
+        else:
+            paras[-1].append(b)
+    measured = sorted(a for a in airs if a)
+    band = measured[len(measured) // 2] if measured else 0.0
+    return [(pa, band if ai is None else ai)
+            for pa, ai in zip(paras, airs)]
+
+
+def paragraph_line(rows: list[list[Line]], role: str,
+                   vocab: set[str] | None = None, air: float = 0.0) -> m.HmLine:
+    """ONE ROW PER PRINTED PARAGRAPH, and the air the page left above it.
+
+    THE CLAIM IS UNCHANGED: every source line of the paragraph is in the
+    row's prov, which is what a court reader marks consumed — and what keeps
+    core's bisection from reuniting a precis into the writing it opened on
+    the caption row above it.
+
+    The air is stated here because the pipeline's own pass cannot see it: it
+    reads a blank line as 0.3 of the type size, and the Reporter's paragraph
+    band measures 0.09 by that formula, so every paragraph rendered flush
+    against the last.
+    """
+    rows = [sorted(g, key=lambda l: l.x0) for g in rows if g]
+    first = rows[0][0]
+    return m.HmLine(
+        text=join_rows(rows, vocab),
+        prov=m.Prov(first.page, tuple(l.id for r in rows for l in r)),
+        align=m.Align.LEFT, x0=first.x0, size=first.size or 0.0,
+        bold=all(bool(l.all_bold) for r in rows for l in r),
+        role=role, space_before=air or 0.0)
+
+
 def _is_citation_row(text: str) -> bool:
     """A neutral citation row ('2025 MT 64', '2026 VT 12', '2025 MT64')."""
     toks = _clean(text).split()

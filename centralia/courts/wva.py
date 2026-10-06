@@ -119,6 +119,7 @@ from ..pdfio.rules import is_typed_rule
 from ..resolve.bylines import BylineParser
 from ..resolve.evidence import NOTHING, decider
 from ..resolve.footnotes import line_markup
+from ..resolve.headmatter import join_rows
 from ..resolve.furniture import FurnitureFinder
 from . import get_profile
 
@@ -394,6 +395,127 @@ def _body_family(model) -> str:
     return counts.most_common(1)[0][0] if counts else ""
 
 
+def _sub_line(line, chars):
+    """A Line rebuilt from some of another's chars — None where they inked
+    nothing. The measure comes off the CHARS, so a part of a row reports its
+    own left and right edge and is aligned on its own."""
+    inked = [c for c in chars if (c.get("text") or "").strip()]
+    if not inked:
+        return None
+    # A PART OF A ROW DOES NOT KEEP THE OTHER PART'S SPACE. Sliced at the
+    # type change, the docket half opened and closed on the spaces that had
+    # separated it from its neighbours ('<strong> No. 24-72 </strong>').
+    chars = chars[chars.index(inked[0]):chars.index(inked[-1]) + 1]
+    return _dc_replace(line, chars=list(chars),
+                       x0=min(c["x0"] for c in inked),
+                       x1=max(c["x1"] for c in inked))
+
+
+# THE PIVOT ROW IS THREE THINGS ON ONE PRINTED LINE, and the court's own type
+# says where each ends. The memorandum decision and the clerk's hand-down set
+# the caption's pivot, this court's docket, and the tribunal below with its
+# numbers, all on one row:
+#
+#     v.) No. 24-72 (Jackson County CC-18-2020-F-107 and CC-18-2023-F-5)
+#     └────── bold ──────┘└──────────────── roman ──────────────────────┘
+#
+# Read as ONE row it was keyed `docket`, so the pivot the caption turns on and
+# the court the case came from both said 'docket' — in the review sheet and in
+# the fields, where the whole parenthetical was `lower_court_docket` and
+# `lower_court` was empty (the user, 2026-08-26: 'it has one row docket
+# currently but its two its v.) and then abunch of ohter stuff that is docket
+# in bold and then lower ocurt prior history stuff').
+#
+# THE DIVIDER IS THE TYPE, and `_family` cannot see it: Times bold and Times
+# roman are one family, which is why the stamp splitter above says nothing
+# here. The CHARS carry it, under the same test the markup rebuild uses
+# ('Bold' in the font name), so the split and the <strong> can never disagree.
+# Where the row is set in one type it is left as it was — one row, `docket`.
+_PAREN_DOCKET = re.compile(
+    r"\b[A-Z0-9]{1,6}(?:-[A-Z0-9]{1,6}){2,}\b"
+    r"|\b\d{2}-[A-Z]{1,6}-\d{1,5}\b"
+    r"|\b\d{2}-\d{1,5}\b")
+# The label a tribunal's number is printed under, taken off its name.
+_DOCKET_LABELS = ("docket no", "civil action no", "criminal action no",
+                  "action no", "case no", "appeal no", "nos", "no")
+
+
+def _is_bold_char(ch) -> bool:
+    return "Bold" in (ch.get("fontname") or "")
+
+
+def _split_bold(line):
+    """(bold, roman) as two Lines — either may be None."""
+    return (_sub_line(line, [c for c in line.chars if _is_bold_char(c)]),
+            _sub_line(line, [c for c in line.chars if not _is_bold_char(c)]))
+
+
+def _split_pivot(line):
+    """('v.)', 'No. 24-72') as two Lines, or (None, the row unchanged)."""
+    text = "".join((c.get("text") or "") for c in line.chars)
+    head = text.strip().split()[0] if text.strip() else ""
+    if not head or not _is_pivot(head):
+        return None, line
+    cut = text.index(head) + len(head)
+    return _sub_line(line, line.chars[:cut]), _sub_line(line, line.chars[cut:])
+
+
+def _tribunal_of(inner: str) -> tuple[str, list[str]]:
+    """'Jackson County CC-18-2020-F-107 and CC-18-2023-F-5' ->
+    ('Jackson County', ['CC-18-2020-F-107', 'CC-18-2023-F-5']).
+
+    The court below is what the paper prints BEFORE its first number, and
+    nothing is added to it: this form names the county and no more, where the
+    court's other papers write 'Circuit Court of Marion County'.
+    """
+    toks = _PAREN_DOCKET.findall(inner)
+    if not toks:
+        return _norm(inner), []
+    name = _norm(inner[:inner.index(toks[0])])
+    low = name.rstrip(".").lower()
+    for label in _DOCKET_LABELS:
+        if low.endswith(label):
+            name = _norm(name.rstrip(".")[: len(low) - len(label)])
+            break
+    return name.strip(" ,;"), [_norm(t) for t in toks]
+
+
+def _pivot_text(text: str) -> str:
+    """What the CAPTION keeps of the pivot row: the pivot, and not the two
+    numbers printed beside it. `criteria.caption` is the case's own name said
+    in full, and 'No. 24-72 (Jackson County …)' is not part of a name."""
+    head = text.strip().split()[0] if text.strip() else ""
+    return head if head and _is_pivot(head) else text
+
+
+def _emit_pivot(ctx, line) -> bool:
+    """Read the pivot row, or say it is not one."""
+    text = _plain(line.plain)
+    numbers = _DOCKET_ANY.findall(text)
+    if not numbers:
+        return False
+    ctx.crit.setdefault("docket_number", f"No. {numbers[0]}")
+    bold, roman = _split_bold(line)
+    if bold is None or roman is None:
+        ctx.emit(line, "docket")
+        return True
+    pivot, docket = _split_pivot(bold)
+    if pivot is not None:
+        ctx.emit(pivot, "caption")
+    if docket is not None:
+        ctx.emit(docket, "docket")
+    ctx.emit(roman, "lower-court")
+    ctx.mark(line)
+    inner = re.search(r"\(([^)]*)\)", _plain(roman.plain))
+    if inner:
+        name, dockets = _tribunal_of(inner.group(1))
+        if name:
+            ctx.crit.setdefault("lower_court", name)
+        if dockets:
+            ctx.crit.setdefault("lower_court_docket", dockets)
+    return True
+
+
 def _split_family(line, body: str):
     """(body_part, stamp_part) as two Lines, for a row pdfio read as one
     because the stamp shares its baseline. Either half may be None."""
@@ -484,6 +606,24 @@ class _Ctx:
             align=m.Align(align), x0=line.x0, size=line.size or 0.0,
             bold=bool(line.all_bold), rel=rel, role=role))
         self.consumed.add(line.id)
+
+    def emit_run(self, lines: list, role: str) -> None:
+        """ONE ROW OUT OF SEVERAL PRINTED ROWS, for a run the page breaks and
+        the reading does not — a court's name over two lines. The claim is
+        unchanged: every line is in the row's prov and in `consumed`."""
+        lines = [l for l in lines if l is not None]
+        if not lines:
+            return
+        first = lines[0]
+        pm = self.pages[first.page]
+        align = line_alignment(first, pm.width, self.geom,
+                               banner_center_min_size=self.body_size + 2.0)
+        self.items.append(m.HmLine(
+            text=join_rows([[l] for l in lines]),
+            prov=m.Prov(first.page, tuple(l.id for l in lines)),
+            align=m.Align(align), x0=first.x0, size=first.size or 0.0,
+            bold=all(bool(l.all_bold) for l in lines), role=role))
+        self.consumed.update(l.id for l in lines)
 
     def mark(self, line) -> None:
         """Claimed, but not placed as a row of its own — the caller is
@@ -1053,15 +1193,8 @@ def _read_handdown(model, geom, rows, stamp):
         if line.all_bold or line.x0 > ctx.body_x0 + 24:
             break                          # the disposition heading: the
             #                                writing opens on it
-        numbers = _DOCKET_ANY.findall(text)
-        if numbers:
-            ctx.crit.setdefault("docket_number", f"No. {numbers[0]}")
-            inner = re.search(r"\(([^)]*No\.[^)]*)\)", text)
-            if inner:
-                ctx.crit.setdefault("lower_court_docket",
-                                    [_norm(inner.group(1))])
-            ctx.emit(line, "docket")
-            caption.append(text)
+        if _emit_pivot(ctx, line):
+            caption.append(_pivot_text(text))
             continue
         caption.append(text)
         ctx.emit(line, "caption")
@@ -1143,22 +1276,22 @@ def _read_memo(model, geom, rows, stamp):
         # Virginia' was this record's petitioner. Take the run by its
         # SETTING and the court's name arrives whole however it is broken.
         if not caption and _is_banner_row(line, ctx):
-            masthead.append(text)
-            ctx.emit(line, "court")
+            masthead.append(line)
+            ctx.mark(line)
             continue
+        # ONE COURT, ONE ROW. The run is emitted as a single row now that it
+        # is known to have ended: two rows said the reader had found two
+        # things where the page prints one name broken over two lines (the
+        # user, 2026-08-26: 'the court is two rows in the headmatter but it
+        # should be comibed into one … cause its one court name').
         if masthead and "court" not in ctx.crit:
-            ctx.crit["court"] = _norm(" ".join(masthead))
-        # THE PIVOT ROW CARRIES THE DOCKETS — this court's and the
-        # tribunal's, on one row, exactly as the hand-down sets them.
-        numbers = _DOCKET_ANY.findall(text)
-        if numbers:
-            ctx.crit.setdefault("docket_number", f"No. {numbers[0]}")
-            inner = re.search(r"\(([^)]*(?:No\.|CC-)[^)]*)\)", text)
-            if inner:
-                ctx.crit.setdefault("lower_court_docket",
-                                    [_norm(inner.group(1))])
-            ctx.emit(line, "docket")
-            caption.append(text)
+            ctx.crit["court"] = _norm(
+                " ".join(_plain(l.plain) for l in masthead))
+            ctx.emit_run(masthead, "court")
+        # THE PIVOT ROW CARRIES THREE THINGS — the caption's pivot, this
+        # court's docket and the tribunal below — see `_emit_pivot`.
+        if _emit_pivot(ctx, line):
+            caption.append(_pivot_text(text))
             continue
         value = _date_in(text)
         if value and _is_status(text) is False and len(text) < 40:
