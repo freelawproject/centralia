@@ -61,6 +61,8 @@ _TYPE_NOTE = {
 # on the CL side').
 _NOT_AN_OPINION = {
     m.DocType.FILING: "a party's filing, not the court's writing",
+    m.DocType.LETTER: ("a letter-motion addressed to chambers — counsel's "
+                       "paper, even where the court endorsed it"),
     m.DocType.NOTICE: "a notice, not a writing",
     m.DocType.CERTIFICATE: "a clerk's certificate, not a writing",
     m.DocType.JUDGMENT: "a judgment form — no reasoning to ingest",

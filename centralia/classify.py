@@ -347,9 +347,74 @@ def heading_doc_type(text: str) -> DocType | None:
     return None
 
 
+# --------------------------------------------------------------------------
+# a letter to the court
+# --------------------------------------------------------------------------
+
+# WHO THE PAPER NAMES AS ITS READER. A letter heads itself with the judge it
+# is written to -- 'The Honorable Ronnie Abrams', 'Hon. Andrew L. Carter Jr.'
+# -- over the office that judge holds.
+_re_addressee = re.compile(r"^(?:the\s+)?hon(?:orable|\.)\s+\S", re.I)
+_re_addressed_office = re.compile(
+    r"^(?:chief\s+|senior\s+)?united\s+states\s+"
+    r"(?:district|magistrate|circuit|bankruptcy)\s+(?:judge|court)\b", re.I)
+# ...AND HOW IT OPENS. A court addresses the parties; it never addresses
+# itself, and no court has ever written 'Dear Judge'.
+# The title is NOT read to a word boundary: the extraction glues the name to
+# it often enough ('Dear JudgeWoods:') that requiring the space lost the
+# salutation on a paper that plainly has one.
+_re_salutation = re.compile(
+    r"^dear\s+(?:hon(?:orable|\.)\s*|chief\s+)?"
+    r"(?:judge|justice|magistrate)[A-Za-z.'\- ]{0,60}[:,]$"
+    r"|^your\s+honor[:,]$", re.I)
+
+
+def letter_to_the_court(model: PdfModel) -> str | None:
+    """The salutation of a letter addressed to chambers, or None.
+
+    A LETTER-MOTION IS A PARTY'S PAPER. Counsel writes to the judge, and the
+    court answers by stamping its endorsement on the same sheet -- 'MEMO
+    ENDORSED', 'Application granted. ... SO ORDERED.' Every structural test
+    reads that endorsement as the court's writing and the letter beneath it
+    as the court's reasoning, so nysd returned twelve letters typed `opinion`
+    or `order`, one of them because 'MEMORANDUM ENDORSED' matched the
+    MEMORANDUM heading (the user, 2026-08-28: 'its mostly letters not
+    opinions and id like to be able to identify them as such better').
+
+    The closing cannot decide it -- that is where the endorsement is, and the
+    filing test already yields to a disposition. The OPENING can: the paper
+    names a judge as its reader and then greets them, in that order, on its
+    first page. Both halves are required, because an order of reference names
+    a judge at the head too and an R&R is addressed 'TO THE HONORABLE ...' --
+    neither says hello.
+    """
+    if not model.pages:
+        return None
+    rows = [" ".join(line.plain.split())
+            for line in model.pages[0].lines]
+    addressed_at = None
+    for i, text in enumerate(rows):
+        if _re_addressee.match(text) or _re_addressed_office.match(text):
+            addressed_at = i
+        # The greeting follows the address block within the letter's own
+        # head. A salutation far down the sheet belongs to a letter QUOTED
+        # by an opinion, not to the opinion's own opening.
+        elif (addressed_at is not None and i - addressed_at <= 25
+                and _re_salutation.match(text)):
+            return text
+    return None
+
+
 def classify_doc_type(model: PdfModel, geom) -> tuple[DocType, str | None]:
     """(doc_type, matched heading or None). UNKNOWN when no heading speaks —
     later stages (byline found, /s/ signature) may refine."""
+    # WHOSE PAPER IT IS OUTRANKS WHAT IT IS HEADED. A letter-motion carries
+    # no heading of its own and the court's endorsement carries one -- read
+    # the headings first and 'MEMORANDUM ENDORSED' stamped over counsel's
+    # letter names the letter a MEMORANDUM (nysd/652059.120.0).
+    salutation = letter_to_the_court(model)
+    if salutation:
+        return DocType.LETTER, salutation
     cands = _heading_candidates(model, geom)
     # A CAPTION'S RAIL GLYPH IS NOT PART OF THE HEADING. Where a chambers
     # divides its caption columns with ')' and sets the paper's name in the
