@@ -60,6 +60,13 @@ SOURCE_WARNINGS = (
     # An unmapped-CID font is unreadable by every extractor, so it routes
     # with the scans wherever a warning list is consulted.
     "text layer unreadable",
+    # THE SAME COMPLAINT IN ITS OTHER WORDING. A scan triage catches states
+    # 'scan with OCR text layer' (above); the later font-name reading states
+    # 'OCR text layer (machine-read)' -- one fact, two sentences, and only
+    # the first routed. The second sent 26 records to `review` for a defect
+    # no reader can fix (nysd/667657.14.0 -- the user, 2026-08-28: 'a scan
+    # maybe we can figure that out').
+    "OCR text layer (machine-read)",
 )
 
 # A FOLIO IS NOT A SIGNATURE ROW. The page number closes the sheet
@@ -98,6 +105,15 @@ _TOC_TAIL = __import__("re").compile(
 _re_tags = __import__("re").compile(r"<[^>]+>")
 
 _FILING_FLAG = "a party's filing, not the court's writing"
+_LETTER_FLAG = "a letter to the court, not the court's writing"
+# HOW A COURT ANSWERS A LETTER-MOTION: it stamps its ruling on counsel's own
+# sheet rather than issuing a paper of its own. The endorsement is the
+# court's writing and it is worth SAYING SO on a record typed `letter` --
+# the ruling is real, it is just not an opinion.
+_re_endorsement = _re.compile(
+    r"\bmemo(?:randum)?\s+endorsed\b|\bso\s+ordered\b"
+    r"|\bapplication\s+(?:is\s+)?(?:granted|denied)\b"
+    r"|\brequest\s+(?:is\s+)?(?:granted|denied)\b", _re.I)
 _re_filing_appearance = __import__("re").compile(
     r"\b(?:attorneys?|counsel)\s+for\b|\bon\s+behalf\s+of\b"
     r"|\bpro\s+se\b(?:\s+(?:plaintiff|defendant|petitioner))")
@@ -804,6 +820,20 @@ def _extract_model(model, court_id: str, pdf_path) -> ExtractionResult:
         trace.event("form", f"the paper names itself {meta.form!r}")
     if heading:
         trace.event("doc-type", f"{doc_type} via {heading!r}")
+    # A LETTER IS STILL PARSED AND STILL RENDERED -- it is flagged, not
+    # dropped (the user, 2026-08-23, on a party's pleading: 'we want to be
+    # able to recognize this as not an opinion and not ingest it on the CL
+    # side but that doesnt mean we shouldnt be able to parse this right
+    # here and also flag it'). The flag says which greeting gave it away,
+    # and whether the court answered on the same sheet.
+    if meta.doc_type is m.DocType.LETTER:
+        _p1 = " ".join(" ".join(line.plain.split())
+                       for line in model.pages[0].lines)
+        _endorsed = bool(_re_endorsement.search(_p1))
+        doc.warnings.append(
+            f"{_LETTER_FLAG}: it opens {heading!r}"
+            + (" and the court endorsed it on the same sheet"
+               if _endorsed else ""))
 
     # 5 furniture
     ff = FurnitureFinder(model, geom.body_x0 if geom else 72.0,
@@ -3827,7 +3857,8 @@ def _extract_model(model, court_id: str, pdf_path) -> ExtractionResult:
     # party's pleading and saying so is the RIGHT outcome — `review` means
     # 'something to fix here', and there is nothing to fix.
     _parse = [w for w in doc.warnings
-              if w not in _src and not w.startswith(_FILING_FLAG)]
+              if w not in _src and not w.startswith(_FILING_FLAG)
+              and not w.startswith(_LETTER_FLAG)]
     status = "valid"
     if any(r.kind == "content" for r in doc.residual) or _parse:
         status = "review"

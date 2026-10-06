@@ -2145,7 +2145,12 @@ def assemble(model, geom: DocGeometry | None, segments_by_page: dict,
         or _re.search(r"[–—-]\s*(?:CONCURS?|DISSENTS?|OPINION AUTHOR)\s*$",
                       " ".join(l.plain.split()), _re.IGNORECASE)
         for s in split_stream[-4:] for l in s.lines)
-    if not starts and (doc_type == m.DocType.ORDER or rescript or votes):
+    # A LETTER HAS A BODY TOO -- the letter itself. It opens no writing any
+    # anchor recognizes (no banner, no byline, no heading: it opens 'Dear
+    # Judge Castel:'), so it takes the same last-resort walk an unbannered
+    # order takes. Without it nysd/638967.111.0 lost its whole page.
+    if not starts and (doc_type in (m.DocType.ORDER, m.DocType.LETTER)
+                       or rescript or votes):
         # An ANNOUNCED order with neither byline nor banner ('The Court of
         # Appeals hereby passes the following order:' — gactapp): the
         # writing opens right after the announcement, past the docket

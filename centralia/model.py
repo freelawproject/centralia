@@ -27,6 +27,7 @@ class DocType(StrEnum):
     RR = "report-and-recommendation"
     JUDGMENT = "judgment"
     FILING = "filing"                 # attorney filing, not the court's writing
+    LETTER = "letter"                 # a letter-motion addressed to chambers
     CERTIFICATE = "certificate-of-judgment"
     NOTICE = "notice"
     SCAN = "scan"                     # non-digital: a SUCCESS status

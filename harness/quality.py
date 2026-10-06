@@ -28,6 +28,7 @@ from pathlib import Path
 REPO_ROOT = Path(__file__).resolve().parent.parent
 sys.path.insert(0, str(REPO_ROOT))
 
+from centralia.pipeline import SOURCE_WARNINGS  # noqa: E402
 from centralia.settings import OUTPUT_DIR  # noqa: E402
 
 QUALITY = OUTPUT_DIR / "notes" / "quality.json"
@@ -186,9 +187,32 @@ def score_file(path: Path) -> dict:
         # A SOURCE complaint (the PDF is a scan) is not a parse defect and
         # must not drag a court's grade down — nothing in this repo can fix
         # it, and 100+ files carrying it drowned out the real work.
-        _src = [w for w in warns if "scan with OCR" in w
-                or "image-only page" in w or "text missing from" in w
-                or "non-born-digital" in w]
+        # A SHEET WHOSE WORDS ARE IN THE PICTURE is the same complaint as an
+        # image-only page, and pipeline.py says so in the warning itself:
+        # 'what it says is in the picture, not in this document'. Left out of
+        # this list it scored 2 points as a parse defect and printed as
+        # 'warn:…the sheet is a page image with only a note', so a reader
+        # marked a faithful reading of a raster as a miss (the user,
+        # 2026-08-28, on sdd/…85889.7.0 and …86561.17.0: 'i guess we can just
+        # mark those as errors because they are scans').
+        # ONE LIST, KEPT IN ONE PLACE. This test used to spell its own copy
+        # of the source complaints, and the copy drifted: `pipeline` had
+        # learned 'text layer unreadable' and 'OCR text layer (machine-read)'
+        # and this had not, so 10 files — 7 of vawd's 43, which is what put
+        # that court at D — were charged 2 points apiece for a scanner's
+        # reading of an image, a thing no reader here can fix.
+        #
+        # THE TWO LISTS DO ANSWER DIFFERENT QUESTIONS, which is why the
+        # extras below stay here. `SOURCE_WARNINGS` decides whether the
+        # document's STATUS is `scanned` rather than `review`; this decides
+        # whether a warning is GRADEABLE. Every source warning is
+        # ungradeable, but a born-digital sheet carrying one flattened form
+        # is not a scan (nysd's AO 154) — so it must not be routed as one,
+        # and it must not be graded as a parse defect either.
+        _src = [w for w in warns
+                if any(sw in w for sw in SOURCE_WARNINGS)
+                or "page image with only a note" in w
+                or "are drawn as outlines, not text" in w]
         # A CLASSIFICATION IS NOT A DEFECT. Recognising a party's filing and
         # saying so is the right answer, not a miss — graded as one it cost
         # akd/79708.1.0 two points and a flag it can never clear (the user,
@@ -206,12 +230,18 @@ def score_file(path: Path) -> dict:
         # ARE NOT IN THIS DOCUMENT. Flagged as one, a reader had no way to
         # tell a good reading of a scan from a reading that is missing eight
         # pages (the user, 2026-08-21, on nev/engle_julie_2).
+        _raster = [w for w in _src if "page image with only a note" in w
+                   or "are drawn as outlines, not text" in w]
+        if _raster:
+            _p = re.search(r"\((p [^)]*)\)", _raster[0])
+            flags.append(f"words-in-picture({_p.group(1)})" if _p
+                         else "words-in-picture")
         _gap = [w for w in _src if "text missing from" in w]
         if _gap:
             _n = re.search(r"text missing from (\d+) of (\d+)", _gap[0])
             flags.append(f"pages-without-text×{_n.group(1)}/{_n.group(2)}"
                          if _n else "pages-without-text")
-        if [w for w in _src if w not in _gap]:
+        if [w for w in _src if w not in _gap and w not in _raster]:
             flags.append("scanned-source")
     if joins:
         score += min(5.0, 0.5 * joins)
