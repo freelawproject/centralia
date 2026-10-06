@@ -277,7 +277,8 @@ def render_cl(doc: m.Document, status: str = "") -> str:
                       "doc.headmatter — CL keeps ONE html blob, so the "
                       "per-row roles do not survive"))
     parts.append(_row("posture", "", "nothing read for it"))
-    parts.append(_row("procedural_history", "", "nothing read for it"))
+    parts.append(_row("procedural_history", _trim(c.procedural_history or ""),
+                      "criteria.procedural_history"))
     parts.append(_row("nature_of_suit", "", "nothing read for it"))
     parts.append(_row("cross_reference", "", "nothing read for it"))
     parts.append(_row("correction", "", "nothing read for it"))

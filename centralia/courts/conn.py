@@ -129,9 +129,11 @@ from __future__ import annotations
 import re
 
 from .. import model as m
+from ..geometry import learn_vocabulary
 from ..resolve.evidence import NOTHING, decider
 from ..resolve.footnotes import line_markup
 from ..resolve.furniture import FurnitureFinder
+from ..resolve.headmatter import paragraph_bands, paragraph_line
 
 _MAX_PAGES = 6
 _AXIS_TOL = 30.0        # the Reporter's measure is narrow and centred
@@ -168,6 +170,12 @@ _DATE_MARK = "*\u2020\u2021\u2217\u204e\ufe61\uff0a "
 _PIVOT = re.compile(r"\sv\.\s", re.I)
 # 'Procedural History' heads the band beneath it and belongs to that band.
 _HISTORY_HEAD = re.compile(r"^Procedural History$", re.I)
+# THE BAND'S OWN NAME. Its heading and its paragraph carry it, and the render
+# gives it its own tint and margin label — see `model.HmLine.role`.
+_HISTORY_ROLE = "procedural-history"
+# A CRITERION IS TEXT, not markup: the paragraph row carries <em> and the
+# page-turn mark, and neither belongs in `procedural_history`.
+_TAGS = re.compile(r"<[^>]+>")
 # 'Opinion' is the paper naming ITSELF, and it is where the writing begins.
 _OPINION_HEAD = re.compile(r"^Opinion$", re.I)
 # The bound volume's page number, standing alone above the block.
@@ -347,7 +355,29 @@ def read_headmatter_conn(model, geom, **_):
         return ctx.result() if slip else NOTHING
 
     caption: list[str] = []
-    history: list[str] = []
+    # THE TWO BANDS THE REPORTER SETS AS PROSE are buffered by printed row
+    # and emitted a PARAGRAPH at a time — see `_paragraphs` for the measure
+    # and `_join_rows` for the join. Everything else on this cover is one
+    # row per row, because that is what the page states.
+    precis: list[list] = []
+    hist: list[list] = []
+    appear: list[list] = []
+    hist_text: list[str] = []
+    vocab = learn_vocabulary(model)
+
+    def flush(buf: list, role: str, open_x0: float | None = None) -> list[str]:
+        """Empty a band's buffer as paragraphs, in the order it was read.
+
+        `open_x0` where the band opens its paragraphs on an INDENT — the
+        appearances do, one per indent; the precis and the history do not,
+        and there the page's own air is the break.
+        """
+        said = []
+        for rows, air in paragraph_bands(buf, right_x1, open_x0):
+            said.append(ctx.emit_para(rows, role, vocab, air))
+        buf.clear()
+        return said
+
     paras = 0
     stopped = False
     band = "caption"        # caption | syllabus | history | counsel
@@ -371,17 +401,51 @@ def read_headmatter_conn(model, geom, **_):
             if _FOLIO.match(text):
                 ctx.drop(group, "folio")
                 continue
+            # THE PRECIS IS BUFFERED, so anything that is not one of its
+            # rows closes it. Every landmark below ends the band, and inside
+            # the band nothing else can arrive: the `syllabus` branch stands
+            # ahead of the roster and the last resort. A running head or a
+            # folio is dropped above this line and does NOT close the band —
+            # the precis runs on across the page turn.
+            if precis and not (band == "syllabus" and not (
+                    _OPINION_HEAD.match(text) or _HISTORY_HEAD.match(text)
+                    or _ARGUED_RELEASED.match(text)
+                    or _RELEASED_ONLY.match(text)
+                    or _SYLLABUS_HEAD.match(text) or _DOCKET.match(text))):
+                flush(precis, "syllabus")
             if _OPINION_HEAD.match(text):
                 # THE PAPER NAMES ITSELF. Everything below is the writing.
+                # AN APPEARANCE IS A PARAGRAPH, and the Reporter opens each
+                # on the same indent it opens the history on ('Jesse A.
+                # Langer, with whom, on the brief, were Rich- / ard D.
+                # Carella and Brian C. Hoeing, for the appellee /
+                # (defendant).' is ONE appearance printed on three rows).
+                # THE BAND CLOSES WHERE THE BAND ENDS: flushed from the top
+                # of the walk instead, the next appearance row closed the
+                # one before it and every row came back out as a paragraph
+                # of its own — the reading it had before the grouping.
+                if hist:
+                    hist_text += flush(hist, _HISTORY_ROLE)
+                if appear:
+                    flush(appear, "counsel", body_x0 + _INDENT_MIN)
                 ctx.emit(group, "title")
                 stopped = True
                 break
             if _HISTORY_HEAD.match(text):
                 # A HEADING THAT NAMES A BAND belongs to that band, so this
-                # is read as `lower-court` and not as `title`.
+                # is read as `procedural-history` and not as `title`.
+                # ITS OWN ROLE, NOT THE COURT BELOW'S. Read as `lower-court`
+                # the whole paragraph was tinted as if it named the trial
+                # court and nothing else, when what it states is how the
+                # case REACHED this court — 'Amended petition … tried to the
+                # court, Newson, J.; judgment denying the petition; … and the
+                # petitioner, on the granting of certification, appealed to
+                # this court. Affirmed.' (the user, 2026-08-26: 'that
+                # lookslike its keyed lower court instead of procredural
+                # shistory').
                 band = "history"
                 paras = 0
-                ctx.emit(group, "lower-court")
+                ctx.emit(group, _HISTORY_ROLE)
                 continue
             if band in ("history", "counsel"):
                 # BOTH BANDS ARE PROSE ON THE SAME INDENT, and what separates
@@ -398,10 +462,14 @@ def read_headmatter_conn(model, geom, **_):
                 if paras >= 2:
                     band = "counsel"
                 if band == "counsel":
-                    ctx.emit(group, "counsel", centre=False)
+                    # THE HISTORY CLOSED AT THE FIRST APPEARANCE, so it is
+                    # said whole here — one paragraph, one row, the field it
+                    # feeds spelled the way the Reporter set it.
+                    if hist:
+                        hist_text += flush(hist, _HISTORY_ROLE)
+                    appear.append(group)
                 else:
-                    history.append(text)
-                    ctx.emit(group, "lower-court", centre=False)
+                    hist.append(group)
                 continue
             both = _ARGUED_RELEASED.match(text) or _RELEASED_ONLY.match(text)
             if both:
@@ -430,7 +498,7 @@ def read_headmatter_conn(model, geom, **_):
                 ctx.emit(group, "docket")
                 continue
             if band == "syllabus":
-                ctx.emit(group, "syllabus", centre=False)
+                precis.append(group)
                 continue
             if _ROSTER.search(text) and (first.size or 0.0) < _COURT_SIZE_MIN:
                 if band == "caption":
@@ -469,8 +537,19 @@ def read_headmatter_conn(model, geom, **_):
         names = _panel_names(line)
         if names:
             ctx.crit.setdefault("panel", names)
-    if history:
-        ctx.crit.setdefault("history", " ".join(history)[:2000])
+    if precis:
+        flush(precis, "syllabus")
+    if hist:
+        hist_text += flush(hist, _HISTORY_ROLE)
+    if appear:
+        flush(appear, "counsel", body_x0 + _INDENT_MIN)
+    if hist_text:
+        # THE BAND THE PAGE LABELS. Recorded as `procedural_history` and not
+        # as `history`: 'Action challenging … Reversed; further proceedings.'
+        # is how the case REACHED this court, which is the field an ingest
+        # keeps that in, and `history` is the case's own prior line.
+        ctx.crit.setdefault("procedural_history",
+                            " ".join(hist_text)[:2000])
     # THE GATE COMES LAST, and it judges what the walk actually populated.
     if not ctx.crit.get("docket_number") or not stopped:
         return NOTHING
@@ -516,6 +595,25 @@ class _Ctx:
             x0=first.x0, size=first.size or 0.0,
             bold=all(bool(p.all_bold) for p in parts), role=role))
         self.consumed.update(p.id for p in parts)
+
+    def emit_para(self, rows: list, role: str, vocab: set | None = None,
+                  air: float = 0.0) -> str:
+        """ONE ROW PER PRINTED PARAGRAPH, and the air the page left above it.
+
+        The claim is unchanged: every source line of the paragraph is in the
+        row's prov and in `consumed`, which is what keeps core's bisection
+        from reuniting the precis into the writing it opens on the caption.
+        The air is measured (`_paragraphs`) and stated here because the
+        pipeline's own pass cannot see it: it reads a blank line as 0.3 of
+        the type size and the Reporter's paragraph band is 0.09 by that
+        measure, so every paragraph rendered flush against the last.
+        """
+        if not [g for g in rows if g]:
+            return ""
+        row = paragraph_line(rows, role, vocab, air)
+        self.items.append(row)
+        self.consumed.update(row.prov.line_ids)
+        return _norm(_TAGS.sub("", row.text))
 
     def drop(self, group: list, kind: str) -> None:
         parts = sorted(group, key=lambda l: l.x0)
