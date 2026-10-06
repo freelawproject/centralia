@@ -31,7 +31,8 @@ CLUSTER_KEYS = {
     "date_reargued", "date_reargued_iso", "submitted_split",
     "precedential_status", "judges", "panel", "author", "attorneys",
     "syllabus", "summary", "headnotes",
-    "parties", "cases", "caption", "disposition", "history", "lower_court",
+    "parties", "cases", "caption", "disposition", "history",
+    "procedural_history", "lower_court",
     "lower_court_docket", "lower_court_judge", "title", "panel_line",
     "motion", "headmatter_style", "n_pages", "doc_type",
 }

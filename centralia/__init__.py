@@ -224,6 +224,7 @@ def _cluster(doc: Document) -> dict:
         "caption": list(c.caption),
         "disposition": c.disposition,
         "history": c.history,
+        "procedural_history": c.procedural_history,
         "lower_court": c.lower_court,
         "lower_court_docket": list(c.lower_court_docket),
         "lower_court_judge": c.lower_court_judge,

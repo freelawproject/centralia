@@ -108,6 +108,17 @@ details > summary { font:600 12px system-ui,sans-serif; text-transform:uppercase
 .hmrow[data-role="summary"] { background:#f6f6f6; border-left-color:#bbb }
 .hmrow[data-role="lower-court"] { background:#eef9fb; border-left-color:#7bb }
 .hmrow.role-start[data-role="lower-court"]::before { content:"lower court" }
+/* PROCEDURAL HISTORY: how the case REACHED this court, which is not the same
+   reading as the court below. Connecticut's Reporter prints the band under
+   its own heading and it closes on the disposition ('… and the petitioner,
+   on the granting of certification, appealed to this court. Affirmed.');
+   tinted as `lower-court` the whole paragraph read as if it named a trial
+   court and nothing more (the user, 2026-08-26: 'that lookslike its keyed
+   lower court instead of procredural shistory'). */
+.hmrow[data-role="procedural-history"] { background:#f0f4fd;
+                                         border-left-color:#8aa6d8 }
+.hmrow.role-start[data-role="procedural-history"]::before
+                                       { content:"procedural history" }
 /* CASE INFO: apparatus the caption carries that is none of the named parts.
    A bankruptcy caption's 'Chapter 7' row is the case's identity, not its
    docket, and tinting it as a docket said the reader had found a number. */
@@ -659,6 +670,7 @@ def render_html(doc: m.Document, title: str | None = None) -> str:
                       ("banner", "banner/title"), ("title", "title"),
                       ("docket", "docket"), ("date", "date"),
                       ("panel", "panel"), ("lower-court", "lower court"),
+                      ("procedural-history", "procedural history"),
                       ("caption", "caption"), ("counsel", "counsel"),
                       ("case-info", "case info"), ("disposition", "disposition"),
                       ("citation", "citation"), ("headnotes", "headnotes"),

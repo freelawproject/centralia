@@ -11745,15 +11745,15 @@
    "parties",
    "submitted"
   ],
-  "hm": 80,
+  "hm": 18,
   "hm_roles": {
    "caption": 2,
-   "counsel": 4,
+   "counsel": 2,
    "date": 1,
    "docket": 1,
-   "lower-court": 10,
    "panel": 2,
-   "syllabus": 59,
+   "procedural-history": 2,
+   "syllabus": 7,
    "title": 1
   },
   "lead_bylined": true,
@@ -11777,15 +11777,15 @@
    "parties",
    "submitted"
   ],
-  "hm": 80,
+  "hm": 18,
   "hm_roles": {
    "caption": 2,
-   "counsel": 4,
+   "counsel": 2,
    "date": 1,
    "docket": 1,
-   "lower-court": 10,
    "panel": 2,
-   "syllabus": 59,
+   "procedural-history": 2,
+   "syllabus": 7,
    "title": 1
   },
   "lead_bylined": true,
@@ -11809,15 +11809,15 @@
    "parties",
    "submitted"
   ],
-  "hm": 79,
+  "hm": 20,
   "hm_roles": {
    "caption": 1,
-   "counsel": 8,
+   "counsel": 2,
    "date": 1,
    "docket": 1,
-   "lower-court": 11,
    "panel": 2,
-   "syllabus": 54,
+   "procedural-history": 2,
+   "syllabus": 10,
    "title": 1
   },
   "lead_bylined": true,
@@ -11841,15 +11841,15 @@
    "parties",
    "submitted"
   ],
-  "hm": 59,
+  "hm": 16,
   "hm_roles": {
    "caption": 1,
-   "counsel": 4,
+   "counsel": 2,
    "date": 1,
    "docket": 1,
-   "lower-court": 9,
    "panel": 2,
-   "syllabus": 40,
+   "procedural-history": 2,
+   "syllabus": 6,
    "title": 1
   },
   "lead_bylined": true,
@@ -11873,15 +11873,15 @@
    "parties",
    "submitted"
   ],
-  "hm": 78,
+  "hm": 21,
   "hm_roles": {
    "caption": 2,
-   "counsel": 3,
+   "counsel": 2,
    "date": 1,
    "docket": 1,
-   "lower-court": 12,
    "panel": 2,
-   "syllabus": 56,
+   "procedural-history": 2,
+   "syllabus": 10,
    "title": 1
   },
   "lead_bylined": true,
@@ -11922,15 +11922,15 @@
    "parties",
    "submitted"
   ],
-  "hm": 31,
+  "hm": 12,
   "hm_roles": {
    "caption": 2,
-   "counsel": 8,
+   "counsel": 2,
    "date": 1,
    "docket": 1,
-   "lower-court": 7,
    "panel": 1,
-   "syllabus": 11
+   "procedural-history": 2,
+   "syllabus": 3
   },
   "lead_bylined": true,
   "op_blocks": [
@@ -11953,15 +11953,15 @@
    "parties",
    "submitted"
   ],
-  "hm": 42,
+  "hm": 12,
   "hm_roles": {
    "caption": 1,
-   "counsel": 5,
+   "counsel": 2,
    "date": 1,
    "docket": 1,
-   "lower-court": 12,
    "panel": 1,
-   "syllabus": 20,
+   "procedural-history": 2,
+   "syllabus": 3,
    "title": 1
   },
   "lead_bylined": true,
@@ -11985,15 +11985,15 @@
    "parties",
    "submitted"
   ],
-  "hm": 63,
+  "hm": 16,
   "hm_roles": {
    "caption": 1,
-   "counsel": 6,
+   "counsel": 2,
    "date": 1,
    "docket": 2,
-   "lower-court": 10,
    "panel": 1,
-   "syllabus": 41,
+   "procedural-history": 2,
+   "syllabus": 6,
    "title": 1
   },
   "lead_bylined": true,
@@ -12017,15 +12017,15 @@
    "parties",
    "submitted"
   ],
-  "hm": 38,
+  "hm": 13,
   "hm_roles": {
    "caption": 1,
    "counsel": 1,
    "date": 1,
    "docket": 1,
-   "lower-court": 7,
    "panel": 1,
-   "syllabus": 25,
+   "procedural-history": 2,
+   "syllabus": 5,
    "title": 1
   },
   "lead_bylined": true,
@@ -12049,15 +12049,15 @@
    "parties",
    "submitted"
   ],
-  "hm": 51,
+  "hm": 14,
   "hm_roles": {
    "caption": 1,
-   "counsel": 5,
+   "counsel": 2,
    "date": 1,
    "docket": 1,
-   "lower-court": 7,
    "panel": 1,
-   "syllabus": 34,
+   "procedural-history": 2,
+   "syllabus": 5,
    "title": 1
   },
   "lead_bylined": true,

@@ -308,6 +308,15 @@ class Criteria:
     disposition: str | None = None
     lower_court: str | None = None
     history: str | None = None
+    # THE BAND THE REPORTER LABELS 'Procedural History' — the paragraph that
+    # states how the case reached this court and closes on the disposition
+    # ('Action challenging … from which the plaintiff appealed to this court.
+    # Reversed; further proceedings.'). Distinct from `history`, which is the
+    # case's own prior line, and from `lower_court`, which is the court it
+    # came from and nothing more: conn prints the whole paragraph, and an
+    # ingest has a field of that name to put it in (the user, 2026-08-26:
+    # 'procedural hsitory stection .. which i geusss could be psoture').
+    procedural_history: str | None = None
     submitted: str | None = None
     # THE SITTING'S DATE, SPLIT BY WHAT THE COURT CALLED IT. `submitted` above
     # is fed by 'argued', 'reargued', 'heard' and 'submitted' alike — 63 court
