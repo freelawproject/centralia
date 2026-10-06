@@ -508,8 +508,23 @@ register(CourtProfile("ohioctapp", "Ohio Court of Appeals",
                       byline=BylineGrammar(style="abbrev")))
 register(CourtProfile("or", "Supreme Court of the State of Oregon",
                       byline=BylineGrammar(style="abbrev")))
+# THIS COURT SITS JUDGES, and its Supreme Court on the other half of the same
+# advance-sheet volume sits Justices — so the default abbreviations, which
+# read 'J.' as Justice, name the wrong bench here: the roster this court
+# prints two rungs above its own byline says 'Presiding Judge', 'Chief Judge'
+# and 'Senior Judge'. 'S. J.' is not in the defaults at all, and without it
+# 'WALTERS, S. J.' parsed as no byline: santoro opened no writing and typed
+# `order`.
 register(CourtProfile("orctapp", "Oregon Court of Appeals",
-                      byline=BylineGrammar(style="abbrev")))
+                      byline=BylineGrammar(
+                          style="abbrev",
+                          abbrev_titles=(("C.J.", "Chief Judge"),
+                                         ("C. J.", "Chief Judge"),
+                                         ("P.J.", "Presiding Judge"),
+                                         ("P. J.", "Presiding Judge"),
+                                         ("S.J.", "Senior Judge"),
+                                         ("S. J.", "Senior Judge"),
+                                         ("J.", "Judge")))))
 register(CourtProfile(
     "pa", "Supreme Court of Pennsylvania",
     byline=BylineGrammar(style="reversed",
