@@ -346,6 +346,41 @@ def _panel_names(text: str) -> list:
     return names
 
 
+def _closes_roster(text: str) -> bool:
+    """Does this row END the 'Before …' roster?
+
+    THE BENCH TITLE IS THE TERMINATOR, NOT THE FULL STOP. ca7 wraps its
+    roster wherever the measure runs out, and on
+    `caleb_barnett_v._kwame_raoul_1` it wrapped after an ABBREVIATED NAME:
+
+        Before BRENNAN, Chief Judge, and EASTERBROOK and ST.
+        EVE, Circuit Judges.
+
+    The first row ends in a full stop and ends nothing — 'ST.' is half of a
+    judge's surname. Terminated there, the second row went unclaimed, core
+    read it as a byline (it has exactly a ca7 byline's shape, 'NAME, Circuit
+    Judge.') and published a one-block `order` standing ahead of the real
+    majority, with `judges` truncated to '… and ST.' (the user, 2026-08-26:
+    'its not an order its part of the panel str').
+
+    So the test is what the row ENDS ON. A bench title closes the roster; a
+    short all-capital token with a period does not, because that is a name
+    the wrap cut in half. Anything else ending in a stop still closes it —
+    a roster that names no title at all ('Before WOOD, HAMILTON and
+    BRENNAN.') has to end somewhere, and the row is where the page ends it.
+    """
+    flat = _norm(text).rstrip()
+    if not flat.endswith((".", ":")):
+        return False                      # a wrap — 'Cir-', or bare prose
+    words = flat.rstrip(".:").split()
+    if not words:
+        return True
+    tail = words[-1].strip(",.")
+    if tail.lower() in _TITLE_WORDS or tail.upper() in ("J", "JJ", "C.J"):
+        return True
+    return not (flat.endswith(".") and tail.isupper() and len(tail) <= 3)
+
+
 def _roster_row_name(text: str) -> str | None:
     """'FRANK H. EASTERBROOK, Circuit Judge' -> 'FRANK H. EASTERBROOK'.
 
@@ -655,7 +690,7 @@ def _read_typed_rules(model, geom):
     if tail and _norm(tail[0][1].plain).lower().startswith("before"):
         for pm, line in tail:
             roster.append((pm, line))
-            if _norm(line.plain).rstrip().endswith((".", ":")):
+            if _closes_roster(line.plain):
                 break
         else:
             roster = []                      # never terminated — not a roster
