@@ -122,6 +122,9 @@ body { margin:0; font:13px system-ui,sans-serif; color:var(--ink);
 .gflag { font-size:10px; margin-left:1px; color:#b8860b }
 .stale { font-size:10px; margin-left:1px }
 .stale.ch { color:#c0392b } .stale.rr { color:#c08a1e } .stale.uk { color:#bbb }
+/* A PAPER THE ENGINE HAS NOT BEEN RUN ON: in the list because it is in the
+   corpus, flagged because there is nothing to look at until you press r. */
+.norend { font-size:10px; margin-left:1px; color:#c07a2e }
 .mark { font-size:11px; color:#666; margin-left:4px }
 .q { font:700 11px system-ui; margin-right:2px }
 #help { color:#999; font-size:11px }
@@ -156,7 +159,7 @@ body { margin:0; font:13px system-ui,sans-serif; color:var(--ink);
 </div>
 <script>
 let MAN = {}, MARKS = {}, NOTES = {}, QUAL = {files:{}, courts:{}}, CMETA = {}, STALE = {},
-    courts = [], ci = 0, fi = 0, old = false, cl = false;
+    UNREND = {}, courts = [], ci = 0, fi = 0, old = false, cl = false;
 const $ = s => document.querySelector(s);
 const key = () => courts.length ? courts[ci] + "/" + MAN[courts[ci]][fi] : null;
 
@@ -164,6 +167,9 @@ async function boot() {
   MAN = await (await fetch("/api/manifest")).json();
   MARKS = await (await fetch("/api/marks")).json();
   try { STALE = await (await fetch("/api/stale")).json(); } catch (e) { STALE = {}; }
+  // PAPERS WITH NO RENDERING YET. The list is the corpus, so a PDF that just
+  // landed is findable — and this is what says which rows are waiting on a run.
+  try { UNREND = await (await fetch("/api/unrendered")).json(); } catch (e) { UNREND = {}; }
   try { NOTES = await (await fetch("/api/filenotes")).json(); } catch (e) { NOTES = {}; }
   try { QUAL = await (await fetch("/api/quality")).json(); } catch (e) {}
   try { GREVIEW = await (await fetch("/api/guardreview")).json(); } catch (e) { GREVIEW = {}; }
@@ -350,6 +356,13 @@ function guardGlyph(k) {
     ? `<span class="gflag" title="${GREVIEW[k].length} guard diff(s) — pinned reading changed">⚑</span>`
     : "";
 }
+// IN THE LIST, WAITING ON A RUN — the corpus holds the paper and the engine
+// has not been over it (the user, 2026-08-26: 'so ica nfind it and run it').
+function noRenderGlyph(k) {
+  return UNREND[k]
+    ? `<span class="norend" title="no rendering yet — press r to run this file">◻</span>`
+    : "";
+}
 function drawFiles() {
   const c = courts[ci] || "";
   const vis = visibleFiles(c);
@@ -364,7 +377,7 @@ function drawFiles() {
     `<div class="${i===fi?"on":""}" onclick="pick(${ci},${i})">` +
     `${opChip(QUAL.files[c+"/"+s])}${gradeChip((QUAL.files[c+"/"+s]||{}).g)}` +
     `${tierGlyph(MARKS[c+"/"+s])}${staleGlyph(c+"/"+s)}${noteGlyph(c+"/"+s)}` +
-    `${guardGlyph(c+"/"+s)} ${s}</div>`).join("");
+    `${guardGlyph(c+"/"+s)}${noRenderGlyph(c+"/"+s)} ${s}</div>`).join("");
   const on = $("#files .on"); if (on) on.scrollIntoView({block:"nearest"});
 }
 // ↓/↑ WALK WHAT YOU CAN SEE. Stepping `fi` by one would stop on every hidden
@@ -476,6 +489,10 @@ async function rerun(whole) {
     if (r.msg) btn.title = r.msg;
     // the viewer serves output/ off disk — reload to see the new render
     QUAL = await fetch("/api/quality").then(x => x.json()).catch(() => QUAL);
+    // The row's ◻ is answered by the run that just finished.
+    UNREND = await fetch("/api/unrendered").then(x => x.json())
+                   .catch(() => UNREND);
+    drawFiles();
     show();
   } catch (e) {
     btn.textContent = "✗ error";

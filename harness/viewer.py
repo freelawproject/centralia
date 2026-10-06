@@ -180,17 +180,61 @@ def _page_count(court: str, stem: str) -> int:
     return _PAGE_COUNTS.get(key, 0)
 
 
+# WHAT THE VIEWER LISTS IS THE CORPUS, NOT THE OUTPUT DIRECTORY. Listing only
+# rendered pages meant a PDF that had just landed in `assets/<court>/` was
+# invisible here until someone remembered to render the whole court from a
+# terminal — and the viewer's own re-run button, which renders exactly one
+# file, was unreachable for the one file that needed it (the user, 2026-08-26:
+# 'can you make it show in teh UI even if it doesnt have an HTML yet so ica nfind
+# it and run it?'). The list is the UNION: every rendering, plus every paper in
+# the corpus that has none yet. `_unrendered` names the second set so the row
+# can say so, and `/out/` answers for it with a page that says press r.
+def _court_dirs() -> set[str]:
+    out: set[str] = set()
+    for root in (OUTPUT_DIR, CORPUS_ROOT):
+        if root.is_dir():
+            out |= {d.name for d in root.iterdir()
+                    if d.is_dir() and not d.name.startswith(".")
+                    and d.name != "notes"}
+    return out
+
+
+def _stems(court: str) -> tuple[set[str], set[str]]:
+    """This court's rendered stems, and the corpus stems with no rendering."""
+    rendered = {p.stem for p in (OUTPUT_DIR / court).glob("*.html")
+                if p.stem != "index"} if (OUTPUT_DIR / court).is_dir() else set()
+    papers = {p.stem for p in (CORPUS_ROOT / court).glob("*.pdf")} \
+        if (CORPUS_ROOT / court).is_dir() else set()
+    return rendered, papers - rendered
+
+
 def _manifest() -> dict:
     out: dict[str, list[str]] = {}
-    if OUTPUT_DIR.is_dir():
-        for court_dir in sorted(OUTPUT_DIR.iterdir()):
-            if not court_dir.is_dir() or court_dir.name == "notes":
-                continue
-            stems = sorted(p.stem for p in court_dir.glob("*.html")
-                           if p.stem != "index")
-            if stems:
-                out[court_dir.name] = stems
+    for court in sorted(_court_dirs()):
+        rendered, missing = _stems(court)
+        if rendered or missing:
+            out[court] = sorted(rendered | missing)
     return out
+
+
+def _unrendered() -> dict:
+    """`court/stem` -> true for every paper the engine has not been run on."""
+    return {f"{court}/{stem}": True
+            for court in sorted(_court_dirs())
+            for stem in sorted(_stems(court)[1])}
+
+
+# THE PANE STILL HAS TO SAY SOMETHING. A stem with no rendering would otherwise
+# draw the browser's own 404 inside the frame, which reads as a broken viewer
+# rather than as work not yet done.
+_NOT_RENDERED = b"""<!doctype html><meta charset="utf-8">
+<style>body{margin:0;display:flex;align-items:center;justify-content:center;
+height:100vh;font:14px/1.6 system-ui,sans-serif;color:#666;background:#fbfbfa}
+div{text-align:center} b{display:block;font-size:15px;color:#333;
+margin-bottom:.4em} code{font:12px ui-monospace,Menlo,monospace;color:#8a6b3d}
+</style><div><b>no rendering yet</b>this paper is in the corpus and the engine
+has not been run on it.<br>press <code>r</code> to render this file,
+<code>R</code> for the whole court.</div>"""
 
 
 MARKS_BAK = MARKS_DIR / "marks.json.bak"
@@ -574,6 +618,8 @@ class Handler(SimpleHTTPRequestHandler):
             return self._send(200, json.dumps(_load_marks()).encode())
         if self.path == "/api/filenotes":
             return self._send(200, json.dumps(_load_notes()).encode())
+        if self.path == "/api/unrendered":
+            return self._send(200, json.dumps(_unrendered()).encode())
         if self.path == "/api/stale":
             return self._send(200, json.dumps(_stale_marks()).encode())
         if self.path == "/api/quality":
@@ -593,7 +639,15 @@ class Handler(SimpleHTTPRequestHandler):
             return self._send(200, json.dumps({"text": text}).encode())
         if self.path.startswith("/out/"):
             p = _safe_under(OUTPUT_DIR, self.path[5:])
-            return self._send_file(p) if p else self._send(404, b"{}")
+            if p and p.exists():
+                return self._send_file(p)
+            # NOT RENDERED IS NOT NOT FOUND: if the paper is in the corpus,
+            # the pane says so and names the key that renders it.
+            court, _, stem = unquote(
+                self.path[5:]).removesuffix(".html").partition("/")
+            if stem and (CORPUS_ROOT / court / f"{stem}.pdf").is_file():
+                return self._send(200, _NOT_RENDERED, "text/html; charset=utf-8")
+            return self._send(404, b"{}")
         if self.path.startswith("/cl/"):
             court, _, stem = unquote(
                 self.path[4:]).removesuffix(".html").partition("/")
