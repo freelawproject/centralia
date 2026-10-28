@@ -60,3 +60,8 @@ class CourtProfile:
     single_writing: bool = False
     # Rollout state: pending | migrated | blocked (the census reports it).
     rollout: str = "pending"
+    # Whether the court signs its writings.
+    # False turns off the shared signature guesses: the last-page row lift,
+    # the last-page stamp graphic and the trailing-graphic rule. A court's own
+    # `signature.opens` or `image.role` decider still applies.
+    signatures: bool = True
