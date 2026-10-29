@@ -544,6 +544,13 @@ def build_page(page, page_no: int, id_start: int,
         raw = stream.get_rawdata()
         if raw is None:
             raw = stream.get_data()
+        # In an encrypted file the raw bytes are ciphertext, keyed to each
+        # object's own number (and salted per stream under AES), so the same
+        # seal on every page hashed differently and was planted in the body.
+        # Decrypt as decode() does first, without running the filters.
+        elif stream.decipher:
+            raw = stream.decipher(stream.objid, stream.genno, raw,
+                                  stream.attrs)
         pm.images.append(ImageRef(page=page_no, x0=img["x0"], x1=img["x1"],
                                   top=img["top"], bottom=img["bottom"],
                                   name=str(img.get("name") or ""),
