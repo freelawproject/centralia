@@ -64,5 +64,8 @@ class CourtProfile:
     # False turns off the shared signature guesses: the last-page row lift,
     # the last-page stamp graphic, the trailing-graphic rule and assemble's
     # '/s/' / hand-signed lift. A court's own `signature.opens` or
-    # `image.role` decider still applies.
+    # `image.role` decider still applies. Two passes still run: assemble
+    # still splits a paragraph at each '/s/' line (`_unweld_conformed`), and
+    # pasuperct's bare-date rule still drops a writing's trailing bare date
+    # as a signature graphic when an image shares its page.
     signatures: bool = True
