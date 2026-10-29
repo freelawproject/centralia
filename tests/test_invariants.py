@@ -210,8 +210,6 @@ def test_nysurct_leader_rows_stay_rows_and_keep_their_dots():
     "wooden_v._united_states",
     # a centred running-head pair: 'MCGIRT v. OKLAHOMA' / 'THOMAS, J., …'
     "mcgirt_v._oklahoma",
-    # an appendix figure ends the last writing
-    "mahmoud_v._taylor",
 ])
 def test_scotus_writings_are_never_signed(stem):
     """Slip opinions are unsigned (`signatures=False`), so a signature block

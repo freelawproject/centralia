@@ -8442,7 +8442,6 @@ scotus	learning_resources_inc._v._trump_revisions_22326.pdf	https://storage.cour
 scotus	louisiana_v._callais.pdf	https://storage.courtlistener.com/pdf/2026/04/29/louisiana_v._callais.pdf
 scotus	louisiana_v._callais_revisions_50426.pdf	https://storage.courtlistener.com/pdf/2026/04/29/louisiana_v._callais_revisions_50426.pdf
 scotus	m__k_employee_solutions_inc._v._trustees_of_iam_nat._pension.pdf	https://storage.courtlistener.com/pdf/2026/05/21/m__k_employee_solutions_inc._v._trustees_of_iam_nat._pension.pdf
-scotus	mahmoud_v._taylor.pdf	https://storage.courtlistener.com/pdf/2025/06/27/mahmoud_v._taylor.pdf
 scotus	margolin_v._naij.pdf	https://storage.courtlistener.com/pdf/2026/05/26/margolin_v._naij.pdf
 scotus	mays_v._hines.pdf	https://storage.courtlistener.com/pdf/2021/03/29/mays_v._hines.pdf
 scotus	mccarthy_v._hernandez.pdf	https://storage.courtlistener.com/pdf/2026/06/22/mccarthy_v._hernandez.pdf
