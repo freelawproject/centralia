@@ -44,6 +44,7 @@ register(CourtProfile(
     # lines; rendered row by row it comes out ragged, and read row by row it
     # yields no parties and half a lower court.
     caption_wraps=True,
+    signatures=False,
 ))
 
 
