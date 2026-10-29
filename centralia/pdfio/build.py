@@ -12,8 +12,6 @@ every other consumer.
 
 from __future__ import annotations
 
-import hashlib
-
 import pdfplumber
 
 from collections import Counter
@@ -537,18 +535,9 @@ def build_page(page, page_no: int, id_start: int,
         w = max(0.0, min(img["x1"], pm.width) - max(img["x0"], 0.0))
         h = max(0.0, min(img["bottom"], pm.height) - max(img["top"], 0.0))
         covered += w * h
-        # pdfminer's decode() drops the raw bytes once it has run, and then
-        # get_data() returns the decoded ones it cached — still this picture
-        # and no other, where b"" would hash every decoded image alike
-        stream = img["stream"]
-        raw = stream.get_rawdata()
-        if raw is None:
-            raw = stream.get_data()
         pm.images.append(ImageRef(page=page_no, x0=img["x0"], x1=img["x1"],
                                   top=img["top"], bottom=img["bottom"],
-                                  name=str(img.get("name") or ""),
-                                  digest=hashlib.blake2b(
-                                      raw, digest_size=8).hexdigest()))
+                                  name=str(img.get("name") or "")))
     pm.image_area = min(covered / area, 1.0)
     return pm
 

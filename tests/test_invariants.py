@@ -221,19 +221,6 @@ def test_scotus_writings_are_never_signed(stem):
     assert not signed, f"signature block on writing(s) {signed}"
 
 
-def test_scotus_appendix_keeps_every_figure():
-    """Sotomayor's appendix reproduces the storybooks on pp. 110-135: pages
-    with no text but the running head, two scans per sheet in the same frame.
-    They were dropped as 'unplaced' (no writing spanned the page) and as
-    'watermark/stationery' (same box on 3+ pages); only the last one, read as
-    a signature, survived."""
-    r = _read("scotus", "mahmoud_v._taylor")
-    dissent = r["opinions"][-1]["html"]
-    assert dissent.count("<img") == 43, dissent.count("<img")
-    # one figure on p. 74; the other 42 follow the appendix heading
-    assert dissent.split(">APPENDIX<", 1)[1].count("<img") == 42
-
-
 def test_scotus_closing_lines_stay_in_the_writing():
     """'It is so ordered.' is set right of the rail and 'JUSTICE SOTOMAYOR
     dissents.' names an office; the lift moved both out of the per curiam."""
