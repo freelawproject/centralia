@@ -1152,7 +1152,8 @@ def assemble(model, geom: DocGeometry | None, segments_by_page: dict,
              para_indent_min: float = 12.0,
              headmatter_claimed: bool = False,
              writing_starts: dict[int, str] | None = None,
-             tables: dict[int, list] | None = None) -> Assembled:
+             tables: dict[int, list] | None = None,
+             signatures: bool = True) -> Assembled:
     result = Assembled()
     # The drawn tables of each page, as the caller resolved them (a caption
     # box is withheld upstream — it is headmatter, not a table).
@@ -3000,7 +3001,9 @@ def assemble(model, geom: DocGeometry | None, segments_by_page: dict,
                         break
                     j -= 1
                 cut = j
-        if cut is not None:
+        # A court that never signs (`CourtProfile.signatures`) keeps the
+        # run in the body: on scotus it is an appendix's signed order.
+        if cut is not None and signatures:
             tail = op.blocks[cut:]
             # Only short lines follow a signature (name, title, court).
             if all(len(getattr(b, "text", "") or "") < 200 for b in tail):

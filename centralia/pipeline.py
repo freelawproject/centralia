@@ -1381,7 +1381,8 @@ def _extract_model(model, court_id: str, pdf_path) -> ExtractionResult:
                         para_indent_min=profile.para_indent_min,
                         headmatter_claimed=bool(_court_hm),
                         writing_starts=_writing_starts,
-                        tables=_tables)
+                        tables=_tables,
+                        signatures=profile.signatures)
 
     assembled = _assemble_with(segments_by_page)
     if _court_hm and not assembled.opinions:

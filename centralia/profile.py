@@ -62,6 +62,7 @@ class CourtProfile:
     rollout: str = "pending"
     # Whether the court signs its writings.
     # False turns off the shared signature guesses: the last-page row lift,
-    # the last-page stamp graphic and the trailing-graphic rule. A court's own
-    # `signature.opens` or `image.role` decider still applies.
+    # the last-page stamp graphic, the trailing-graphic rule and assemble's
+    # '/s/' / hand-signed lift. A court's own `signature.opens` or
+    # `image.role` decider still applies.
     signatures: bool = True
