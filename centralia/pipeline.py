@@ -826,15 +826,23 @@ def _extract_model(model, court_id: str, pdf_path) -> ExtractionResult:
     # is the same rule the furniture pass already applies to running heads
     # and folios, stated for images: keyed on the position and size, three
     # pages or more is stationery.
+    # …AND ON THE PICTURE ITSELF. Stationery is the SAME image printed
+    # again; a run of DIFFERENT images in the same frame is an exhibit.
+    # Sotomayor's appendix in scotus/mahmoud_v._taylor reproduces 26 pages
+    # of the storybooks, two per sheet at 156,156 and 156,350, every one a
+    # different scan, and all of them were dropped as watermark/stationery.
+    # ky's seal is re-embedded as a fresh object on every page, but its
+    # bytes are identical, so it still repeats here.
+    def _img_sig(_i):
+        return (round(_i.x0), round(_i.top), round(_i.x1 - _i.x0),
+                round(_i.bottom - _i.top), _i.digest)
+
     _img_key = _collections.Counter(
-        (round(_i.x0), round(_i.top), round(_i.x1 - _i.x0),
-         round(_i.bottom - _i.top))
-        for _pm in model.pages for _i in _pm.images)
+        _img_sig(_i) for _pm in model.pages for _i in _pm.images)
     _STATIONERY_PAGES = 3
 
     def _is_stationery(_i) -> bool:
-        return _img_key[(round(_i.x0), round(_i.top), round(_i.x1 - _i.x0),
-                         round(_i.bottom - _i.top))] >= _STATIONERY_PAGES
+        return _img_key[_img_sig(_i)] >= _STATIONERY_PAGES
 
     # A PAGE UNDER A FULL-BLEED RASTER IS A SCAN, and nothing on it is a
     # FIGURE. tenn's `mark_gray_v._tyson_foods_inc.` carries two images per
@@ -1083,7 +1091,11 @@ def _extract_model(model, court_id: str, pdf_path) -> ExtractionResult:
                 and pm.number not in _scan_pages
                 and _im.top > pm.height * 0.08
                 and _im.bottom < pm.height * 0.92
-                and not (pm.number == model.n_pages
+                # the foot of the last page is where the stamp rule below
+                # claims the signature; a court that does not sign has no
+                # stamp there, so a graphic there is the writing's own
+                and not (profile.signatures
+                         and pm.number == model.n_pages
                          and _im.top > pm.height * 0.55))
             if _is_masthead and _w >= 20 and _h >= 20:
                 _mastheads.append(_im)
@@ -2429,6 +2441,30 @@ def _extract_model(model, court_id: str, pdf_path) -> ExtractionResult:
                     _op.blocks.insert(_at, _blk)
                     _placed = True
                     break
+                # A PAGE OF PICTURES HAS NO TEXT TO SPAN. An appendix that
+                # reproduces exhibits sheet after sheet prints nothing on
+                # those pages but the running head, so the writing's blocks
+                # end on the page that says 'APPENDIX' and the figures that
+                # follow fall outside every writing's span (mahmoud_v._taylor
+                # pp. 110-135, 40 figures). They belong to the writing they
+                # follow: the last one that began on or before their page.
+                # Only where the court does not sign: in a court that does,
+                # images trailing the text are what the end-of-writing lift
+                # reads as signatures, and it filed wis's scanned statement
+                # pages (planned_parenthood_of_wisconsin_v._joel_urmanski)
+                # as 14 signature graphics.
+                if not _placed and not profile.signatures:
+                    _prior = [
+                        _op for _op in doc.opinions
+                        if any(getattr(b, "prov", None)
+                               and b.prov.page <= _im.page
+                               for b in _op.blocks)]
+                    if _prior:
+                        _op = max(_prior, key=lambda o: min(
+                            b.prov.page for b in o.blocks
+                            if getattr(b, "prov", None)))
+                        _op.blocks.append(_blk)
+                        _placed = True
                 if not _placed:
                     doc.dropped.append(m.Dropped(
                         text=(f"figure {_im.x1 - _im.x0:.0f}×"

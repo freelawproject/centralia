@@ -194,6 +194,9 @@ class ImageRef:
     top: float
     bottom: float
     name: str = ""
+    # Hash of the encoded image bytes.
+    # The same picture re-embedded on every page hashes the same
+    digest: str = ""
 
 
 @dataclass
