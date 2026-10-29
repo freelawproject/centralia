@@ -196,3 +196,15 @@ def test_nysurct_leader_rows_stay_rows_and_keep_their_dots():
     assert "<table" not in r["opinions"][0]["html"]
     assert "The following papers were read in determining petitioner" in body
     assert r["diagnostics"]["residual_content"] == 0
+
+
+def test_scotus_syllabus_keeps_its_cover_page():
+    """'Brief for Respondents 15' in the page-1 syllabus is a WEAK counsel mark;
+    the backward merge took it as a counsel paragraph torn under the docket
+    row, and the cover trim dropped the whole page as caption (#40)."""
+    r = _read("scotus", "smith_v._spizzirri")
+    assert r["cluster"]["syllabus"].startswith(
+        "The Federal Arbitration Act (FAA) sets forth procedures")
+    assert r["cluster"]["date_submitted"] == "April 22, 2024"
+    assert not [d for d in r["removed"]
+                if d["kind"] == "superfluous" and len(d["text"]) > 300]

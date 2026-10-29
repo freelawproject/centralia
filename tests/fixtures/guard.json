@@ -34501,6 +34501,41 @@
   "summary": 0,
   "syllabus": 0
  },
+ "scotus/biden_v._texas": {
+  "attorneys": 0,
+  "criteria": [
+   "decision_date",
+   "docket_number",
+   "lower_court",
+   "parties",
+   "submitted"
+  ],
+  "hm": 7,
+  "hm_roles": {
+   "caption": 1,
+   "court": 1,
+   "date": 1,
+   "docket": 1,
+   "lower-court": 1
+  },
+  "lead_bylined": true,
+  "op_blocks": [
+   63,
+   11,
+   60,
+   14
+  ],
+  "ops": [
+   "majority",
+   "concurrence",
+   "dissent",
+   "dissent"
+  ],
+  "residual": 0,
+  "status": "valid",
+  "summary": 0,
+  "syllabus": 16
+ },
  "scotus/danco_laboratories_llc_v._louisiana": {
   "attorneys": 0,
   "criteria": [
@@ -34588,6 +34623,64 @@
   "status": "valid",
   "summary": 0,
   "syllabus": 9
+ },
+ "scotus/opati_v._republic_of_sudan": {
+  "attorneys": 0,
+  "criteria": [
+   "decision_date",
+   "docket_number",
+   "lower_court",
+   "parties",
+   "submitted"
+  ],
+  "hm": 7,
+  "hm_roles": {
+   "caption": 1,
+   "court": 1,
+   "date": 1,
+   "docket": 1,
+   "lower-court": 1
+  },
+  "lead_bylined": true,
+  "op_blocks": [
+   35
+  ],
+  "ops": [
+   "majority"
+  ],
+  "residual": 0,
+  "status": "valid",
+  "summary": 0,
+  "syllabus": 6
+ },
+ "scotus/smith_v._spizzirri": {
+  "attorneys": 0,
+  "criteria": [
+   "decision_date",
+   "docket_number",
+   "lower_court",
+   "parties",
+   "submitted"
+  ],
+  "hm": 7,
+  "hm_roles": {
+   "caption": 1,
+   "court": 1,
+   "date": 1,
+   "docket": 1,
+   "lower-court": 1
+  },
+  "lead_bylined": true,
+  "op_blocks": [
+   18
+  ],
+  "ops": [
+   "majority"
+  ],
+  "residual": 0,
+  "status": "valid",
+  "summary": 0,
+  "syllabus": 5
  },
  "scotus/trump_v._slaughter": {
   "attorneys": 0,
