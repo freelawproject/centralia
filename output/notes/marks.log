@@ -12619,3 +12619,6 @@
 {"t": 1787712707.084578, "key": "wvsd/gov.uscourts.wvsd.243279.25.0", "tier": "yay", "sha": "e60f6513a8097565"}
 {"t": 1787712708.3365388, "key": "wyd/gov.uscourts.wyd.53128.629.0", "tier": "yay", "sha": "5406e050aa4fe858"}
 {"t": 1787712708.9736252, "key": "wyd/gov.uscourts.wyd.67555.22.0", "tier": "yay", "sha": "e6d3a1ffd91b1a45"}
+{"t": 1793236533.141626, "key": "scotus/opati_v._republic_of_sudan", "tier": "yay", "sha": "bae7b42de3abd282"}
+{"t": 1793237867.3061118, "key": "scotus/smith_v._spizzirri", "tier": "yay", "sha": "36f4ee0fa8e4e13d"}
+{"t": 1793238359.3849714, "key": "scotus/biden_v._texas", "tier": "yay", "sha": "bb8bfc6631252b89"}
