@@ -258,11 +258,12 @@ def test_scotus_order_cover_is_removed_not_left_on_the_writing_above():
     """Wilson v. Hawaii prints a fresh cover over Justice Gorsuch's statement
     on page 8. It closes on 'No. 23–7517. Decided December 9, 2024', not on
     a bracketed date, and it used to end Justice Thomas's statement."""
-    r = _read("scotus", "10756853_20241209_opinion_wilson-v-hawaii")
+    r = _read("scotus", "wilson_v._hawaii")
     thomas, gorsuch = r["opinions"][1], r["opinions"][2]
 
     assert " ".join(thomas["text"].split()).endswith("(opinion of THOMAS, J.).")
-    assert gorsuch["text"].lstrip().startswith("Statement of JUSTICE GORSUCH")
+    assert gorsuch["text"].lstrip().startswith(
+        "In December 2017, Christopher Wilson")
     assert any(d["kind"] == "cover" and "No. 23–7517" in d["text"]
                for d in r["removed"])
 
@@ -272,7 +273,7 @@ def test_scotus_syllabus_cover_survives_beside_an_order_cover():
     closes on 'Argued …—Decided …' and must stay (it is the only place the
     argued date is printed); the dissent's cover closes on 'Decided …' alone
     and must go."""
-    r = _read("scotus", "11084232_20250626_opinion_hewitt-v-united-states")
+    r = _read("scotus", "hewitt_v._united_states")
     majority = r["opinions"][0]
 
     assert r["cluster"]["date_submitted"]
