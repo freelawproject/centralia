@@ -198,6 +198,46 @@ def test_nysurct_leader_rows_stay_rows_and_keep_their_dots():
     assert r["diagnostics"]["residual_content"] == 0
 
 
+# --------------------------------------------------------------------------
+# #41 — a court that never signs gets no signature block
+# --------------------------------------------------------------------------
+
+@pytest.mark.parametrize("stem", [
+    # a separate writing opens on the last sheet: its 'Cite as:' running
+    # head and its byline were repeated as a signature
+    "e.m.d._sales_inc._v._carrera",
+    # a footnote's first line names a judge
+    "wooden_v._united_states",
+    # a centred running-head pair: 'MCGIRT v. OKLAHOMA' / 'THOMAS, J., …'
+    "mcgirt_v._oklahoma",
+])
+def test_scotus_writings_are_never_signed(stem):
+    """Slip opinions are unsigned (`signatures=False`), so a signature block
+    can only be a running head, byline, footnote line or figure read twice."""
+    r = _read("scotus", stem)
+    signed = [o["order"] for o in r["opinions"] if 'class="sig"' in o["html"]]
+    assert not signed, f"signature block on writing(s) {signed}"
+
+
+def test_scotus_closing_lines_stay_in_the_writing():
+    """'It is so ordered.' is set right of the rail and 'JUSTICE SOTOMAYOR
+    dissents.' names an office; the lift moved both out of the per curiam."""
+    r = _read("scotus", "mays_v._hines")
+    body = r["opinions"][0]["html"]
+    assert 'class="sig"' not in body
+    assert "It is so ordered." in body
+    assert "JUSTICE SOTOMAYOR dissents." in body
+
+
+def test_ca3_judgment_order_keeps_its_signature():
+    """The default still signs: ca3 closes its judgment orders 'BY THE COURT,
+    / s/ … / Circuit Judge', and that block must survive the scotus switch."""
+    r = _read("ca3", "united_states_v._jerome_brown")
+    last = r["opinions"][-1]["html"]
+    assert 'class="sig"' in last
+    assert "Restrepo" in last.split('class="sig"', 1)[1]
+
+
 def test_scotus_syllabus_keeps_its_cover_page():
     """'Brief for Respondents 15' in the page-1 syllabus is a WEAK counsel mark;
     the backward merge took it as a counsel paragraph torn under the docket

@@ -1,5 +1,15 @@
 # Changes
 
+## 0.0.7 (unreleased)
+
+### Added
+
+- A `signatures` profile flag to turn off signature detection for a court (#41).
+
+### Fixed
+
+- SCOTUS writings no longer end on a false signature block (#41).
+
 ## 0.0.6
 
 ### Added

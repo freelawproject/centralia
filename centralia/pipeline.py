@@ -1137,7 +1137,8 @@ def _extract_model(model, court_id: str, pdf_path) -> ExtractionResult:
                  and geom is not None
                  and l.x1 - l.x0 > geom.column * 0.5),
                 default=None)
-            if (pm.number == model.n_pages and _w >= 60 and _h >= 20
+            if (profile.signatures
+                    and pm.number == model.n_pages and _w >= 60 and _h >= 20
                     and ((_im.bottom > _sig_floor
                           and _im.top > _sig_floor - 30.0)
                          or (_prose_floor is not None
@@ -1380,7 +1381,8 @@ def _extract_model(model, court_id: str, pdf_path) -> ExtractionResult:
                         para_indent_min=profile.para_indent_min,
                         headmatter_claimed=bool(_court_hm),
                         writing_starts=_writing_starts,
-                        tables=_tables)
+                        tables=_tables,
+                        signatures=profile.signatures)
 
     assembled = _assemble_with(segments_by_page)
     if _court_hm and not assembled.opinions:
@@ -2541,8 +2543,9 @@ def _extract_model(model, court_id: str, pdf_path) -> ExtractionResult:
     # figure placement and are planted as the writing's last blocks. What
     # tells them apart is what follows them — a figure the opinion discusses
     # has text after it, and a signature has nothing. Measured on wash, whose
-    # justices sign each writing by hand.
-    for _op in doc.opinions:
+    # justices sign each writing by hand. A court that never signs has no
+    # graphic to find here: scotus ends a writing on an appendix figure.
+    for _op in (doc.opinions if profile.signatures else ()):
         _moved = []
         while _op.blocks and isinstance(_op.blocks[-1], m.ImageBlock):
             _blk2 = _op.blocks.pop()
@@ -3183,7 +3186,7 @@ def _extract_model(model, court_id: str, pdf_path) -> ExtractionResult:
     # Claimed here rather than in a court file because every district signs
     # this way, and only at the END of the last writing: a '/s/' anywhere
     # above the body's close belongs to a quoted document, not the bench.
-    if doc.opinions:
+    if doc.opinions and profile.signatures:
         _sig_titles = ("judge", "justice", "magistrate", "chancellor",
                        "commissioner", "master", "referee")
 
