@@ -236,3 +236,15 @@ def test_ca3_judgment_order_keeps_its_signature():
     last = r["opinions"][-1]["html"]
     assert 'class="sig"' in last
     assert "Restrepo" in last.split('class="sig"', 1)[1]
+
+
+def test_scotus_syllabus_keeps_its_cover_page():
+    """'Brief for Respondents 15' in the page-1 syllabus is a WEAK counsel mark;
+    the backward merge took it as a counsel paragraph torn under the docket
+    row, and the cover trim dropped the whole page as caption (#40)."""
+    r = _read("scotus", "smith_v._spizzirri")
+    assert r["cluster"]["syllabus"].startswith(
+        "The Federal Arbitration Act (FAA) sets forth procedures")
+    assert r["cluster"]["date_submitted"] == "April 22, 2024"
+    assert not [d for d in r["removed"]
+                if d["kind"] == "superfluous" and len(d["text"]) > 300]

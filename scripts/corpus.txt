@@ -8387,6 +8387,7 @@ scotus	allen_v._caster.pdf	https://storage.courtlistener.com/pdf/2026/05/11/alle
 scotus	allen_v._milligan.pdf	https://storage.courtlistener.com/pdf/2026/06/02/allen_v._milligan.pdf
 scotus	barrett_v._united_states_revisions_11426.pdf	https://storage.courtlistener.com/pdf/2026/01/14/barrett_v._united_states_revisions_11426.pdf
 scotus	berk_v._choy.pdf	https://storage.courtlistener.com/pdf/2026/01/20/berk_v._choy.pdf
+scotus	biden_v._texas.pdf	https://storage.courtlistener.com/pdf/2022/06/30/biden_v._texas.pdf
 scotus	blanche_v._lau.pdf	https://storage.courtlistener.com/pdf/2026/06/23/blanche_v._lau.pdf
 scotus	bost_v._illinois_bd._of_elections.pdf	https://storage.courtlistener.com/pdf/2026/01/14/bost_v._illinois_bd._of_elections.pdf
 scotus	bost_v._illinois_bd._of_elections_revisions_11426.pdf	https://storage.courtlistener.com/pdf/2026/01/14/bost_v._illinois_bd._of_elections_revisions_11426.pdf
@@ -8453,6 +8454,7 @@ scotus	mullin_v._al_otro_lado.pdf	https://storage.courtlistener.com/pdf/2026/06/
 scotus	mullin_v._doe.pdf	https://storage.courtlistener.com/pdf/2026/06/25/mullin_v._doe.pdf
 scotus	national_republican_senatorial_committee_v._federal_election_commn.pdf	https://storage.courtlistener.com/pdf/2026/06/30/national_republican_senatorial_committee_v._federal_election_commn.pdf
 scotus	olivier_v._city_of_brandon.pdf	https://storage.courtlistener.com/pdf/2026/03/20/olivier_v._city_of_brandon.pdf
+scotus	opati_v._republic_of_sudan.pdf	https://storage.courtlistener.com/pdf/2020/05/18/opati_v._republic_of_sudan.pdf
 scotus	pitchford_v._cain.pdf	https://storage.courtlistener.com/pdf/2026/05/28/pitchford_v._cain.pdf
 scotus	postal_service_v._konan.pdf	https://storage.courtlistener.com/pdf/2026/02/24/postal_service_v._konan.pdf
 scotus	pung_v._isabella_county.pdf	https://storage.courtlistener.com/pdf/2026/06/23/pung_v._isabella_county.pdf
@@ -8461,6 +8463,7 @@ scotus	rico_v._united_states.pdf	https://storage.courtlistener.com/pdf/2026/03/2
 scotus	rutherford_v._united_states.pdf	https://storage.courtlistener.com/pdf/2026/05/28/rutherford_v._united_states.pdf
 scotus	skinner_v._louisiana.pdf	https://storage.courtlistener.com/pdf/2026/03/30/skinner_v._louisiana.pdf
 scotus	smith_v._kind.pdf	https://storage.courtlistener.com/pdf/2026/06/29/smith_v._kind.pdf
+scotus	smith_v._spizzirri.pdf	https://storage.courtlistener.com/pdf/2024/05/16/smith_v._spizzirri.pdf
 scotus	sripetch_v._sec.pdf	https://storage.courtlistener.com/pdf/2026/06/04/sripetch_v._sec.pdf
 scotus	t._m._v._university_of_md._medical_system_corporation.pdf	https://storage.courtlistener.com/pdf/2026/06/18/t._m._v._university_of_md._medical_system_corporation.pdf
 scotus	t._m._v._university_of_md._medical_system_corporation_revisions_61926.pdf	https://storage.courtlistener.com/pdf/2026/06/18/t._m._v._university_of_md._medical_system_corporation_revisions_61926.pdf

@@ -1659,7 +1659,13 @@ def _extract_model(model, court_id: str, pdf_path) -> ExtractionResult:
             first = seg.lines[0].plain.strip()
             plast = prev.lines[-1].plain.strip()
             if (seg.page == prev.page
-                    and (any(mk in stext for mk in _COUNSEL_MARKS)
+                    # WEAK marks vouch only for SHORT blocks (see the lists
+                    # above): scotus syllabus prose says 'for respondents'
+                    # and was glued under the open-edged docket row, then
+                    # dropped with it as cover.
+                    and (any(mk in stext for mk in _COUNSEL_STRONG)
+                         or (any(mk in stext for mk in _COUNSEL_WEAK)
+                             and len(stext) <= 300)
                          # ANY mid-sentence opening under an open edge is
                          # the same tear (ca2 griffin's disposition
                          # paragraph split half-into-headmatter)
