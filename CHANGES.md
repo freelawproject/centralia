@@ -9,6 +9,8 @@
 ### Fixed
 
 - SCOTUS writings no longer end on a false signature block (#41).
+- SCOTUS syllabi no longer lose their first page as cover when it says
+  `for respondents` or a similar counsel phrase (#40).
 
 ## 0.0.6
 
