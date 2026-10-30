@@ -372,6 +372,17 @@ def _syllabus_page_numbers(model, geom, rows=None) -> set:
 # cover, which is `syllabus.trim`'s to drop and the only place the ARGUED
 # date is printed.
 _COVER_DATE = re.compile(r"^\[[^\]]{4,40}\]$")
+_ARGUED = re.compile(r"\b(argued|reargued|submitted)\b")
+
+
+def _is_order_docket_row(text: str) -> bool:
+    """'No. 23–7517. Decided December 9, 2024' — an order's cover closes on
+    its docket and its date in one row. The syllabus cover's row also states
+    the argued date, and is never this row."""
+    low = text.lower()
+    return (bool(looks_like_docket(text))
+            and ("decided" in low or "filed" in low)
+            and not _ARGUED.search(low))
 
 # A CONSOLIDATED cover states every docket's parties and origin before the
 # date, so the run is long: west virginia sets 19 rows over two dockets.
