@@ -11,6 +11,8 @@
 - SCOTUS writings no longer end on a false signature block (#41).
 - SCOTUS syllabi no longer lose their first page as cover when it says
   `for respondents` or a similar counsel phrase (#40).
+- SCOTUS order-style covers (`No. … Decided …`) printed over a later writing
+  are removed as `cover` instead of ending the writing above them (#42).
 
 ## 0.0.6
 
