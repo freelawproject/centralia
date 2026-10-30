@@ -276,6 +276,11 @@ def test_scotus_syllabus_cover_survives_beside_an_order_cover():
     r = _read("scotus", "hewitt_v._united_states")
     majority = r["opinions"][0]
 
-    assert r["cluster"]["date_submitted"]
-    assert r["cluster"]["syllabus"]
-    assert "SUPREME COURT OF THE UNITED STATES" not in majority["text"][-500:]
+    assert r["cluster"]["date_submitted"] == "January 13, 2025"
+    assert r["cluster"]["syllabus"].startswith(
+        "Before the First Step Act was enacted in 2018")
+    # The whole text, not its tail: the writing's footnotes follow the
+    # leaked cover, so it never sat in the last few hundred characters.
+    assert "SUPREME COURT OF THE UNITED STATES" not in majority["text"]
+    assert any(d["kind"] == "cover" and "Nos. 23–1002 and 23–1150" in d["text"]
+               for d in r["removed"])
