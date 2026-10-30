@@ -248,3 +248,39 @@ def test_scotus_syllabus_keeps_its_cover_page():
     assert r["cluster"]["date_submitted"] == "April 22, 2024"
     assert not [d for d in r["removed"]
                 if d["kind"] == "superfluous" and len(d["text"]) > 300]
+
+
+# --------------------------------------------------------------------------
+# #42: an order-style cover ('No. … Decided …') printed over a later writing
+# --------------------------------------------------------------------------
+
+def test_scotus_order_cover_is_removed_not_left_on_the_writing_above():
+    """Wilson v. Hawaii prints a fresh cover over Justice Gorsuch's statement
+    on page 8. It closes on 'No. 23–7517. Decided December 9, 2024', not on
+    a bracketed date, and it used to end Justice Thomas's statement."""
+    r = _read("scotus", "wilson_v._hawaii")
+    thomas, gorsuch = r["opinions"][1], r["opinions"][2]
+
+    assert " ".join(thomas["text"].split()).endswith("(opinion of THOMAS, J.).")
+    assert gorsuch["text"].lstrip().startswith(
+        "In December 2017, Christopher Wilson")
+    assert any(d["kind"] == "cover" and "No. 23–7517" in d["text"]
+               for d in r["removed"])
+
+
+def test_scotus_syllabus_cover_survives_beside_an_order_cover():
+    """Hewitt v. United States has both kinds of cover: the syllabus cover
+    closes on 'Argued …—Decided …' and must stay (it is the only place the
+    argued date is printed); the dissent's cover closes on 'Decided …' alone
+    and must go."""
+    r = _read("scotus", "hewitt_v._united_states")
+    majority = r["opinions"][0]
+
+    assert r["cluster"]["date_submitted"] == "January 13, 2025"
+    assert r["cluster"]["syllabus"].startswith(
+        "Before the First Step Act was enacted in 2018")
+    # The whole text, not its tail: the writing's footnotes follow the
+    # leaked cover, so it never sat in the last few hundred characters.
+    assert "SUPREME COURT OF THE UNITED STATES" not in majority["text"]
+    assert any(d["kind"] == "cover" and "Nos. 23–1002 and 23–1150" in d["text"]
+               for d in r["removed"])

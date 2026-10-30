@@ -8423,11 +8423,13 @@ scotus	fs_credit_opportunities_corp._v._saba_capital_master_fund_ltd..pdf	https:
 scotus	galette_v._new_jersey_transit_corp..pdf	https://storage.courtlistener.com/pdf/2026/03/04/galette_v._new_jersey_transit_corp..pdf
 scotus	geo_group_inc._v._menocal.pdf	https://storage.courtlistener.com/pdf/2026/02/25/geo_group_inc._v._menocal.pdf
 scotus	grayson_v._united_states.pdf	https://storage.courtlistener.com/pdf/2026/06/22/grayson_v._united_states.pdf
+scotus	grzegorczyk_v._united_states.pdf	https://storage.courtlistener.com/pdf/2022/06/30/grzegorczyk_v._united_states.pdf
 scotus	guerrero_v._busby.pdf	https://storage.courtlistener.com/pdf/2026/05/14/guerrero_v._busby.pdf
 scotus	hain_celestial_group_inc._v._palmquist.pdf	https://storage.courtlistener.com/pdf/2026/02/24/hain_celestial_group_inc._v._palmquist.pdf
 scotus	hamm_v._smith.pdf	https://storage.courtlistener.com/pdf/2026/05/21/hamm_v._smith.pdf
 scotus	havana_docks_corp._v._royal_caribbean_cruises_ltd..pdf	https://storage.courtlistener.com/pdf/2026/05/21/havana_docks_corp._v._royal_caribbean_cruises_ltd..pdf
 scotus	hencely_v._fluor_corp..pdf	https://storage.courtlistener.com/pdf/2026/04/22/hencely_v._fluor_corp..pdf
+scotus	hewitt_v._united_states.pdf	https://storage.courtlistener.com/pdf/2025/06/26/hewitt_v._united_states.pdf
 scotus	hikma_pharmaceuticals_usa_inc._v._amarin_pharma_inc..pdf	https://storage.courtlistener.com/pdf/2026/06/04/hikma_pharmaceuticals_usa_inc._v._amarin_pharma_inc..pdf
 scotus	hunter_v._united_states.pdf	https://storage.courtlistener.com/pdf/2026/06/18/hunter_v._united_states.pdf
 scotus	hunter_v._united_states_revisions_61926.pdf	https://storage.courtlistener.com/pdf/2026/06/18/hunter_v._united_states_revisions_61926.pdf
@@ -8446,6 +8448,7 @@ scotus	m__k_employee_solutions_inc._v._trustees_of_iam_nat._pension.pdf	https://
 scotus	margolin_v._naij.pdf	https://storage.courtlistener.com/pdf/2026/05/26/margolin_v._naij.pdf
 scotus	mays_v._hines.pdf	https://storage.courtlistener.com/pdf/2021/03/29/mays_v._hines.pdf
 scotus	mccarthy_v._hernandez.pdf	https://storage.courtlistener.com/pdf/2026/06/22/mccarthy_v._hernandez.pdf
+scotus	mcclinton_v._united_states.pdf	https://storage.courtlistener.com/pdf/2023/06/30/mcclinton_v._united_states.pdf
 scotus	mcgirt_v._oklahoma.pdf	https://storage.courtlistener.com/pdf/2020/07/09/mcgirt_v._oklahoma.pdf
 scotus	mirabelli_v._bonta.pdf	https://storage.courtlistener.com/pdf/2026/03/02/mirabelli_v._bonta.pdf
 scotus	monsanto_v._durnell.pdf	https://storage.courtlistener.com/pdf/2026/06/25/monsanto_v._durnell.pdf
@@ -8459,7 +8462,9 @@ scotus	pitchford_v._cain.pdf	https://storage.courtlistener.com/pdf/2026/05/28/pi
 scotus	postal_service_v._konan.pdf	https://storage.courtlistener.com/pdf/2026/02/24/postal_service_v._konan.pdf
 scotus	pung_v._isabella_county.pdf	https://storage.courtlistener.com/pdf/2026/06/23/pung_v._isabella_county.pdf
 scotus	reed_v._goertz.pdf	https://storage.courtlistener.com/pdf/2026/03/23/reed_v._goertz.pdf
+scotus	republican_party_of_pennsylvania_v._degraffenreid.pdf	https://storage.courtlistener.com/pdf/2021/02/22/republican_party_of_pennsylvania_v._degraffenreid.pdf
 scotus	rico_v._united_states.pdf	https://storage.courtlistener.com/pdf/2026/03/25/rico_v._united_states.pdf
+scotus	roman_catholic_archdiocese_of_san_juan_v._acevedo_feliciano.pdf	https://storage.courtlistener.com/pdf/2020/02/24/roman_catholic_archdiocese_of_san_juan_v._acevedo_feliciano.pdf
 scotus	rutherford_v._united_states.pdf	https://storage.courtlistener.com/pdf/2026/05/28/rutherford_v._united_states.pdf
 scotus	skinner_v._louisiana.pdf	https://storage.courtlistener.com/pdf/2026/03/30/skinner_v._louisiana.pdf
 scotus	smith_v._kind.pdf	https://storage.courtlistener.com/pdf/2026/06/29/smith_v._kind.pdf
@@ -8479,6 +8484,7 @@ scotus	villarreal_v._texas.pdf	https://storage.courtlistener.com/pdf/2026/02/25/
 scotus	watson_v._republican_national_committee.pdf	https://storage.courtlistener.com/pdf/2026/06/29/watson_v._republican_national_committee.pdf
 scotus	west_virginia_v._b._p._j..pdf	https://storage.courtlistener.com/pdf/2026/06/30/west_virginia_v._b._p._j..pdf
 scotus	whitton_v._dixon.pdf	https://storage.courtlistener.com/pdf/2026/06/01/whitton_v._dixon.pdf
+scotus	wilson_v._hawaii.pdf	https://storage.courtlistener.com/pdf/2024/12/09/wilson_v._hawaii.pdf
 scotus	wolford_v._lopez.pdf	https://storage.courtlistener.com/pdf/2026/06/25/wolford_v._lopez.pdf
 scotus	wooden_v._united_states.pdf	https://storage.courtlistener.com/pdf/2022/03/07/wooden_v._united_states.pdf
 scotus	zorn_v._linton.pdf	https://storage.courtlistener.com/pdf/2026/03/23/zorn_v._linton.pdf
