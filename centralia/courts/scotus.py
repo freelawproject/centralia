@@ -364,14 +364,32 @@ def _syllabus_page_numbers(model, geom, rows=None) -> set:
 # Every later one restates it, so every later one goes — recorded as removed
 # (kind 'cover'), never silently.
 #
-# WHY THE BRACKETED DATE ENDS THE RUN, AND WHAT THAT PROTECTS. A writing's
-# cover closes on the decision date alone, in brackets ('[June 30, 2026]').
-# The SYLLABUS cover closes on a docket-and-dates row instead ('No. 24-43.
-# Argued January 13, 2026-Decided June 30, 2026*') and prints no bracketed
-# row at all — so keying the run to that row cannot reach the syllabus
-# cover, which is `syllabus.trim`'s to drop and the only place the ARGUED
-# date is printed.
+# WHAT ENDS THE RUN. A merits writing's cover closes on the decision date
+# alone, in brackets ('[June 30, 2026]'). An ORDER's cover — a per curiam,
+# a statement or dissent on a cert denial, a stay, an original-jurisdiction
+# order — closes on its docket and date run together ('No. 23–7517.
+# Decided December 9, 2024'). Keyed to the bracket alone, every order-style
+# cover read as 'no cover' and fell to the writing above it: 30 of 818
+# records, 32 covers (#42).
+#
+# WHAT THAT MUST NOT REACH. The SYLLABUS cover closes on a docket-and-dates
+# row too ('No. 24-43. Argued January 13, 2026-Decided June 30, 2026*'),
+# and it is `syllabus.trim`'s to drop and the only place the ARGUED date is
+# printed. It is kept out twice over: its pages are skipped, and its row
+# carries the argued date, which an order's never does (457 syllabus covers,
+# every one argued; no writing cover ever is).
 _COVER_DATE = re.compile(r"^\[[^\]]{4,40}\]$")
+_ARGUED = re.compile(r"\b(argued|reargued|submitted)\b")
+
+
+def _is_order_docket_row(text: str) -> bool:
+    """'No. 23–7517. Decided December 9, 2024' — an order's cover closes on
+    its docket and its date in one row. The syllabus cover's row also states
+    the argued date, and is never this row."""
+    low = text.lower()
+    return (bool(looks_like_docket(text))
+            and ("decided" in low or "filed" in low)
+            and not _ARGUED.search(low))
 
 # A CONSOLIDATED cover states every docket's parties and origin before the
 # date, so the run is long: west virginia sets 19 rows over two dockets.
@@ -387,8 +405,11 @@ def writing_covers_scotus(model=None, geom=None, **_):
     """
     if model is None:
         return NOTHING
+    syl = _syllabus_page_numbers(model, geom)
     runs: list[list[int]] = []
     for pm in model.pages:
+        if pm.number in syl:
+            continue                      # the syllabus cover is trim's
         rows = sorted((l for l in pm.lines if l.plain.strip()),
                       key=lambda l: l.top)
         # THE MASTHEAD IS THE LARGEST TYPE, not the wordiest row: core's
@@ -400,9 +421,10 @@ def writing_covers_scotus(model=None, geom=None, **_):
             continue
         end = next((j for j in range(at + 1,
                                      min(at + _COVER_SPAN, len(rows)))
-                    if _COVER_DATE.match(_norm(rows[j].plain))), None)
+                    if _COVER_DATE.match(_norm(rows[j].plain))
+                    or _is_order_docket_row(_norm(rows[j].plain))), None)
         if end is None:
-            continue                      # the syllabus cover, or no cover
+            continue                      # no cover
         runs.append([l.id for l in rows[at:end + 1]])
     if len(runs) < 2:
         return NOTHING                    # one cover is the document's own
@@ -711,10 +733,7 @@ def unsigned_order(segs, is_byline, syl_pages=(), **_):
     anchor = None
     for i, line in enumerate(lines):
         text = _norm(line.plain)
-        low = text.lower()
-        if _BRACKET_DATE.match(text) or (
-                looks_like_docket(text)
-                and ("decided" in low or "filed" in low)):
+        if _BRACKET_DATE.match(text) or _is_order_docket_row(text):
             anchor = i
             break
     if anchor is None:
