@@ -13,6 +13,10 @@
   `for respondents` or a similar counsel phrase (#40).
 - SCOTUS order-style covers (`No. … Decided …`) printed over a later writing
   are removed as `cover` instead of ending the writing above them (#42).
+- The period of an italic or underlined *Id.* or *Ibid.* is now inside the
+  run (`<em>Id.</em>`, `<u>Id.</u>`, not `<em>Id</em>.`) when the PDF sets it
+  in roman, so citation finders read it as a short-form citation. An italic
+  overhang before the period no longer prints `Ibid .` (#48).
 
 ## 0.0.6
 
