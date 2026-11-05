@@ -64,6 +64,10 @@ def inline_text(chars: list, label_chars: set, canon, mark_flags: list | None,
     prev_x1 = None
     prev_pos = None
     in_brace = False
+    # The face the last body glyph was SET in. It is the run's style except
+    # after an 'Id.' period, which is printed roman but joins the italic run:
+    # the next glyph's word-break test reads the page, not the markup.
+    face = (False, False, False)
 
     def style_wrap(text: str) -> str:
         t = escape(text)
@@ -98,6 +102,7 @@ def inline_text(chars: list, label_chars: set, canon, mark_flags: list | None,
         ch_italic = ("Italic" in fn) or ("Oblique" in fn)
         ch_underline = bool(c.get("_underline"))
         ch_highlight = bool(c.get("_highlight"))
+        glyph_face = (ch_bold, ch_italic, ch_underline)
         # The period of 'Id.'/'Ibid.' belongs to the abbreviation and takes
         # its style (Bluebook Rule 4.1), even when the PDF sets it in roman:
         # citation finders (eyecite) only read '<em>Id.</em>' / '<u>Id.</u>'
@@ -124,8 +129,7 @@ def inline_text(chars: list, label_chars: set, canon, mark_flags: list | None,
             thresh = space_gap
             prev_txt = chars[ci - 1].get("text") or "" if ci else ""
             cur_txt = c.get("text") or ""
-            if (ch_bold != in_bold or ch_italic != in_italic
-                    or ch_underline != in_underline
+            if (glyph_face != face
                     or (prev_txt[-1:].islower() and cur_txt[:1].isupper())):
                 thresh = max(SPACE_GAP_MIN, (space_gap + SPACE_GAP_MIN) / 2)
             if gap > thresh:
@@ -155,6 +159,7 @@ def inline_text(chars: list, label_chars: set, canon, mark_flags: list | None,
                 in_bold, in_italic, in_underline, in_highlight = (
                     ch_bold, ch_italic, ch_underline, ch_highlight)
             buf += c.get("text") or ""
+            face = glyph_face
         prev_x1 = c["x1"]
     if cur_fn:
         parts.append(f"<footnotemark>{escape(cur_fn)}</footnotemark>")
