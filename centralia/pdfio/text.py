@@ -153,6 +153,13 @@ def inline_text(chars: list, label_chars: set, canon, mark_flags: list | None,
     return out
 
 
+# A styled run ending on the WORD Id/id/Ibid/ibid: '(id', '“Id' and 'See id'
+# count, 'Rapid' and 'Idaho' do not. Only these abbreviations take the
+# period — after an italic case name ('<em>Smith v. Jones</em>.') the roman
+# period is the sentence's own.
+_ENDS_ON_ID = re.compile(r"(?<![A-Za-z])(?:Id|id|Ibid|ibid) *$")
+
+
 def plain_text(chars: list) -> str:
     """The line's text as plain characters with gap-based space insertion.
     Double-emitted ligature glyphs (two identical chars at identical
