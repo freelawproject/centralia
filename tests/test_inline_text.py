@@ -79,3 +79,16 @@ def test_period_after_other_italics_stays_roman(words):
 
 def test_roman_id_is_untouched():
     assert _inline(("Id. at 745.", ROMAN)) == "Id. at 745."
+
+
+def test_space_glyph_after_a_roman_id_period_is_one_space():
+    # allen v. milligan: the roman '.' joins the italic run, but the roman
+    # space glyph after it is still the page's only word break — it used to
+    # read as a style change and print 'Ibid.  Neither'.
+    glyphs = [("I", ITALIC, 310.38, 314.85), ("b", ITALIC, 314.86, 320.96),
+              ("i", ITALIC, 320.98, 324.63), ("d", ITALIC, 324.65, 331.35),
+              (".", ROMAN, 331.38, 334.44), (" ", ROMAN, 337.09, 340.15),
+              ("N", ROMAN, 339.86, 348.8), ("o", ROMAN, 348.81, 354.3)]
+    chars = [{"text": t, "fontname": f, "x0": x0, "x1": x1}
+             for t, f, x0, x1 in glyphs]
+    assert inline_text(chars, set(), lambda t: t, None) == "<em>Ibid.</em> No"
