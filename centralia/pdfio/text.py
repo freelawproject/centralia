@@ -98,7 +98,20 @@ def inline_text(chars: list, label_chars: set, canon, mark_flags: list | None,
         ch_italic = ("Italic" in fn) or ("Oblique" in fn)
         ch_underline = bool(c.get("_underline"))
         ch_highlight = bool(c.get("_highlight"))
-        if prev_x1 is not None:
+        # The period of 'Id.'/'Ibid.' belongs to the abbreviation and takes
+        # its style (Bluebook Rule 4.1), even when the PDF sets it in roman:
+        # citation finders (eyecite) only read '<em>Id.</em>' / '<u>Id.</u>'
+        # as a short-form citation, never '<em>Id</em>.' (#48). It is no
+        # word break either — the italic overhang leaves a gap wide enough
+        # at the style-change threshold to print 'Ibid .'.
+        id_period = (c.get("text") == "." and not cur_fn
+                     and (in_italic or in_underline)
+                     and _ENDS_ON_ID.search(buf) is not None)
+        if id_period:
+            buf = buf.rstrip(" ")
+            ch_bold, ch_italic, ch_underline, ch_highlight = (
+                in_bold, in_italic, in_underline, in_highlight)
+        if prev_x1 is not None and not id_period:
             gap = c["x0"] - prev_x1
             # A STYLE CHANGE is itself word-boundary evidence (mont sets
             # 'defendants <em>Dennis E. Lind</em>' with no space glyph and
