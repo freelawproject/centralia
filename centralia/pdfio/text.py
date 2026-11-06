@@ -64,6 +64,10 @@ def inline_text(chars: list, label_chars: set, canon, mark_flags: list | None,
     prev_x1 = None
     prev_pos = None
     in_brace = False
+    # The face the last body glyph was SET in. It is the run's style except
+    # after an 'Id.' period, which is printed roman but joins the italic run:
+    # the next glyph's word-break test reads the page, not the markup.
+    face = (False, False, False)
 
     def style_wrap(text: str) -> str:
         t = escape(text)
@@ -98,7 +102,21 @@ def inline_text(chars: list, label_chars: set, canon, mark_flags: list | None,
         ch_italic = ("Italic" in fn) or ("Oblique" in fn)
         ch_underline = bool(c.get("_underline"))
         ch_highlight = bool(c.get("_highlight"))
-        if prev_x1 is not None:
+        glyph_face = (ch_bold, ch_italic, ch_underline)
+        # The period of 'Id.'/'Ibid.' belongs to the abbreviation and takes
+        # its style (Bluebook Rule 4.1), even when the PDF sets it in roman:
+        # citation finders (eyecite) only read '<em>Id.</em>' / '<u>Id.</u>'
+        # as a short-form citation, never '<em>Id</em>.' (#48). It is no
+        # word break either — the italic overhang leaves a gap wide enough
+        # at the style-change threshold to print 'Ibid .'.
+        id_period = (c.get("text") == "." and not cur_fn
+                     and (in_italic or in_underline)
+                     and _ENDS_ON_ID.search(buf) is not None)
+        if id_period:
+            buf = buf.rstrip(" ")
+            ch_bold, ch_italic, ch_underline, ch_highlight = (
+                in_bold, in_italic, in_underline, in_highlight)
+        if prev_x1 is not None and not id_period:
             gap = c["x0"] - prev_x1
             # A STYLE CHANGE is itself word-boundary evidence (mont sets
             # 'defendants <em>Dennis E. Lind</em>' with no space glyph and
@@ -111,8 +129,7 @@ def inline_text(chars: list, label_chars: set, canon, mark_flags: list | None,
             thresh = space_gap
             prev_txt = chars[ci - 1].get("text") or "" if ci else ""
             cur_txt = c.get("text") or ""
-            if (ch_bold != in_bold or ch_italic != in_italic
-                    or ch_underline != in_underline
+            if (glyph_face != face
                     or (prev_txt[-1:].islower() and cur_txt[:1].isupper())):
                 thresh = max(SPACE_GAP_MIN, (space_gap + SPACE_GAP_MIN) / 2)
             if gap > thresh:
@@ -142,6 +159,7 @@ def inline_text(chars: list, label_chars: set, canon, mark_flags: list | None,
                 in_bold, in_italic, in_underline, in_highlight = (
                     ch_bold, ch_italic, ch_underline, ch_highlight)
             buf += c.get("text") or ""
+            face = glyph_face
         prev_x1 = c["x1"]
     if cur_fn:
         parts.append(f"<footnotemark>{escape(cur_fn)}</footnotemark>")
@@ -151,6 +169,13 @@ def inline_text(chars: list, label_chars: set, canon, mark_flags: list | None,
     # bold words emits '<strong> </strong>') — the space itself stays.
     out = re.sub(r"<(strong|em|u)>(\s*)</\1>", r"\2", out)
     return out
+
+
+# A styled run ending on the WORD Id/id/Ibid/ibid: '(id', '“Id' and 'See id'
+# count, 'Rapid' and 'Idaho' do not. Only these abbreviations take the
+# period — after an italic case name ('<em>Smith v. Jones</em>.') the roman
+# period is the sentence's own.
+_ENDS_ON_ID = re.compile(r"(?<![A-Za-z])(?:Id|id|Ibid|ibid) *$")
 
 
 def plain_text(chars: list) -> str:

@@ -284,3 +284,30 @@ def test_scotus_syllabus_cover_survives_beside_an_order_cover():
     assert "SUPREME COURT OF THE UNITED STATES" not in majority["text"]
     assert any(d["kind"] == "cover" and "Nos. 23–1002 and 23–1150" in d["text"]
                for d in r["removed"])
+
+
+# --------------------------------------------------------------------------
+# #48: the period of 'Id.'/'Ibid.' sits inside the styled run
+# --------------------------------------------------------------------------
+
+def test_scotus_id_period_is_inside_the_italics():
+    """SCOTUS sets the period of an italic 'Ibid' in roman, after an overhang
+    gap wide enough to read as a word break: the HTML said '<em>Ibid </em>.'
+    and the text 'Ibid .'. eyecite only reads '<em>Ibid.</em>' as a citation."""
+    r = _read("scotus", "montana_v._planned_parenthood_of_montana")
+    html = "".join(o["html"] for o in r["opinions"])
+    text = "".join(o["text"] for o in r["opinions"])
+
+    assert "<em>Ibid.</em> Similarly" in html
+    assert "Ibid ." not in text
+
+
+def test_ca1_underlined_id_period_is_inside_the_underline():
+    """ca1 underlines its signals, and the roman period fell outside:
+    '<u>Id</u>.'."""
+    import re
+    r = _read("ca1", "recchia_v._campbell")
+    html = "".join(o["html"] for o in r["opinions"])
+
+    assert not re.search(r"<u>[Ii](?:bi)?d\s*</u>\s*\.", html)
+    assert "<u>Id.</u>" in html

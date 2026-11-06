@@ -8452,6 +8452,7 @@ scotus	mcclinton_v._united_states.pdf	https://storage.courtlistener.com/pdf/2023
 scotus	mcgirt_v._oklahoma.pdf	https://storage.courtlistener.com/pdf/2020/07/09/mcgirt_v._oklahoma.pdf
 scotus	mirabelli_v._bonta.pdf	https://storage.courtlistener.com/pdf/2026/03/02/mirabelli_v._bonta.pdf
 scotus	monsanto_v._durnell.pdf	https://storage.courtlistener.com/pdf/2026/06/25/monsanto_v._durnell.pdf
+scotus	montana_v._planned_parenthood_of_montana.pdf	https://storage.courtlistener.com/pdf/2025/07/03/montana_v._planned_parenthood_of_montana.pdf
 scotus	montgomery_v._caribe_transport_ii_llc.pdf	https://storage.courtlistener.com/pdf/2026/05/14/montgomery_v._caribe_transport_ii_llc.pdf
 scotus	mullin_v._al_otro_lado.pdf	https://storage.courtlistener.com/pdf/2026/06/25/mullin_v._al_otro_lado.pdf
 scotus	mullin_v._doe.pdf	https://storage.courtlistener.com/pdf/2026/06/25/mullin_v._doe.pdf
