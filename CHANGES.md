@@ -1,5 +1,19 @@
 # Changes
 
+## 0.0.8 (unreleased)
+
+### Added
+
+- A `source.refuse` decision point: a court can refuse a PDF its reader cannot
+  handle, which returns `status: failed` before parsing (#53).
+
+### Fixed
+
+- SCOTUS preliminary prints are refused: `status` is `failed` and
+  `diagnostics.source_kind` is `preliminary-print`. They are the case again in
+  U.S. Reports layout, which the scotus reader misread while still reporting
+  `valid`, so an ingest that accepts only `valid` stored them (#53).
+
 ## 0.0.7
 
 ### Added

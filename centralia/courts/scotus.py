@@ -53,6 +53,41 @@ def _norm(text: str) -> str:
 
 
 # --------------------------------------------------------------------------
+# source.refuse — a preliminary print is not a slip opinion
+# --------------------------------------------------------------------------
+
+def is_preliminary_print(model) -> bool:
+    """True when the PDF is a preliminary print, not a slip opinion.
+
+    The Reporter of Decisions publishes a case again, months after the slip
+    opinion, as a preliminary print. It is paginated like the U.S. Reports
+    (running heads, page numbers, 'OCTOBER TERM, 2024 / Syllabus'), and this
+    reader is built for the slip layout, so it misread the print while still
+    reporting `valid`. Example: goldey-v-fields (606 U. S. 942).
+
+    The cover opens on 'PRELIMINARY PRINT' and names 'OFFICIAL REPORTS OF THE
+    SUPREME COURT', split over three lines. Both must be on page 1, and the
+    first must be the page's first line, so a slip opinion that quotes either
+    phrase does not match.
+    """
+    if not model.pages:
+        return False
+    rows = [r for r in (_norm(ln.plain) for ln in model.pages[0].lines) if r]
+    if not rows or rows[0].upper() != "PRELIMINARY PRINT":
+        return False
+    return "OFFICIAL REPORTS OF THE SUPREME COURT" in " ".join(rows[:12]).upper()
+
+
+@decider("source.refuse", court="scotus")
+def refuse_preliminary_print(model, **_):
+    if not is_preliminary_print(model):
+        return NOTHING
+    return {"source_kind": "preliminary-print",
+            "warning": "SCOTUS preliminary print (U.S. Reports layout); "
+                       "not parsed"}
+
+
+# --------------------------------------------------------------------------
 # syllabus.pages — the running head names the section
 # --------------------------------------------------------------------------
 
