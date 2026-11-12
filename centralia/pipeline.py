@@ -610,6 +610,17 @@ def _extract_model(model, court_id: str, pdf_path) -> ExtractionResult:
                   n_pages=model.n_pages, source_path=str(pdf_path))
     doc = m.Document(meta=meta)
 
+    # A COURT MAY REFUSE A SOURCE it knows its reader cannot handle (scotus:
+    # a preliminary print). Reading it would give a wrong result that still
+    # says `valid`; `failed` keeps it out of any ingest that only accepts
+    # `valid`, and `source_kind` plus the warning say why. The decider
+    # returns {"source_kind", "warning"} or NOTHING.
+    _refuse = court_decides("source.refuse", court_id, trace, model=model)
+    if _refuse is not NOTHING:
+        meta.source_kind = _refuse["source_kind"]
+        doc.warnings.append(_refuse["warning"])
+        return ExtractionResult(doc, trace, status="failed")
+
     # 2 triage — a scan is a SUCCESS status, not a failure. But a scan WITH
     # a substantial text layer (OCR) holds a parseable opinion: extract it
     # and flag REVIEW — the geometry is untrusted, the words are not lost.
