@@ -104,6 +104,15 @@ def syllabus_trim(segs, syl_pages, **_):
     ('CERTIORARI TO THE UNITED STATES COURT OF APPEALS FOR' / 'THE NINTH
     CIRCUIT') and a per-row test drops one half and keeps the other. Core
     still mines the run for criteria: the argued date is printed only here.
+
+    The docket is found by LINE, not by segment. The segmenter may set the
+    docket row in one segment with the rows above it — the origin's
+    runover ('THE SEVENTH CIRCUIT' / 'No. 21–309. Argued …') or an
+    original case's posture ('ON EXCEPTIONS TO REPORT OF SPECIAL MASTER' /
+    'No. 143, Orig. Argued …') — and the joined text no longer OPENS on
+    'No.', so the cover read as having no docket and stayed in the
+    syllabus (#60). The docket row must close its segment: a segment that
+    runs on past it into prose is not the cover's, and is left alone.
     """
     if not syl_pages:
         return NOTHING
@@ -114,12 +123,29 @@ def syllabus_trim(segs, syl_pages, **_):
     if banner is None:
         return NOTHING
     top = min(line.top for line in banner.lines)
+
+    def _closes_on_docket(seg) -> bool:
+        lines = [line for line in seg.lines if line.plain.strip()]
+        return bool(lines) and bool(looks_like_docket(_norm(lines[-1].plain)))
+
     docket = next((seg for seg in rows
                    if min(line.top for line in seg.lines) > top
-                   and looks_like_docket(_seg_text(seg))), None)
+                   and (looks_like_docket(_seg_text(seg))
+                        or _closes_on_docket(seg))), None)
     if docket is None:
         return NOTHING
     bottom = max(line.top for line in docket.lines)
+    # The dates may WRAP: a reargued case runs 'No. 24–109. Argued March
+    # 24, 2025—Reargued October 15, 2025—' over onto 'Decided April 29,
+    # 2026*', and the runover can be a segment of its own. It belongs to
+    # the docket row, and the run extends over it.
+    if _seg_text(docket).endswith(("—", "–", "-")):
+        runover = next((seg for seg in rows
+                        if min(line.top for line in seg.lines) > bottom),
+                       None)
+        if runover is not None and re.match(
+                r"(decided|argued|reargued)\b", _seg_text(runover).lower()):
+            bottom = max(line.top for line in runover.lines)
     drop = {id(seg) for seg in rows
             if top <= min(line.top for line in seg.lines) <= bottom}
     return drop or NOTHING
