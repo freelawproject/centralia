@@ -97,12 +97,19 @@ _ORIGIN_OPENERS = ("on writ of certiorari", "on petition for", "on appeal",
                    "on certificate", "on certified question")
 
 _DOCKET = re.compile(r"^Nos?\.\s*\S")
+_ORDERED = re.compile(r"^(?:It is )?so ordered\.$", re.I)
+_APPEARANCE = re.compile(r"\bargued the cause\b|\bfiled (?:a )?briefs? for\b"
+                         r"|\bon the briefs? (?:was|were)\b")
+_DECIDED = re.compile(r"\b(?:Decided|Filed)\b")
 _DATE_IN_ROW = re.compile(
     r"\b(Argued|Submitted|Reargued|Decided|Filed)\b[^A-Za-z0-9]{0,4}"
     r"([A-Z][a-z]+\.?\s+\d{1,2},?\s+\d{4})")
 _VOLUME = re.compile(r"^Volume\s+(\d+)\s+U\.\s*S\.")
 _PAGES = re.compile(r"^Pages?\s+(\d+)")
-_TOGETHER = re.compile(r"Together with Nos?\.\s*([^,]+(?:,\s*\d[^,]*)*)")
+# 'Together with No. 24–657, TikTok Inc. …' / 'No. 22, Orig., …': the
+# dockets, up to the first comma that is not followed by another docket.
+_TOGETHER = re.compile(
+    r"Together with Nos?\.\s*((?:[^,]|,\s*(?=\d|Orig\.|and\s+\d))+)")
 _DOCKET_NO = re.compile(r"\d{1,3}[A-Z]?[–-]\d+(?:,\s*Orig\.)?|\d+,\s*Orig\.")
 _LABEL = re.compile(r"^(?:\d{1,3}|[*†‡§]+)\s")
 
@@ -123,8 +130,14 @@ def _zone_top(pm, geom) -> float | None:
     below the running head: a note that fills a counsel page opens at a
     quarter of the way down (Barnes, 605 U. S. 73, p.4)."""
     column = (geom.column if geom else 300.0) or 300.0
+    # …and flush with the text's left edge: the part title over the first
+    # case of a volume sets a short CENTRED ornament (Acheson Hotels, 601
+    # U. S. 1, p.2) that would otherwise put the whole syllabus in a zone.
+    xs = [l.x0 for l in pm.lines if l.plain.strip()]
+    left = min(xs) if xs else 0.0
     rules = [r for r in pm.h_rules
-             if (r.x1 - r.x0) < 0.4 * column and r.top > pm.height * 0.2]
+             if (r.x1 - r.x0) < 0.4 * column and r.top > pm.height * 0.2
+             and r.x0 < left + 6.0]
     return min((r.top for r in rules), default=None)
 
 
@@ -192,11 +205,28 @@ def _mine_dates(crit: dict, text: str) -> None:
             crit.setdefault("submitted", value)
 
 
+def _wrap_join(head: str, tail: str, vocab: set) -> str:
+    """Two rows of one caption or origin, joined as the page reads them. A
+    row broken at a hyphen ('YELLEN, SECRETARY OF TREASURY v. CON-' /
+    'FEDERATED TRIBES …') is mended when the document's own vocabulary
+    proves the word, and otherwise keeps its hyphen with no space — the
+    rule `resolve.assemble._join` applies to body text."""
+    head, tail = head.rstrip(), tail.strip()
+    if not head.endswith("-") or not tail:
+        return f"{head} {tail}".strip()
+    word = re.search(r"([A-Za-z’']+)-$", re.sub(r"<[^>]*>", "", head))
+    first = re.match(r"([A-Za-z’']+)", re.sub(r"<[^>]*>", "", tail))
+    if word and first and (word.group(1) + first.group(1)).lower() in vocab:
+        return head[:-1] + tail
+    return head + tail
+
+
 def _sides(caption: str) -> list[str]:
     for pivot in (" v. ", " V. "):
         if pivot in caption:
             left, _, right = caption.partition(pivot)
-            return [s.strip().rstrip(",. ") for s in (left, right)]
+            # 'et al.' keeps its period, as the slip's 'ET AL.' does.
+            return [s.strip().rstrip(", ") for s in (left, right)]
     return []
 
 
@@ -217,7 +247,13 @@ def read_headmatter_prelim(model, geom, **_):
     from ..geometry import learn_vocabulary
     from ..resolve.footnotes import line_markup
     vocab = learn_vocabulary(model)
-    body = (geom.body_size if geom else 11.0) or 11.0
+    # THE PRINT'S TEXT TYPE IS 11pt, its syllabus and notes 9pt. A short
+    # print can measure its body at 9pt — a one-line DIG whose amicus list
+    # outweighs the opinion (NVIDIA v. Öhman, 604 U. S. 20) — and every size
+    # test below would then read the docket row as caption type.
+    body = (geom.body_size if geom else 0.0) or 0.0
+    if body < 10.5:
+        body = 11.0
     right = geom.right_x1 if geom and geom.right_x1 else 454.0
 
     crit: dict = {"headmatter_style": "preliminary-print",
@@ -256,13 +292,24 @@ def read_headmatter_prelim(model, geom, **_):
         crit["citation"] = f"{vol} U. S. {first}"
     _drop(_rows(cover), "cover", cover.number)
 
-    # ---- the Reporter's Note: the last page, from its title down ---------
-    last = model.pages[-1]
-    note_rows = [l for l in _rows(last) if not _is_head(last, l)
-                 and not _is_watermark(l)]
-    if note_rows and _norm(note_rows[0].plain).lower().replace("'", "’") \
-            == "reporter’s note":
-        _drop(_rows(last), "reporter-note", last.number)
+    # ---- the Reporter's Note: from its title to the end -----------------
+    # Its own page at the back, as a rule — but a long list of edits runs
+    # over a second page, so the title is looked for on the last few pages
+    # and everything from it down is the note.
+    def _is_note_title(line) -> bool:
+        return _norm(line.plain).lower().replace("'", "’") \
+            == "reporter’s note"
+    for back in range(len(model.pages) - 1,
+                      max(len(model.pages) - 4, 1), -1):
+        pm = model.pages[back]
+        title = next((l for l in _rows(pm) if _is_note_title(l)), None)
+        if title is None:
+            continue
+        _drop([l for l in _rows(pm) if l.top >= title.top - 0.5],
+              "reporter-note", pm.number)
+        for later in model.pages[back + 1:]:
+            _drop(_rows(later), "reporter-note", later.number)
+        break
 
     # ---- the stamp, wherever it stands clear of the text -----------------
     for pm in model.pages:
@@ -292,6 +339,16 @@ def read_headmatter_prelim(model, geom, **_):
     page = model.pages[1]
     rows = _rows(page)
     walk = [l for l in rows if l.id not in consumed]
+    # THE FIRST CASE OF A VOLUME PART opens under the part's title: 'CASES
+    # ADJUDGED / IN THE / SUPREME COURT OF THE UNITED STATES / AT / OCTOBER
+    # TERM, 2023' (Acheson Hotels, 601 U. S. 1). The volume's, not the case's.
+    if walk and _norm(walk[0].plain).upper() == "CASES ADJUDGED":
+        end = next((k for k, l in enumerate(walk[:8])
+                    if _norm(l.plain).upper().startswith("OCTOBER TERM")),
+                   None)
+        if end is not None:
+            _drop(walk[:end + 1], "cover", page.number)
+            walk = walk[end + 1:]
 
     state = "caption"
     last_item = None
@@ -312,8 +369,8 @@ def read_headmatter_prelim(model, geom, **_):
             cont = (last_item is not None
                     and getattr(last_item, "role", "") == role)
             if cont:
-                last_item.text = last_item.text.rstrip() + " " \
-                    + line_markup(line).strip()
+                last_item.text = _wrap_join(last_item.text,
+                                            line_markup(line), vocab)
                 last_item.prov = m.Prov(page.number,
                                         tuple(last_item.prov.line_ids)
                                         + (line.id,))
@@ -330,13 +387,24 @@ def read_headmatter_prelim(model, geom, **_):
             item = _hm_line(line, page, geom, indent_rel=True)
             item.role = "docket"
             consumed.add(line.id)
-            # A reargued case runs its dates onto a second row.
-            while t.endswith(("—", "–", "-")) and i + 1 < len(walk):
+            k_wrap = 0
+            # The row wraps: a reargued case runs its dates onto a second
+            # row ('…Reargued October 3, 2023—' / 'Decided …'), and three
+            # consolidated dockets push the dates over ('Nos. 23–1122,
+            # 23–1123, and' / '23–1124. Argued …'). It is done when it has
+            # stated the decision.
+            while (i + 1 < len(walk) and k_wrap < 3
+                   and (walk[i + 1].size or body) < body - 0.5
+                   and (t.endswith(("—", "–", "-"))
+                        or not _DECIDED.search(docket_text))):
+                k_wrap += 1
                 i += 1
                 nxt = walk[i]
+                glue = "" if t.endswith(("—", "–", "-")) else " "
                 t = _norm(nxt.plain)
-                docket_text += t
-                item.text = item.text.rstrip() + line_markup(nxt).strip()
+                docket_text += glue + t
+                item.text = item.text.rstrip() + glue \
+                    + line_markup(nxt).strip()
                 item.prov = m.Prov(page.number, tuple(item.prov.line_ids)
                                    + (nxt.id,))
                 consumed.add(nxt.id)
@@ -345,21 +413,41 @@ def read_headmatter_prelim(model, geom, **_):
             i += 1
             break
         break
+    def _partial(reason: str) -> dict:
+        """The caption could not be read: hand core what WAS proved — the
+        cover, the Reporter's Note, the heads and the stamps — and say so,
+        rather than leave the print's apparatus in the writings."""
+        return {"criteria": crit, "items": items, "attorneys": [],
+                "summary": [], "syllabus": [], "dropped": dropped,
+                "consumed": consumed, "anchor_ids": set(),
+                "doc_type_final": None,
+                "warnings": [f"preliminary print: {reason}"]}
+
     if not docket_text or not caption_rows:
-        return NOTHING
+        return _partial("caption or docket row not found; front matter "
+                        "left unread")
 
     head_no = re.split(r"\.\s+(?=(?:Argued|Reargued|Submitted|Decided))",
                        docket_text, maxsplit=1)[0].strip().rstrip(".*")
+    # An original action's docket ends on its own period: 'No. 141, Orig.'
+    if head_no.endswith("Orig"):
+        head_no += "."
     crit["docket_number"] = head_no
     _mine_dates(crit, docket_text)
-    caption = _norm(" ".join(caption_rows))
+    caption = ""
+    for row in caption_rows:
+        caption = _wrap_join(caption, row, vocab)
+    caption = _norm(caption)
     crit["caption"] = [caption]
     sides = _sides(caption)
     if len(sides) == 2:
         crit["parties"] = sides
         crit["case_name"] = " v. ".join(sides)
     if origin_rows:
-        origin = _norm(" ".join(origin_rows))
+        origin = ""
+        for row in origin_rows:
+            origin = _wrap_join(origin, row, vocab)
+        origin = _norm(origin)
         # Small caps come out of the text layer lower-case; the page shows
         # capitals, and the slip prints the same origin in caps.
         crit["lower_court"] = origin.upper() if origin == origin.lower() \
@@ -392,6 +480,47 @@ def read_headmatter_prelim(model, geom, **_):
              else counsel_lines).append(line)
             consumed.add(line.id)
 
+    # NO BYLINE, NO BOUNDARY. Without the first writing's byline nothing
+    # says where the front matter ends, and claiming on would take every
+    # writing as counsel. Give the lines back and keep the caption.
+    if first_op_page is None:
+        consumed.difference_update(l.id for l in syllabus_lines
+                                   + counsel_lines)
+        return _partial("no opening byline found; syllabus and counsel "
+                        "left unread")
+
+    # COUNSEL AFTER THE OPINION. A writ dismissed as improvidently granted
+    # after argument prints the one-line per curiam FIRST and the counsel
+    # list under its 'It is so ordered.' (NVIDIA v. Öhman, 604 U. S. 20).
+    # Taken only there: an appearance line straight after the closing
+    # order, and on to the next byline.
+    last_note_page = first_op_page
+    if not counsel_lines:
+        prev = None
+        taking = False
+        for pm in model.pages[first_op_page - 1:]:
+            zt = _zone_top(pm, geom)
+            for line in _rows(pm):
+                if line.id in consumed or (zt is not None and line.top > zt):
+                    continue
+                t = _norm(line.plain)
+                big = (line.size or body) >= body - 0.5
+                if not big:
+                    continue
+                if taking and _FIRST_BYLINE.match(t):
+                    taking = False
+                if (not taking and prev is not None
+                        and _ORDERED.match(prev) and _APPEARANCE.search(t)):
+                    taking = True
+                if taking:
+                    counsel_lines.append(line)
+                    consumed.add(line.id)
+                prev = t
+        # …and its amicus note runs on to the end of the document. A note
+        # with a NUMBER is a later writing's own, and is left.
+        if counsel_lines:
+            last_note_page = model.pages[-1].number
+
     # ---- the front matter's own notes ------------------------------------
     # Two '*' notes hang off the front matter. 'Together with No. 24–657 …'
     # names the companion dockets: it is READ here for `other_dockets` and
@@ -401,26 +530,42 @@ def read_headmatter_prelim(model, geom, **_):
     # page ('nia et al. by Timothy K. Talbot…' at the top of Barnes's p.5),
     # where core would read its tail as the opinion's own note. It is the
     # counsel's, to its end: the next labelled note, or the end of the zone.
+    #
+    # A NOTE OPENS ON AN INDENTED LINE (164 against the zone's 155). Only
+    # there is a leading symbol or number a label: a wrapped line of the
+    # amicus list may begin '20 States …', and one of the opinion's own
+    # notes may wrap onto '§ 1983 …'.
+    #
+    # A LONG AMICUS LIST OUTRUNS THE FIRST OPINION PAGE: Rahimi's (602
+    # U. S. 680) fills the zones of pp.6–8. Past that page the pass follows
+    # a note still open, and stops at the first numbered note or the first
+    # page with no zone.
     note_kind = None                   # None | 'together' | 'amicus'
     for pm in model.pages[1:]:
-        if first_op_page is not None and pm.number > first_op_page:
+        past = pm.number > last_note_page
+        if past and note_kind != "amicus":
             break
         zt = _zone_top(pm, geom)
         if zt is None:
+            if past:
+                break
             continue
-        for line in _rows(pm):
-            if line.top <= zt or line.id in consumed or _is_watermark(line):
+        zone = [l for l in _rows(pm) if l.top > zt
+                and not _is_watermark(l)]
+        if not zone:
+            continue
+        left = min(l.x0 for l in zone)
+        for line in zone:
+            if line.id in consumed:
                 continue
             t = _norm(line.plain)
-            # A SYMBOL opens a front-matter note — '*', or '†' where the
-            # '*' already went to the companion dockets (TikTok, Bufkin); a
-            # NUMBER opens the opinion's own.
-            if t[:1] in "*†‡§":
+            opens = line.x0 > left + 4.0
+            if opens and t[:1] in "*†‡§":
                 note_kind = ("together" if t.lstrip("*†‡§ ").startswith(
                     "Together with") else "amicus")
-            elif _LABEL.match(t + " "):
+            elif opens and _LABEL.match(t + " "):
                 note_kind = None
-            elif pm.number == first_op_page and note_kind is None:
+            elif (pm.number == first_op_page or past) and note_kind is None:
                 break
             if note_kind == "amicus":
                 note_lines.append(line)
@@ -453,4 +598,4 @@ def read_headmatter_prelim(model, geom, **_):
     return {"criteria": crit, "items": items, "attorneys": attorneys,
             "summary": [], "syllabus": syllabus, "dropped": dropped,
             "consumed": consumed, "anchor_ids": set(),
-            "doc_type_final": None}
+            "doc_type_final": None, "warnings": []}

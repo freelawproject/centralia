@@ -2231,6 +2231,8 @@ def _extract_model(model, court_id: str, pdf_path) -> ExtractionResult:
         # last page with the counsel list or the opinion (the scotus
         # preliminary print) hands it over as paragraphs instead.
         doc.syllabus.extend(_court_hm.get("syllabus") or [])
+        # …and what it could NOT read, said where a consumer looks.
+        doc.warnings.extend(_court_hm.get("warnings") or [])
         # THE SIGNATURE BAND A COURT READ ITSELF. Declared on the model
         # and in sections.py since the section list existed, but never
         # written: every court's /s/ run was opinion body prose, so
