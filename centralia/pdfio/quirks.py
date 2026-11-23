@@ -216,6 +216,7 @@ def mac_ordered_fonts(chars_by_page) -> set:
 _LIG_RATIO = 1.4          # wide 'f' / plain 'f' — a ligature, not kerning
 _LIG_FFI_RATIO = 2.2      # …and wide enough to be the three-letter one
 _LIG_MIN_PLAIN = 20       # plain 'f's a face needs before it can be measured
+_LIG_MIN_SIBLING = 5      # …or, when its family's roman is proved, these
 
 
 def _f_advance(c) -> float:
@@ -275,6 +276,23 @@ def ligature_f_faces(chars_by_page) -> dict:
             continue
         if any(a >= _LIG_RATIO * plain for a in counts):
             out[face] = plain
+    # A FACE TOO RARE TO MEASURE borrows its family's proof. An italic
+    # phrase may hold a dozen plain 'f's and one 'fi' ('NTAs first',
+    # Campos-Chaves, 602 U. S. 447): when the roman of the same family is
+    # proved, and the italic's plain 'f' is the roman's advance, the
+    # italic's wide 'f' is the same ligature.
+    def _family(face: str) -> str:
+        return face.split("+", 1)[-1].split("-", 1)[0]
+    proved = {_family(f): p for f, p in out.items()}
+    for face, counts in advs.items():
+        if face in out or len(counts) > 3:
+            continue
+        plain = max(counts, key=counts.get)
+        ref = proved.get(_family(face))
+        if (ref is not None and abs(plain - ref) < 0.002
+                and counts[plain] >= _LIG_MIN_SIBLING
+                and any(a >= _LIG_RATIO * plain for a in counts)):
+            out[face] = plain
     return out
 
 
@@ -325,7 +343,8 @@ def _ligature_text(nxt: str, before: str) -> str:
     - 'fl' before a vowel 'fi' never meets: 'flight', 'conflict' (there is
       no 'fii'), 'floor', 'influence', 'fly';
     - before 'a', 'fl' ('flag', 'inflation') except the suffixes '-fiable'
-      and '-fiance' ('justifiable', 'defiance');
+      and '-fiance' ('justifiable', 'defiance') and the word-initial
+      'fianc-' and 'fiasc-';
     - before 'e', MID-WORD it is the verb endings '-fied', '-fies', '-fier',
       '-field' ('qualified', 'satisfies') — unless the 'e' runs into 'c' or
       'x' ('reflect', 'inflexible'), the word doubles its 'f' ('muffler',
@@ -338,7 +357,11 @@ def _ligature_text(nxt: str, before: str) -> str:
     if a in ("i", "o", "u", "y"):
         return "fl"
     if a == "a":
-        return "fi" if (before and b in ("b", "n")) else "fl"
+        if before:
+            return "fi" if b in ("b", "n") else "fl"
+        # word-initial: 'fiancé' and 'fiasco' against 'flank' and 'flask'.
+        # 'fiat' / 'flat' cannot be told apart, and 'flat' is the common one.
+        return "fi" if nxt[1:3] in ("nc", "sc") else "fl"
     if a == "e":
         if before:
             if (b in ("c", "x") or before.endswith("f")
@@ -364,9 +387,13 @@ def expand_ligature_glyphs(chars: list, event, faces: dict) -> None:
         a = _f_advance(c)
         if a < _LIG_RATIO * plain:
             continue
-        lig = _ligature_text(_next_letters(chars, i),
-                             _word_before(chars, i))
-        c["text"] = ("f" + lig) if a >= _LIG_FFI_RATIO * plain else lig
+        triple = a >= _LIG_FFI_RATIO * plain
+        # The three-letter glyph's own first 'f' belongs to the word before
+        # its last two letters: 'scu' + 'ffl' + 'e' is 'scuffle', as 'scuf'
+        # + 'fl' + 'e' would be.
+        lig = _ligature_text(_next_letters(chars, i, 3),
+                             _word_before(chars, i) + ("f" if triple else ""))
+        c["text"] = ("f" + lig) if triple else lig
         fixed += 1
     if fixed:
         event("ligature-f", f"{fixed} ligatures read as 'f' restored")
@@ -429,32 +456,78 @@ def _box_hit(a, b, pad: float = 0.5) -> bool:
             and a["top"] < b["bottom"] - pad and b["top"] < a["bottom"] - pad)
 
 
-def lift_overlay_glyphs(chars: list, event) -> str:
-    """Take an overprinted stamp out of the glyph stream; return its text."""
+def _large_runs(chars: list) -> dict:
+    """{(face, size, top): [index]} for the runs set at `_OVERLAY_SIZE` times
+    the page's dominant type that are long enough and lettered enough to be
+    a stamp's words."""
     sizes: dict = {}
     for c in chars:
         if (c.get("text") or "").strip():
             s = round(float(c.get("size") or 0), 1)
             sizes[s] = sizes.get(s, 0) + 1
     if not sizes:
-        return ""
+        return {}
     body = max(sizes, key=sizes.get)
     if body <= 0:
-        return ""
+        return {}
     runs: dict = {}
     for i, c in enumerate(chars):
         if float(c.get("size") or 0) >= _OVERLAY_SIZE * body:
             key = (str(c.get("fontname")), round(float(c.get("size") or 0), 1),
                    round(c["top"]))
             runs.setdefault(key, []).append(i)
-    lifted: list[int] = []
-    for (face, size, _top), idx in runs.items():
+    out = {}
+    for key, idx in runs.items():
         if len(idx) < _OVERLAY_MIN_GLYPHS:
             continue
-        run = [chars[i] for i in idx]
-        ink = [c.get("text") or "" for c in run if (c.get("text") or "").strip()]
-        if not ink or sum(t.isalpha() for t in ink) < _OVERLAY_MIN_LETTERS * len(ink):
+        ink = [chars[i].get("text") or "" for i in idx
+               if (chars[i].get("text") or "").strip()]
+        if not ink or sum(t.isalpha() for t in ink) \
+                < _OVERLAY_MIN_LETTERS * len(ink):
             continue
+        out[key] = idx
+    return out
+
+
+def _run_text(chars: list, idx: list) -> str:
+    return " ".join("".join(chars[i].get("text") or ""
+                            for i in sorted(idx)).split())
+
+
+# A STAMP REPEATS. The preliminary print sets the same 'Page Proof Pending
+# Publication', in the same face and size, on every page of the document.
+# Where it crosses a SHORT row — a one-word byline tail (', dissenting.'), a
+# section number ('5', 'I') — most of its glyphs stand on blank paper and the
+# glyph-by-glyph test below cannot tell it from a heading (Rahimi, 602 U. S.
+# 680, p.69: the stamp took Thomas's byline with it). A run whose face, size
+# and words recur on most of the document's pages is proved a stamp by the
+# document itself, and on any page it touches text it is lifted.
+_STAMP_MIN_PAGES = 3
+_STAMP_SHARE = 0.5
+
+
+def overlay_stamps(chars_by_page) -> frozenset:
+    """The (face, size, text) of each large run that recurs on at least half
+    the document's pages (and on three or more)."""
+    seen: dict = {}
+    n = 0
+    for chars in chars_by_page:
+        n += 1
+        chars = list(chars)
+        sigs = {(face, size, _run_text(chars, idx))
+                for (face, size, _top), idx in _large_runs(chars).items()}
+        for s in sigs:
+            seen[s] = seen.get(s, 0) + 1
+    return frozenset(s for s, k in seen.items()
+                     if k >= _STAMP_MIN_PAGES and k >= _STAMP_SHARE * n)
+
+
+def lift_overlay_glyphs(chars: list, event, stamps=frozenset()) -> str:
+    """Take an overprinted stamp out of the glyph stream; return its text.
+    ``stamps`` are the document's recurring stamps (`overlay_stamps`)."""
+    lifted: list[int] = []
+    for (face, size, _top), idx in _large_runs(chars).items():
+        run = [chars[i] for i in idx]
         box = {"x0": min(c["x0"] for c in run), "x1": max(c["x1"] for c in run),
                "top": min(c["top"] for c in run),
                "bottom": max(c["bottom"] for c in run)}
@@ -464,6 +537,7 @@ def lift_overlay_glyphs(chars: list, event) -> str:
                   and (c.get("text") or "").strip() and _box_hit(box, c)]
         if not others:
             continue
+        recurring = (face, size, _run_text(chars, idx)) in stamps
         # …and ON them glyph by glyph, not merely inside the stamp's box. A
         # stamp is printed THROUGH the text: on the preliminary print every
         # one of its 27 glyphs stands on a body glyph. A masthead that grazes
@@ -471,7 +545,8 @@ def lift_overlay_glyphs(chars: list, event) -> str:
         # row with text above and below it touches none.
         touching = sum(1 for g in run
                        if any(_box_hit(g, o, pad=0.0) for o in others))
-        if touching < _OVERLAY_TOUCHING * len(run):
+        if not touching or (not recurring
+                            and touching < _OVERLAY_TOUCHING * len(run)):
             continue
         lifted.extend(idx)
     if not lifted:
@@ -896,6 +971,20 @@ def snap_displaced_fragments(chars: list, event) -> None:
             near_fonts = {f for htop in near for f in fonts(rows[htop])}
             if collisions < 3 or (f_fonts & near_fonts):
                 continue
+        # SET AGAINST ITS OWN WORD it is not displaced, whatever face it is
+        # in: the roman period of a small-caps 'et al.' sits 2.4pt under the
+        # 'l' it closes (595 U. S. 170), and snapped, it landed in a word
+        # gap of the row below ('the seventh . circuit'). Only a SHORT row
+        # can be that word — a host row is answered by the test above. Only
+        # a lone POINT: a whole run off its row (vtd's 'U.S. DISTRICT
+        # COURT' clerk stamp) still snaps as it did.
+        point = len(frag) <= 2 and not any(
+            (c.get("text") or "").isalnum() for c in frag)
+        if point and any(
+                c not in frag and abs(c["top"] - top) < 4.0
+                and (abs(c["x1"] - fx0) < 1.5 or abs(fx1 - c["x0"]) < 1.5)
+                for c in printable):
+            continue
         best = None
         for htop, hcs in hosts.items():
             gap = abs(htop - top)

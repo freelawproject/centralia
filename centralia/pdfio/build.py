@@ -370,7 +370,8 @@ ROTATION_FROM_MATRIX = True
 
 
 def build_page(page, page_no: int, id_start: int,
-               mac_fonts=frozenset(), lig_faces=None) -> PageModel:
+               mac_fonts=frozenset(), lig_faces=None,
+               stamps=frozenset()) -> PageModel:
     pm = PageModel(number=page_no, width=float(page.width),
                    height=float(page.height))
 
@@ -384,12 +385,16 @@ def build_page(page, page_no: int, id_start: int,
     # bytes a two-byte code arrives with, and the order pass must lay out
     # the glyphs that are left.
     quirks.restore_zero_advance_order(chars, pm.event)
+    # A STAMP PRINTED THROUGH THE TEXT comes out before lines exist — once
+    # clustered, its glyphs are woven into the row it crosses — and before
+    # the geometric passes below, which would read it as part of the page:
+    # left in, it overstrikes the glyphs under it, and the fragment snap
+    # takes the small-caps byline row it crosses for a displaced run and
+    # moves it into the row below (Rahimi, 602 U. S. 680, p.69).
+    pm.overlay_text = quirks.lift_overlay_glyphs(chars, pm.event, stamps)
     quirks.drop_micro_glyphs(chars, pm.event)
     quirks.drop_overstruck(chars, pm.event)
     quirks.snap_displaced_fragments(chars, pm.event)
-    # A STAMP PRINTED THROUGH THE TEXT comes out before lines exist — once
-    # clustered, its glyphs are woven into the row it crosses.
-    pm.overlay_text = quirks.lift_overlay_glyphs(chars, pm.event)
     # Ligatures whose ToUnicode says only 'f' — proved by the face's own
     # advances, asked once for the document (`quirks.ligature_f_faces`).
     quirks.expand_ligature_glyphs(chars, pm.event, lig_faces or {})
@@ -561,9 +566,10 @@ def build_pdf(path: str) -> PdfModel:
         # Date: 7/29/2026'. See `quirks.mac_ordered_fonts`.
         mac_fonts = quirks.mac_ordered_fonts(p.chars for p in pdf.pages)
         lig_faces = quirks.ligature_f_faces(p.chars for p in pdf.pages)
+        stamps = quirks.overlay_stamps(p.chars for p in pdf.pages)
         next_id = 0
         for i, page in enumerate(pdf.pages, start=1):
-            pm = build_page(page, i, next_id, mac_fonts, lig_faces)
+            pm = build_page(page, i, next_id, mac_fonts, lig_faces, stamps)
             next_id += len(pm.lines)
             model.pages.append(pm)
     return model
