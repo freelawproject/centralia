@@ -412,6 +412,10 @@ class Meta:
     #               the glyphs are a machine's reading of an image.
     #   "scan"      a scan with no usable text layer; not parsed.
     source_kind: str = ""
+    # WHICH OF THE COURT'S PAPERS was read, where it prints more than one —
+    # 'scotus.prelim' for a U.S. Reports preliminary print. "" is the court's
+    # usual paper. See `courts.PAPERS`.
+    paper: str = ""
     # THE ADMINISTRATIVE OFFICE FORM this paper is, where it says so — 'AO
     # 245B', 'AO 472', 'GAS245B'. A form is filled in, not written: its words
     # are the AO's and the blanks are the court's, so a consumer that treats

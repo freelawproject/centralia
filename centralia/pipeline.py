@@ -608,6 +608,18 @@ def _extract_model(model, court_id: str, pdf_path) -> ExtractionResult:
 
     meta = m.Meta(court_id=court_id, court_label=profile.court_label,
                   n_pages=model.n_pages, source_path=str(pdf_path))
+
+    # WHICH PAPER. A court that publishes one decision on two layouts (scotus:
+    # the slip opinion and the U.S. Reports preliminary print) names the one
+    # this document is printed on, before anything is read. From here on the
+    # paper's own profile and deciders answer — `court_id` below is the
+    # paper's — while the record still reports the court it was asked for
+    # (`meta.court_id`). See `courts.PAPERS`.
+    _paper = court_decides("source.paper", court_id, trace, model=model)
+    if isinstance(_paper, str) and _paper and _paper != court_id:
+        meta.paper = _paper
+        court_id = _paper
+        profile = get_profile(court_id)
     doc = m.Document(meta=meta)
 
     # 2 triage — a scan is a SUCCESS status, not a failure. But a scan WITH

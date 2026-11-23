@@ -25,7 +25,32 @@ def register(profile: CourtProfile) -> CourtProfile:
 def get_profile(court_id: str) -> CourtProfile:
     if court_id in PROFILES:
         return PROFILES[court_id]
+    if court_id in PAPERS:
+        return PAPERS[court_id]
     return CourtProfile(court_id=court_id, court_label=court_id)
+
+
+# --------------------------------------------------------------------------
+# PAPERS — a second layout one court publishes the same decisions in
+# --------------------------------------------------------------------------
+# A court may print one decision on more than one PAPER: scotus issues the
+# slip opinion on decision day and, months later, the U.S. Reports
+# preliminary print — same words, different cover, caption, running heads,
+# bylines and syllabus. A court's `source.paper` decider names the paper a
+# document is on (see pipeline), and that paper then reads with ITS OWN
+# profile and deciders, registered under the paper id ('scotus.prelim').
+#
+# A paper is NOT a court. It is kept out of PROFILES, so the public API
+# never accepts a paper id, the release gate never lists one, and the record
+# still reports the court it was asked for.
+PAPERS: dict[str, CourtProfile] = {}
+
+
+def register_paper(profile: CourtProfile) -> CourtProfile:
+    if profile.court_id in PAPERS or profile.court_id in PROFILES:
+        raise ValueError(f"duplicate paper {profile.court_id!r}")
+    PAPERS[profile.court_id] = profile
+    return profile
 
 
 # ---- pilot profiles ---------------------------------------------------------
