@@ -1288,6 +1288,14 @@ def _extract_model(model, court_id: str, pdf_path) -> ExtractionResult:
                 _ids |= _placed_ids(getattr(_it, "right", None))
             return _ids
 
+        # A CLAIMED LINE IN A FOOTNOTE ZONE is the court's too. A front-matter
+        # note may run on below the separator of the first writing's page
+        # (the scotus preliminary print's amicus list), and read again from
+        # the zone it would come back as that writing's own footnote.
+        if _claimed:
+            for _zp, _zl in list(zone_lines_by_page.items()):
+                zone_lines_by_page[_zp] = [l for l in _zl
+                                           if l.id not in _claimed]
         _placed = _placed_ids(_court_hm.get("items"))
         doc.dropped = [_d for _d in doc.dropped
                        if not (_d.prov.line_ids
@@ -2218,6 +2226,11 @@ def _extract_model(model, court_id: str, pdf_path) -> ExtractionResult:
         doc.attorneys.extend(_court_hm.get("attorneys") or [])
         doc.dropped.extend(_court_hm.get("dropped") or [])
         doc.summary.extend(_court_hm.get("summary") or [])
+        # A SYLLABUS THE READER SET ITSELF. Core builds the syllabus from
+        # whole pages (`syllabus.pages`); a paper whose syllabus SHARES its
+        # last page with the counsel list or the opinion (the scotus
+        # preliminary print) hands it over as paragraphs instead.
+        doc.syllabus.extend(_court_hm.get("syllabus") or [])
         # THE SIGNATURE BAND A COURT READ ITSELF. Declared on the model
         # and in sections.py since the section list existed, but never
         # written: every court's /s/ run was opinion body prose, so
@@ -3167,6 +3180,18 @@ def _extract_model(model, court_id: str, pdf_path) -> ExtractionResult:
             for _it in getattr(doc, _sec):
                 _p = _pt(_it)
                 _home = None
+                # A ROW BELOW THE FOOTNOTE SEPARATOR is not inside the
+                # writing's FLOW, whatever page it shares: the scotus
+                # preliminary print's amicus note runs on into the zone of
+                # the majority's first page, and reunited it was spliced
+                # into the opinion as a paragraph of its body.
+                _zids = getattr(getattr(_it, "prov", None), "line_ids", ())
+                if _zids and all(
+                        i in _pos and _pos[i][0] in zone_tops
+                        and _pos[i][1] > zone_tops[_pos[i][0]] - 0.5
+                        for i in _zids):
+                    _kept.append(_it)
+                    continue
                 if _p is not None and not isinstance(_it, (m.Rule,
                                                            m.CaptionBlock)):
                     for _op, _lo, _hi in _spans:
