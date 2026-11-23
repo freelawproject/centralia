@@ -53,6 +53,33 @@ def _norm(text: str) -> str:
 
 
 # --------------------------------------------------------------------------
+# source.paper — the slip opinion, or the U.S. Reports preliminary print
+# --------------------------------------------------------------------------
+# The Reporter publishes every decision twice. Everything in THIS file reads
+# the slip; the preliminary print shares almost none of its layout (one
+# mixed-case caption instead of a caps cover per writing, a syllabus that
+# shares its last page, counsel, title-case bylines, a cover page and a
+# Reporter's Note) and reads as its own paper, `courts/scotus_prelim.py`.
+# The print names itself on page 1: its first row is 'PRELIMINARY PRINT',
+# over 'OFFICIAL REPORTS' / 'OF' / 'THE SUPREME COURT'.
+_PRELIM_PAPER = "scotus.prelim"
+
+
+@decider("source.paper", court="scotus")
+def source_paper_scotus(model=None, **_):
+    if model is None or not model.pages:
+        return NOTHING
+    rows = [_norm(l.plain) for l in sorted(
+        (l for l in model.pages[0].lines if l.plain.strip()),
+        key=lambda l: (l.top, l.x0))]
+    if (rows and rows[0].upper() == "PRELIMINARY PRINT"
+            and any(r.upper().startswith("OFFICIAL REPORTS")
+                    for r in rows[:8])):
+        return _PRELIM_PAPER
+    return NOTHING
+
+
+# --------------------------------------------------------------------------
 # syllabus.pages — the running head names the section
 # --------------------------------------------------------------------------
 

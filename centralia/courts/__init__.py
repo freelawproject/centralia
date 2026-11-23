@@ -751,6 +751,7 @@ from . import ca10                                            # noqa: E402,F401
 from . import cafc                                            # noqa: E402,F401
 from . import cavc                                            # noqa: E402,F401
 from . import scotus                                          # noqa: E402,F401
+from . import scotus_prelim                                   # noqa: E402,F401
 from . import bap8                                            # noqa: E402,F401
 from . import fla                                             # noqa: E402,F401
 from . import bap10                                           # noqa: E402,F401
