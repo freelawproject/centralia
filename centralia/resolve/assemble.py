@@ -40,6 +40,16 @@ def _join(lines: list[Line], vocab: set[str] | None) -> str:
         if _pg is not None and line.page != _pg:
             parts.append(f'<pagenumber value="{line.page}"/>')
         _pg = line.page
+        # AN ITALIC WORD BROKEN AT THE MARGIN closes its run on the hyphen
+        # and reopens it on the next line ('Kateland R. Jack-</em>' /
+        # '<em>son, </em>…' — the scotus preliminary print's counsel list,
+        # where every name is italic). Fold the pair, so the break is seen
+        # and the word mended like any other.
+        if parts:
+            _mc = re.search(r"-</(em|i|b|strong|u)>$", parts[-1])
+            if _mc and text.startswith(f"<{_mc.group(1)}>"):
+                parts[-1] = parts[-1][:_mc.start() + 1]
+                text = text[len(_mc.group(1)) + 2:]
         if parts and parts[-1].endswith("-") and vocab:
             head = parts[-1]
             word = []
@@ -48,7 +58,8 @@ def _join(lines: list[Line], vocab: set[str] | None) -> str:
                     word.append(ch)
                 else:
                     break
-            first = text.split()[0].strip("“”\"'’‘()[]{}.,;:!?").lower() if text.split() else ""
+            first = re.sub(r"<[^>]*>", "", text.split()[0]).strip(
+                "“”\"'’‘()[]{}.,;:!?").lower() if text.split() else ""
             joined = ("".join(reversed(word)) + first).lower()
             if word and joined in vocab:
                 parts[-1] = head[:-1] + text.split()[0]
@@ -2747,14 +2758,39 @@ def assemble(model, geom: DocGeometry | None, segments_by_page: dict,
         for k, start_page in enumerate(op_page_start):
             if start_page <= pm.number:
                 owner = k
+        # A PAGE TWO WRITINGS SHARE holds both their notes, and the page's
+        # owner — the last writing to start on it — is not always theirs:
+        # the scotus preliminary print opens each separate writing under the
+        # last, mid-page, and Vaello Madero's majority closes 'extreme
+        # outcome.1' above 'Justice Thomas, concurring.' with its note 1 at
+        # the foot (596 U. S. 159, p.17). A note goes to the writing whose
+        # lines ON THIS PAGE carry its mark, when exactly one does.
+        page_marks: dict[int, set] = {}
+        if result.opinions and len(starts) == len(result.opinions):
+            bounds = list(starts) + [len(split_stream)]
+            for k in range(len(starts)):
+                if not (op_page_start[k] <= pm.number
+                        and (k == owner or k == owner - 1
+                             or op_page_start[k] == pm.number)):
+                    continue
+                marks = {mk for seg in split_stream[bounds[k]:bounds[k + 1]]
+                         if seg.page == pm.number
+                         for ln in seg.lines for mk in line_marks(ln)}
+                if marks:
+                    page_marks[k] = marks
         target = result.opinions[owner] if result.opinions else None
         if target is not None:
             # A '?' tail at the top of a page continues the previous note.
+            last = target
             for note in notes:
-                if note.label == "?" and target.footnotes:
-                    target.footnotes[-1].blocks.extend(note.blocks)
-                else:
-                    target.footnotes.append(note)
+                if note.label == "?" and last.footnotes:
+                    last.footnotes[-1].blocks.extend(note.blocks)
+                    continue
+                homes = [k for k, mk in page_marks.items()
+                         if note.label in mk]
+                last = (result.opinions[homes[0]] if len(homes) == 1
+                        else target)
+                last.footnotes.append(note)
         else:
             result.headmatter_footnotes.extend(notes)
 
