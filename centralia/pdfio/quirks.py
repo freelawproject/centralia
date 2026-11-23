@@ -200,6 +200,289 @@ def mac_ordered_fonts(chars_by_page) -> set:
     return proven
 
 
+# --------------------------------------------------------------------------
+# ligatures mapped to a bare 'f'
+# --------------------------------------------------------------------------
+# THE U.S. REPORTS PRELIMINARY PRINT MAPS ITS LIGATURES TO 'f'. The 'fi' and
+# 'fl' glyphs carry a ToUnicode entry of a lone 'f', so every extractor reads
+# 'offcials', 'confnement', 'afrmed' — and 'fight' for 'flight', a real word
+# the vocabulary cannot catch. The text is lost; the FONT METRIC is not. A
+# face prints a plain 'f' at one advance, and a glyph that spells 'f' at a
+# wider advance in the SAME face is a different glyph: the ligature. Measured
+# on scotus/605us1r30 (Barnes v. Felix): CenturyExpanded sets 'f' at 0.333
+# em 9,598 times and at 0.556 em 1,635 times — and every 0.556 is a ligature.
+# A face with ONE advance for 'f' is left alone, which is every other paper
+# in the corpus.
+_LIG_RATIO = 1.4          # wide 'f' / plain 'f' — a ligature, not kerning
+_LIG_FFI_RATIO = 2.2      # …and wide enough to be the three-letter one
+_LIG_MIN_PLAIN = 20       # plain 'f's a face needs before it can be measured
+
+
+def _f_advance(c) -> float:
+    """The glyph's ADVANCE in ems, from the font's own metric. pdfminer's
+    `adv` arrives in two units depending on how the text was set — the
+    same 0.333em 'f' reports 0.333 in one paper and 3.656 (pre-scaled by
+    its 11pt size) in the next — so a value past 1.5em, which no 'f' or
+    'fi' glyph has, is taken as scaled and divided back out. NOT the printed
+    width: an oblique face sheared by its matrix prints its 'f' twice as
+    wide as it advances (rid sets italics that way)."""
+    adv = c.get("adv")
+    try:
+        a = float(adv) if adv is not None else 0.0
+        size = float(c.get("size") or 0)
+    except (TypeError, ValueError):
+        return 0.0
+    if a > 1.5 and size > 0:
+        a = a / size
+    return a
+
+
+def _sideways_glyph(c) -> bool:
+    """A glyph turned off the line (cand's margin legend) — its size and
+    advance mean nothing about the face."""
+    mx = c.get("matrix")
+    if mx and len(mx) >= 2:
+        return abs(mx[0]) < 0.01
+    return c.get("upright", True) is False
+
+
+def ligature_f_faces(chars_by_page) -> dict:
+    """face -> the advance of its PLAIN 'f', for every face that also prints
+    an 'f' at least `_LIG_RATIO` wider. Asked once per document, because a
+    page may hold only ligatures in a face (an italic phrase), and one page
+    is not enough to know what the plain glyph measures.
+
+    A FONT HAS A FEW EXACT ADVANCES, an OCR layer has a spread. A face's
+    'f' takes at most three values — the plain glyph, 'fi'/'fl', and 'ffi'
+    — while a GlyphLessFont text layer measures every 'f' off the scan and
+    no two agree (virginislands, ded). A spread is not a ligature."""
+    advs: dict = {}
+    for chars in chars_by_page:
+        for c in chars:
+            if c.get("text") != "f" or _sideways_glyph(c):
+                continue
+            a = _f_advance(c)
+            if a > 0:
+                face = str(c.get("fontname"))
+                advs.setdefault(face, {}).setdefault(round(a, 3), 0)
+                advs[face][round(a, 3)] += 1
+    out: dict = {}
+    for face, counts in advs.items():
+        if len(counts) > 3:
+            continue
+        plain = max(counts, key=counts.get)
+        if counts[plain] < _LIG_MIN_PLAIN:
+            continue
+        if any(a >= _LIG_RATIO * plain for a in counts):
+            out[face] = plain
+    return out
+
+
+def _next_letters(chars: list, i: int, n: int = 2) -> str:
+    """The letters that follow chars[i] on its own row, lower-cased."""
+    c = chars[i]
+    out = ""
+    for d in chars[i + 1:i + 1 + 4 * n]:
+        if abs(d["top"] - c["top"]) > 1.5 or d["x0"] < c["x0"]:
+            break
+        t = (d.get("text") or "")
+        if not t.isalpha():
+            break
+        out += t.lower()
+        if len(out) >= n:
+            break
+    return out
+
+
+def _word_before(chars: list, i: int) -> str:
+    """The letters of chars[i]'s word that stand before it, same row."""
+    c = chars[i]
+    out = ""
+    edge = c["x0"]
+    space = 0.2 * float(c.get("size") or 10.0)
+    for d in reversed(chars[max(0, i - 12):i]):
+        t = d.get("text") or ""
+        # a glyph out of order, a gap a word space wide, or no letter at
+        # all — the word starts here
+        if (abs(d["top"] - c["top"]) > 1.5 or d["x1"] > edge + 0.5
+                or edge - d["x1"] > space
+                or not t or not t[-1].isalpha()):
+            break
+        out = t.lower() + out
+        edge = d["x0"]
+    return out
+
+
+# Words that open on a letter pair and then take 'fle': 'rifle', 'trifle',
+# 'stifle'. After any other stem, a mid-word 'fie' is the verb ending.
+_FLE_STEMS = ("ri", "tri", "sti")
+
+
+def _ligature_text(nxt: str, before: str) -> str:
+    """'fi' or 'fl' for a ligature followed by ``nxt`` in a word that so far
+    reads ``before``. English decides it:
+
+    - 'fl' before a vowel 'fi' never meets: 'flight', 'conflict' (there is
+      no 'fii'), 'floor', 'influence', 'fly';
+    - before 'a', 'fl' ('flag', 'inflation') except the suffixes '-fiable'
+      and '-fiance' ('justifiable', 'defiance');
+    - before 'e', MID-WORD it is the verb endings '-fied', '-fies', '-fier',
+      '-field' ('qualified', 'satisfies') — unless the 'e' runs into 'c' or
+      'x' ('reflect', 'inflexible'), the word doubles its 'f' ('muffler',
+      'baffles'), or it is one of the 'fle' stems ('rifle', 'stifles'); at
+      the START of a word it is 'fle' ('fled', 'flee', 'files' never — that
+      is 'fil') except 'field', 'fierce', 'fiery';
+    - everything else — 'fn', 'fr', 'fc', 'fv', 'fs' — is 'fi'.
+    """
+    a, b = nxt[:1], nxt[1:2]
+    if a in ("i", "o", "u", "y"):
+        return "fl"
+    if a == "a":
+        return "fi" if (before and b in ("b", "n")) else "fl"
+    if a == "e":
+        if before:
+            if (b in ("c", "x") or before.endswith("f")
+                    or before in _FLE_STEMS):
+                return "fl"
+            return "fi"
+        return "fi" if b in ("l", "r") else "fl"
+    return "fi"
+
+
+def expand_ligature_glyphs(chars: list, event, faces: dict) -> None:
+    """Rewrite each ligature that reads as a bare 'f' back to its letters.
+    See `ligature_f_faces` for the proof that the glyph IS a ligature."""
+    if not faces:
+        return
+    fixed = 0
+    for i, c in enumerate(chars):
+        if c.get("text") != "f" or _sideways_glyph(c):
+            continue
+        plain = faces.get(str(c.get("fontname")))
+        if not plain:
+            continue
+        a = _f_advance(c)
+        if a < _LIG_RATIO * plain:
+            continue
+        lig = _ligature_text(_next_letters(chars, i),
+                             _word_before(chars, i))
+        c["text"] = ("f" + lig) if a >= _LIG_FFI_RATIO * plain else lig
+        fixed += 1
+    if fixed:
+        event("ligature-f", f"{fixed} ligatures read as 'f' restored")
+
+
+# A PRIVATE-USE GLYPH WHOSE LETTERS THE PAPER PROVES. The preliminary print's
+# small-caps face sets 'fifth' as U+E405 + 'fth' — the 'fi' ligature parked
+# in the private-use area. Only codes witnessed in the corpus are mapped;
+# any other private-use glyph is left exactly as printed.
+_PUA_LETTERS = {
+    ("CenturyExpandedSC-Regular", ""): "fi",
+}
+
+
+def map_private_glyphs(chars: list, event) -> None:
+    fixed = 0
+    for c in chars:
+        t = c.get("text") or ""
+        if len(t) != 1 or not ("" <= t <= ""):
+            continue
+        face = str(c.get("fontname")).split("+", 1)[-1]
+        got = _PUA_LETTERS.get((face, t))
+        if got:
+            c["text"] = got
+            fixed += 1
+    if fixed:
+        event("private-glyphs", f"{fixed} private-use ligatures restored")
+
+
+# --------------------------------------------------------------------------
+# overlay glyphs — a watermark printed THROUGH the text
+# --------------------------------------------------------------------------
+# The preliminary print stamps 'Page Proof Pending Publication' across every
+# page in 21.7pt Helvetica, over an 11pt body in CenturyExpanded. Where the
+# stamp's row and a body row share a top, pdfplumber clusters them into one
+# line, and the glyphs interleave by x: 'PU. aS. gDiestr iPct Croourot …' is
+# 'U. S. District Court …' with the stamp woven through it, and no later
+# pass can unpick it. So the stamp comes out of the stream BEFORE lines
+# exist, and is surfaced — not lost — the way sideways text is
+# (`PageModel.overlay_text`, filed as a `Dropped` of kind 'watermark').
+#
+# WHAT MAKES A RUN AN OVERLAY is two measurable facts together: it is set at
+# least `_OVERLAY_SIZE` times the page's dominant type, AND its glyphs stand
+# ON other glyphs — their boxes intersect text in another face. A drop cap
+# is large but stands BESIDE its lines, never on them; a heading is large
+# and stands on nothing. Both are left exactly where they are.
+_OVERLAY_SIZE = 1.8
+_OVERLAY_MIN_GLYPHS = 12
+# …AND A STAMP IS WORDS. Large glyphs that touch text are also a chambers'
+# rule of dashes ('-------------■'), a signature scribble set in a script
+# face ('9if4fcf!tJ?!%fcA'), a filled-in blank ('this ___ day of July') —
+# measured on a 2,400-file sweep, every one of them under 70% letters, and
+# the stamp is all letters.
+_OVERLAY_MIN_LETTERS = 0.75
+_OVERLAY_TOUCHING = 0.5        # of the run's glyphs that stand on text
+
+
+def _box_hit(a, b, pad: float = 0.5) -> bool:
+    return (a["x0"] < b["x1"] - pad and b["x0"] < a["x1"] - pad
+            and a["top"] < b["bottom"] - pad and b["top"] < a["bottom"] - pad)
+
+
+def lift_overlay_glyphs(chars: list, event) -> str:
+    """Take an overprinted stamp out of the glyph stream; return its text."""
+    sizes: dict = {}
+    for c in chars:
+        if (c.get("text") or "").strip():
+            s = round(float(c.get("size") or 0), 1)
+            sizes[s] = sizes.get(s, 0) + 1
+    if not sizes:
+        return ""
+    body = max(sizes, key=sizes.get)
+    if body <= 0:
+        return ""
+    runs: dict = {}
+    for i, c in enumerate(chars):
+        if float(c.get("size") or 0) >= _OVERLAY_SIZE * body:
+            key = (str(c.get("fontname")), round(float(c.get("size") or 0), 1),
+                   round(c["top"]))
+            runs.setdefault(key, []).append(i)
+    lifted: list[int] = []
+    for (face, size, _top), idx in runs.items():
+        if len(idx) < _OVERLAY_MIN_GLYPHS:
+            continue
+        run = [chars[i] for i in idx]
+        ink = [c.get("text") or "" for c in run if (c.get("text") or "").strip()]
+        if not ink or sum(t.isalpha() for t in ink) < _OVERLAY_MIN_LETTERS * len(ink):
+            continue
+        box = {"x0": min(c["x0"] for c in run), "x1": max(c["x1"] for c in run),
+               "top": min(c["top"] for c in run),
+               "bottom": max(c["bottom"] for c in run)}
+        others = [c for c in chars
+                  if (str(c.get("fontname")), round(float(c.get("size") or 0),
+                                                    1)) != (face, size)
+                  and (c.get("text") or "").strip() and _box_hit(box, c)]
+        if not others:
+            continue
+        # …and ON them glyph by glyph, not merely inside the stamp's box. A
+        # stamp is printed THROUGH the text: on the preliminary print every
+        # one of its 27 glyphs stands on a body glyph. A masthead that grazes
+        # a seal's lettering touches a few (nmariana: 0-9 of 51), and a large
+        # row with text above and below it touches none.
+        touching = sum(1 for g in run
+                       if any(_box_hit(g, o, pad=0.0) for o in others))
+        if touching < _OVERLAY_TOUCHING * len(run):
+            continue
+        lifted.extend(idx)
+    if not lifted:
+        return ""
+    keep = set(lifted)
+    text = "".join((chars[i].get("text") or "") for i in sorted(keep))
+    chars[:] = [c for i, c in enumerate(chars) if i not in keep]
+    event("overlay", f"lifted {len(keep)} overprinted glyphs: {text[:60]!r}")
+    return " ".join(text.split())
+
+
 def decode_cid_glyphs(chars: list, event, proven=frozenset()) -> None:
     """Recover text from subset fonts with no ToUnicode map. pdfminer emits
     the literal '(cid:N)' for such glyphs; for the common TrueType subset

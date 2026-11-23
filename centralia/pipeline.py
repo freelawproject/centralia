@@ -890,6 +890,12 @@ def _extract_model(model, court_id: str, pdf_path) -> ExtractionResult:
         if pm.rotated_text:
             doc.dropped.append(m.Dropped(text=pm.rotated_text,
                                          prov=m.Prov(pm.number), kind="rotated"))
+        # A stamp overprinted on the text, lifted out of the glyph stream
+        # before lines were built (`quirks.lift_overlay_glyphs`).
+        if pm.overlay_text:
+            doc.dropped.append(m.Dropped(text=pm.overlay_text,
+                                         prov=m.Prov(pm.number),
+                                         kind="watermark"))
         # Page IMAGES: a sizable image INSIDE the body region is a printed
         # FIGURE (adidas's trademark exhibits) — carried into the body as
         # a data URI. Everything else (seals, logo stamps, signature

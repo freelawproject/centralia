@@ -208,6 +208,7 @@ class PageModel:
     images: list[ImageRef] = field(default_factory=list)
     has_diagonal: bool = False  # diagonal strokes (X-capped pleading boxes)
     rotated_text: str = ""      # sideways glyphs, in PDF char order (furniture)
+    overlay_text: str = ""      # a stamp overprinted on the text (watermark)
     ink_chars: int = 0          # printable upright glyph count (scan triage)
     cid_chars: int = 0          # unmapped (cid:N) glyph count
     image_area: float = 0.0     # summed image area / page area, 0..1

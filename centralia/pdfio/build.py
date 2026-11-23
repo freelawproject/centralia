@@ -370,7 +370,7 @@ ROTATION_FROM_MATRIX = True
 
 
 def build_page(page, page_no: int, id_start: int,
-               mac_fonts=frozenset()) -> PageModel:
+               mac_fonts=frozenset(), lig_faces=None) -> PageModel:
     pm = PageModel(number=page_no, width=float(page.width),
                    height=float(page.height))
 
@@ -387,6 +387,13 @@ def build_page(page, page_no: int, id_start: int,
     quirks.drop_micro_glyphs(chars, pm.event)
     quirks.drop_overstruck(chars, pm.event)
     quirks.snap_displaced_fragments(chars, pm.event)
+    # A STAMP PRINTED THROUGH THE TEXT comes out before lines exist — once
+    # clustered, its glyphs are woven into the row it crosses.
+    pm.overlay_text = quirks.lift_overlay_glyphs(chars, pm.event)
+    # Ligatures whose ToUnicode says only 'f' — proved by the face's own
+    # advances, asked once for the document (`quirks.ligature_f_faces`).
+    quirks.expand_ligature_glyphs(chars, pm.event, lig_faces or {})
+    quirks.map_private_glyphs(chars, pm.event)
 
     # Rotated glyphs: furniture by orientation, surfaced not disappeared.
     # Assembled in the PDF's own char order — sorted by position, sideways
@@ -553,9 +560,10 @@ def build_pdf(path: str) -> PdfModel:
         # has exactly one broken page and it reads 'J-S15004-26 / - 23 - /
         # Date: 7/29/2026'. See `quirks.mac_ordered_fonts`.
         mac_fonts = quirks.mac_ordered_fonts(p.chars for p in pdf.pages)
+        lig_faces = quirks.ligature_f_faces(p.chars for p in pdf.pages)
         next_id = 0
         for i, page in enumerate(pdf.pages, start=1):
-            pm = build_page(page, i, next_id, mac_fonts)
+            pm = build_page(page, i, next_id, mac_fonts, lig_faces)
             next_id += len(pm.lines)
             model.pages.append(pm)
     return model
