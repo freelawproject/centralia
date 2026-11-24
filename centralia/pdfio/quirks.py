@@ -351,10 +351,15 @@ def _ligature_text(nxt: str, before: str) -> str:
       'baffles'), or it is one of the 'fle' stems ('rifle', 'stifles'); at
       the START of a word it is 'fle' ('fled', 'flee', 'files' never — that
       is 'fil') except 'field', 'fierce', 'fiery';
+    - 'fl' before 'ess' and 'ank' anywhere: 'selfless', 'outflank';
     - everything else — 'fn', 'fr', 'fc', 'fv', 'fs' — is 'fi'.
     """
     a, b = nxt[:1], nxt[1:2]
     if a in ("i", "o", "u", "y"):
+        return "fl"
+    # '-fiess' and '-fiank' are never English: 'selfless', 'outflank'.
+    # ('defiance' and 'fiancé' run 'anc', not 'ank'.)
+    if nxt.startswith(("ess", "ank")):
         return "fl"
     if a == "a":
         if before:
