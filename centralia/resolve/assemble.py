@@ -2745,6 +2745,20 @@ def assemble(model, geom: DocGeometry | None, segments_by_page: dict,
     all_zone_lines = [l for pm in model.pages
                       for l in zone_lines_by_page.get(pm.number, [])]
     flush = admit_flush_labels(all_zone_lines, owed)
+    # A NOTE RUNS ACROSS A PAGE BREAK, and on a shared page it may belong to
+    # the earlier writing: Skrmetti's Thomas concurrence ends on p.54 under
+    # Barrett's start, and his note 9 continues at the foot of p.55 — Barrett's
+    # page. The unlabelled tail continues the note last PLACED, not the
+    # page owner's, so `last` lives across pages. It carries only between
+    # writings that share p-1 or p: a slip opens each writing on a fresh
+    # page, and a stray tail there stays with the page's own writing.
+    pages_of: list[set] = []
+    if result.opinions and len(starts) == len(result.opinions):
+        bounds = list(starts) + [len(split_stream)]
+        pages_of = [{seg.page for seg in split_stream[bounds[k]:bounds[k + 1]]}
+                    for k in range(len(starts))]
+    last_k: int | None = None
+    last_page: int | None = None
     for pm in model.pages:
         zlines = zone_lines_by_page.get(pm.number, [])
         if not zlines:
@@ -2782,6 +2796,11 @@ def assemble(model, geom: DocGeometry | None, segments_by_page: dict,
         if target is not None:
             # A '?' tail at the top of a page continues the previous note.
             last = target
+            if (last_k is not None and last_k != owner and pages_of
+                    and last_page == pm.number - 1
+                    and (pm.number in pages_of[last_k]
+                         or pm.number - 1 in pages_of[owner])):
+                last = result.opinions[last_k]
             for note in notes:
                 if note.label == "?" and last.footnotes:
                     last.footnotes[-1].blocks.extend(note.blocks)
@@ -2791,6 +2810,9 @@ def assemble(model, geom: DocGeometry | None, segments_by_page: dict,
                 last = (result.opinions[homes[0]] if len(homes) == 1
                         else target)
                 last.footnotes.append(note)
+            last_k = next(k for k, o in enumerate(result.opinions)
+                          if o is last)
+            last_page = pm.number
         else:
             result.headmatter_footnotes.extend(notes)
 
