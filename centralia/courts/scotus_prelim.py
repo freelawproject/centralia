@@ -114,6 +114,33 @@ _DOCKET_NO = re.compile(r"\d{1,3}[A-Z]?[–-]\d+(?:,\s*Orig\.)?|\d+,\s*Orig\.")
 _LABEL = re.compile(r"^(?:\d{1,3}|[*†‡§]+)\s")
 
 
+# What proves a symbol note the counsel list's: the amicus vocabulary.
+# 'Briefs of amici curiae urging reversal were filed for …', 'A brief of
+# amicus curiae …', 'Keith J. Hilzendeger … filed a brief for the National
+# Association … as amicus curiae urging reversal.'
+_AMICUS = re.compile(r"\bamic(?:us|i) curiae\b|\bfiled (?:a )?briefs? for\b"
+                     r"|\bbriefs?\b.*?\b(?:was|were) filed\b"
+                     r"|\burging (?:reversal|affirmance)\b", re.I)
+
+
+def _front_note_kind(zone: list, line, left: float) -> str | None:
+    """Whose is the symbol note that opens at `line`? 'together' for the
+    companion dockets, 'amicus' for the counsel list's note, None for any
+    other — the opinion's own ('*Justice Alito joins Parts I, II–C …'),
+    which is core's. Read on the note's WHOLE text, to the next opening
+    line: an amicus note may list its lawyers before 'filed a brief'."""
+    i = zone.index(line)
+    parts = [_norm(line.plain)]
+    for nxt in zone[i + 1:]:
+        if nxt.x0 > left + 4.0:
+            break
+        parts.append(_norm(nxt.plain))
+    text = " ".join(parts).lstrip("*†‡§ ")
+    if text.startswith("Together with"):
+        return "together"
+    return "amicus" if _AMICUS.search(text) else None
+
+
 def is_preliminary_print(model) -> bool:
     """Page 1 opens 'PRELIMINARY PRINT' and names the OFFICIAL REPORTS."""
     if not model.pages:
@@ -531,6 +558,12 @@ def read_headmatter_prelim(model, geom, **_):
     # where core would read its tail as the opinion's own note. It is the
     # counsel's, to its end: the next labelled note, or the end of the zone.
     #
+    # A SYMBOL IS NOT PROOF. The first opinion page may carry the opinion's
+    # own '*' note ('*Justice Alito joins Parts I, II–C …', 594 U. S. 338;
+    # Acheson's '*On November 14th, the Fourth Circuit vacated …'). Only a
+    # note whose text is 'Together with' or the amicus vocabulary is the
+    # front matter's (`_front_note_kind`); any other is left to core.
+    #
     # A NOTE OPENS ON AN INDENTED LINE (164 against the zone's 155). Only
     # there is a leading symbol or number a label: a wrapped line of the
     # amicus list may begin '20 States …', and one of the opinion's own
@@ -561,8 +594,7 @@ def read_headmatter_prelim(model, geom, **_):
             t = _norm(line.plain)
             opens = line.x0 > left + 4.0
             if opens and t[:1] in "*†‡§":
-                note_kind = ("together" if t.lstrip("*†‡§ ").startswith(
-                    "Together with") else "amicus")
+                note_kind = _front_note_kind(zone, line, left)
             elif opens and _LABEL.match(t + " "):
                 note_kind = None
             elif (pm.number == first_op_page or past) and note_kind is None:
