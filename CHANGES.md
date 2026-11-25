@@ -1,5 +1,31 @@
 # Changes
 
+## 0.0.8
+
+### Added
+
+- SCOTUS U.S. Reports preliminary prints are read as their own paper
+  (`scotus.prelim`) instead of as a slip opinion, which returned a `valid`
+  record with a wrong court, caption, docket and syllabus. The record keeps
+  `court_id` `scotus` and names the paper in `meta.paper` and
+  `diagnostics.paper` (`""` for a court's usual paper) (#65).
+- A court can route a document to a second registered paper with its own
+  profile and deciders (`PAPERS`, `register_paper`) (#65).
+
+### Fixed
+
+- SCOTUS syllabi no longer start with the syllabus cover when the docket row
+  shares a segment with the origin or posture line above it, or when its
+  dates wrap onto the next line (#61).
+- Overprinted stamps ("Page Proof Pending Publication", stamps that recur on
+  most pages) are lifted off the text before the geometric passes (#65).
+- Ligatures encoded as a wide `f`, and the private-use `fi` glyph, are
+  expanded to `fi`/`fl`/`ffi`/`ffl` (#65).
+- When two writings share a page, a footnote goes to the writing that carries
+  its mark, and a footnote's continuation stays with its note across pages
+  (#65).
+- A word broken at a hyphen inside an italic run is joined (#65).
+
 ## 0.0.7
 
 ### Added
