@@ -402,6 +402,7 @@ def _diagnostics(doc: Document, status: str) -> dict:
         "status": status,
         "rollout": "released" if doc.meta.court_id in RELEASED else "pending",
         "source_kind": mt.source_kind,
+        "paper": mt.paper,
         "n_pages": mt.n_pages,
         "scan_pages": list(mt.scan_pages),
         "text_missing_pages": list(mt.text_missing_pages),

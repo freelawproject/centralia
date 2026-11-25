@@ -37,7 +37,7 @@ CLUSTER_KEYS = {
 }
 
 DIAG_KEYS = {
-    "status", "rollout", "source_kind", "n_pages", "scan_pages", "text_missing_pages",
+    "status", "rollout", "source_kind", "paper", "n_pages", "scan_pages", "text_missing_pages",
     "cid_pages", "residual", "residual_content", "removed_counts", "redactions",
     "opinion_count", "unbylined_opinions", "footnote_count",
     "headmatter_rows", "headmatter_untinted", "dates_unparsed", "warnings",
