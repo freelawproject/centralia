@@ -1,5 +1,14 @@
 # Changes
 
+## 0.0.9
+
+### Fixed
+
+- A cover-page star note that a court's headmatter reader claims but does not
+  place (ca1's `*` substitution note) is no longer dropped from the output.
+  Only placed lines are stripped from the footnote zones, which fixes a 0.0.8
+  regression (#68).
+
 ## 0.0.8
 
 ### Added
