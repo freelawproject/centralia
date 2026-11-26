@@ -311,3 +311,14 @@ def test_ca1_underlined_id_period_is_inside_the_underline():
 
     assert not re.search(r"<u>[Ii](?:bi)?d\s*</u>\s*\.", html)
     assert "<u>Id.</u>" in html
+
+
+def test_ca1_cover_star_note_stays_in_the_headmatter():
+    """ca1 claims its cover page's '*' substitution note without placing
+    it; the footnote zone reads it back as a headmatter footnote."""
+    r = _read("ca1", "kim_v._blanche")
+    notes = r["headmatter"]["footnotes"]
+
+    assert [f["label"] for f in notes] == ["*"]
+    assert "automatically substituted for former Attorney General" \
+        in notes[0]["text"]
