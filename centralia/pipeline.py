@@ -1292,10 +1292,17 @@ def _extract_model(model, court_id: str, pdf_path) -> ExtractionResult:
         # note may run on below the separator of the first writing's page
         # (the scotus preliminary print's amicus list), and read again from
         # the zone it would come back as that writing's own footnote.
-        if _claimed:
+        # PLACED, not merely claimed: ca1 consumes its cover page's '*'
+        # substitution note and lists it as a dropped 'footnote', and only
+        # the zone reads it back as a headmatter footnote.
+        _zone_taken = set().union(*(
+            _placed_ids(_court_hm.get(_k))
+            for _k in ("items", "attorneys", "summary", "syllabus",
+                       "signature")))
+        if _zone_taken:
             for _zp, _zl in list(zone_lines_by_page.items()):
                 zone_lines_by_page[_zp] = [l for l in _zl
-                                           if l.id not in _claimed]
+                                           if l.id not in _zone_taken]
         _placed = _placed_ids(_court_hm.get("items"))
         doc.dropped = [_d for _d in doc.dropped
                        if not (_d.prov.line_ids
